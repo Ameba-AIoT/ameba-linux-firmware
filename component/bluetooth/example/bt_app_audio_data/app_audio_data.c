@@ -8,6 +8,7 @@
 #include "app_audio_data.h"
 #include <bt_api_config.h>
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
+#include <bt_debug.h>
 #include <osif.h>
 #include "ameba_soc.h"
 /*                 uart demo                       */
@@ -96,12 +97,12 @@ static uint32_t demo_uart_irq(void *data)
 	uint32_t reg_lsr = UART_LineStatusGet(DEMO_UART_DEV);
 	uint32_t recv_cnt = 0;
 	// uint32_t reg_ier = HAL_READ32(UART1_REG_BASE, 0x4);
-	// printf("INT\n");
+	// BT_LOGA("INT\n");
 	if ((reg_lsr & RUART_BIT_RXFIFO_INT) || (reg_lsr & RUART_BIT_TIMEOUT_INT)) {
-		// printf("TO\n");
+		// BT_LOGA("TO\n");
 		recv_cnt = UART_ReceiveDataTO(DEMO_UART_DEV, demo_int_uart_recv_buff, SRX_BUF_SZ, 1);
 		if (demo_uart_rx_to_write_space() >= recv_cnt) {
-			// printf("RX\n");
+			// BT_LOGA("RX\n");
 			if (demo_uart->write_ptr + recv_cnt > demo_uart->ring_buffer_size) {
 				memcpy((void *)&demo_uart->ring_buffer[demo_uart->write_ptr], (void *)demo_int_uart_recv_buff, demo_uart->ring_buffer_size - demo_uart->write_ptr);
 				memcpy((void *)&demo_uart->ring_buffer[0], (void *)&demo_int_uart_recv_buff[demo_uart->ring_buffer_size - demo_uart->write_ptr],
@@ -114,7 +115,7 @@ static uint32_t demo_uart_irq(void *data)
 		}
 		/* clear timeout interrupt flag */
 		if (reg_lsr & RUART_BIT_TIMEOUT_INT) {
-			// printf("Clear timeout irq %d \r\n", recv_cnt);
+			// BT_LOGA("Clear timeout irq %d \r\n", recv_cnt);
 			UART_INT_Clear(DEMO_UART_DEV, RUART_BIT_TOICF);
 		}
 	}
@@ -146,15 +147,15 @@ uint32_t demo_uart_dma_recv_done(void *data)
 	if (demo_uart_run) {
 		/*get the rx counter*/
 		// if (UART_RxByteCntGet(DEMO_UART_DEV) != SRX_BUF_SZ) {
-		//  printf("Byte = %d\n", UART_RxByteCntGet(DEMO_UART_DEV));
-		//  printf("DMA\n");
+		//  BT_LOGA("Byte = %d\n", UART_RxByteCntGet(DEMO_UART_DEV));
+		//  BT_LOGA("DMA\n");
 
 		// }
 		/*clear rx counter*/
 		UART_RxByteCntClear(DEMO_UART_DEV);
-		// printf("received \r\n");
+		// BT_LOGA("received \r\n");
 		// for (uint32_t i = 0; i < 16; i ++) {
-		//  printf("%d ", demo_dma_uart_recv_buff[i]);
+		//  BT_LOGA("%d ", demo_dma_uart_recv_buff[i]);
 		// }
 		if (demo_uart_rx_to_write_space() >= SRX_BUF_SZ) {
 			if (demo_uart->write_ptr + SRX_BUF_SZ > demo_uart->ring_buffer_size) {
@@ -167,12 +168,12 @@ uint32_t demo_uart_dma_recv_done(void *data)
 				demo_uart->write_ptr += SRX_BUF_SZ;
 			}
 		} else {
-			printf("warning %s: no enough rx ringbuffer size \r\n", __func__);
+			BT_LOGE("warning %s: no enough rx ringbuffer size \r\n", __func__);
 		}
 	}
 	if (!demo_uart->rx_disabled && demo_uart_rx_to_write_space() <= DEMO_UART_RX_DISABLE_SIZE) {
 		demo_uart->rx_disabled = 1;
-		// printf("demo_uart rx disable! \r\n");
+		// BT_LOGA("demo_uart rx disable! \r\n");
 	} else {
 		UART_INTConfig(DEMO_UART_DEV, RUART_BIT_ETOI, ENABLE);
 		UART_INTConfig(DEMO_UART_DEV, (RUART_BIT_ERBI | RUART_BIT_ELSI), DISABLE);
@@ -207,7 +208,7 @@ void demo_uart_dma_send(uint8_t *pdata, uint32_t len)
 	bool ret = true;
 
 	if (len > SRX_BUF_SZ) {
-		printf("%s len is overflow SRX_BUF_SZ \n", __FUNCTION__);
+		BT_LOGE("%s len is overflow SRX_BUF_SZ \n", __FUNCTION__);
 		return;
 	}
 	memcpy((void *)demo_dma_uart_tx_buff, pdata, len);
@@ -217,7 +218,7 @@ void demo_uart_dma_send(uint8_t *pdata, uint32_t len)
 	UART_TXGDMA_Init(DEMO_UART_INDEX, &demo_uart->GDMA_InitStruct, DEMO_UART_DEV, (IRQ_FUN)demo_uart_dma_send_done, demo_dma_uart_tx_buff, len);
 
 	if (!ret) {
-		printf("%s Error(%d)\n", __FUNCTION__, ret);
+		BT_LOGE("%s Error(%d)\n", __FUNCTION__, ret);
 	}
 }
 
@@ -233,14 +234,14 @@ static inline void receive_chars(void)
 		if (demo_uart_run) {
 			demo_uart->ring_buffer[demo_uart->write_ptr++] = ch;
 			demo_uart->write_ptr %= demo_uart->ring_buffer_size;
-			// printf("received %d \r\n", ch);
+			// BT_LOGA("received %d \r\n", ch);
 		}
 	}
 
 	if (!demo_uart->rx_disabled && demo_uart_rx_to_write_space() < DEMO_UART_RX_DISABLE_SIZE) {
 		UART_INTConfig(DEMO_UART_DEV, RUART_BIT_ERBI | RUART_BIT_ETOI, DISABLE);
 		demo_uart->rx_disabled = 1;
-		// printf("demo_uart rx disable! \r\n");
+		// BT_LOGA("demo_uart rx disable! \r\n");
 	}
 
 	// if (demo_uart->rx_ind) {
@@ -294,7 +295,7 @@ uint16_t demo_uart_read(uint8_t *buf)
 	demo_uart->read_ptr %= demo_uart->ring_buffer_size;
 
 	if (demo_uart->rx_disabled && demo_uart_rx_to_read_space() <= DEMO_UART_RX_ENABLE_SIZE) {
-		// printf("demo_uart rx enable! \r\n");
+		// BT_LOGA("demo_uart rx enable! \r\n");
 		demo_uart->rx_disabled = 0;
 #if defined(DEMO_UART_USING_DMA) && DEMO_UART_USING_DMA
 		UART_INTConfig(DEMO_UART_DEV, (RUART_BIT_ERBI | RUART_BIT_ELSI), DISABLE);
@@ -315,7 +316,7 @@ bool demo_uart_init(void)
 	if (!demo_uart) {
 		demo_uart = (struct demo_uart_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct demo_uart_t));
 		if (!demo_uart) {
-			printf("demo_uart is NULL!");
+			BT_LOGE("demo_uart is NULL!");
 			return false;
 		}
 		memset(demo_uart, 0, sizeof(struct demo_uart_t));
@@ -323,7 +324,7 @@ bool demo_uart_init(void)
 	if (!demo_uart->ring_buffer) {
 		demo_uart->ring_buffer = (uint8_t *)osif_mem_aligned_alloc(RAM_TYPE_DATA_ON, DEMO_UART_RX_BUF_SIZE, 4);
 		if (!demo_uart->ring_buffer) {
-			printf("demo_uart->ring_buffer is NULL!");
+			BT_LOGE("demo_uart->ring_buffer is NULL!");
 			return false;
 		}
 		memset(demo_uart->ring_buffer, 0, sizeof(DEMO_UART_RX_BUF_SIZE));
@@ -334,7 +335,7 @@ bool demo_uart_init(void)
 	demo_uart->rx_disabled = 0;
 
 	if (osif_sem_create(&demo_uart->tx_done_sem, 0, 1) == false) {
-		printf("demo_uart->tx_done_sem create fail!");
+		BT_LOGE("demo_uart->tx_done_sem create fail!");
 		return false;
 	}
 #if defined(CONFIG_AMEBALITE) && CONFIG_AMEBALITE
@@ -418,7 +419,7 @@ bool demo_uart_init(void)
 	UART_RxCmd(DEMO_UART_DEV, ENABLE);
 #endif
 
-	printf("Demo Uart Init Done \r\n");
+	BT_LOGA("Demo Uart Init Done \r\n");
 
 	return true;
 }
