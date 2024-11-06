@@ -1,0 +1,50 @@
+*.d
+*.o
+*.su
+*.i
+*.ii
+*.s
+
+# project build files
+/**/image/*
+/**/image_mp/*
+/**/build/*
+!/**/image/.gitignore
+!/**/image_mp/.gitignore
+!/**/build/.gitignore
+
+# all bin files
+*.bin
+!/**/gnu_utility/**/*.bin
+!/tools/**/*.bin
+
+# project library files
+
+# log files
+*.log
+
+# menuconfig lxdialog files
+/**/lxdialog/lxdialog
+/**/menuconfig/*.old
+
+# wlan makefile
+/**/make/wlan/
+
+# fiptool
+/**/fiptool/fiptool
+/**/fiptool/fiptool.exe
+
+# git files
+.repo/
+.git/
+
+# trusted-firmware-m build files
+/**/build_tfm/
+
+# build info
+/**/inc/build_info.h
+
+# IAR
+*.dep
+*.ewt
+/**/EWARM-RELEASE/Debug/
