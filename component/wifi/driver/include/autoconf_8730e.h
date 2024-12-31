@@ -152,7 +152,7 @@
 
 //#define RA_RX_ACK_RSSI
 
-//#define CONFIG_P2P
+#define CONFIG_P2P
 /*************************** Config for MP_MODE *******************************/
 #ifdef CONFIG_MP_INCLUDED
 #undef RX_SHORTCUT

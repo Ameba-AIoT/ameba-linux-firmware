@@ -285,9 +285,9 @@ static void llhw_event_set_netif_info(struct event_priv_t *event_priv, struct in
 	if (!global_idev.pndev[0]) {
 		/*set ap port mac address*/
 		memcpy(global_idev.pndev[1]->dev_addr, global_idev.pndev[0]->dev_addr, ETH_ALEN);
-		if(softap_addr_offset_idx == 0){
+		if (softap_addr_offset_idx == 0) {
 			global_idev.pndev[1]->dev_addr[softap_addr_offset_idx] = global_idev.pndev[0]->dev_addr[softap_addr_offset_idx] + (1 << 1);
-		}else{
+		} else {
 			global_idev.pndev[1]->dev_addr[softap_addr_offset_idx] = global_idev.pndev[0]->dev_addr[softap_addr_offset_idx] + 1;
 		}
 	}
@@ -358,6 +358,41 @@ static void llhw_event_get_network_info(struct event_priv_t *event_priv, struct 
 	memcpy(global_idev.event_priv.dev_req_network_info, rsp_ptr, rsp_len);
 	p_ipc_msg->ret = (u32)global_idev.event_priv.dev_req_network_info_phy;
 
+func_exit:
+	return;
+}
+
+static void iiha_event_promisc_pkt_hdl(struct event_priv_t *event_priv, struct inic_ipc_dev_req_msg *p_ipc_msg)
+{
+	struct device *pdev = NULL;
+	struct rx_pkt_info *ppktinfo = (struct rx_pkt_info *)phys_to_virt(p_ipc_msg->param_buf[0]);
+	dma_addr_t phy_pkt = 0, phy_buf = 0;
+	uint8_t *buf = NULL;
+
+	pdev = global_idev.ipc_dev;
+	if (!pdev) {
+		dev_err(global_idev.fullmac_dev, "%s,%s: device is NULL!\n", "event", __func__);
+		goto func_exit;
+	}
+
+	phy_pkt = dma_map_single(pdev, ppktinfo, sizeof(struct rx_pkt_info), DMA_FROM_DEVICE);
+	if (dma_mapping_error(pdev, phy_pkt)) {
+		dev_err(global_idev.fullmac_dev, "%s: mapping rx_pkt_info dma error!\n", __func__);
+		goto func_exit;
+	}
+
+	buf = phys_to_virt(ppktinfo->buf);
+	phy_buf = dma_map_single(pdev, buf, ppktinfo->len, DMA_FROM_DEVICE);
+	if (dma_mapping_error(pdev, phy_buf)) {
+		dev_err(global_idev.fullmac_dev, "%s: mapping buf dma error!\n", __func__);
+		dma_unmap_single(pdev, phy_pkt, sizeof(struct rx_pkt_info), DMA_FROM_DEVICE);
+		goto func_exit;
+	}
+	ppktinfo->buf = buf;
+	rtw_promisc_rx(ppktinfo);
+
+	dma_unmap_single(pdev, phy_buf, ppktinfo->len, DMA_FROM_DEVICE);
+	dma_unmap_single(pdev, phy_pkt, sizeof(struct rx_pkt_info), DMA_FROM_DEVICE);
 func_exit:
 	return;
 }
@@ -485,7 +520,7 @@ void llhw_event_task(unsigned long data)
 		llhw_event_join_status_indicate(event_priv, p_recv_msg);
 		break;
 	case INIC_API_PROMISC_CALLBACK:
-		//iiha_wifi_promisc_hdl(event_priv, p_recv_msg);
+		iiha_event_promisc_pkt_hdl(event_priv, p_recv_msg);
 		break;
 	case INIC_API_GET_LWIP_INFO:
 		llhw_event_get_network_info(event_priv, p_recv_msg);

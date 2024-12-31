@@ -10,6 +10,7 @@ export CONFIG_SDIO_BRIDGE = n
 ifeq ($(CONFIG_FULLMAC_HCI_IPC),y)
 
 ccflags-$(CONFIG_NAN) += -DCONFIG_NAN
+ccflags-$(CONFIG_P2P) += -DCONFIG_P2P
 ccflags-$(CONFIG_FULLMAC_RTK_RTL8730E) += -DCONFIG_FULLMAC
 ccflags-$(CONFIG_FULLMAC_RTK_RTL8730E) += -I$(srctree)/../../firmware/source/component/wifi/driver/include
 ccflags-$(CONFIG_FULLMAC_RTK_RTL8730E) += -I$(srctree)/../../firmware/source/component/wifi/api
@@ -33,6 +34,7 @@ fullmac-8730e-objs			:= rtw_drv_probe.o \
 					rtw_cfg80211_ops_nan.o \
 					rtw_cfg80211_ops_p2p.o \
 					rtw_acs.o \
+					rtw_promisc.o \
 
 else
 

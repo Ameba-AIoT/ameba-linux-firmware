@@ -326,6 +326,21 @@ func_exit:
 	return ret;
 }
 
+static void rtw_set_rx_mode(struct net_device *dev)
+{
+	if (dev->flags & IFF_PROMISC) {
+		dev_dbg(global_idev.fullmac_dev, "[fullmac]: %s enable promisc mode!\n", __func__);
+		if (ndev_to_wdev(dev)->iftype == NL80211_IFTYPE_MONITOR) {
+			llhw_wifi_set_promisc_enable(1, RCR_ALL_PKT);
+		} else if (ndev_to_wdev(dev)->iftype == NL80211_IFTYPE_STATION) {
+			llhw_wifi_set_promisc_enable(1, RCR_AP_ALL);
+		}
+	} else {
+		dev_dbg(global_idev.fullmac_dev, "[fullmac]: %s disable promisc mode!\n", __func__);
+		llhw_wifi_set_promisc_enable(0, RCR_AP_ALL);
+	}
+}
+
 static const struct net_device_ops rtw_ndev_ops = {
 	.ndo_init = rtw_ndev_init,
 	.ndo_uninit = rtw_ndev_uninit,
@@ -336,6 +351,7 @@ static const struct net_device_ops rtw_ndev_ops = {
 	.ndo_set_mac_address = rtw_ndev_set_mac_address,
 	.ndo_get_stats = rtw_ndev_get_stats,
 	.ndo_do_ioctl = rtw_ndev_ioctl,
+	.ndo_set_rx_mode = rtw_set_rx_mode,
 };
 
 static const struct net_device_ops rtw_ndev_ops_ap = {
@@ -398,9 +414,9 @@ int rtw_nan_iface_alloc(struct wiphy *wiphy,
 	netif_carrier_off(global_idev.pndev[2]);
 	/* set nan port mac address */
 	memcpy(global_idev.pndev[2]->dev_addr, global_idev.pndev[0]->dev_addr, ETH_ALEN);
-	if(softap_addr_offset_idx == 0){
+	if (softap_addr_offset_idx == 0) {
 		global_idev.pndev[2]->dev_addr[softap_addr_offset_idx] = global_idev.pndev[0]->dev_addr[softap_addr_offset_idx] + (2 << 1);
-	}else{
+	} else {
 		global_idev.pndev[2]->dev_addr[softap_addr_offset_idx] = global_idev.pndev[0]->dev_addr[softap_addr_offset_idx] + 2;
 	}
 
