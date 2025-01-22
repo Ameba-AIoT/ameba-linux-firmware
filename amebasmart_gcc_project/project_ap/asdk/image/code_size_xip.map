@@ -1,0 +1,193 @@
+========================= libc Start ==============================================
+text  rodata  data  bss  module  
+20    0       0     0    libc.a(lib_a-abort.o)
+96    60      0     0    libc.a(lib_a-assert.o)
+56    0       0     0    libc.a(lib_a-closer.o)
+0     257     0     0    libc.a(lib_a-ctype_.o)
+4380  126     0     0    libc.a(lib_a-dtoa.o)
+328   0       0     0    libc.a(lib_a-fclose.o)
+700   0       0     0    libc.a(lib_a-fflush.o)
+964   0       0     0    libc.a(lib_a-findfp.o)
+96    0       0     0    libc.a(lib_a-fiprintf.o)
+444   0       0     0    libc.a(lib_a-fputwc.o)
+60    0       0     0    libc.a(lib_a-fstatr.o)
+1076  0       0     0    libc.a(lib_a-fvwrite.o)
+200   0       0     0    libc.a(lib_a-fwalk.o)
+0     4       0     0    libc.a(lib_a-impure.o)
+112   0       0     0    libc.a(lib_a-init.o)
+56    0       0     0    libc.a(lib_a-isattyr.o)
+140   10      0     0    libc.a(lib_a-locale.o)
+32    0       0     0    libc.a(lib_a-localeconv.o)
+48    0       0     0    libc.a(lib_a-lock.o)
+64    0       0     0    libc.a(lib_a-lseekr.o)
+348   0       0     0    libc.a(lib_a-makebuf.o)
+92    0       0     0    libc.a(lib_a-mbtowc_r.o)
+232   0       0     0    libc.a(lib_a-memchr.o)
+1248  0       0     0    libc.a(lib_a-memcpy.o)
+264   0       0     0    libc.a(lib_a-memmove.o)
+172   0       0     0    libc.a(lib_a-memset-stub.o)
+3580  368     0     0    libc.a(lib_a-mprec.o)
+64    0       0     0    libc.a(lib_a-readr.o)
+428   0       0     0    libc.a(lib_a-reent.o)
+520   0       0     0    libc.a(lib_a-signal.o)
+64    0       0     0    libc.a(lib_a-signalr.o)
+196   0       0     0    libc.a(lib_a-stdio.o)
+732   0       0     0    libc.a(lib_a-strcmp.o)
+220   0       0     0    libc.a(lib_a-strlen.o)
+168   0       0     0    libc.a(lib_a-strncpy.o)
+152   0       0     0    libc.a(lib_a-s_frexp.o)
+4184  66      0     0    libc.a(lib_a-vfiprintf.o)
+8188  48      0     0    libc.a(lib_a-vfprintf.o)
+44    0       0     0    libc.a(lib_a-vprintf.o)
+304   0       0     0    libc.a(lib_a-wbuf.o)
+96    0       0     0    libc.a(lib_a-wcrtomb.o)
+68    0       0     0    libc.a(lib_a-wctomb_r.o)
+64    0       0     0    libc.a(lib_a-writer.o)
+304   0       0     0    libc.a(lib_a-wsetup.o)
+------------------------- libc End ------------------------------------------------
+text  rodata  data  bss  module  
+30604 939     0     0    (TOTALS)
+Module libc size:
+0x7b37			31543
+
+========================= libgcc Start ============================================
+text  rodata  data  bss  module  
+60    0       0     0    libgcc.a(_aeabi_uldivmod.o)
+32    0       0     0    libgcc.a(_ctzdi2.o)
+252   0       0     0    libgcc.a(_divsi3.o)
+4     0       0     0    libgcc.a(_dvmd_tls.o)
+280   0       0     0    libgcc.a(_udivmoddi4.o)
+200   0       0     0    libgcc.a(_udivsi3.o)
+------------------------- libgcc End ----------------------------------------------
+text  rodata  data  bss  module  
+828   0       0     0    (TOTALS)
+Module libgcc size:
+0x33c			828
+
+========================= lib_chipinfo Start ======================================
+text  rodata  data  bss  module  
+112   104     0     0    lib_chipinfo.a(ameba_backup_reg.o)
+260   180     0     0    lib_chipinfo.a(ameba_chipinfo_lib.o)
+4860  69      0     0    lib_chipinfo.a(ameba_rom_patch.o)
+52    0       0     0    lib_chipinfo.a(ameba_syscfg_rom.o)
+68    0       0     0    lib_chipinfo.a(ameba_systimer_rom.o)
+436   101     0     0    lib_chipinfo.a(ameba_tim_rom.o)
+------------------------- lib_chipinfo End ----------------------------------------
+text  rodata  data  bss  module  
+5788  454     0     0    (TOTALS)
+Module lib_chipinfo size:
+0x1862			6242
+
+========================= libnosys Start ==========================================
+text  rodata  data  bss  module  
+4     0       0     0    libnosys.a(_exit.o)
+------------------------- libnosys End --------------------------------------------
+text  rodata  data  bss  module  
+4     0       0     0    (TOTALS)
+Module libnosys size:
+0x4			4
+
+========================= atcmd Start =============================================
+text  rodata  data  bss  module  
+3144  1947    0     0    lib_at_cmd.a(monitor.o)
+856   138     0     0    lib_at_cmd.a(shell_ram.o)
+488   0       0     0    lib_at_cmd.a(shell_rom.o)
+------------------------- atcmd End -----------------------------------------------
+text  rodata  data  bss  module  
+4488  2085    0     0    (TOTALS)
+Module atcmd size:
+0x19ad			6573
+
+========================= fwlib Start =============================================
+text  rodata  data  bss  module  
+56    0       0     0    lib_fwlib.a(amebaap_vector.o)
+80    0       0     0    lib_fwlib.a(ameba_app_start.o)
+156   0       0     0    lib_fwlib.a(ameba_delay.o)
+1456  368     0     0    lib_fwlib.a(ameba_ipc_api.o)
+280   101     0     0    lib_fwlib.a(ameba_ipc_ram.o)
+128   60      0     0    lib_fwlib.a(ameba_loguart.o)
+3200  551     0     0    lib_fwlib.a(ameba_otp.o)
+208   28      0     0    lib_fwlib.a(ameba_pmc.o)
+1012  40      0     0    lib_pmc.a(ameba_pmc_lib.o)
+12    28      0     0    lib_fwlib.a(ameba_pmc_ram.o)
+852   0       0     0    lib_fwlib.a(ameba_pmu.o)
+64    0       0     0    lib_fwlib.a(ameba_reset.o)
+44    0       0     0    lib_fwlib.a(ameba_system.o)
+344   0       0     0    lib_fwlib_xlat_tables.a(ameba_xlat_table.o)
+748   0       0     0    lib_fwlib.a(arm_gic.o)
+60    0       0     0    lib_fwlib_xlat_tables.a(cache_helpers.o)
+172   0       0     0    lib_swlib.a(char2num.o)
+184   0       0     0    lib_fwlib.a(cstub.o)
+100   0       0     0    lib_fwlib_xlat_tables.a(enable_mmu.o)
+224   0       0     0    lib_freertos.a(gcc_wrap.o)
+1472  113     0     0    lib_fwlib.a(log.o)
+292   0       0     0    lib_swlib.a(memcpy.o)
+284   0       0     0    lib_swlib.a(memset.o)
+600   299     0     0    lib_fwlib.a(psci.o)
+32    0       0     0    lib_fwlib.a(smccc_call.o)
+468   133     0     0    lib_fwlib.a(smp.o)
+244   0       0     0    lib_swlib.a(strcmp.o)
+120   0       0     0    lib_swlib.a(stricmp.o)
+152   0       0     0    lib_swlib.a(strlen.o)
+444   0       0     0    lib_swlib.a(strtoul.o)
+836   47      0     0    lib_fwlib.a(system_sheipa.o)
+692   555     0     0    lib_fwlib.a(traps.o)
+1008  112     0     0    lib_fwlib_xlat_tables.a(xlat_tables_arch.o)
+320   147     0     0    lib_fwlib_xlat_tables.a(xlat_tables_context.o)
+3536  233     0     0    lib_fwlib_xlat_tables.a(xlat_tables_core.o)
+8     0       0     0    lib_fwlib_xlat_tables.a(xlat_tables_utils.o)
+0     44      0     0    lib_pmc.a(__tmp_pmc_ap_build_info.o)
+------------------------- fwlib End -----------------------------------------------
+text  rodata  data  bss  module  
+19888 2859    0     0    (TOTALS)
+Module fwlib size:
+0x58db			22747
+
+========================= os Start ================================================
+text  rodata  data  bss  module  
+288   89      0     0    lib_freertos.a(freertos_heap5_config.o)
+992   0       0     0    lib_freertos_smp.a(heap_5.o)
+244   0       0     0    lib_freertos_smp.a(list.o)
+44    0       0     0    lib_freertos.a(os_wrapper_critical.o)
+108   0       0     0    lib_freertos.a(os_wrapper_memory.o)
+356   0       0     0    lib_freertos.a(os_wrapper_semaphore.o)
+120   0       0     0    lib_freertos.a(os_wrapper_task.o)
+108   0       0     0    lib_freertos.a(os_wrapper_time.o)
+1644  102     0     0    lib_freertos_smp.a(port.o)
+636   0       0     0    lib_freertos_smp.a(portASM.o)
+3168  0       0     0    lib_freertos_smp.a(queue.o)
+8760  5       0     0    lib_freertos_smp.a(tasks.o)
+1444  13      0     0    lib_freertos_smp.a(timers.o)
+0     53      0     0    lib_freertos_smp.a(__tmp_freertos_lib_ap_build_info.o)
+------------------------- os End --------------------------------------------------
+text  rodata  data  bss  module  
+17912 262     0     0    (TOTALS)
+Module os size:
+0x46fe			18174
+
+========================= file_system Start =======================================
+text  rodata  data  bss  module  
+96    0       0     0    lib_vfs.a(vfs_wrap.o)
+------------------------- file_system End -----------------------------------------
+text  rodata  data  bss  module  
+96    0       0     0    (TOTALS)
+Module file_system size:
+0x60			96
+
+========================= others Start ============================================
+text  rodata  data  bss  module  
+408   706     0     0    lib_project_src.a(main.o)
+216   8       0     0    crtbegin.o
+------------------------- others End ----------------------------------------------
+text  rodata  data  bss  module  
+624   714     0     0    (TOTALS)
+Module others size:
+0x53a			1338
+
+================================================================================
+text  rodata  data  bss  module  
+80232 7313    0     0    (TOTALS)
+
+Image size:
+0x155f9			87545
+

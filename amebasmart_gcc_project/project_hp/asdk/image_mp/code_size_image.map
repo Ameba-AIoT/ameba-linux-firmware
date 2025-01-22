@@ -1,0 +1,1086 @@
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+image_total = xip_text + xip_rodata + sram_text + sram_rodata + sram_data(load) + psram_text + psram_rodata + psram_data(load)
+xip_total = xip_text + xip_rodata
+sram_total = sram_text + sram_rodata + sram_data(load) + sram_data(noload) + sram_bss
+psram_total = psram_text + psram_rodata + psram_data(load) + psram_data(noload) + psram_bss
+
+
+============================================================ libc Start =================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+14           0          14          0         0           14         0            0                0                  libc.a(lib_a-abort.o)
+132          0          132         0         0           72         60           0                0                  libc.a(lib_a-assert.o)
+16           0          16          0         0           16         0            0                0                  libc.a(lib_a-atoi.o)
+16           0          16          0         0           16         0            0                0                  libc.a(lib_a-atol.o)
+32           0          32          0         0           32         0            0                0                  libc.a(lib_a-closer.o)
+257          0          257         0         0           0          257          0                0                  libc.a(lib_a-ctype_.o)
+3444         0          3444        0         0           3320       124          0                0                  libc.a(lib_a-dtoa.o)
+12           0          12          0         0           12         0            0                0                  libc.a(lib_a-errno.o)
+188          0          188         0         0           188        0            0                0                  libc.a(lib_a-fclose.o)
+400          0          400         0         0           400        0            0                0                  libc.a(lib_a-fflush.o)
+616          0          928         0         0           616        0            0                312                libc.a(lib_a-findfp.o)
+64           0          64          0         0           64         0            0                0                  libc.a(lib_a-fiprintf.o)
+260          0          260         0         0           260        0            0                0                  libc.a(lib_a-fputwc.o)
+36           0          36          0         0           36         0            0                0                  libc.a(lib_a-fstatr.o)
+660          0          660         0         0           660        0            0                0                  libc.a(lib_a-fvwrite.o)
+120          0          120         0         0           120        0            0                0                  libc.a(lib_a-fwalk.o)
+1447         0          1447        0         0           1368       79           0                0                  libc.a(lib_a-gdtoa-gethex.o)
+388          0          388         0         0           388        0            0                0                  libc.a(lib_a-gdtoa-hexnan.o)
+248          0          248         0         0           0          4            244              0                  libc.a(lib_a-impure.o)
+72           0          72          0         0           72         0            0                0                  libc.a(lib_a-init.o)
+32           0          32          0         0           32         0            0                0                  libc.a(lib_a-isattyr.o)
+6            0          6           0         0           6          0            0                0                  libc.a(lib_a-iswspace.o)
+20           0          20          0         0           20         0            0                0                  libc.a(lib_a-iswspace_l.o)
+16           0          16          0         0           0          14           2                0                  libc.a(lib_a-lnumeric.o)
+464          0          464         0         0           92         8            364              0                  libc.a(lib_a-locale.o)
+20           0          20          0         0           20         0            0                0                  libc.a(lib_a-localeconv.o)
+36           0          36          0         0           36         0            0                0                  libc.a(lib_a-lseekr.o)
+216          0          216         0         0           216        0            0                0                  libc.a(lib_a-makebuf.o)
+81           0          81          0         0           80         1            0                0                  libc.a(lib_a-mbrtowc.o)
+56           0          56          0         0           56         0            0                0                  libc.a(lib_a-mbtowc_r.o)
+2864         0          2864        0         0           2496       368          0                0                  libc.a(lib_a-mprec.o)
+36           0          36          0         0           36         0            0                0                  libc.a(lib_a-readr.o)
+232          0          236         0         0           232        0            0                4                  libc.a(lib_a-reent.o)
+112          0          112         0         0           112        0            0                0                  libc.a(lib_a-sccl.o)
+12           0          12          0         0           12         0            0                0                  libc.a(lib_a-sf_nan.o)
+300          0          300         0         0           300        0            0                0                  libc.a(lib_a-signal.o)
+40           0          40          0         0           40         0            0                0                  libc.a(lib_a-signalr.o)
+196          0          196         0         0           196        0            0                0                  libc.a(lib_a-snprintf.o)
+120          0          120         0         0           120        0            0                0                  libc.a(lib_a-sprintf.o)
+172          0          172         0         0           172        0            0                0                  libc.a(lib_a-sscanf.o)
+138          0          138         0         0           138        0            0                0                  libc.a(lib_a-stdio.o)
+138          0          138         0         0           138        0            0                0                  libc.a(lib_a-strchr.o)
+188          0          188         0         0           188        0            0                0                  libc.a(lib_a-strcpy.o)
+92           0          92          0         0           92         0            0                0                  libc.a(lib_a-strncmp.o)
+84           0          84          0         0           84         0            0                0                  libc.a(lib_a-strncpy.o)
+52           0          52          0         0           52         0            0                0                  libc.a(lib_a-strpbrk.o)
+10           0          10          0         0           10         0            0                0                  libc.a(lib_a-strsep.o)
+3692         0          3692        0         0           3552       140          0                0                  libc.a(lib_a-strtod.o)
+86           0          86          0         0           86         0            0                0                  libc.a(lib_a-strtok_r.o)
+296          0          296         0         0           296        0            0                0                  libc.a(lib_a-strtol.o)
+336          0          336         0         0           336        0            0                0                  libc.a(lib_a-strtoll.o)
+264          0          264         0         0           264        0            0                0                  libc.a(lib_a-strtoul.o)
+344          0          344         0         0           344        0            0                0                  libc.a(lib_a-strtoull.o)
+2534         0          2534        0         0           2468       66           0                0                  libc.a(lib_a-svfiprintf.o)
+4118         0          4118        0         0           4084       34           0                0                  libc.a(lib_a-svfiscanf.o)
+5136         0          5136        0         0           5052       84           0                0                  libc.a(lib_a-svfprintf.o)
+4935         0          4935        0         0           4896       39           0                0                  libc.a(lib_a-svfscanf.o)
+112          0          112         0         0           112        0            0                0                  libc.a(lib_a-s_frexp.o)
+16           0          16          0         0           16         0            0                0                  libc.a(lib_a-s_nan.o)
+412          0          412         0         0           412        0            0                0                  libc.a(lib_a-ungetc.o)
+2662         0          2662        0         0           2596       66           0                0                  libc.a(lib_a-vfiprintf.o)
+5452         0          5452        0         0           5368       84           0                0                  libc.a(lib_a-vfprintf.o)
+32           0          32          0         0           32         0            0                0                  libc.a(lib_a-vprintf.o)
+164          0          164         0         0           164        0            0                0                  libc.a(lib_a-wbuf.o)
+64           0          64          0         0           64         0            0                0                  libc.a(lib_a-wcrtomb.o)
+48           0          48          0         0           48         0            0                0                  libc.a(lib_a-wctomb_r.o)
+36           0          36          0         0           36         0            0                0                  libc.a(lib_a-writer.o)
+176          0          176         0         0           176        0            0                0                  libc.a(lib_a-wsetup.o)
+------------------------------------------------------------ libc End -----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+45070        0          45386       0         0           43032      1428         610              316                (TOTALS)
+Module libc size:
+0xb00e			45070
+
+============================================================ libgcc Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+48           0          48          0         0           48         0            0                0                  libgcc.a(_aeabi_uldivmod.o)
+888          0          888         0         0           888        0            0                0                  libgcc.a(_arm_addsubdf3.o)
+272          0          272         0         0           272        0            0                0                  libgcc.a(_arm_cmpdf2.o)
+80           0          80          0         0           80         0            0                0                  libgcc.a(_arm_fixdfsi.o)
+64           0          64          0         0           64         0            0                0                  libgcc.a(_arm_fixunsdfsi.o)
+160          0          160         0         0           160        0            0                0                  libgcc.a(_arm_truncdfsf2.o)
+44           0          44          0         0           44         0            0                0                  libgcc.a(_arm_unorddf2.o)
+4            0          4           0         0           4          0            0                0                  libgcc.a(_dvmd_tls.o)
+46           0          46          0         0           46         0            0                0                  libgcc.a(_fixdfdi.o)
+60           0          60          0         0           60         0            0                0                  libgcc.a(_fixunsdfdi.o)
+38           0          38          0         0           38         0            0                0                  libgcc.a(_popcountsi2.o)
+680          0          680         0         0           680        0            0                0                  libgcc.a(_udivmoddi4.o)
+------------------------------------------------------------ libgcc End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+2384         0          2384        0         0           2384       0            0                0                  (TOTALS)
+Module libgcc size:
+0x950			2384
+
+============================================================ lib_chipinfo Start =========================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+680          0          680         0         0           468        212          0                0                  lib_chipinfo.a(ameba_chipinfo_lib.o)
+4622         0          4622        0         0           4316       306          0                0                  lib_chipinfo.a(ameba_rom_patch.o)
+------------------------------------------------------------ lib_chipinfo End ---------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+5302         0          5302        0         0           4784       518          0                0                  (TOTALS)
+Module lib_chipinfo size:
+0x14b6			5302
+
+============================================================ libnosys Start =============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+16           0          16          0         0           16         0            0                0                  libnosys.a(close.o)
+16           0          16          0         0           16         0            0                0                  libnosys.a(fstat.o)
+16           0          16          0         0           16         0            0                0                  libnosys.a(getpid.o)
+16           0          16          0         0           16         0            0                0                  libnosys.a(isatty.o)
+16           0          16          0         0           16         0            0                0                  libnosys.a(kill.o)
+16           0          16          0         0           16         0            0                0                  libnosys.a(lseek.o)
+2            0          2           0         0           2          0            0                0                  libnosys.a(_exit.o)
+------------------------------------------------------------ libnosys End -------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+98           0          98          0         0           98         0            0                0                  (TOTALS)
+Module libnosys size:
+0x62			98
+
+============================================================ wifirom Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+23129        0          23129       0         0           8688       14441        0                0                  lib_wifi_com_sec.a(rom_aes.o)
+1232         0          1232        0         0           208        1024         0                0                  lib_wifi_com_sec.a(rom_arc4.o)
+1785         0          1785        0         0           988        797          0                0                  lib_wifi_single_core_mp.a(rom_hal_debug.o)
+1424         0          1424        0         0           1416       0            8                0                  lib_wifi_single_core_mp.a(rom_hal_h2c.o)
+383          0          383         0         0           352        31           0                0                  lib_wifi_single_core_mp.a(rom_hal_h2c_g1.o)
+2397         0          2397        0         0           2160       237          0                0                  lib_wifi_single_core_mp.a(rom_hal_recv.o)
+0            0          376         0         0           0          0            0                376                lib_wifi_com_sec.a(rom_hal_rom_to_flash.o)
+0            0          1616        0         0           0          0            0                1616               lib_wifi_single_core_mp.a(rom_hal_structs.o)
+2538         0          2538        0         0           2332       206          0                0                  lib_wifi_single_core_mp.a(rom_hal_xmit.o)
+1184         0          1184        0         0           1152       32           0                0                  lib_wifi_single_core_mp.a(rom_hal_xmit_g1.o)
+2504         0          2504        0         0           2440       64           0                0                  lib_wifi_com_sec.a(rom_md5.o)
+1012         0          1012        0         0           1012       0            0                0                  lib_wifi_com_sec.a(rom_rc4.o)
+638          0          638         0         0           564        74           0                0                  lib_wifi_single_core_mp.a(rom_rtw_11d_part2.o)
+556          0          556         0         0           516        40           0                0                  lib_wifi_single_core_mp.a(rom_rtw_80211w.o)
+852          0          852         0         0           852        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_80211w_part2.o)
+116          0          116         0         0           116        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_action.o)
+348          0          348         0         0           348        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_action_part2.o)
+1440         0          1440        0         0           1420       20           0                0                  lib_wifi_single_core_mp.a(rom_rtw_addba.o)
+2849         0          2849        0         0           2780       69           0                0                  lib_wifi_single_core_mp.a(rom_rtw_ap.o)
+1242         0          1242        0         0           1188       54           0                0                  lib_wifi_single_core_mp.a(rom_rtw_ap_xmit.o)
+2868         0          2868        0         0           2720       148          0                0                  lib_wifi_single_core_mp.a(rom_rtw_assoc.o)
+4949         0          4949        0         0           4592       357          0                0                  lib_wifi_single_core_mp.a(rom_rtw_assoc_part2.o)
+3340         0          3344        0         0           2952       388          0                4                  lib_wifi_single_core_mp.a(rom_rtw_auth_part2.o)
+2486         0          2486        0         0           2480       6            0                0                  lib_wifi_single_core_mp.a(rom_rtw_beacon.o)
+2406         0          2406        0         0           2340       66           0                0                  lib_wifi_single_core_mp.a(rom_rtw_beacon_part2.o)
+1004         0          1004        0         0           1004       0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_chbw.o)
+8488         0          8488        0         0           48         8440         0                0                  lib_wifi_com_sec.a(rom_rtw_dh_groups.o)
+272          0          272         0         0           272        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_he.o)
+2045         0          2045        0         0           1964       81           0                0                  lib_wifi_single_core_mp.a(rom_rtw_he_part2.o)
+1075         0          1075        0         0           1052       23           0                0                  lib_wifi_single_core_mp.a(rom_rtw_ht.o)
+2445         0          2445        0         0           2356       89           0                0                  lib_wifi_single_core_mp.a(rom_rtw_ieee80211.o)
+4724         0          4724        0         0           2584       2140         0                0                  lib_wifi_single_core_mp.a(rom_rtw_ieee80211_part2.o)
+3748         0          3748        0         0           3524       224          0                0                  lib_wifi_single_core_mp.a(rom_rtw_join.o)
+1852         0          1852        0         0           1852       0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_join_result.o)
+10608        0          10608       0         0           10608      0            0                0                  lib_wifi_com_sec.a(rom_rtw_mbedtls_bignum.o)
+7124         0          7124        0         0           7124       0            0                0                  lib_wifi_com_sec.a(rom_rtw_mbedtls_ecp.o)
+4560         0          4564        0         0           3556       1004         0                4                  lib_wifi_com_sec.a(rom_rtw_mbedtls_ecp_curves.o)
+0            0          16          0         0           0          0            0                16                 lib_wifi_com_sec.a(rom_rtw_mbedtls_func_map.o)
+16           0          16          0         0           16         0            0                0                  lib_wifi_com_sec.a(rom_rtw_mbedtls_platform.o)
+144          0          144         0         0           144        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_mgnt.o)
+188          0          188         0         0           188        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_network.o)
+636          0          636         0         0           636        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_pmksa_cache.o)
+783          0          783         0         0           708        75           0                0                  lib_wifi_single_core_mp.a(rom_rtw_pmksa_cache_part2.o)
+200          0          200         0         0           200        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_probe.o)
+858          0          858         0         0           832        26           0                0                  lib_wifi_single_core_mp.a(rom_rtw_psk.o)
+104          0          104         0         0           104        0            0                0                  lib_wifi_com_sec.a(rom_rtw_queue.o)
+291          0          291         0         0           284        7            0                0                  lib_wifi_single_core_mp.a(rom_rtw_rate.o)
+188          0          189         0         0           188        0            0                1                  lib_wifi_single_core_mp.a(rom_rtw_recv.o)
+4211         0          4211        0         0           4000       211          0                0                  lib_wifi_single_core_mp.a(rom_rtw_recv_part2.o)
+773          0          773         0         0           760        13           0                0                  lib_wifi_single_core_mp.a(rom_rtw_recv_reorder.o)
+7            0          7           0         0           0          7            0                0                  lib_wifi_single_core_mp.a(rom_rtw_rf.o)
+7224         0          7224        0         0           5932       1292         0                0                  lib_wifi_com_sec.a(rom_rtw_security.o)
+3502         0          3502        0         0           3392       110          0                0                  lib_wifi_single_core_mp.a(rom_rtw_security_part2.o)
+866          0          866         0         0           776        90           0                0                  lib_wifi_single_core_mp.a(rom_rtw_setkey.o)
+1885         0          1885        0         0           1596       289          0                0                  lib_wifi_com_sec.a(rom_rtw_sha256.o)
+470          0          470         0         0           428        42           0                0                  lib_wifi_single_core_mp.a(rom_rtw_sitesurvey.o)
+1460         0          1460        0         0           1460       0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_sitesurvey_report.o)
+436          0          476         0         0           368        68           0                40                 lib_wifi_single_core_mp.a(rom_rtw_skbuff.o)
+460          0          460         0         0           460        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_state.o)
+776          0          776         0         0           776        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_sta_mgt.o)
+412          0          412         0         0           412        0            0                0                  lib_wifi_single_core_mp.a(rom_rtw_vht.o)
+920          0          920         0         0           800        120          0                0                  lib_wifi_single_core_mp.a(rom_rtw_vht_part2.o)
+4654         0          4654        0         0           4492       162          0                0                  lib_wifi_single_core_mp.a(rom_rtw_xmit.o)
+1116         0          1116        0         0           1116       0            0                0                  lib_wifi_com_sec.a(rom_sha1.o)
+504          0          504         0         0           504        0            0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_ax.o)
+136          0          136         0         0           136        0            0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_bcn.o)
+3600         0          3600        0         0           2184       1416         0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_debug.o)
+1498         0          1498        0         0           1440       58           0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_init.o)
+1384         0          1390        0         0           1384       0            0                6                  lib_wifi_single_core_mp.a(rom_wifi_hal_media_access.o)
+781          0          789         0         0           748        33           0                8                  lib_wifi_single_core_mp.a(rom_wifi_hal_misc.o)
+827          0          827         0         0           816        11           0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_rate.o)
+40           0          40          0         0           40         0            0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_rxdesc.o)
+304          0          304         0         0           280        24           0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_secure.o)
+200          0          200         0         0           200        0            0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_tsf.o)
+518          0          518         0         0           496        22           0                0                  lib_wifi_single_core_mp.a(rom_wifi_hal_txdesc.o)
+2597         0          2597        0         0           2564       33           0                0                  lib_wpa_lite.a(rom_wpa_lite_part2.o)
+3611         0          3611        0         0           3540       71           0                0                  lib_wpa_lite.a(rom_wpa_lite_psk.o)
+5963         0          5963        0         0           4604       1359         0                0                  lib_wpa_lite.a(rom_wpa_lite_sae.o)
+8677         0          8681        0         0           7892       785          0                4                  lib_wpa_lite.a(rom_wpa_lite_sae_crypto.o)
+------------------------------------------------------------ wifirom End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+172843       0          174918      0         0           136456     36379        8                2075               (TOTALS)
+Module wifirom size:
+0x2a32b			172843
+
+============================================================ wifidrv Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+1750         0          1750        0         0           1316       434          0                0                  lib_wifi_single_core_mp.a(hal_debug.o)
+1331         0          1335        0         0           1272       59           0                4                  lib_wifi_single_core_mp.a(hal_dig_g6.o)
+264          0          265         0         0           264        0            0                1                  lib_wifi_single_core_mp.a(hal_dm.o)
+580          0          580         0         0           580        0            0                0                  lib_wifi_single_core_mp.a(hal_edcca.o)
+128          0          128         0         0           128        0            0                0                  lib_wifi_single_core_mp.a(hal_efuse.o)
+188          0          188         0         0           188        0            0                0                  lib_wifi_single_core_mp.a(hal_h2c.o)
+627          0          627         0         0           620        7            0                0                  lib_wifi_single_core_mp.a(hal_h2c_g1.o)
+144          0          144         0         0           144        0            0                0                  lib_wifi_single_core_mp.a(hal_interrupt.o)
+1181         0          1182        0         0           1172       9            0                1                  lib_wifi_single_core_mp.a(hal_interrupt_g1.o)
+3137         0          3137        0         0           2792       345          0                0                  lib_wifi_single_core_mp.a(hal_mp.o)
+733          0          733         0         0           616        117          0                0                  lib_wifi_single_core_mp.a(hal_phycfg.o)
+1034         0          1034        0         0           944        90           0                0                  lib_wifi_single_core_mp.a(hal_ra.o)
+368          0          400         0         0           368        0            0                32                 lib_wifi_single_core_mp.a(hal_recv.o)
+1128         0          1128        0         0           1108       20           0                0                  lib_wifi_single_core_mp.a(hal_recv_g1.o)
+393          0          393         0         0           380        13           0                0                  lib_wifi_single_core_mp.a(hal_sta_config_g6.o)
+1232         0          1232        0         0           1232       0            0                0                  lib_wifi_single_core_mp.a(hal_suspend.o)
+624          0          630         0         0           576        48           0                6                  lib_wifi_single_core_mp.a(hal_suspend_g1.o)
+292          0          2084        0         0           228        64           0                1792               lib_wifi_single_core_mp.a(hal_xmit.o)
+160          0          160         0         0           160        0            0                0                  lib_wifi_single_core_mp.a(rtw_11d.o)
+276          0          276         0         0           236        40           0                0                  lib_wifi_single_core_mp.a(rtw_80211w.o)
+579          0          583         0         0           508        71           0                4                  lib_wifi_single_core_mp.a(rtw_action.o)
+220          0          220         0         0           220        0            0                0                  lib_wifi_single_core_mp.a(rtw_adapter.o)
+54           0          54          0         0           36         18           0                0                  lib_wifi_single_core_mp.a(rtw_addba.o)
+1823         0          1823        0         0           1668       155          0                0                  lib_wifi_single_core_mp.a(rtw_ap.o)
+2109         0          2109        0         0           2088       21           0                0                  lib_wifi_single_core_mp.a(rtw_assoc.o)
+84           0          84          0         0           84         0            0                0                  lib_wifi_com_sec.a(rtw_atomic.o)
+1457         0          1457        0         0           1412       45           0                0                  lib_wifi_single_core_mp.a(rtw_auth.o)
+1314         0          1315        0         0           1276       38           0                1                  lib_wifi_single_core_mp.a(rtw_beacon.o)
+334          0          334         0         0           312        22           0                0                  lib_wifi_single_core_mp.a(rtw_cmd.o)
+0            0          4           0         0           0          0            0                4                  lib_wifi_single_core_mp.a(rtw_debug.o)
+1316         0          1316        0         0           1292       24           0                0                  lib_wifi_single_core_mp.a(rtw_dfs.o)
+2295         0          2295        0         0           2084       211          0                0                  lib_wifi_single_core_mp.a(rtw_drv_init.o)
+847          0          851         0         0           760        87           0                4                  lib_wifi_single_core_mp.a(rtw_dynamic.o)
+1149         0          1149        0         0           1068       81           0                0                  lib_wifi_single_core_mp.a(rtw_ips.o)
+1683         0          1683        0         0           1536       147          0                0                  lib_wifi_single_core_mp.a(rtw_join.o)
+1361         0          1361        0         0           1300       61           0                0                  lib_wifi_single_core_mp.a(rtw_join_result.o)
+1026         0          1030        0         0           1008       18           0                4                  lib_wifi_single_core_mp.a(rtw_lps.o)
+290          0          290         0         0           124        166          0                0                  lib_wifi_single_core_mp.a(rtw_macid_mgt.o)
+993          0          993         0         0           824        57           112              0                  lib_wifi_single_core_mp.a(rtw_mgnt.o)
+1682         0          1682        0         0           1632       50           0                0                  lib_wifi_single_core_mp.a(rtw_mp.o)
+200          0          200         0         0           200        0            0                0                  lib_wifi_single_core_mp.a(rtw_network.o)
+1256         0          1260        0         0           1256       0            0                4                  lib_wifi_single_core_mp.a(rtw_probe.o)
+1523         0          1523        0         0           1492       31           0                0                  lib_wifi_single_core_mp.a(rtw_recv.o)
+768          0          768         0         0           748        20           0                0                  lib_wifi_single_core_mp.a(rtw_recv_defrag.o)
+1234         0          1234        0         0           864        370          0                0                  lib_wifi_single_core_mp.a(rtw_setkey.o)
+1994         0          1996        0         0           1888       106          0                2                  lib_wifi_single_core_mp.a(rtw_sitesurvey.o)
+957          0          957         0         0           920        37           0                0                  lib_wifi_single_core_mp.a(rtw_sitesurvey_report.o)
+453          0          453         0         0           336        117          0                0                  lib_wifi_single_core_mp.a(rtw_skbuff.o)
+124          0          124         0         0           124        0            0                0                  lib_wifi_single_core_mp.a(rtw_state.o)
+2095         0          3243        0         0           1996       99           0                1148               lib_wifi_single_core_mp.a(rtw_sta_mgt.o)
+148          0          148         0         0           148        0            0                0                  lib_wifi_single_core_mp.a(rtw_task.o)
+867          0          883         0         0           696        171          0                16                 lib_wifi_com_sec.a(rtw_timer.o)
+138          0          138         0         0           112        26           0                0                  lib_wifi_single_core_mp.a(rtw_vht.o)
+64           0          64          0         0           64         0            0                0                  lib_wifi_com_sec.a(rtw_wakelock.o)
+1038         0          1038        0         0           948        90           0                0                  lib_wifi_single_core_mp.a(rtw_xmit.o)
+999          0          1223        0         0           780        219          0                224                lib_wifi_api_hp.a(wifi_auto_reconnect.o)
+20           0          20          0         0           20         0            0                0                  lib_wifi_api_hp.a(wifi_fast_connect.o)
+12           0          12          0         0           12         0            0                0                  lib_wifi_feature_disable_hp.a(wifi_feature_dis_antdiv.o)
+8            0          8           0         0           8          0            0                0                  lib_wifi_feature_disable_hp.a(wifi_feature_dis_csi.o)
+96           0          96          0         0           96         0            0                0                  lib_wifi_feature_disable_hp.a(wifi_feature_dis_kvr.o)
+68           0          68          0         0           68         0            0                0                  lib_wifi_feature_disable_hp.a(wifi_feature_dis_p2p.o)
+12           0          12          0         0           12         0            0                0                  lib_wifi_feature_disable_hp.a(wifi_feature_dis_speaker.o)
+1719         0          1719        0         0           612        1107         0                0                  lib_wifi_single_core_mp.a(wifi_hal_debug.o)
+273          0          273         0         0           216        57           0                0                  lib_wifi_single_core_mp.a(wifi_hal_dm.o)
+296          0          296         0         0           296        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_h2c.o)
+3223         0          4031        0         0           2496       727          0                808                lib_wifi_single_core_mp.a(wifi_hal_halinit.o)
+28           0          28          0         0           28         0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_hci_intfs.o)
+200          0          200         0         0           200        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_interrupt.o)
+64           0          64          0         0           64         0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_io.o)
+1608         0          1608        0         0           1140       468          0                0                  lib_wifi_single_core_mp.a(wifi_hal_mp.o)
+308          0          308         0         0           308        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_ops.o)
+948          0          948         0         0           948        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_phycfg.o)
+587          0          715         0         0           516        71           0                128                lib_wifi_single_core_mp.a(wifi_hal_recv.o)
+424          0          424         0         0           424        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_rxdesc.o)
+76           0          76          0         0           76         0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_suspend.o)
+1620         0          1620        0         0           1620       0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_txdesc.o)
+60           0          60          0         0           60         0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_txpower.o)
+72           0          72          0         0           72         0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_xmit.o)
+1154         0          1282        0         0           856        298          0                128                lib_wifi_api_hp.a(wifi_ind.o)
+300          0          304         0         0           196        104          0                4                  lib_wifi_api_hp.a(wifi_init.o)
+1888         0          1917        0         0           1320       568          0                29                 lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o)
+3571         0          3573        0         0           2932       639          0                2                  lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_ext.o)
+422          0          422         0         0           340        82           0                0                  lib_wifi_single_core_mp.a(wifi_intf_drv_to_lwip.o)
+12698        0          12700       0         0           9236       3462         0                2                  lib_wifi_single_core_mp.a(wifi_intf_drv_to_mp.o)
+2840         0          4932        0         0           2580       260          0                2092               lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o)
+648          0          648         0         0           616        32           0                0                  lib_wifi_single_core_mp.a(wifi_intf_hal_to_g6_bb.o)
+823          0          823         0         0           676        147          0                0                  lib_wifi_single_core_mp.a(wifi_intf_hal_to_g6_mac.o)
+652          0          652         0         0           652        0            0                0                  lib_wifi_single_core_mp.a(wifi_intf_hal_to_g6_mac_common.o)
+796          0          796         0         0           796        0            0                0                  lib_wifi_single_core_mp.a(wifi_intf_rom_to_flash.o)
+1686         0          2018        0         0           1256       430          0                332                lib_wpa_lite.a(wpa_lite_owe.o)
+7682         0          8008        0         0           7060       618          4                326                lib_wpa_lite.a(wpa_lite_psk.o)
+5374         0          5374        0         0           3948       1423         3                0                  lib_wpa_lite.a(wpa_lite_sae.o)
+0            0          68          0         0           0          0            0                68                 lib_wpa_lite.a(wpa_lite_wnm.o)
+------------------------------------------------------------ wifidrv End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+102300       0          109466      0         0           87884      14297        119              7166               (TOTALS)
+Module wifidrv size:
+0x18f9c			102300
+
+============================================================ wificoex Start =============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+1191         0          1191        0         0           1188       3            0                0                  lib_coex_mp.a(rtw_coex_action.o)
+28           0          28          0         0           28         0            0                0                  lib_coex_mp.a(rtw_coex_action_dual_ant.o)
+620          0          620         0         0           620        0            0                0                  lib_coex_mp.a(rtw_coex_action_dual_chip.o)
+2240         0          2240        0         0           2220       20           0                0                  lib_coex_mp.a(rtw_coex_action_single_ant.o)
+108          0          108         0         0           108        0            0                0                  lib_coex_mp.a(rtw_coex_api_bt.o)
+344          0          344         0         0           344        0            0                0                  lib_coex_mp.a(rtw_coex_api_ext.o)
+4357         0          4361        0         0           4196       141          20               4                  lib_coex_mp.a(rtw_coex_api_wl.o)
+24           0          24          0         0           24         0            0                0                  lib_coex_mp.a(rtw_coex_api_wp.o)
+405          0          405         0         0           396        0            9                0                  lib_coex_mp.a(rtw_coex_dbg.o)
+732          0          732         0         0           732        0            0                0                  lib_coex_mp.a(rtw_coex_ext_chip.o)
+32           0          32          0         0           32         0            0                0                  lib_coex_mp.a(rtw_coex_ext_chip_bt.o)
+876          0          876         0         0           848        0            28               0                  lib_coex_mp.a(rtw_coex_ext_chip_rtl8730e.o)
+40           0          40          0         0           40         0            0                0                  lib_coex_mp.a(rtw_coex_ext_chip_wpan.o)
+16           0          16          0         0           16         0            0                0                  lib_coex_api.a(rtw_coex_host_api_bt.o)
+240          0          240         0         0           240        0            0                0                  lib_coex_mp.a(rtw_coex_ipc_dev.o)
+721          0          733         0         0           536        185          0                12                 lib_coex_mp.a(rtw_coex_ipc_dev_api.o)
+44           0          44          0         0           44         0            0                0                  lib_coex_api.a(rtw_coex_ipc_host.o)
+675          0          683         0         0           480        195          0                8                  lib_coex_api.a(rtw_coex_ipc_host_api.o)
+6877         0          6881        0         0           6796       25           56               4                  lib_coex_mp.a(rtw_coex_wl_chip.o)
+1370         0          1370        0         0           1216       74           80               0                  lib_coex_mp.a(rtw_coex_wl_chip_rtl8730e.o)
+849          0          849         0         0           832        17           0                0                  lib_wifi_single_core_mp.a(wifi_hal_btc_api.o)
+156          0          156         0         0           156        0            0                0                  lib_wifi_single_core_mp.a(wifi_hal_btc_rtl8730e.o)
+------------------------------------------------------------ wificoex End -------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+21945        0          21973       0         0           21092      660          193              28                 (TOTALS)
+Module wificoex size:
+0x55b9			21945
+
+============================================================ wifibb Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+268          0          1116        0         0           268        0            0                848                lib_wifi_single_core_mp.a(halbb.o)
+988          0          988         0         0           988        0            0                0                  lib_wifi_single_core_mp.a(halbb_8730e.o)
+6588         0          6588        0         0           5728       844          16               0                  lib_wifi_single_core_mp.a(halbb_8730e_api.o)
+524          0          524         0         0           524        0            0                0                  lib_wifi_single_core_mp.a(halbb_api.o)
+48           0          48          0         0           48         0            0                0                  lib_wifi_single_core_mp.a(halbb_cfo_trk.o)
+156          0          156         0         0           156        0            0                0                  lib_wifi_single_core_mp.a(halbb_dbg.o)
+10860        0          10860       0         0           748        10112        0                0                  lib_wifi_single_core_mp.a(halbb_hwimg_8730e.o)
+76           0          76          0         0           76         0            0                0                  lib_wifi_single_core_mp.a(halbb_hw_cfg.o)
+276          0          276         0         0           276        0            0                0                  lib_wifi_single_core_mp.a(halbb_init.o)
+144          0          144         0         0           144        0            0                0                  lib_wifi_single_core_mp.a(halbb_interface.o)
+48           0          48          0         0           48         0            0                0                  lib_wifi_single_core_mp.a(halbb_math_lib.o)
+1404         0          1404        0         0           1348       56           0                0                  lib_wifi_single_core_mp.a(halbb_mp.o)
+7638         0          7638        0         0           7216       422          0                0                  lib_wifi_single_core_mp.a(halbb_plcp_gen.o)
+5376         0          5376        0         0           5368       8            0                0                  lib_wifi_single_core_mp.a(halbb_plcp_tx.o)
+412          0          412         0         0           340        72           0                0                  lib_wifi_single_core_mp.a(halbb_pwr_ctrl.o)
+440          0          440         0         0           440        0            0                0                  lib_wifi_single_core_mp.a(halbb_reg_cfg_8730e.o)
+801          0          801         0         0           636        165          0                0                  lib_wifi_single_core_mp.a(halbb_statistics.o)
+------------------------------------------------------------ wifibb End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+36047        0          36895       0         0           24352      11679        16               848                (TOTALS)
+Module wifibb size:
+0x8ccf			36047
+
+============================================================ wifirf Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+822          0          822         0         0           216        606          0                0                  lib_wifi_api_hp.a(ameba_wifi_country_code_table_usrcfg.o)
+2370         0          2373        0         0           696        1672         2                3                  lib_wifi_api_hp.a(ameba_wifi_power_table_usrcfg.o)
+2328         0          2328        0         0           2328       0            0                0                  lib_wifi_single_core_mp.a(halrf.o)
+5683         0          5683        0         0           5544       139          0                0                  lib_wifi_single_core_mp.a(halrf_8730e.o)
+236          0          236         0         0           236        0            0                0                  lib_wifi_single_core_mp.a(halrf_8730e_api.o)
+800          0          800         0         0           800        0            0                0                  lib_wifi_single_core_mp.a(halrf_api.o)
+1664         0          1664        0         0           1636       28           0                0                  lib_wifi_single_core_mp.a(halrf_dack_8730e.o)
+16           0          16          0         0           16         0            0                0                  lib_wifi_single_core_mp.a(halrf_dbg.o)
+16           0          16          0         0           16         0            0                0                  lib_wifi_single_core_mp.a(halrf_dbg_cmd.o)
+3296         0          3296        0         0           3228       68           0                0                  lib_wifi_single_core_mp.a(halrf_dpk_8730e.o)
+15170        0          15170       0         0           664        14506        0                0                  lib_wifi_single_core_mp.a(halrf_hwimg_8730e.o)
+20           0          20          0         0           20         0            0                0                  lib_wifi_single_core_mp.a(halrf_hw_cfg.o)
+192          0          1936        0         0           192        0            0                1744               lib_wifi_single_core_mp.a(halrf_init.o)
+212          0          212         0         0           212        0            0                0                  lib_wifi_single_core_mp.a(halrf_interface.o)
+5604         0          5604        0         0           5520       84           0                0                  lib_wifi_single_core_mp.a(halrf_iqk_8730e.o)
+208          0          208         0         0           208        0            0                0                  lib_wifi_single_core_mp.a(halrf_kfree_8730e.o)
+1384         0          1384        0         0           1288       96           0                0                  lib_wifi_single_core_mp.a(halrf_psd_8730e.o)
+936          0          936         0         0           936        0            0                0                  lib_wifi_single_core_mp.a(halrf_pwr_table.o)
+2512         0          2512        0         0           2512       0            0                0                  lib_wifi_single_core_mp.a(halrf_set_pwr_table_8730e.o)
+6139         0          6139        0         0           6020       119          0                0                  lib_wifi_single_core_mp.a(halrf_tssi_8730e.o)
+2884         0          2884        0         0           2860       24           0                0                  lib_wifi_single_core_mp.a(halrf_txgapk_8730e.o)
+------------------------------------------------------------ wifirf End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+52492        0          54239       0         0           35148      17342        2                1747               (TOTALS)
+Module wifirf size:
+0xcd0c			52492
+
+============================================================ wifios Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+988          0          5336        0         0           988        0            0                4348               lib_freertos.a(os_wrapper_static_functions.o)
+------------------------------------------------------------ wifios End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+988          0          5336        0         0           988        0            0                4348               (TOTALS)
+Module wifios size:
+0x3dc			988
+
+============================================================ atcmd Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+630          0          630         0         0           452        162          16               0                  lib_at_cmd.a(atcmd_fs.o)
+719          0          975         0         0           624        83           12               256                lib_at_cmd.a(atcmd_service.o)
+2558         0          2558        0         0           1336       1062         160              0                  lib_at_cmd.a(atcmd_sys.o)
+19461        0          19742       0         0           10104      9085         272              281                lib_at_cmd.a(atcmd_wifi.o)
+112          0          112         0         0           112        0            0                0                  lib_at_cmd.a(low_level_io.o)
+4813         0          4813        0         0           2580       2233         0                0                  lib_at_cmd.a(monitor.o)
+756          0          887         0         0           624        132          0                131                lib_at_cmd.a(shell_ram.o)
+------------------------------------------------------------ atcmd End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+29049        0          29717       0         0           15832      12757        460              668                (TOTALS)
+Module atcmd size:
+0x7179			29049
+
+============================================================ utils Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+14685        0          14718       0         0           11068      3617         0                33                 lib_utilities.a(iperf.o)
+2732         0          2783        0         0           1688       1044         0                51                 lib_utilities.a(ping_test.o)
+------------------------------------------------------------ utils End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+17417        0          17501       0         0           12756      4661         0                84                 (TOTALS)
+Module utils size:
+0x4409			17417
+
+============================================================ fwlib Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+559          0          559         0         0           480        79           0                0                  lib_fwlib.a(ameba_app_start.o)
+32           0          32          0         0           32         0            0                0                  lib_fwlib.a(ameba_arch.o)
+1303         0          1303        0         0           996        307          0                0                  lib_fwlib.a(ameba_clk.o)
+1486         0          1486        0         0           1288       198          0                0                  lib_fwlib.a(ameba_codec.o)
+732          0          732         0         0           524        208          0                0                  lib_fwlib.a(ameba_fault_handle.o)
+370          0          370         0         0           108        46           216              0                  lib_fwlib.a(ameba_flashcfg.o)
+5111         0          5115        0         0           4856       255          0                4                  lib_fwlib.a(ameba_flash_ram.o)
+625          0          625         0         0           240        385          0                0                  lib_crashdump.a(ameba_freertos_backtrace.o)
+1409         0          1477        0         0           1048       361          0                68                 lib_fwlib.a(ameba_ipc_api.o)
+313          0          569         0         0           212        101          0                256                lib_fwlib.a(ameba_ipc_ram.o)
+2194         0          2218        0         0           2020       174          0                24                 lib_fwlib.a(ameba_ipc_toap.o)
+552          0          560         0         0           344        208          0                8                  lib_fwlib.a(ameba_mpu_ram.o)
+132          0          156         0         0           132        0            0                24                 lib_misc.a(ameba_ota.o)
+2871         0          2871        0         0           2320       551          0                0                  lib_fwlib.a(ameba_otp.o)
+104          0          104         0         0           104        0            0                0                  lib_fwlib.a(ameba_pinmap.o)
+288          0          288         0         0           0          288          0                0                  lib_fwlib.a(ameba_pinmapcfg.o)
+160          0          160         0         0           132        28           0                0                  lib_fwlib.a(ameba_pmc.o)
+1208         0          1556        0         0           1208       0            0                348                lib_pmc.a(ameba_pmc_lib.o)
+785          0          981         0         0           688        85           12               196                lib_misc.a(ameba_pmu.o)
+72           0          72          0         0           72         0            0                0                  lib_fwlib.a(ameba_reset.o)
+1033         0          1033        0         0           936        97           0                0                  lib_fwlib.a(ameba_rtc.o)
+36           0          36          0         0           32         0            4                0                  lib_fwlib.a(ameba_system.o)
+881          0          881         0         0           680        201          0                0                  lib_crashdump.a(ameba_v8m_backtrace.o)
+1150         0          1266        0         0           656        494          0                116                lib_crashdump.a(ameba_v8m_crashdump.o)
+3308         0          3308        0         0           1064       2244         0                0                  lib_crashdump.a(ameba_v8m_fault_diagnosis.o)
+132          0          132         0         0           132        0            0                0                  lib_stdlib_wrap.a(gcc_wrap.o)
+760          0          1432        0         0           408        352          0                672                lib_fwlib.a(locks.o)
+983          0          1031        0         0           876        106          1                48                 lib_fwlib.a(log.o)
+1492         0          1492        0         0           1492       0            0                0                  lib_fwlib.a(sscanf_minimal.o)
+771          0          771         0         0           532        239          0                0                  lib_hal.a(sys_api.o)
+44           0          44          0         0           0          44           0                0                  lib_pmc.a(__tmp_pmc_hp_build_info.o)
+------------------------------------------------------------ fwlib End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+30896        0          32660       0         0           23612      7051         233              1764               (TOTALS)
+Module fwlib size:
+0x78b0			30896
+
+============================================================ os Start ===================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+329          0          382         0         0           240        89           0                53                 lib_freertos.a(freertos_heap5_config.o)
+816          0          848         0         0           816        0            0                32                 lib_freertos.a(heap_5.o)
+144          0          144         0         0           144        0            0                0                  lib_freertos.a(list.o)
+116          0          122         0         0           116        0            0                6                  lib_freertos.a(os_wrapper_critical.o)
+76           0          76          0         0           76         0            0                0                  lib_freertos.a(os_wrapper_memory.o)
+448          0          448         0         0           348        100          0                0                  lib_freertos.a(os_wrapper_mutex.o)
+447          0          447         0         0           356        91           0                0                  lib_freertos.a(os_wrapper_queue.o)
+296          0          296         0         0           296        0            0                0                  lib_freertos.a(os_wrapper_semaphore.o)
+128          0          128         0         0           128        0            0                0                  lib_freertos.a(os_wrapper_task.o)
+84           0          84          0         0           84         0            0                0                  lib_freertos.a(os_wrapper_time.o)
+548          0          548         0         0           548        0            0                0                  lib_freertos.a(os_wrapper_timer.o)
+965          0          5781        0         0           824        141          0                4816               lib_freertos.a(port.o)
+248          0          248         0         0           248        0            0                0                  lib_freertos.a(portasm_ntz.o)
+2428         0          2428        0         0           2428       0            0                0                  lib_freertos.a(queue.o)
+4277         0          4653        0         0           4268       5            4                376                lib_freertos.a(tasks.o)
+1328         0          2656        0         0           1320       8            0                1328               lib_freertos.a(timers.o)
+------------------------------------------------------------ os End -------------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+12678        0          19289       0         0           12240      434          4                6611               (TOTALS)
+Module os size:
+0x3186			12678
+
+============================================================ ssl Start ==================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+44           0          44          0         0           36         0            8                0                  lib_mbedtls.a(platform.o)
+------------------------------------------------------------ ssl End ------------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+44           0          44          0         0           36         0            8                0                  (TOTALS)
+Module ssl size:
+0x2c			44
+
+============================================================ network Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+1704         0          1704        0         0           1704       0            0                0                  lib_sram.a(api_lib.o)
+4207         0          4207        0         0           4192       15           0                0                  lib_sram.a(api_msg.o)
+680          0          680         0         0           680        0            0                0                  lib_xip.a(autoip.o)
+72           0          72          0         0           72         0            0                0                  lib_sram.a(def.o)
+5816         0          5876        0         0           5816       0            0                60                 lib_xip.a(dhcp.o)
+4209         0          4432        0         0           3756       444          9                223                lib_xip.a(dhcps.o)
+2294         0          3456        0         0           2284       10           0                1162               lib_xip.a(dns.o)
+96           0          96          0         0           28         68           0                0                  lib_xip.a(err.o)
+2044         0          2285        0         0           2044       0            0                241                lib_sram.a(etharp.o)
+348          0          352         0         0           336        12           0                4                  lib_sram.a(ethernet.o)
+381          0          381         0         0           304        77           0                0                  lib_sram.a(ethernetif.o)
+460          0          460         0         0           460        0            0                0                  lib_xip.a(icmp.o)
+1268         0          1276        0         0           1268       0            0                8                  lib_sram.a(igmp.o)
+380          0          380         0         0           380        0            0                0                  lib_sram.a(inet_chksum.o)
+44           0          44          0         0           44         0            0                0                  lib_xip.a(init.o)
+0            0          24          0         0           0          0            0                24                 lib_sram.a(ip.o)
+1384         0          1390        0         0           1384       0            0                6                  lib_sram.a(ip4.o)
+672          0          688         0         0           664        8            0                16                 lib_sram.a(ip4_addr.o)
+1692         0          1698        0         0           1692       0            0                6                  lib_sram.a(ip4_frag.o)
+1605         0          1761        0         0           1396       209          0                156                lib_xip.a(lwip_netconf.o)
+40           0          40          0         0           40         0            0                0                  lib_sram.a(mem.o)
+180          0          180         0         0           84         96           0                0                  lib_sram.a(memp.o)
+128          0          128         0         0           128        0            0                0                  lib_sram.a(netbuf.o)
+108          0          405         0         0           108        0            0                297                lib_sram.a(netdb.o)
+1168         0          1253        0         0           1168       0            0                85                 lib_sram.a(netif.o)
+244          0          244         0         0           244        0            0                0                  lib_sram.a(netifapi.o)
+1824         0          1825        0         0           1824       0            0                1                  lib_sram.a(pbuf.o)
+788          0          792         0         0           788        0            0                4                  lib_sram.a(raw.o)
+5288         0          5572        0         0           5288       0            0                284                lib_sram.a(sockets.o)
+604          0          654         0         0           604        0            0                50                 lib_sram.a(sys_arch.o)
+4426         0          4453        0         0           4384       36           6                27                 lib_sram.a(tcp.o)
+547          0          563         0         0           540        7            0                16                 lib_sram.a(tcpip.o)
+5188         0          5240        0         0           5188       0            0                52                 lib_sram.a(tcp_in.o)
+3636         0          3636        0         0           3636       0            0                0                  lib_sram.a(tcp_out.o)
+564          0          576         0         0           500        64           0                12                 lib_sram.a(timeouts.o)
+1658         0          1666        0         0           1656       0            2                8                  lib_sram.a(udp.o)
+------------------------------------------------------------ network End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+55747        0          58489       0         0           54684      1046         17               2742               (TOTALS)
+Module network size:
+0xd9c3			55747
+
+============================================================ file_system Start ==========================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+2369         0          2373        0         0           1876       493          0                4                  lib_kv.a(kv.o)
+233          0          313         0         0           180        53           0                80                 lib_vfs.a(vfs.o)
+0            0          1           0         0           0          0            0                1                  lib_vfs.a(vfs_littlefs.o)
+2124         0          2124        0         0           1764       360          0                0                  lib_vfs.a(vfs_wrap.o)
+------------------------------------------------------------ file_system End ----------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+4726         0          4811        0         0           3820       906          0                85                 (TOTALS)
+Module file_system size:
+0x1276			4726
+
+============================================================ others Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+132          0          204         0         0           132        0            0                72                 lib_wifi_api_hp.a(ameba_wificfg.o)
+53           0          53          0         0           0          53           0                0                  lib_wifi_com_sec.a(lib_wifi_com_sec_git_version.o)
+60           0          60          0         0           0          60           0                0                  lib_wifi_single_core_mp.a(lib_wifi_single_core_mp_git_version.o)
+49           0          49          0         0           0          49           0                0                  lib_wpa_lite.a(lib_wpa_lite_git_version.o)
+44           0          44          0         0           0          44           0                0                  lib_wps.a(lib_wps_git_version.o)
+458          0          462         0         0           360        98           0                4                  lib_project_src.a(main.o)
+76           0          76          0         0           76         0            0                0                  lib_wifi_single_core_mp.a(phl.o)
+144          0          172         0         0           136        8            0                28                 crtbegin.o
+------------------------------------------------------------ others End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+1016         0          1120        0         0           704        312          0                104                (TOTALS)
+Module others size:
+0x3f8			1016
+
+======================================================================================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+591042       0          619628      0         0           479902     109470       1670             28586              (TOTALS)
+
+Image size:
+0x904c2			591042
+
+============================================================ RAM analysis Start =========================================================================
+============================================================ libc Start =================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                312                .bss(lib_a-findfp.o)
+0            0          0           0         0           0          0            244              0                  .data(lib_a-impure.o)
+0            0          0           0         0           0          0            2                0                  .data(lib_a-lnumeric.o)
+0            0          0           0         0           0          0            364              0                  .data(lib_a-locale.o)
+0            0          0           0         0           0          0            0                4                  .bss(lib_a-reent.o)
+------------------------------------------------------------ libc End -----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            610              316                (TOTALS)
+Module libc size:
+0x39e			926
+
+============================================================ libgcc Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                0                  .ARM.exidx(_udivmoddi4.o)
+------------------------------------------------------------ libgcc End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                0                  (TOTALS)
+Module libgcc size:
+0x0			0
+
+============================================================ wifirom Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            8                0                  ARPLLCHeader(lib_wifi_single_core_mp.a(rom_hal_h2c.o))
+0            0          0           0         0           0          0            0                4                  p_wifi_rom2flash(lib_wifi_com_sec.a(rom_hal_rom_to_flash.o))
+0            0          0           0         0           0          0            0                372                wifi_rom2flash(lib_wifi_com_sec.a(rom_hal_rom_to_flash.o))
+0            0          0           0         0           0          0            0                56                 .bss.g_pspriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                68                 g_apmlmepriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                44                 g_hal_spec(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                60                 g_kvrpriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                464                g_mlmepriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                12                 g_promiscpriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                156                g_recvpriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                88                 g_scanpriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                20                 g_traffic_statis(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                40                 g_wpspriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                224                g_xmitpriv(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                384                wifi_setting(lib_wifi_single_core_mp.a(rom_hal_structs.o))
+0            0          0           0         0           0          0            0                4                  mf_list_head(lib_wifi_single_core_mp.a(rom_rtw_auth_part2.o))
+0            0          0           0         0           0          0            0                4                  .bss.one(lib_wifi_com_sec.a(rom_rtw_mbedtls_ecp_curves.o))
+0            0          0           0         0           0          0            0                4                  p_wifi_rom_func_map(lib_wifi_com_sec.a(rom_rtw_mbedtls_func_map.o))
+0            0          0           0         0           0          0            0                12                 wifi_rom_func_map(lib_wifi_com_sec.a(rom_rtw_mbedtls_func_map.o))
+0            0          0           0         0           0          0            0                1                  last_fragnum(lib_wifi_single_core_mp.a(rom_rtw_recv.o))
+0            0          0           0         0           0          0            0                40                 .bss.skbpriv(lib_wifi_single_core_mp.a(rom_rtw_skbuff.o))
+0            0          0           0         0           0          0            0                2                  bcn_is_paused(lib_wifi_single_core_mp.a(rom_wifi_hal_media_access.o))
+0            0          0           0         0           0          0            0                4                  RegRRSR(lib_wifi_single_core_mp.a(rom_wifi_hal_media_access.o))
+0            0          0           0         0           0          0            0                8                  pause_array(lib_wifi_single_core_mp.a(rom_wifi_hal_misc.o))
+0            0          0           0         0           0          0            0                4                  sae_debug_level(lib_wpa_lite.a(rom_wpa_lite_sae_crypto.o))
+------------------------------------------------------------ wifirom End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            8                2075               (TOTALS)
+Module wifirom size:
+0x823			2083
+
+============================================================ wifidrv Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4                  g_pre_post_pd_mode(lib_wifi_single_core_mp.a(hal_dig_g6.o))
+0            0          0           0         0           0          0            0                1                  is_turbo_edca(lib_wifi_single_core_mp.a(hal_dm.o))
+0            0          0           0         0           0          0            0                1                  stop_report_count(lib_wifi_single_core_mp.a(hal_interrupt_g1.o))
+0            0          0           0         0           0          0            0                32                 .ncsram.data(lib_wifi_single_core_mp.a(hal_recv.o))
+0            0          0           0         0           0          0            0                4                  .bss.pdata.1(lib_wifi_single_core_mp.a(hal_suspend_g1.o))
+0            0          0           0         0           0          0            0                2                  .bss.reg300.0(lib_wifi_single_core_mp.a(hal_suspend_g1.o))
+0            0          0           0         0           0          0            0                1792               .ncsram.data(lib_wifi_single_core_mp.a(hal_xmit.o))
+0            0          0           0         0           0          0            0                4                  p_wlan_action_filter(lib_wifi_single_core_mp.a(rtw_action.o))
+0            0          0           0         0           0          0            0                1                  bcn_changed(lib_wifi_single_core_mp.a(rtw_beacon.o))
+0            0          0           0         0           0          0            0                4                  GlobalDebugModule(lib_wifi_single_core_mp.a(rtw_debug.o))
+0            0          0           0         0           0          0            0                4                  skb_fail_rx_last(lib_wifi_single_core_mp.a(rtw_dynamic.o))
+0            0          0           0         0           0          0            0                4                  leave_time(lib_wifi_single_core_mp.a(rtw_lps.o))
+0            0          0           0         0           0          0            112              0                  rtw_mgntframe_dispatcher_tbl(lib_wifi_single_core_mp.a(rtw_mgnt.o))
+0            0          0           0         0           0          0            0                4                  p_wlan_mgmt_filter(lib_wifi_single_core_mp.a(rtw_probe.o))
+0            0          0           0         0           0          0            0                1                  last_survey_channel(lib_wifi_single_core_mp.a(rtw_sitesurvey.o))
+0            0          0           0         0           0          0            0                1                  last_trigger_result(lib_wifi_single_core_mp.a(rtw_sitesurvey.o))
+0            0          0           0         0           0          0            0                1144               bcmc_stainfo(lib_wifi_single_core_mp.a(rtw_sta_mgt.o))
+0            0          0           0         0           0          0            0                4                  g_papstainfo(lib_wifi_single_core_mp.a(rtw_sta_mgt.o))
+0            0          0           0         0           0          0            0                4                  max_timer_used_num(lib_wifi_com_sec.a(rtw_timer.o))
+0            0          0           0         0           0          0            0                8                  timer_table(lib_wifi_com_sec.a(rtw_timer.o))
+0            0          0           0         0           0          0            0                4                  timer_used_num(lib_wifi_com_sec.a(rtw_timer.o))
+0            0          0           0         0           0          0            0                224                rtw_reconn(lib_wifi_api_hp.a(wifi_auto_reconnect.o))
+0            0          0           0         0           0          0            0                808                .bss.hal_data(lib_wifi_single_core_mp.a(wifi_hal_halinit.o))
+0            0          0           0         0           0          0            0                128                phystsbuf(lib_wifi_single_core_mp.a(wifi_hal_recv.o))
+0            0          0           0         0           0          0            0                128                event_callback_list(lib_wifi_api_hp.a(wifi_ind.o))
+0            0          0           0         0           0          0            0                4                  .bss.heap_tmp(lib_wifi_api_hp.a(wifi_init.o))
+0            0          0           0         0           0          0            0                4                  join_block_param(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  join_fail_reason(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  p_store_fast_connect_info(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  p_wifi_do_fast_connect(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  p_wifi_join_info_free(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                1                  rtw_join_status(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  wifi_boot(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                4                  _wifi_is_on(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_basic.o))
+0            0          0           0         0           0          0            0                1                  ips_backup(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_ext.o))
+0            0          0           0         0           0          0            0                1                  lps_backup(lib_wifi_single_core_mp.a(wifi_intf_drv_to_app_ext.o))
+0            0          0           0         0           0          0            0                1                  ips_mp_backup(lib_wifi_single_core_mp.a(wifi_intf_drv_to_mp.o))
+0            0          0           0         0           0          0            0                1                  lps_mp_backup(lib_wifi_single_core_mp.a(wifi_intf_drv_to_mp.o))
+0            0          0           0         0           0          0            0                36                 .bss.g_appriv(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                840                .bss.g_mppriv(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                16                 g_cmdpriv(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                128                g_fastmppriv(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                24                 g_p2ppriv(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                8                  g_padapter(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                904                primary_adapter(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                64                 rltk_wlan_info(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                68                 shared_adapter(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                4                  wifi_on_start(lib_wifi_single_core_mp.a(wifi_intf_drv_to_upper.o))
+0            0          0           0         0           0          0            0                332                owe_lite_priv(lib_wpa_lite.a(wpa_lite_owe.o))
+0            0          0           0         0           0          0            0                5                  .bss.eap_drop(lib_wpa_lite.a(wpa_lite_psk.o))
+0            0          0           0         0           0          0            0                320                .bss.wpa_lite(lib_wpa_lite.a(wpa_lite_psk.o))
+0            0          0           0         0           0          0            0                1                  gtk_installed(lib_wpa_lite.a(wpa_lite_psk.o))
+0            0          0           0         0           0          0            4                0                  TAG_WLAN_WPA(lib_wpa_lite.a(wpa_lite_psk.o))
+0            0          0           0         0           0          0            3                0                  wpa_lite_sae(lib_wpa_lite.a(wpa_lite_sae.o))
+0            0          0           0         0           0          0            0                68                 .bss.kvr_priv(lib_wpa_lite.a(wpa_lite_wnm.o))
+------------------------------------------------------------ wifidrv End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            119              7166               (TOTALS)
+Module wifidrv size:
+0x1c75			7285
+
+============================================================ wificoex Start =============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4                  p_rtk_coex(lib_coex_mp.a(rtw_coex_api_wl.o))
+0            0          0           0         0           0          0            2                0                  rtk_coex_wl_tdma_scan_1_slot_210ms(lib_coex_mp.a(rtw_coex_api_wl.o))
+0            0          0           0         0           0          0            2                0                  rtk_coex_wl_tdma_scan_1_slot_300ms(lib_coex_mp.a(rtw_coex_api_wl.o))
+0            0          0           0         0           0          0            4                0                  rtk_coex_wl_tdma_scan_2_slot(lib_coex_mp.a(rtw_coex_api_wl.o))
+0            0          0           0         0           0          0            12               0                  rtk_coex_wl_tdma_scan_6_slot(lib_coex_mp.a(rtw_coex_api_wl.o))
+0            0          0           0         0           0          0            9                0                  fixed_hdr(lib_coex_mp.a(rtw_coex_dbg.o))
+0            0          0           0         0           0          0            8                0                  ext_chip_para_rtl8730e(lib_coex_mp.a(rtw_coex_ext_chip_rtl8730e.o))
+0            0          0           0         0           0          0            20               0                  rtl8730e_ext_chip_ops(lib_coex_mp.a(rtw_coex_ext_chip_rtl8730e.o))
+0            0          0           0         0           0          0            0                4                  coex_api_dev_task(lib_coex_mp.a(rtw_coex_ipc_dev_api.o))
+0            0          0           0         0           0          0            0                4                  g_dev_coex_ipc_api_message_send_sema(lib_coex_mp.a(rtw_coex_ipc_dev_api.o))
+0            0          0           0         0           0          0            0                4                  g_dev_coex_ipc_api_task_wake_sema(lib_coex_mp.a(rtw_coex_ipc_dev_api.o))
+0            0          0           0         0           0          0            0                4                  g_host_coex_ipc_api_message_send_sema(lib_coex_api.a(rtw_coex_ipc_host_api.o))
+0            0          0           0         0           0          0            0                4                  g_host_coex_ipc_api_task_wake_sema(lib_coex_api.a(rtw_coex_ipc_host_api.o))
+0            0          0           0         0           0          0            0                4                  g_bt_le_setup_link_timer(lib_coex_mp.a(rtw_coex_wl_chip.o))
+0            0          0           0         0           0          0            4                0                  rtk_coex_wl_chip_break_tbl(lib_coex_mp.a(rtw_coex_wl_chip.o))
+0            0          0           0         0           0          0            52               0                  rtk_coex_wl_chip_coex_tbl(lib_coex_mp.a(rtw_coex_wl_chip.o))
+0            0          0           0         0           0          0            12               0                  chip_para_rtl8730e(lib_coex_mp.a(rtw_coex_wl_chip_rtl8730e.o))
+0            0          0           0         0           0          0            68               0                  rtl8730e_ops(lib_coex_mp.a(rtw_coex_wl_chip_rtl8730e.o))
+------------------------------------------------------------ wificoex End -------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            193              28                 (TOTALS)
+Module wificoex size:
+0xdd			221
+
+============================================================ wifibb Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                832                .bss.g6_bb(lib_wifi_single_core_mp.a(halbb.o))
+0            0          0           0         0           0          0            0                16                 g6_bb_cmn(lib_wifi_single_core_mp.a(halbb.o))
+0            0          0           0         0           0          0            16               0                  tssi_dbw_table(lib_wifi_single_core_mp.a(halbb_8730e_api.o))
+------------------------------------------------------------ wifibb End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            16               848                (TOTALS)
+Module wifibb size:
+0x360			864
+
+============================================================ wifirf Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            1                0                  array_len_of_pwrlmt_regu_remapping(lib_wifi_api_hp.a(ameba_wifi_power_table_usrcfg.o))
+0            0          0           0         0           0          0            0                3                  pwrlmt_regu_remapping(lib_wifi_api_hp.a(ameba_wifi_power_table_usrcfg.o))
+0            0          0           0         0           0          0            1                0                  regu_en_array_len(lib_wifi_api_hp.a(ameba_wifi_power_table_usrcfg.o))
+0            0          0           0         0           0          0            0                1744               .bss.g6_rf(lib_wifi_single_core_mp.a(halrf_init.o))
+------------------------------------------------------------ wifirf End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            2                1747               (TOTALS)
+Module wifirf size:
+0x6d5			1749
+
+============================================================ wifios Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4                  mutex_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  mutex_dynamic_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  mutex_max_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                2852               mutex_pool(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  mutex_pool_init_flag(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  sema_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  sema_dynamic_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  sema_max_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                644                sema_pool(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  sema_pool_init_flag(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  timer_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  timer_dynamic_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  timer_max_buf_used_num(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                780                timer_pool(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                4                  timer_pool_init_flag(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                8                  wrapper_mutex_buf_list(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                8                  wrapper_sema_buf_list(lib_freertos.a(os_wrapper_static_functions.o))
+0            0          0           0         0           0          0            0                8                  wrapper_timer_buf_list(lib_freertos.a(os_wrapper_static_functions.o))
+------------------------------------------------------------ wifios End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4348               (TOTALS)
+Module wifios size:
+0x10fc			4348
+
+============================================================ atcmd Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            16               0                  at_fs_items(lib_at_cmd.a(atcmd_fs.o))
+0            0          0           0         0           0          0            0                256                .bss.log_hash(lib_at_cmd.a(atcmd_service.o))
+0            0          0           0         0           0          0            12               0                  log_init_table(lib_at_cmd.a(atcmd_service.o))
+0            0          0           0         0           0          0            160              0                  at_sys_items(lib_at_cmd.a(atcmd_sys.o))
+0            0          0           0         0           0          0            0                48                 .bss.ap(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            0                129                .bss.password(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            0                88                 .bss.wifi(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            4                0                  .data.ap_gw(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            4                0                  .data.ap_ip(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            4                0                  ap_netmask(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            256              0                  at_wifi_items(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            4                0                  security(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            0                16                 user_static_ip(lib_at_cmd.a(atcmd_wifi.o))
+0            0          0           0         0           0          0            0                0                  .igot.plt(lib_at_cmd.a(monitor.o))
+0            0          0           0         0           0          0            0                0                  .iplt(lib_at_cmd.a(monitor.o))
+0            0          0           0         0           0          0            0                127                atcmd_buf(lib_at_cmd.a(shell_ram.o))
+0            0          0           0         0           0          0            0                4                  shell_sema(lib_at_cmd.a(shell_ram.o))
+------------------------------------------------------------ atcmd End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            460              668                (TOTALS)
+Module atcmd size:
+0x468			1128
+
+============================================================ utils Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                1                  g_is_iperf_init(lib_utilities.a(iperf.o))
+0            0          0           0         0           0          0            0                20                 g_stream_id(lib_utilities.a(iperf.o))
+0            0          0           0         0           0          0            0                4                  g_tptest_log_mutex(lib_utilities.a(iperf.o))
+0            0          0           0         0           0          0            0                4                  g_tptest_mutex(lib_utilities.a(iperf.o))
+0            0          0           0         0           0          0            0                4                  stream_data_head(lib_utilities.a(iperf.o))
+0            0          0           0         0           0          0            0                4                  .bss.ping_buf(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                2                  .bss.ping_seq(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  data_size(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  g_ping_task(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                1                  g_ping_terminate(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  infinite_loop(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_call(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_count(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_interface(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_interval(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_received_count(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_socket(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  ping_total_time(lib_utilities.a(ping_test.o))
+0            0          0           0         0           0          0            0                4                  reply_buf(lib_utilities.a(ping_test.o))
+------------------------------------------------------------ utils End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                84                 (TOTALS)
+Module utils size:
+0x54			84
+
+============================================================ fwlib Start ================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            108              0                  Flash_Layout_Nand(lib_fwlib.a(ameba_flashcfg.o))
+0            0          0           0         0           0          0            108              0                  Flash_Layout_Nor(lib_fwlib.a(ameba_flashcfg.o))
+0            0          0           0         0           0          0            0                4                  PrevIrqStatus(lib_fwlib.a(ameba_flash_ram.o))
+0            0          0           0         0           0          0            0                4                  ipc_delay(lib_fwlib.a(ameba_ipc_api.o))
+0            0          0           0         0           0          0            0                64                 ipc_Semaphore(lib_fwlib.a(ameba_ipc_api.o))
+0            0          0           0         0           0          0            0                128                IPC_IrqData(lib_fwlib.a(ameba_ipc_ram.o))
+0            0          0           0         0           0          0            0                128                IPC_IrqHandler(lib_fwlib.a(ameba_ipc_ram.o))
+0            0          0           0         0           0          0            0                16                 .bss.ipc_msg(lib_fwlib.a(ameba_ipc_toap.o))
+0            0          0           0         0           0          0            0                8                  .bss.otp_data(lib_fwlib.a(ameba_ipc_toap.o))
+0            0          0           0         0           0          0            0                8                  mpu_entry_register(lib_fwlib.a(ameba_mpu_ram.o))
+0            0          0           0         0           0          0            0                24                 .bss.IMG_ADDR(lib_misc.a(ameba_ota.o))
+0            0          0           0         0           0          0            0                344                .bss.PMC_BK(lib_pmc.a(ameba_pmc_lib.o))
+0            0          0           0         0           0          0            0                4                  WakeEventFlag_HP(lib_pmc.a(ameba_pmc_lib.o))
+0            0          0           0         0           0          0            4                0                  deepwakelock(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  deepwakelock_timeout(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                140                gPsmDdHookInfo(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  max_sleep_time(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  sleepwakelock_timeout(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                32                 sleep_param(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  sleep_type(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  sysactive_timeout_flag(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                4                  sysactive_timeout_temp(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            4                0                  system_can_yield(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            4                0                  wakelock(lib_misc.a(ameba_pmu.o))
+0            0          0           0         0           0          0            4                0                  SystemCoreClock(lib_fwlib.a(ameba_system.o))
+0            0          0           0         0           0          0            0                112                .bss.regs(lib_crashdump.a(ameba_v8m_crashdump.o))
+0            0          0           0         0           0          0            0                4                  crash_task_info(lib_crashdump.a(ameba_v8m_crashdump.o))
+0            0          0           0         0           0          0            0                84                 __lock___arc4random_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___atexit_recursive_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___at_quick_exit_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___dd_hash_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___env_recursive_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___sfp_recursive_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___sinit_recursive_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            0                84                 __lock___tz_mutex(lib_fwlib.a(locks.o))
+0            0          0           0         0           0          0            1                0                  rtk_log_default_level(lib_fwlib.a(log.o))
+0            0          0           0         0           0          0            0                4                  rtk_log_entry_count(lib_fwlib.a(log.o))
+0            0          0           0         0           0          0            0                44                 rtk_log_tag_array(lib_fwlib.a(log.o))
+------------------------------------------------------------ fwlib End ----------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            233              1764               (TOTALS)
+Module fwlib size:
+0x7cd			1997
+
+============================================================ os Start ===================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                1                  heap_index(lib_freertos.a(freertos_heap5_config.o))
+0            0          0           0         0           0          0            0                4                  total_heap_size(lib_freertos.a(freertos_heap5_config.o))
+0            0          0           0         0           0          0            0                48                 xHeapRegions(lib_freertos.a(freertos_heap5_config.o))
+0            0          0           0         0           0          0            0                4                  .bss.pxEnd(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                8                  .bss.xStart(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                4                  xBlockAllocatedBit(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                4                  xFreeBytesRemaining(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                4                  xMinimumEverFreeBytesRemaining(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                4                  xNumberOfSuccessfulAllocations(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                4                  xNumberOfSuccessfulFrees(lib_freertos.a(heap_5.o))
+0            0          0           0         0           0          0            0                2                  uxCriticalNestingCnt(lib_freertos.a(os_wrapper_critical.o))
+0            0          0           0         0           0          0            0                4                  uxSavedInterruptStatus(lib_freertos.a(os_wrapper_critical.o))
+0            0          0           0         0           0          0            0                4                  missing_tick(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                4                  ulCriticalNesting(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                2048               uxIdleTaskStack(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                2048               uxTimerTaskStack(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                356                xIdleTaskTCB(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                356                xTimerTaskTCB(lib_freertos.a(port.o))
+0            0          0           0         0           0          0            0                4                  pxCurrentTCB(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  pxDelayedTaskList(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  pxOverflowDelayedTaskList(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                220                pxReadyTasksLists(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  uxCurrentNumberOfTasks(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  uxDeletedTasksWaitingCleanUp(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  uxSchedulerSuspended(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  uxTaskNumber(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  uxTopReadyPriority(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            4                0                  uxTopUsedPriority(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                20                 xDelayedTaskList1(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                20                 xDelayedTaskList2(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xNextTaskUnblockTime(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xNumOfOverflows(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xPendedTicks(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                20                 xPendingReadyList(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xSchedulerRunning(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                20                 xSuspendedTaskList(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                20                 xTasksWaitingTermination(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xTickCount(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  xYieldPending(lib_freertos.a(tasks.o))
+0            0          0           0         0           0          0            0                4                  pxCurrentTimerList(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                4                  pxOverflowTimerList(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                1184               ucStaticTimerQueueStorage(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                20                 xActiveTimerList1(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                20                 xActiveTimerList2(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                4                  xLastTime(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                84                 xStaticTimerQueue(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                4                  xTimerQueue(lib_freertos.a(timers.o))
+0            0          0           0         0           0          0            0                4                  xTimerTaskHandle(lib_freertos.a(timers.o))
+------------------------------------------------------------ os End -------------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            4                6611               (TOTALS)
+Module os size:
+0x19d7			6615
+
+============================================================ ssl Start ==================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            4                0                  mbedtls_calloc_func(lib_mbedtls.a(platform.o))
+0            0          0           0         0           0          0            4                0                  mbedtls_free_func(lib_mbedtls.a(platform.o))
+------------------------------------------------------------ ssl End ------------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            8                0                  (TOTALS)
+Module ssl size:
+0x8			8
+
+============================================================ network Start ==============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4                  .bss.dhcp_pcb(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                4                  .bss.xid.0(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                1                  dhcp_pcb_refcount(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                10                 dhcp_rx_options_given(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                40                 dhcp_rx_options_val(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                1                  is_fast_dhcp(lib_xip.a(dhcp.o))
+0            0          0           0         0           0          0            0                116                .bss.ip_table(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                6                  client_addr(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  client_request_ip(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_addr_pool_end(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_addr_pool_set(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_addr_pool_start(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_allocated_client_address(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                6                  dhcps_allocated_client_ethaddr(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_ip_table_semaphore(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_local_address(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_local_gateway(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_local_mask(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_netif(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_network_id(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                1                  dhcps_num_of_available_ips(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_owned_first_ip(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_pcb(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_pool_end(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_pool_start(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_send_broadcast_address(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcps_subnet_broadcast(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcp_message_repository(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dhcp_message_total_options_lenth(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            4                0                  dhcp_recorded_xid(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            1                0                  dhcp_server_state_machine(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                4                  dns_server_pcb(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            4                0                  domain_name(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                14                 domain_name_buf(lib_xip.a(dhcps.o))
+0            0          0           0         0           0          0            0                16                 .bss.dns_pcbs(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                1                  dns_last_pcb_idx(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                48                 dns_requests(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                1                  dns_seqno(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                8                  dns_servers(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                1088               dns_table(lib_xip.a(dns.o))
+0            0          0           0         0           0          0            0                240                arp_table(lib_sram.a(etharp.o))
+0            0          0           0         0           0          0            0                1                  etharp_cached_entry(lib_sram.a(etharp.o))
+0            0          0           0         0           0          0            0                4                  rarp_retrieve_cb(lib_sram.a(ethernet.o))
+0            0          0           0         0           0          0            0                4                  allrouters(lib_sram.a(igmp.o))
+0            0          0           0         0           0          0            0                4                  allsystems(lib_sram.a(igmp.o))
+0            0          0           0         0           0          0            0                24                 .bss.ip_data(lib_sram.a(ip.o))
+0            0          0           0         0           0          0            0                2                  .bss.ip_id(lib_sram.a(ip4.o))
+0            0          0           0         0           0          0            0                4                  ip4_default_multicast_netif(lib_sram.a(ip4.o))
+0            0          0           0         0           0          0            0                16                 .bss.str.0(lib_sram.a(ip4_addr.o))
+0            0          0           0         0           0          0            0                2                  ip_reass_pbufcount(lib_sram.a(ip4_frag.o))
+0            0          0           0         0           0          0            0                4                  reassdatagrams(lib_sram.a(ip4_frag.o))
+0            0          0           0         0           0          0            0                152                .bss.xnetif(lib_xip.a(lwip_netconf.o))
+0            0          0           0         0           0          0            0                4                  lwip_init_done(lib_xip.a(lwip_netconf.o))
+0            0          0           0         0           0          0            0                4                  .bss.h_errno(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                4                  s_aliases(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                20                 s_hostent(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                4                  s_hostent_addr(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                257                s_hostname(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                8                  s_phostent_addr(lib_sram.a(netdb.o))
+0            0          0           0         0           0          0            0                76                 loop_netif(lib_sram.a(netif.o))
+0            0          0           0         0           0          0            0                4                  netif_default(lib_sram.a(netif.o))
+0            0          0           0         0           0          0            0                4                  netif_list(lib_sram.a(netif.o))
+0            0          0           0         0           0          0            0                1                  netif_num(lib_sram.a(netif.o))
+0            0          0           0         0           0          0            0                1                  pbuf_free_ooseq_pending(lib_sram.a(pbuf.o))
+0            0          0           0         0           0          0            0                4                  .bss.raw_pcbs(lib_sram.a(raw.o))
+0            0          0           0         0           0          0            0                160                .bss.sockets(lib_sram.a(sockets.o))
+0            0          0           0         0           0          0            0                4                  select_cb_list(lib_sram.a(sockets.o))
+0            0          0           0         0           0          0            0                120                socket_ipv4_multicast_memberships(lib_sram.a(sockets.o))
+0            0          0           0         0           0          0            0                2                  s_nextthread(lib_sram.a(sys_arch.o))
+0            0          0           0         0           0          0            0                48                 s_timeoutlist(lib_sram.a(sys_arch.o))
+0            0          0           0         0           0          0            0                4                  .bss.done.1(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            4                0                  .data.iss.0(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  tcp_active_pcbs(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                1                  tcp_active_pcbs_changed(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  tcp_bound_pcbs(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  tcp_listen_pcbs(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            2                0                  tcp_port(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  tcp_ticks(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                1                  tcp_timer(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                1                  tcp_timer_ctr(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  tcp_tw_pcbs(lib_sram.a(tcp.o))
+0            0          0           0         0           0          0            0                4                  lock_tcpip_core(lib_sram.a(tcpip.o))
+0            0          0           0         0           0          0            0                4                  tcpip_init_done(lib_sram.a(tcpip.o))
+0            0          0           0         0           0          0            0                4                  tcpip_init_done_arg(lib_sram.a(tcpip.o))
+0            0          0           0         0           0          0            0                4                  tcpip_mbox(lib_sram.a(tcpip.o))
+0            0          0           0         0           0          0            0                4                  .bss.ackno(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                1                  .bss.flags(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                16                 .bss.inseg(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  .bss.seqno(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  .bss.tcphdr(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                2                  .bss.tcplen(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                2                  recv_acked(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  recv_data(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                1                  recv_flags(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                2                  tcphdr_opt1len(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  tcphdr_opt2(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                2                  tcphdr_optlen(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  tcp_input_pcb(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                2                  tcp_optidx(lib_sram.a(tcp_in.o))
+0            0          0           0         0           0          0            0                4                  current_timeout_due_time(lib_sram.a(timeouts.o))
+0            0          0           0         0           0          0            0                4                  next_timeout(lib_sram.a(timeouts.o))
+0            0          0           0         0           0          0            0                4                  tcpip_tcp_timer_active(lib_sram.a(timeouts.o))
+0            0          0           0         0           0          0            0                4                  .bss.done.0(lib_sram.a(udp.o))
+0            0          0           0         0           0          0            0                4                  .bss.udp_pcbs(lib_sram.a(udp.o))
+0            0          0           0         0           0          0            2                0                  udp_port(lib_sram.a(udp.o))
+------------------------------------------------------------ network End --------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            17               2742               (TOTALS)
+Module network size:
+0xac7			2759
+
+============================================================ file_system Start ==========================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                4                  .bss.prefix(lib_kv.a(kv.o))
+0            0          0           0         0           0          0            0                80                 .bss.vfs(lib_vfs.a(vfs.o))
+0            0          0           0         0           0          0            0                1                  lfs_mount_fail(lib_vfs.a(vfs_littlefs.o))
+------------------------------------------------------------ file_system End ----------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                85                 (TOTALS)
+Module file_system size:
+0x55			85
+
+============================================================ others Start ===============================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                72                 wifi_user_config(lib_wifi_api_hp.a(ameba_wificfg.o))
+0            0          0           0         0           0          0            0                4                  g_Boot_Status(lib_project_src.a(main.o))
+0            0          0           0         0           0          0            0                28                 .bss(crtbegin.o)
+------------------------------------------------------------ others End ---------------------------------------------------------------------------------
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            0                104                (TOTALS)
+Module others size:
+0x68			104
+
+======================================================================================================================================================
+image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
+0            0          0           0         0           0          0            1670             28586              (TOTALS)
+
+Image size:
+0x7630			30256
+
+------------------------------------------------------------ RAM analysis End ---------------------------------------------------------------------------

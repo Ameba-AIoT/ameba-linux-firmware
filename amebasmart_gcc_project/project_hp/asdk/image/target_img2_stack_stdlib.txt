@@ -1,0 +1,639 @@
+TASK FUNCTION                        snprintf
+FuncName                             Size
+snprintf                             136
+_svfprintf_r                         368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2472
+                                     
+TASK FUNCTION                        sprintf
+FuncName                             Size
+sprintf                              128
+_svfprintf_r                         368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2464
+                                     
+TASK FUNCTION                        sscanf
+FuncName                             Size
+sscanf                               144
+__ssvfscanf_r                        752
+sprintf                              128
+_svfprintf_r                         368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            3360
+                                     
+TASK FUNCTION                        strncmp
+FuncName                             Size
+strncmp                              16
+TotalSize                            16
+                                     
+TASK FUNCTION                        strncpy
+FuncName                             Size
+strncpy                              16
+TotalSize                            16
+                                     
+TASK FUNCTION                        strtol
+FuncName                             Size
+strtol                               0
+_strtol_l.constprop.0                32
+__errno                              0
+TotalSize                            32
+                                     
+TASK FUNCTION                        vfiprintf
+FuncName                             Size
+vfiprintf                            0
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            1688
+                                     
+TASK FUNCTION                        vprintf
+FuncName                             Size
+vprintf                              0
+_vfprintf_r                          368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2336
+                                     
+TASK FUNCTION                        fclose
+FuncName                             Size
+fclose                               0
+_fclose_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            264
+                                     
+TASK FUNCTION                        strtod
+FuncName                             Size
+strtod                               0
+_strtod_l                            160
+__gethex                             80
+__lshift                             32
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2024
+                                     
+TASK FUNCTION                        strtof
+FuncName                             Size
+strtof                               32
+_strtod_l                            160
+__gethex                             80
+__lshift                             32
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2056
+                                     
+TASK FUNCTION                        strtoll
+FuncName                             Size
+strtoll                              0
+_strtoll_l.constprop.0               56
+__aeabi_uldivmod                     8
+__udivmoddi4                         36
+TotalSize                            100
+                                     
+TASK FUNCTION                        strtoull
+FuncName                             Size
+strtoull                             0
+_strtoull_l.constprop.0              48
+__aeabi_uldivmod                     8
+__udivmoddi4                         36
+TotalSize                            92
+                                     
+TASK FUNCTION                        strtoul
+FuncName                             Size
+strtoul                              0
+_strtoul_l.constprop.0               28
+TotalSize                            28
+                                     
+TASK FUNCTION                        vfprintf
+FuncName                             Size
+vfprintf                             0
+_vfprintf_r                          368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2336
+                                     
+TASK FUNCTION                        vsnprintf
+FuncName                             Size
+vsnprintf                            16
+_vsnprintf_r                         120
+_svfprintf_r                         368
+_dtoa_r                              128
+__pow5mult                           32
+__multiply                           56
+_Balloc                              16
+__assert_func                        24
+fiprintf                             24
+_vfiprintf_r                         272
+__sbprintf                           1152
+_fflush_r                            16
+__retarget_lock_acquire_recursive    24
+__retarget_lock_init_recursive       16
+xQueueCreateMutex                    16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            2472
+                                     
+TASK FUNCTION                        strsep
+FuncName                             Size
+strsep                               0
+__strtok_r                           20
+TotalSize                            20
+                                     
+TASK FUNCTION                        pvPortMalloc
+FuncName                             Size
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            192
+                                     
+TASK FUNCTION                        vPortFree
+FuncName                             Size
+vPortFree                            16
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            100
+                                     
+TASK FUNCTION                        pvPortReAlloc
+FuncName                             Size
+pvPortReAlloc                        24
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            216
+                                     
+TASK FUNCTION                        DiagPrintf
+FuncName                             Size
+DiagPrintf                           32
+DiagVprintf                          72
+print_unsigned_num                   72
+__aeabi_uldivmod                     8
+__udivmoddi4                         36
+TotalSize                            220
+                                     
+TASK FUNCTION                        DiagVprintf
+FuncName                             Size
+DiagVprintf                          72
+print_unsigned_num                   72
+__aeabi_uldivmod                     8
+__udivmoddi4                         36
+TotalSize                            188
+                                     
+TASK FUNCTION                        xQueueSemaphoreTake
+FuncName                             Size
+xQueueSemaphoreTake                  40
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            124
+                                     
+TASK FUNCTION                        xQueueGenericCreate
+FuncName                             Size
+xQueueGenericCreate                  24
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            216
+                                     
+TASK FUNCTION                        xTimerGenericCommand
+FuncName                             Size
+xTimerGenericCommand                 40
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            172
+                                     
+TASK FUNCTION                        vTaskDelay
+FuncName                             Size
+vTaskDelay                           8
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            92
+                                     
+TASK FUNCTION                        DelayMs
+FuncName                             Size
+DelayMs                              8
+TotalSize                            8
+                                     
+TASK FUNCTION                        xQueueGenericSend
+FuncName                             Size
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            132
+                                     
+TASK FUNCTION                        rtos_critical_enter
+FuncName                             Size
+rtos_critical_enter                  8
+vPortEnterCritical                   8
+ulPortSetInterruptMask               0
+TotalSize                            16
+                                     
+TASK FUNCTION                        rtos_critical_exit
+FuncName                             Size
+rtos_critical_exit                   0
+TotalSize                            0
+                                     
+TASK FUNCTION                        rtos_mem_malloc
+FuncName                             Size
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            192
+                                     
+TASK FUNCTION                        rtos_mem_zmalloc
+FuncName                             Size
+rtos_mem_zmalloc                     16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            208
+                                     
+TASK FUNCTION                        rtos_mem_calloc
+FuncName                             Size
+rtos_mem_calloc                      16
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            208
+                                     
+TASK FUNCTION                        rtos_mem_realloc
+FuncName                             Size
+rtos_mem_realloc                     0
+pvPortReAlloc                        24
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            216
+                                     
+TASK FUNCTION                        rtos_mem_free
+FuncName                             Size
+rtos_mem_free                        0
+vPortFree                            16
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            100
+                                     
+TASK FUNCTION                        rtos_mutex_take
+FuncName                             Size
+rtos_mutex_take                      24
+xQueueSemaphoreTake                  40
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            148
+                                     
+TASK FUNCTION                        rtos_mutex_give
+FuncName                             Size
+rtos_mutex_give                      24
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            156
+                                     
+TASK FUNCTION                        rtos_mutex_recursive_take
+FuncName                             Size
+rtos_mutex_recursive_take            16
+xQueueTakeMutexRecursive             16
+xQueueSemaphoreTake                  40
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            156
+                                     
+TASK FUNCTION                        rtos_mutex_recursive_give
+FuncName                             Size
+rtos_mutex_recursive_give            8
+xQueueGiveMutexRecursive             16
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            156
+                                     
+TASK FUNCTION                        rtos_sema_take
+FuncName                             Size
+rtos_sema_take                       24
+xQueueSemaphoreTake                  40
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            148
+                                     
+TASK FUNCTION                        rtos_sema_give
+FuncName                             Size
+rtos_sema_give                       16
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            148
+                                     
+TASK FUNCTION                        rtos_time_delay_ms
+FuncName                             Size
+rtos_time_delay_ms                   8
+vTaskDelay                           8
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            100
+                                     
+TASK FUNCTION                        rtos_timer_change_period
+FuncName                             Size
+rtos_timer_change_period             32
+xTimerGenericCommand                 40
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            204
+                                     
+TASK FUNCTION                        rtos_timer_start
+FuncName                             Size
+rtos_timer_start                     32
+xTimerGenericCommand                 40
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            204
+                                     
+TASK FUNCTION                        rtos_timer_stop
+FuncName                             Size
+rtos_timer_stop                      32
+xTimerGenericCommand                 40
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            204
+                                     
+TASK FUNCTION                        pbuf_alloc
+FuncName                             Size
+pbuf_alloc                           40
+tcpip_try_callback                   16
+memp_malloc                          8
+mem_malloc                           8
+__wrap_malloc                        0
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            264
+                                     
+TASK FUNCTION                        pbuf_free
+FuncName                             Size
+pbuf_free                            0
+pbuf_free.part.0                     16
+memp_free                            8
+mem_free                             0
+__wrap_free                          0
+rtos_mem_free                        0
+vPortFree                            16
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            124
+                                     
+TASK FUNCTION                        mem_free
+FuncName                             Size
+mem_free                             0
+__wrap_free                          0
+rtos_mem_free                        0
+vPortFree                            16
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            100
+                                     
+TASK FUNCTION                        memp_malloc
+FuncName                             Size
+memp_malloc                          8
+mem_malloc                           8
+__wrap_malloc                        0
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            208
+                                     
+TASK FUNCTION                        tcp_alloc
+FuncName                             Size
+tcp_alloc                            24
+tcp_kill_state                       8
+tcp_abandon                          64
+tcp_pcb_remove                       8
+tcp_output                           64
+tcp_send_empty_ack                   8
+tcp_output_control_segment           48
+ip4_output_if                        48
+ip4_output_if_opt_src                64
+ip4_frag                             96
+pbuf_alloc                           40
+tcpip_try_callback                   16
+memp_malloc                          8
+mem_malloc                           8
+__wrap_malloc                        0
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            696
+                                     
+TASK FUNCTION                        tcp_tmr
+FuncName                             Size
+tcp_tmr                              8
+tcp_fasttmr                          32
+tcp_process_refused_data             24
+tcp_close_shutdown                   32
+tcp_close_shutdown_fin               8
+tcp_output                           64
+tcp_send_empty_ack                   8
+tcp_output_control_segment           48
+ip4_output_if                        48
+ip4_output_if_opt_src                64
+ip4_frag                             96
+pbuf_alloc                           40
+tcpip_try_callback                   16
+memp_malloc                          8
+mem_malloc                           8
+__wrap_malloc                        0
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            696
+                                     
+TASK FUNCTION                        sys_sem_signal
+FuncName                             Size
+sys_sem_signal                       0
+rtos_sema_give                       16
+xQueueGenericSend                    48
+xTaskResumeAll                       48
+xTaskIncrementTick.part.0            36
+TotalSize                            148
+                                     
+TASK FUNCTION                        sys_timeout_abs
+FuncName                             Size
+sys_timeout_abs                      16
+memp_malloc                          8
+mem_malloc                           8
+__wrap_malloc                        0
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            224
+                                     
+TASK FUNCTION                        rtw_assoc_resources_free
+FuncName                             Size
+rtw_assoc_resources_free             24
+rtw_free_stainfo                     40
+rtw_hal_btc_ConnectNotify            0
+rtk_coex_wl_ntfy_connect             24
+rtk_coex_wl_chip_run_coex            16
+rtk_coex_wl_chip_run_coex.part.0     16
+rtk_coex_action_wl_link_2g           8
+rtk_coex_action_single_ant           16
+rtk_coex_action_single_ant_wl_ap     24
+rtk_coex_wl_chip_set_policy          72
+rtw_coex_log_send_to_bin             72
+rtos_mem_malloc                      0
+pvPortMalloc                         24
+vApplicationMallocFailedHook         32
+rtk_log_write_nano                   32
+DiagPrintfNano                       32
+DiagVprintfNano                      72
+TotalSize                            504
+                                     

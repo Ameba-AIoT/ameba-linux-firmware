@@ -1,0 +1,233 @@
+TASK FUNCTION                                   shell_task_ram
+FuncName                                        Size
+shell_task_ram                                  64
+shell_loguartRx_dispatch                        32
+rtos_mem_malloc                                 192
+TotalSize                                       288
+                                                
+TASK FUNCTION                                   at_wlstartap
+FuncName                                        Size
+at_wlstartap                                    160
+wifi_start_ap                                   224
+rtw_ap_start_api                                64
+rtw_security_method_set_from_usr_for_ap         48
+rtw_bss_set_key_for_wep                         40
+rtw_ips_wakeup                                  24
+rtw_ips_leave                                   56
+wifi_hal_init                                   24
+wifi_hal_set_channel_bw                         40
+wifi_hal_handle_sw_chnl_and_set_bw              56
+wifi_hal_switch_chnl_and_set_bw                 24
+halrf_chl_rfk_trigger                           24
+halrf_rx_dck_trigger.part.0                     24
+halrf_rx_dck_8730e_bcdcut                       40
+rtw_hal_mac_issue_cts2self                      8
+rtw_xmit_cts2self                               32
+rtw_xmit_mgntframe                              48
+wifi_hal_mgnt_xmit                              16
+rtw_mgnt_80211w_sw_encrypt                      24
+rtw_mgmt_xmitframe_coalesce                     88
+rtw_xmit_enc_software                           48
+tkip_80211_encrypt                              320
+tkip_phase2                                     48
+TotalSize                                       1480
+                                                
+TASK FUNCTION                                   h4_rx_thread
+FuncName                                        Size
+h4_rx_thread                                    320
+bt_coex_process_rx_frame                        24
+bt_coex_process_acl_data                        40
+bt_coex_update_profile_info                     24
+bt_coex_set_profile_info_to_fw                  32
+hci_if_write_internal                           0
+_tx_list_add                                    32
+osif_mem_alloc                                  0
+rtos_mem_malloc                                 192
+TotalSize                                       664
+                                                
+TASK FUNCTION                                   hci_if_task
+FuncName                                        Size
+hci_if_task                                     32
+hci_transport_send                              32
+bt_coex_process_tx_frame                        0
+bt_coex_process_acl_data                        40
+bt_coex_update_profile_info                     24
+bt_coex_set_profile_info_to_fw                  32
+hci_if_write_internal                           0
+_tx_list_add                                    32
+osif_mem_alloc                                  0
+rtos_mem_malloc                                 192
+TotalSize                                       384
+                                                
+TASK FUNCTION                                   rtk_bt_evt_taskentry
+FuncName                                        Size
+rtk_bt_evt_taskentry                            24
+osif_msg_recv                                   8
+rtos_queue_receive                              32
+xQueueReceive                                   40
+xTaskResumeAll                                  48
+xTaskIncrementTick.part.0                       36
+TotalSize                                       188
+                                                
+TASK FUNCTION                                   bt_stack_api_taskentry
+FuncName                                        Size
+bt_stack_api_taskentry                          48
+bt_stack_hfp_act_handle                         40
+bt_hfp_ag_call_incoming                         40
+bt_mgr_dispatch                                 24
+bt_mgr_handle_sco_msg                           88
+bt_hfp_ag_ringing_start                         8
+hfp_ag_send_clip                                72
+snprintf                                        2472
+TotalSize                                       2792
+                                                
+TASK FUNCTION                                   rtw_reconn_task_hdl
+FuncName                                        Size
+rtw_reconn_task_hdl                             16
+wifi_connect                                    48
+rtw_joinbss_start_api                           0
+_rtw_joinbss_start_proc                         64
+rtw_security_method_set_from_usr_for_joinbss    88
+rtw_bss_set_key_for_wep                         40
+rtw_ips_wakeup                                  24
+rtw_ips_leave                                   56
+wifi_hal_init                                   24
+wifi_hal_set_channel_bw                         40
+wifi_hal_handle_sw_chnl_and_set_bw              56
+wifi_hal_switch_chnl_and_set_bw                 24
+halrf_chl_rfk_trigger                           24
+halrf_rx_dck_trigger.part.0                     24
+halrf_rx_dck_8730e_bcdcut                       40
+rtw_hal_mac_issue_cts2self                      8
+rtw_xmit_cts2self                               32
+rtw_xmit_mgntframe                              48
+wifi_hal_mgnt_xmit                              16
+rtw_mgnt_80211w_sw_encrypt                      24
+rtw_mgmt_xmitframe_coalesce                     88
+rtw_xmit_enc_software                           48
+tkip_80211_encrypt                              320
+tkip_phase2                                     48
+TotalSize                                       1200
+                                                
+TASK FUNCTION                                   tcpip_thread
+FuncName                                        Size
+tcpip_thread                                    16
+sys_timeout                                     16
+sys_timeout_abs                                 224
+TotalSize                                       256
+                                                
+TASK FUNCTION                                   ethernet_input
+FuncName                                        Size
+ethernet_input                                  24
+etharp_input                                    56
+autoip_arp_reply                                32
+autoip_start                                    16
+netif_set_addr                                  32
+netif_do_set_ipaddr.isra.0                      24
+netif_issue_reports                             8
+etharp_request                                  24
+etharp_raw                                      48
+ethernet_output                                 24
+low_level_output                                272
+rltk_wlan_send                                  24
+wifi_if_send_skb                                0
+rtw_xmit_entry                                  136
+rtw_xmit_update_attrib_raw                      72
+rtw_alloc_stainfo                               64
+rtw_hal_btc_ConnectNotify                       0
+rtk_coex_wl_ntfy_connect                        24
+rtk_coex_wl_chip_run_coex                       16
+rtk_coex_wl_chip_run_coex.part.0                16
+rtk_coex_action_wl_link_2g                      8
+rtk_coex_action_single_ant                      16
+rtk_coex_action_single_ant_wl_ap                24
+rtk_coex_wl_chip_set_policy                     72
+rtw_coex_log_send_to_bin                        72
+rtos_mem_malloc                                 192
+TotalSize                                       1296
+                                                
+TASK FUNCTION                                   rtw_driver_single_thread_h
+FuncName                                        Size
+rtw_driver_single_thread_h                      24
+wifi_recv_tasklet                               8
+wifi_hal_rx_mpdu                                96
+wifi_hal_rx_amsdu                               72
+wifi_hal_normal_rx_process                      24
+rtw_recv_entry                                  32
+rtw_recv_func_prehandle                         16
+rtw_recv_validate_frame                         32
+rtw_recv_validate_data_frame                    64
+rtw_recv_sta2ap_data_frame                      32
+rtw_issue_deauth                                72
+rtw_xmit_mgntframe                              48
+wifi_hal_mgnt_xmit                              16
+rtw_mgnt_80211w_sw_encrypt                      24
+rtw_mgmt_xmitframe_coalesce                     88
+rtw_xmit_enc_software                           48
+tkip_80211_encrypt                              320
+tkip_phase2                                     48
+TotalSize                                       1064
+                                                
+TASK FUNCTION                                   rtw_joinbss_cmd_hdl
+FuncName                                        Size
+rtw_joinbss_cmd_hdl                             24
+rtw_start_clnt_join                             64
+wifi_send_mgnt                                  24
+rtw_ips_wakeup                                  24
+rtw_ips_leave                                   56
+wifi_hal_init                                   24
+wifi_hal_set_channel_bw                         40
+wifi_hal_handle_sw_chnl_and_set_bw              56
+wifi_hal_switch_chnl_and_set_bw                 24
+halrf_chl_rfk_trigger                           24
+halrf_rx_dck_trigger.part.0                     24
+halrf_rx_dck_8730e_bcdcut                       40
+rtw_hal_mac_issue_cts2self                      8
+rtw_xmit_cts2self                               32
+rtw_xmit_mgntframe                              48
+wifi_hal_mgnt_xmit                              16
+rtw_mgnt_80211w_sw_encrypt                      24
+rtw_mgmt_xmitframe_coalesce                     88
+rtw_xmit_enc_software                           48
+tkip_80211_encrypt                              320
+tkip_phase2                                     48
+TotalSize                                       1056
+                                                
+TASK FUNCTION                                   rtw_little_stack_thread
+FuncName                                        Size
+rtw_little_stack_thread                         16
+wifi_hal_interrupt_handle                       8
+wifi_hal_interrupt_handle_bcnearly_rx           8
+rtw_ap_set_tx_beacon_cmd                        8
+rtw_enqueue_cmd                                 48
+rtos_mem_zmalloc                                208
+TotalSize                                       296
+                                                
+TASK FUNCTION                                   coex_ipc_api_dev_task
+FuncName                                        Size
+coex_ipc_api_dev_task                           40
+rtk_coex_ipc_h2c_info_handler                   8
+rtk_coex_wpc_zb_rfk                             8
+wifi_hal_zbc_rfk                                8
+halrf_iqk_trigger                               16
+halrf_iqk_trigger_start.part.0                  24
+halrf_btc_rfk_ntfy                              16
+halrf_btc_ntfy                                  8
+rtw_hal_btc_wl_rfk_ntfy                         8
+rtk_coex_wl_ntfy_rfk_stop                       32
+rtk_coex_wl_chip_run_coex                       16
+rtk_coex_wl_chip_run_coex.part.0                16
+rtk_coex_action_wl_link_2g                      8
+rtk_coex_action_single_ant                      16
+rtk_coex_action_single_ant_wl_ap                24
+rtk_coex_wl_chip_set_policy                     72
+rtw_coex_log_send_to_bin                        72
+rtos_mem_malloc                                 192
+TotalSize                                       584
+                                                
+TASK FUNCTION                                   coex_ipc_api_host_task
+FuncName                                        Size
+coex_ipc_api_host_task                          40
+rtos_sema_take                                  148
+TotalSize                                       188
+                                                

@@ -1,0 +1,7 @@
+#define UTS_VERSION "2025-01-22 13:54:01"
+#define RTL_FW_COMPILE_TIME "2025-01-22 13:54:01"
+#define RTL_FW_COMPILE_DATE "2025-01-22"
+#define RTL_FW_COMPILE_BY "qi_shen"
+#define RTL_FW_COMPILE_HOST "wlan5-209"
+#define RTL_FW_COMPILE_DOMAIN "wlan5-209"
+#define RTL_FW_COMPILER "arm-none-eabi-gcc"

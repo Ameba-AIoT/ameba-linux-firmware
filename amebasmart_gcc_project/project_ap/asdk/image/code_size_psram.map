@@ -1,0 +1,95 @@
+========================= libc Start ==============================================
+text  rodata  data  bss  module  
+0     0       0     312  libc.a(lib_a-findfp.o)
+0     0       244   0    libc.a(lib_a-impure.o)
+0     0       364   0    libc.a(lib_a-locale.o)
+0     0       0     9    libc.a(lib_a-lock.o)
+0     0       0     4    libc.a(lib_a-reent.o)
+------------------------- libc End ------------------------------------------------
+text  rodata  data  bss  module  
+0     0       608   325  (TOTALS)
+Module libc size:
+0x3a5			933
+
+========================= lib_chipinfo Start ======================================
+text  rodata  data  bss  module  
+0     0       0     116  lib_chipinfo.a(ameba_flash_rom.o)
+0     0       0     64   lib_chipinfo.a(ameba_rom_patch.o)
+------------------------- lib_chipinfo End ----------------------------------------
+text  rodata  data  bss  module  
+0     0       0     180  (TOTALS)
+Module lib_chipinfo size:
+0xb4			180
+
+========================= atcmd Start =============================================
+text  rodata  data  bss  module  
+0     0       0     4    lib_at_cmd.a(shell_ram.o)
+0     0       0     356  lib_at_cmd.a(shell_rom.o)
+------------------------- atcmd End -----------------------------------------------
+text  rodata  data  bss  module  
+0     0       0     360  (TOTALS)
+Module atcmd size:
+0x168			360
+
+========================= fwlib Start =============================================
+text  rodata  data  bss  module  
+0     0       0     0    lib_pmc.a(a32_pm.o)
+0     0       0     68   lib_fwlib.a(ameba_ipc_api.o)
+0     0       0     256  lib_fwlib.a(ameba_ipc_ram.o)
+0     0       0     448  lib_pmc.a(ameba_pmc_lib.o)
+0     0       12    204  lib_fwlib.a(ameba_pmu.o)
+0     0       0     0    lib_fwlib.a(ameba_sd.o)
+0     0       0     16   lib_swlib.a(diag.o)
+0     0       0     64   lib_freertos.a(gcc_wrap.o)
+0     0       1     112  lib_fwlib.a(log.o)
+0     0       0     0    lib_fwlib.a(startup.o)
+0     0       0     1032 lib_fwlib.a(system_sheipa.o)
+0     0       0     12   lib_fwlib.a(traps.o)
+0     0       0     0    lib_fwlib.a(vectors_table.o)
+0     0       64    432  lib_fwlib_xlat_tables.a(xlat_tables_context.o)
+------------------------- fwlib End -----------------------------------------------
+text  rodata  data  bss  module  
+0     0       77    2644 (TOTALS)
+Module fwlib size:
+0xaa1			2721
+
+========================= os Start ================================================
+text  rodata  data  bss  module  
+0     0       0     53   lib_freertos.a(freertos_heap5_config.o)
+0     0       0     32   lib_freertos_smp.a(heap_5.o)
+76    0       0     17604lib_freertos_smp.a(port.o)
+0     0       0     64   lib_freertos_smp.a(queue.o)
+0     0       0     436  lib_freertos_smp.a(tasks.o)
+0     0       0     224  lib_freertos_smp.a(timers.o)
+------------------------- os End --------------------------------------------------
+text  rodata  data  bss  module  
+76    0       0     18413(TOTALS)
+Module os size:
+0x4839			18489
+
+========================= file_system Start =======================================
+text  rodata  data  bss  module  
+0     0       0     80   lib_vfs.a(vfs.o)
+------------------------- file_system End -----------------------------------------
+text  rodata  data  bss  module  
+0     0       0     80   (TOTALS)
+Module file_system size:
+0x50			80
+
+========================= others Start ============================================
+text  rodata  data  bss  module  
+0     0       0     28   crtbegin.o
+0     0       0     0    crtend.o
+------------------------- others End ----------------------------------------------
+text  rodata  data  bss  module  
+0     0       0     28   (TOTALS)
+Module others size:
+0x1c			28
+
+================================================================================
+text  rodata  data  bss  module  
+76    0       685   22030(TOTALS)
+
+Image size:
+0x5907			22791
+

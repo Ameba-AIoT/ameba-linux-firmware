@@ -1,0 +1,965 @@
+========================= libc Start ==============================================
+text  rodata  data  bss  module  
+14    0       0     0    libc.a(lib_a-abort.o)
+72    60      0     0    libc.a(lib_a-assert.o)
+16    0       0     0    libc.a(lib_a-atoi.o)
+16    0       0     0    libc.a(lib_a-atol.o)
+32    0       0     0    libc.a(lib_a-closer.o)
+0     257     0     0    libc.a(lib_a-ctype_.o)
+3320  124     0     0    libc.a(lib_a-dtoa.o)
+12    0       0     0    libc.a(lib_a-errno.o)
+188   0       0     0    libc.a(lib_a-fclose.o)
+400   0       0     0    libc.a(lib_a-fflush.o)
+616   0       0     0    libc.a(lib_a-findfp.o)
+64    0       0     0    libc.a(lib_a-fiprintf.o)
+260   0       0     0    libc.a(lib_a-fputwc.o)
+36    0       0     0    libc.a(lib_a-fstatr.o)
+660   0       0     0    libc.a(lib_a-fvwrite.o)
+120   0       0     0    libc.a(lib_a-fwalk.o)
+1368  79      0     0    libc.a(lib_a-gdtoa-gethex.o)
+388   0       0     0    libc.a(lib_a-gdtoa-hexnan.o)
+0     4       0     0    libc.a(lib_a-impure.o)
+72    0       0     0    libc.a(lib_a-init.o)
+32    0       0     0    libc.a(lib_a-isattyr.o)
+6     0       0     0    libc.a(lib_a-iswspace.o)
+20    0       0     0    libc.a(lib_a-iswspace_l.o)
+0     15      0     0    libc.a(lib_a-lnumeric.o)
+92    8       0     0    libc.a(lib_a-locale.o)
+20    0       0     0    libc.a(lib_a-localeconv.o)
+36    0       0     0    libc.a(lib_a-lseekr.o)
+216   0       0     0    libc.a(lib_a-makebuf.o)
+80    1       0     0    libc.a(lib_a-mbrtowc.o)
+56    0       0     0    libc.a(lib_a-mbtowc_r.o)
+2496  368     0     0    libc.a(lib_a-mprec.o)
+36    0       0     0    libc.a(lib_a-readr.o)
+232   0       0     0    libc.a(lib_a-reent.o)
+112   0       0     0    libc.a(lib_a-sccl.o)
+300   0       0     0    libc.a(lib_a-signal.o)
+40    0       0     0    libc.a(lib_a-signalr.o)
+196   0       0     0    libc.a(lib_a-snprintf.o)
+120   0       0     0    libc.a(lib_a-sprintf.o)
+172   0       0     0    libc.a(lib_a-sscanf.o)
+138   0       0     0    libc.a(lib_a-stdio.o)
+138   0       0     0    libc.a(lib_a-strchr.o)
+188   0       0     0    libc.a(lib_a-strcpy.o)
+34    0       0     0    libc.a(lib_a-strcspn.o)
+92    0       0     0    libc.a(lib_a-strncmp.o)
+84    0       0     0    libc.a(lib_a-strncpy.o)
+10    0       0     0    libc.a(lib_a-strsep.o)
+32    0       0     0    libc.a(lib_a-strspn.o)
+856   0       0     0    libc.a(lib_a-strstr.o)
+3552  140     0     0    libc.a(lib_a-strtod.o)
+86    0       0     0    libc.a(lib_a-strtok_r.o)
+296   0       0     0    libc.a(lib_a-strtol.o)
+336   0       0     0    libc.a(lib_a-strtoll.o)
+264   0       0     0    libc.a(lib_a-strtoul.o)
+344   0       0     0    libc.a(lib_a-strtoull.o)
+2468  66      0     0    libc.a(lib_a-svfiprintf.o)
+4084  34      0     0    libc.a(lib_a-svfiscanf.o)
+5052  84      0     0    libc.a(lib_a-svfprintf.o)
+4896  39      0     0    libc.a(lib_a-svfscanf.o)
+112   0       0     0    libc.a(lib_a-s_frexp.o)
+16    0       0     0    libc.a(lib_a-s_nan.o)
+412   0       0     0    libc.a(lib_a-ungetc.o)
+2596  66      0     0    libc.a(lib_a-vfiprintf.o)
+5368  84      0     0    libc.a(lib_a-vfprintf.o)
+32    0       0     0    libc.a(lib_a-vprintf.o)
+116   0       0     0    libc.a(lib_a-vsnprintf.o)
+164   0       0     0    libc.a(lib_a-wbuf.o)
+64    0       0     0    libc.a(lib_a-wcrtomb.o)
+48    0       0     0    libc.a(lib_a-wctomb_r.o)
+36    0       0     0    libc.a(lib_a-writer.o)
+176   0       0     0    libc.a(lib_a-wsetup.o)
+------------------------- libc End ------------------------------------------------
+text  rodata  data  bss  module  
+44006 1429    0     0    (TOTALS)
+Module libc size:
+0xb17b			45435
+
+========================= libstdc Start ===========================================
+text  rodata  data  bss  module  
+48    60      0     0    libstdc++.a(bad_alloc.o)
+48    83      0     0    libstdc++.a(bad_array_new.o)
+230   90      0     0    libstdc++.a(class_type_info.o)
+13052 3730    0     0    libstdc++.a(cp-demangle.o)
+4     0       0     0    libstdc++.a(del_op.o)
+4     0       0     0    libstdc++.a(del_ops.o)
+4     0       0     0    libstdc++.a(del_opv.o)
+296   4       0     0    libstdc++.a(eh_alloc.o)
+366   0       0     0    libstdc++.a(eh_arm.o)
+32    0       0     0    libstdc++.a(eh_aux_runtime.o)
+312   0       0     0    libstdc++.a(eh_call.o)
+212   0       0     0    libstdc++.a(eh_catch.o)
+26    174     0     0    libstdc++.a(eh_exception.o)
+16    0       0     0    libstdc++.a(eh_globals.o)
+1274  0       0     0    libstdc++.a(eh_personality.o)
+90    0       0     0    libstdc++.a(eh_terminate.o)
+318   0       0     0    libstdc++.a(eh_throw.o)
+28    0       0     0    libstdc++.a(eh_type.o)
+12    0       0     0    libstdc++.a(new_handler.o)
+60    0       0     0    libstdc++.a(new_op.o)
+4     0       0     0    libstdc++.a(new_opv.o)
+254   93      0     0    libstdc++.a(si_class_type_info.o)
+50    21      0     0    libstdc++.a(tinfo.o)
+232   140     0     0    libstdc++.a(vterminate.o)
+------------------------- libstdc End ---------------------------------------------
+text  rodata  data  bss  module  
+16972 4395    0     0    (TOTALS)
+Module libstdc size:
+0x5377			21367
+
+========================= libm Start ==============================================
+text  rodata  data  bss  module  
+12    0       0     0    libm.a(lib_a-sf_nan.o)
+------------------------- libm End ------------------------------------------------
+text  rodata  data  bss  module  
+12    0       0     0    (TOTALS)
+Module libm size:
+0xc			12
+
+========================= libgcc Start ============================================
+text  rodata  data  bss  module  
+428   0       0     0    libgcc.a(libunwind.o)
+730   0       0     0    libgcc.a(pr-support.o)
+2236  0       0     0    libgcc.a(unwind-arm.o)
+48    0       0     0    libgcc.a(_aeabi_uldivmod.o)
+888   0       0     0    libgcc.a(_arm_addsubdf3.o)
+272   0       0     0    libgcc.a(_arm_cmpdf2.o)
+80    0       0     0    libgcc.a(_arm_fixdfsi.o)
+64    0       0     0    libgcc.a(_arm_fixunsdfsi.o)
+160   0       0     0    libgcc.a(_arm_truncdfsf2.o)
+44    0       0     0    libgcc.a(_arm_unorddf2.o)
+4     0       0     0    libgcc.a(_dvmd_tls.o)
+46    0       0     0    libgcc.a(_fixdfdi.o)
+60    0       0     0    libgcc.a(_fixunsdfdi.o)
+38    0       0     0    libgcc.a(_popcountsi2.o)
+680   0       0     0    libgcc.a(_udivmoddi4.o)
+------------------------- libgcc End ----------------------------------------------
+text  rodata  data  bss  module  
+5778  0       0     0    (TOTALS)
+Module libgcc size:
+0x1692			5778
+
+========================= lib_chipinfo Start ======================================
+text  rodata  data  bss  module  
+500   212     0     0    lib_chipinfo.a(ameba_chipinfo_lib.o)
+5368  306     0     0    lib_chipinfo.a(ameba_rom_patch.o)
+------------------------- lib_chipinfo End ----------------------------------------
+text  rodata  data  bss  module  
+5868  518     0     0    (TOTALS)
+Module lib_chipinfo size:
+0x18f2			6386
+
+========================= libnosys Start ==========================================
+text  rodata  data  bss  module  
+16    0       0     0    libnosys.a(close.o)
+16    0       0     0    libnosys.a(fstat.o)
+16    0       0     0    libnosys.a(getpid.o)
+16    0       0     0    libnosys.a(isatty.o)
+16    0       0     0    libnosys.a(kill.o)
+16    0       0     0    libnosys.a(lseek.o)
+2     0       0     0    libnosys.a(_exit.o)
+------------------------- libnosys End --------------------------------------------
+text  rodata  data  bss  module  
+98    0       0     0    (TOTALS)
+Module libnosys size:
+0x62			98
+
+========================= bt_mgr Start ============================================
+text  rodata  data  bss  module  
+2968  10      0     0    bt_mgr.a(a2dp.o)
+2232  37      0     0    bt_mgr.a(avctp.o)
+15588 121     0     0    bt_mgr.a(avdtp.o)
+8532  84      0     0    bt_mgr.a(avrcp.o)
+2748  40      0     0    bt_mgr.a(bt_a2dp.o)
+2848  0       0     0    bt_mgr.a(bt_avrcp.o)
+216   0       0     0    bt_mgr.a(bt_bond.o)
+3340  0       0     0    bt_mgr.a(bt_gap.o)
+3136  97      0     0    bt_mgr.a(bt_hfp.o)
+2824  12      0     0    bt_mgr.a(bt_hfp_ag.o)
+852   0       0     0    bt_mgr.a(bt_hid.o)
+26052 60      0     0    bt_mgr.a(bt_mgr.o)
+764   5       0     0    bt_mgr.a(bt_pbap.o)
+1160  36      0     0    bt_mgr.a(bt_pm.o)
+52    0       0     0    bt_mgr.a(bt_rdtp.o)
+1192  12      0     0    bt_mgr.a(bt_rfc.o)
+52    0       0     0    bt_mgr.a(bt_roleswap.o)
+648   12      0     0    bt_mgr.a(bt_sdp.o)
+872   28      0     0    bt_mgr.a(bt_spp.o)
+7332  861     0     0    bt_mgr.a(hfp.o)
+9156  1025    0     0    bt_mgr.a(hfp_ag.o)
+300   120     0     0    bt_mgr.a(hfp_utils.o)
+3668  9       0     0    bt_mgr.a(hid.o)
+656   16      0     0    bt_mgr.a(hid_parser.o)
+5752  207     0     0    bt_mgr.a(obex.o)
+4140  482     0     0    bt_mgr.a(pbap.o)
+164   0       0     0    bt_mgr.a(rdtp.o)
+3900  184     0     0    bt_mgr.a(remote_mgr.o)
+9244  294     0     0    bt_mgr.a(rfc.o)
+2872  9       0     0    bt_mgr.a(spp.o)
+------------------------- bt_mgr End ----------------------------------------------
+text  rodata  data  bss  module  
+1232603761    0     0    (TOTALS)
+Module bt_mgr size:
+0x1f02d			127021
+
+========================= ble_mgr Start ===========================================
+text  rodata  data  bss  module  
+652   21      0     0    ble_mgr.a(ble_adv_data.o)
+756   0       0     0    ble_mgr.a(ble_conn.o)
+4476  206     0     0    ble_mgr.a(ble_ext_adv.o)
+640   0       0     0    ble_mgr.a(ble_mgr.o)
+744   0       0     0    ble_mgr.a(ble_scan.o)
+6580  11      0     0    ble_mgr.a(bt_gattc_storage.o)
+7520  455     0     0    ble_mgr.a(bt_gatt_client.o)
+3588  12      0     0    ble_mgr.a(bt_gatt_svc.o)
+1288  16      0     0    ble_mgr.a(gatt_service_client.o)
+------------------------- ble_mgr End ---------------------------------------------
+text  rodata  data  bss  module  
+26244 721     0     0    (TOTALS)
+Module ble_mgr size:
+0x6955			26965
+
+========================= leaudio Start ===========================================
+text  rodata  data  bss  module  
+1492  21      0     0    leaudio.a(aics_client.o)
+80    0       0     0    leaudio.a(aics_mgr.o)
+684   196     0     0    leaudio.a(ascs.o)
+4260  129     0     0    leaudio.a(ascs_client.o)
+3124  71      0     0    leaudio.a(ascs_client_cp.o)
+3744  17      0     0    leaudio.a(ascs_mgr.o)
+2172  5       0     0    leaudio.a(ase_handle_cp.o)
+3668  0       0     0    leaudio.a(ase_sm.o)
+800   90      0     0    leaudio.a(audio_stream_session.o)
+4196  170     0     0    leaudio.a(bap.o)
+17380 972     0     0    leaudio.a(bap_unicast_client.o)
+1640  67      0     0    leaudio.a(base_data_generate.o)
+1412  21      0     0    leaudio.a(base_data_parse.o)
+3320  266     0     0    leaudio.a(bass_brs_mgr.o)
+3880  33      0     0    leaudio.a(bass_client.o)
+5260  432     0     0    leaudio.a(bass_mgr.o)
+160   0       0     0    leaudio.a(ble_audio_dm.o)
+3464  381     0     0    leaudio.a(ble_audio_group.o)
+1840  26      0     0    leaudio.a(ble_audio_mgr.o)
+6300  372     0     0    leaudio.a(ble_audio_sync.o)
+508   0       0     0    leaudio.a(ble_audio_ual.o)
+988   0       0     0    leaudio.a(ble_link_util.o)
+5196  282     0     0    leaudio.a(broadcast_source_sm.o)
+168   28      0     0    leaudio.a(bt_bond_gap.o)
+48    0       0     0    leaudio.a(calculate_util.o)
+2896  0       0     0    leaudio.a(cap.o)
+264   68      0     0    leaudio.a(cas.o)
+1260  0       0     0    leaudio.a(ccp_client.o)
+228   0       0     0    leaudio.a(ccp_mgr.o)
+1328  0       0     0    leaudio.a(codec.o)
+588   1216    0     0    leaudio.a(codec_qos.o)
+488   336     0     0    leaudio.a(csis.o)
+460   0       0     0    leaudio.a(csis_client.o)
+2092  22      0     0    leaudio.a(csis_mgr.o)
+220   8       0     0    leaudio.a(csis_sir.o)
+36    0       0     0    leaudio.a(gmas_mgr.o)
+64    0       0     0    leaudio.a(has_client.o)
+36    0       0     0    leaudio.a(has_mgr.o)
+80    0       0     0    leaudio.a(ltv_util.o)
+1628  0       0     0    leaudio.a(mcp_client.o)
+236   0       0     0    leaudio.a(mcp_mgr.o)
+248   0       0     0    leaudio.a(metadata.o)
+824   0       0     0    leaudio.a(mics_client.o)
+36    0       0     0    leaudio.a(mics_mgr.o)
+2560  0       0     0    leaudio.a(ots_client.o)
+884   0       0     0    leaudio.a(ots_coc.o)
+1276  532     0     0    leaudio.a(pacs.o)
+2160  57      0     0    leaudio.a(pacs_client.o)
+2508  12      0     0    leaudio.a(pacs_mgr.o)
+888   0       0     0    leaudio.a(pac_mgr.o)
+4380  0       0     0    leaudio.a(set_coordinator_client.o)
+476   0       0     0    leaudio.a(set_member.o)
+160   0       0     0    leaudio.a(tbs_client.o)
+24    0       0     0    leaudio.a(tmas_mgr.o)
+1732  74      0     0    leaudio.a(vcs_client.o)
+36    0       0     0    leaudio.a(vcs_mgr.o)
+1388  15      0     0    leaudio.a(vocs_client.o)
+84    0       0     0    leaudio.a(vocs_mgr.o)
+------------------------- leaudio End ---------------------------------------------
+text  rodata  data  bss  module  
+1073525919    0     0    (TOTALS)
+Module leaudio size:
+0x1ba77			113271
+
+========================= btgap Start =============================================
+text  rodata  data  bss  module  
+592   16      0     0    btgap.a(aes_cmac.o)
+6896  200     0     0    btgap.a(att.o)
+536   18      0     0    btgap.a(ble_isoch_mgr.o)
+692   0       0     0    btgap.a(bte_main.o)
+2204  19      0     0    btgap.a(bte_pool_2.o)
+520   0       0     0    btgap.a(bte_queue.o)
+1648  30      0     0    btgap.a(bte_sched.o)
+1324  52      0     0    btgap.a(bte_sys.o)
+188   19      0     0    btgap.a(bte_timer.o)
+32    0       0     0    btgap.a(bte_utils.o)
+10412 360     0     0    btgap.a(btif.o)
+284   21      0     0    btgap.a(btif_main.o)
+29756 1214    0     0    btgap.a(btif_msg.o)
+5688  228     0     0    btgap.a(btif_utils.o)
+40    512     0     0    btgap.a(crc16btx.o)
+864   17      0     0    btgap.a(crypto.o)
+6324  192     0     0    btgap.a(ecc.o)
+72    0       0     0    btgap.a(ftl_app.o)
+868   23      0     0    btgap.a(gap_acl.o)
+868   0       0     0    btgap.a(gap_adv.o)
+84    0       0     0    btgap.a(gap_aox.o)
+376   0       0     0    btgap.a(gap_aox_conn.o)
+244   0       0     0    btgap.a(gap_aox_connless_receiver.o)
+1156  0       0     0    btgap.a(gap_aox_connless_transmitter.o)
+8856  82      0     0    btgap.a(gap_big_mgr.o)
+2744  146     0     0    btgap.a(gap_bond_le.o)
+5336  0       0     0    btgap.a(gap_br.o)
+2936  85      0     0    btgap.a(gap_cccd.o)
+1332  40      0     0    btgap.a(gap_chann.o)
+7916  35      0     0    btgap.a(gap_cig_mgr.o)
+2600  124     0     0    btgap.a(gap_common.o)
+236   0       0     0    btgap.a(gap_config.o)
+1952  12      0     0    btgap.a(gap_credit_based_conn.o)
+48    0       0     0    btgap.a(gap_customer.o)
+280   0       0     0    btgap.a(gap_dtm.o)
+1396  0       0     0    btgap.a(gap_ecfc.o)
+3300  16      0     0    btgap.a(gap_ext_adv.o)
+1012  0       0     0    btgap.a(gap_ext_scan.o)
+5248  29      0     0    btgap.a(gap_le.o)
+700   0       0     0    btgap.a(gap_le_rf.o)
+4160  63      0     0    btgap.a(gap_link_mgr.o)
+836   20      0     0    btgap.a(gap_msg.o)
+528   0       0     0    btgap.a(gap_past_recipient.o)
+312   0       0     0    btgap.a(gap_past_sender.o)
+2468  15      0     0    btgap.a(gap_pa_adv.o)
+3536  16      0     0    btgap.a(gap_pa_sync.o)
+700   0       0     0    btgap.a(gap_privacy.o)
+672   0       0     0    btgap.a(gap_scan.o)
+1056  16      0     0    btgap.a(gap_storage_br.o)
+700   0       0     0    btgap.a(gap_storage_common.o)
+4248  0       0     0    btgap.a(gap_storage_flash.o)
+2992  12      0     0    btgap.a(gap_storage_le.o)
+1228  0       0     0    btgap.a(gap_storage_priority.o)
+1968  580     0     0    btgap.a(gatt_builtin_services.o)
+1064  6       0     0    btgap.a(gatt_le.o)
+1176  21      0     0    btgap.a(gatt_ll.o)
+616   21      0     0    btgap.a(gatt_main.o)
+4980  296     0     0    btgap.a(gatt_msg.o)
+10476 188     0     0    btgap.a(gatt_utils.o)
+7572  51      0     0    btgap.a(hci_cmd.o)
+14128 100     0     0    btgap.a(hci_evt.o)
+1604  99      0     0    btgap.a(hci_iso_data.o)
+3520  101     0     0    btgap.a(hci_link.o)
+4128  227     0     0    btgap.a(hci_main.o)
+3916  40      0     0    btgap.a(hci_utils.o)
+5488  44      0     0    btgap.a(l2c_br.o)
+2660  0       0     0    btgap.a(l2c_csm.o)
+5376  94      0     0    btgap.a(l2c_ecfc.o)
+6436  239     0     0    btgap.a(l2c_ertm.o)
+2148  22      0     0    btgap.a(l2c_le.o)
+7356  299     0     0    btgap.a(l2c_main.o)
+2228  35      0     0    btgap.a(l2c_utils.o)
+1292  9       0     0    btgap.a(mpa.o)
+232   0       0     0    btgap.a(os_mem.o)
+364   0       0     0    btgap.a(os_msg.o)
+284   0       0     0    btgap.a(os_queue.o)
+8     0       0     0    btgap.a(os_sched.o)
+8     0       0     0    btgap.a(os_sync.o)
+44    0       0     0    btgap.a(os_task.o)
+68    0       0     0    btgap.a(os_timer.o)
+56    0       0     0    btgap.a(profile.o)
+7192  404     0     0    btgap.a(profile_client.o)
+5060  117     0     0    btgap.a(profile_server.o)
+2284  80      0     0    btgap.a(sdp_main.o)
+7032  326     0     0    btgap.a(sdp_utils.o)
+10260 149     0     0    btgap.a(sm_api.o)
+400   17      0     0    btgap.a(sm_main.o)
+436   11      0     0    btgap.a(sm_sc_key.o)
+11896 438     0     0    btgap.a(sm_smp.o)
+6864  253     0     0    btgap.a(sm_utils.o)
+780   511     0     0    btgap.a(sw_aes.o)
+944   0       0     0    btgap.a(trace.o)
+------------------------- btgap End -----------------------------------------------
+text  rodata  data  bss  module  
+2833408410    0     0    (TOTALS)
+Module btgap size:
+0x473a6			291750
+
+========================= sysm Start ==============================================
+text  rodata  data  bss  module  
+100   15      0     0    sysm.a(sys_event.o)
+432   18      0     0    sysm.a(sys_ipc.o)
+232   0       0     0    sysm.a(sys_mgr.o)
+824   82      0     0    sysm.a(sys_timer.o)
+------------------------- sysm End ------------------------------------------------
+text  rodata  data  bss  module  
+1588  115     0     0    (TOTALS)
+Module sysm size:
+0x6a7			1703
+
+========================= bt Start ================================================
+text  rodata  data  bss  module  
+2508  1535    0     0    lib_bluetooth_ble_audio_common.a(app_bt_le_audio_common.o)
+480   305     0     0    lib_bluetooth_atcmd.a(atcmd_bt_a2dp.o)
+1672  1037    0     0    lib_bluetooth_atcmd.a(atcmd_bt_avrcp.o)
+2256  2732    0     0    lib_bluetooth_atcmd.a(atcmd_bt_bap.o)
+1652  1601    0     0    lib_bluetooth_atcmd.a(atcmd_bt_br_gap.o)
+228   231     0     0    lib_bluetooth_atcmd.a(atcmd_bt_common.o)
+148   123     0     0    lib_bluetooth_atcmd.a(atcmd_bt_gap.o)
+844   688     0     0    lib_bluetooth_atcmd.a(atcmd_bt_gattc.o)
+424   303     0     0    lib_bluetooth_atcmd.a(atcmd_bt_gatts.o)
+1508  1169    0     0    lib_bluetooth_atcmd.a(atcmd_bt_hfp.o)
+412   281     0     0    lib_bluetooth_atcmd.a(atcmd_bt_hid.o)
+7852  7363    0     0    lib_bluetooth_atcmd.a(atcmd_bt_le_gap.o)
+1096  813     0     0    lib_bluetooth_atcmd.a(atcmd_bt_pbap.o)
+644   542     0     0    lib_bluetooth_atcmd.a(atcmd_bt_rfc.o)
+132   87      0     0    lib_bluetooth_atcmd.a(atcmd_bt_sdp.o)
+820   619     0     0    lib_bluetooth_atcmd.a(atcmd_bt_spp.o)
+1228  970     0     0    lib_bluetooth_atcmd.a(atcmd_bt_vendor.o)
+144   355     0     0    lib_bluetooth_audio.a(bt_audio_codec_wrapper.o)
+828   925     0     0    lib_bluetooth_audio.a(bt_audio_intf.o)
+116   187     0     0    lib_bluetooth_audio.a(bt_audio_track_api.o)
+188   0       0     0    lib_bluetooth_bsp.a(bt_debug.o)
+0     134189  0     0    lib_bluetooth_bsp.a(bt_normal_patch.o)
+620   223     0     0    lib_bluetooth_atcmd.a(bt_utils.o)
+1000  361     0     0    lib_bluetooth_bsp.a(hci_common.o)
+1308  499     0     0    lib_bluetooth_bsp.a(hci_download_v2.o)
+1644  181     0     0    lib_bluetooth_bsp.a(hci_download_v3.o)
+984   117     0     0    lib_bluetooth_bsp.a(hci_h4.o)
+1012  50      0     0    lib_bluetooth_bsp.a(hci_if_rtk.o)
+2868  507     0     0    lib_bluetooth_bsp.a(hci_platform.o)
+652   272     0     0    lib_bluetooth_bsp.a(hci_process.o)
+144   0       0     0    lib_bluetooth_bsp.a(hci_standalone.o)
+1424  183     0     0    lib_bluetooth_bsp.a(hci_uart.o)
+992   282     0     0    lib_bluetooth_bsp.a(osif.o)
+32    0       0     0    lib_bluetooth_bsp.a(platform_utils.o)
+80    0       0     0    lib_bluetooth_api.a(rtk_bt_a2dp.o)
+380   0       0     0    lib_bluetooth_api.a(rtk_bt_avrcp.o)
+8880  7173    0     0    lib_bluetooth_api.a(rtk_bt_bap.o)
+572   0       0     0    lib_bluetooth_api.a(rtk_bt_br_gap.o)
+1524  126     0     0    lib_bluetooth_api.a(rtk_bt_common.o)
+196   83      0     0    lib_bluetooth_api.a(rtk_bt_device.o)
+12    0       0     0    lib_bluetooth_api.a(rtk_bt_gap.o)
+152   0       0     0    lib_bluetooth_api.a(rtk_bt_gatt.o)
+464   0       0     0    lib_bluetooth_api.a(rtk_bt_hfp.o)
+148   188     0     0    lib_bluetooth_api.a(rtk_bt_hid.o)
+1544  0       0     0    lib_bluetooth_api.a(rtk_bt_le_audio.o)
+2328  35      0     0    lib_bluetooth_api.a(rtk_bt_le_gap.o)
+160   0       0     0    lib_bluetooth_api.a(rtk_bt_pbap.o)
+80    0       0     0    lib_bluetooth_api.a(rtk_bt_rfc.o)
+20    0       0     0    lib_bluetooth_api.a(rtk_bt_sdp.o)
+100   0       0     0    lib_bluetooth_api.a(rtk_bt_spp.o)
+288   127     0     0    lib_bluetooth_api.a(rtk_bt_vendor.o)
+3040  22      0     0    lib_bluetooth_coex.a(rtk_coex.o)
+1984  1303    0     0    lib_bluetooth_api.a(rtk_stack_a2dp.o)
+1872  56      0     0    lib_bluetooth_api.a(rtk_stack_api.o)
+2352  1339    0     0    lib_bluetooth_api.a(rtk_stack_avrcp.o)
+2260  837     0     0    lib_bluetooth_api.a(rtk_stack_br_gap.o)
+88    44      0     0    lib_bluetooth_api.a(rtk_stack_gap.o)
+1628  389     0     0    lib_bluetooth_api.a(rtk_stack_gattc.o)
+4036  295     0     0    lib_bluetooth_api.a(rtk_stack_gatts.o)
+3608  1704    0     0    lib_bluetooth_api.a(rtk_stack_hfp.o)
+884   880     0     0    lib_bluetooth_api.a(rtk_stack_hid.o)
+18812 10102   0     0    lib_bluetooth_api.a(rtk_stack_le_audio.o)
+8584  154     0     0    lib_bluetooth_api.a(rtk_stack_le_gap.o)
+1216  711     0     0    lib_bluetooth_api.a(rtk_stack_pbap.o)
+1268  858     0     0    lib_bluetooth_api.a(rtk_stack_rfc.o)
+452   290     0     0    lib_bluetooth_api.a(rtk_stack_sdp.o)
+1624  2150    0     0    lib_bluetooth_api.a(rtk_stack_spp.o)
+96    81      0     0    lib_bluetooth_api.a(rtk_stack_vendor.o)
+160   32      0     0    lib_bluetooth_bsp.a(trace_uart.o)
+------------------------- bt End --------------------------------------------------
+text  rodata  data  bss  module  
+108752187709  0     0    (TOTALS)
+Module bt size:
+0x4860d			296461
+
+========================= wifirom Start ===========================================
+text  rodata  data  bss  module  
+8688  14441   0     0    lib_wifi_com_sec.a(rom_aes.o)
+208   1024    0     0    lib_wifi_com_sec.a(rom_arc4.o)
+988   797     0     0    lib_wifi_single_core.a(rom_hal_debug.o)
+1416  0       0     0    lib_wifi_single_core.a(rom_hal_h2c.o)
+352   31      0     0    lib_wifi_single_core.a(rom_hal_h2c_g1.o)
+2160  237     0     0    lib_wifi_single_core.a(rom_hal_recv.o)
+3988  206     0     0    lib_wifi_single_core.a(rom_hal_xmit.o)
+1152  32      0     0    lib_wifi_single_core.a(rom_hal_xmit_g1.o)
+2440  64      0     0    lib_wifi_com_sec.a(rom_md5.o)
+1012  0       0     0    lib_wifi_com_sec.a(rom_rc4.o)
+564   74      0     0    lib_wifi_single_core.a(rom_rtw_11d_part2.o)
+516   40      0     0    lib_wifi_single_core.a(rom_rtw_80211w.o)
+852   0       0     0    lib_wifi_single_core.a(rom_rtw_80211w_part2.o)
+116   0       0     0    lib_wifi_single_core.a(rom_rtw_action.o)
+348   0       0     0    lib_wifi_single_core.a(rom_rtw_action_part2.o)
+1420  20      0     0    lib_wifi_single_core.a(rom_rtw_addba.o)
+2780  69      0     0    lib_wifi_single_core.a(rom_rtw_ap.o)
+1188  54      0     0    lib_wifi_single_core.a(rom_rtw_ap_xmit.o)
+2720  148     0     0    lib_wifi_single_core.a(rom_rtw_assoc.o)
+4592  357     0     0    lib_wifi_single_core.a(rom_rtw_assoc_part2.o)
+2952  388     0     0    lib_wifi_single_core.a(rom_rtw_auth_part2.o)
+2480  6       0     0    lib_wifi_single_core.a(rom_rtw_beacon.o)
+2340  66      0     0    lib_wifi_single_core.a(rom_rtw_beacon_part2.o)
+1004  0       0     0    lib_wifi_single_core.a(rom_rtw_chbw.o)
+48    8440    0     0    lib_wifi_com_sec.a(rom_rtw_dh_groups.o)
+272   0       0     0    lib_wifi_single_core.a(rom_rtw_he.o)
+1964  81      0     0    lib_wifi_single_core.a(rom_rtw_he_part2.o)
+1052  23      0     0    lib_wifi_single_core.a(rom_rtw_ht.o)
+2228  89      0     0    lib_wifi_single_core.a(rom_rtw_ieee80211.o)
+2584  2140    0     0    lib_wifi_single_core.a(rom_rtw_ieee80211_part2.o)
+3524  224     0     0    lib_wifi_single_core.a(rom_rtw_join.o)
+1852  0       0     0    lib_wifi_single_core.a(rom_rtw_join_result.o)
+10608 0       0     0    lib_wifi_com_sec.a(rom_rtw_mbedtls_bignum.o)
+7124  0       0     0    lib_wifi_com_sec.a(rom_rtw_mbedtls_ecp.o)
+3556  1004    0     0    lib_wifi_com_sec.a(rom_rtw_mbedtls_ecp_curves.o)
+16    0       0     0    lib_wifi_com_sec.a(rom_rtw_mbedtls_platform.o)
+144   0       0     0    lib_wifi_single_core.a(rom_rtw_mgnt.o)
+188   0       0     0    lib_wifi_single_core.a(rom_rtw_network.o)
+636   0       0     0    lib_wifi_single_core.a(rom_rtw_pmksa_cache.o)
+708   75      0     0    lib_wifi_single_core.a(rom_rtw_pmksa_cache_part2.o)
+200   0       0     0    lib_wifi_single_core.a(rom_rtw_probe.o)
+832   26      0     0    lib_wifi_single_core.a(rom_rtw_psk.o)
+104   0       0     0    lib_wifi_com_sec.a(rom_rtw_queue.o)
+284   7       0     0    lib_wifi_single_core.a(rom_rtw_rate.o)
+188   0       0     0    lib_wifi_single_core.a(rom_rtw_recv.o)
+4008  211     0     0    lib_wifi_single_core.a(rom_rtw_recv_part2.o)
+760   13      0     0    lib_wifi_single_core.a(rom_rtw_recv_reorder.o)
+0     7       0     0    lib_wifi_single_core.a(rom_rtw_rf.o)
+5932  1292    0     0    lib_wifi_com_sec.a(rom_rtw_security.o)
+3392  110     0     0    lib_wifi_single_core.a(rom_rtw_security_part2.o)
+776   90      0     0    lib_wifi_single_core.a(rom_rtw_setkey.o)
+1596  257     0     0    lib_wifi_com_sec.a(rom_rtw_sha256.o)
+1632  13      0     0    lib_wifi_single_core.a(rom_rtw_shortcut.o)
+428   42      0     0    lib_wifi_single_core.a(rom_rtw_sitesurvey.o)
+1460  0       0     0    lib_wifi_single_core.a(rom_rtw_sitesurvey_report.o)
+368   68      0     0    lib_wifi_single_core.a(rom_rtw_skbuff.o)
+460   0       0     0    lib_wifi_single_core.a(rom_rtw_state.o)
+776   0       0     0    lib_wifi_single_core.a(rom_rtw_sta_mgt.o)
+412   0       0     0    lib_wifi_single_core.a(rom_rtw_vht.o)
+800   120     0     0    lib_wifi_single_core.a(rom_rtw_vht_part2.o)
+4492  162     0     0    lib_wifi_single_core.a(rom_rtw_xmit.o)
+1116  0       0     0    lib_wifi_com_sec.a(rom_sha1.o)
+504   0       0     0    lib_wifi_single_core.a(rom_wifi_hal_ax.o)
+136   0       0     0    lib_wifi_single_core.a(rom_wifi_hal_bcn.o)
+2184  1416    0     0    lib_wifi_single_core.a(rom_wifi_hal_debug.o)
+1440  58      0     0    lib_wifi_single_core.a(rom_wifi_hal_init.o)
+1384  0       0     0    lib_wifi_single_core.a(rom_wifi_hal_media_access.o)
+748   33      0     0    lib_wifi_single_core.a(rom_wifi_hal_misc.o)
+816   11      0     0    lib_wifi_single_core.a(rom_wifi_hal_rate.o)
+40    0       0     0    lib_wifi_single_core.a(rom_wifi_hal_rxdesc.o)
+280   24      0     0    lib_wifi_single_core.a(rom_wifi_hal_secure.o)
+200   0       0     0    lib_wifi_single_core.a(rom_wifi_hal_tsf.o)
+496   22      0     0    lib_wifi_single_core.a(rom_wifi_hal_txdesc.o)
+2564  33      0     0    lib_wpa_lite.a(rom_wpa_lite_part2.o)
+3540  71      0     0    lib_wpa_lite.a(rom_wpa_lite_psk.o)
+4604  1359    0     0    lib_wpa_lite.a(rom_wpa_lite_sae.o)
+7892  785     0     0    lib_wpa_lite.a(rom_wpa_lite_sae_crypto.o)
+------------------------- wifirom End ---------------------------------------------
+text  rodata  data  bss  module  
+13962436360   0     0    (TOTALS)
+Module wifirom size:
+0x2af70			175984
+
+========================= wifidrv Start ===========================================
+text  rodata  data  bss  module  
+1332  426     0     0    lib_wifi_single_core.a(hal_debug.o)
+1272  59      0     0    lib_wifi_single_core.a(hal_dig_g6.o)
+264   0       0     0    lib_wifi_single_core.a(hal_dm.o)
+580   0       0     0    lib_wifi_single_core.a(hal_edcca.o)
+72    0       0     0    lib_wifi_single_core.a(hal_efuse.o)
+188   0       0     0    lib_wifi_single_core.a(hal_h2c.o)
+620   7       0     0    lib_wifi_single_core.a(hal_h2c_g1.o)
+144   0       0     0    lib_wifi_single_core.a(hal_interrupt.o)
+1172  9       0     0    lib_wifi_single_core.a(hal_interrupt_g1.o)
+616   117     0     0    lib_wifi_single_core.a(hal_phycfg.o)
+944   90      0     0    lib_wifi_single_core.a(hal_ra.o)
+368   0       0     0    lib_wifi_single_core.a(hal_recv.o)
+1072  20      0     0    lib_wifi_single_core.a(hal_recv_g1.o)
+380   13      0     0    lib_wifi_single_core.a(hal_sta_config_g6.o)
+1232  0       0     0    lib_wifi_single_core.a(hal_suspend.o)
+576   48      0     0    lib_wifi_single_core.a(hal_suspend_g1.o)
+508   64      0     0    lib_wifi_single_core.a(hal_xmit.o)
+160   0       0     0    lib_wifi_single_core.a(rtw_11d.o)
+236   40      0     0    lib_wifi_single_core.a(rtw_80211w.o)
+508   71      0     0    lib_wifi_single_core.a(rtw_action.o)
+220   0       0     0    lib_wifi_single_core.a(rtw_adapter.o)
+36    18      0     0    lib_wifi_single_core.a(rtw_addba.o)
+1668  155     0     0    lib_wifi_single_core.a(rtw_ap.o)
+2088  21      0     0    lib_wifi_single_core.a(rtw_assoc.o)
+84    0       0     0    lib_wifi_com_sec.a(rtw_atomic.o)
+1412  45      0     0    lib_wifi_single_core.a(rtw_auth.o)
+1276  38      0     0    lib_wifi_single_core.a(rtw_beacon.o)
+312   22      0     0    lib_wifi_single_core.a(rtw_cmd.o)
+1292  24      0     0    lib_wifi_single_core.a(rtw_dfs.o)
+2068  200     0     0    lib_wifi_single_core.a(rtw_drv_init.o)
+760   87      0     0    lib_wifi_single_core.a(rtw_dynamic.o)
+1068  81      0     0    lib_wifi_single_core.a(rtw_ips.o)
+1536  147     0     0    lib_wifi_single_core.a(rtw_join.o)
+1300  61      0     0    lib_wifi_single_core.a(rtw_join_result.o)
+1008  18      0     0    lib_wifi_single_core.a(rtw_lps.o)
+124   166     0     0    lib_wifi_single_core.a(rtw_macid_mgt.o)
+824   57      0     0    lib_wifi_single_core.a(rtw_mgnt.o)
+200   0       0     0    lib_wifi_single_core.a(rtw_network.o)
+1256  0       0     0    lib_wifi_single_core.a(rtw_probe.o)
+1620  31      0     0    lib_wifi_single_core.a(rtw_recv.o)
+748   20      0     0    lib_wifi_single_core.a(rtw_recv_defrag.o)
+864   370     0     0    lib_wifi_single_core.a(rtw_setkey.o)
+1888  106     0     0    lib_wifi_single_core.a(rtw_sitesurvey.o)
+920   37      0     0    lib_wifi_single_core.a(rtw_sitesurvey_report.o)
+336   117     0     0    lib_wifi_single_core.a(rtw_skbuff.o)
+124   0       0     0    lib_wifi_single_core.a(rtw_state.o)
+1996  99      0     0    lib_wifi_single_core.a(rtw_sta_mgt.o)
+148   0       0     0    lib_wifi_single_core.a(rtw_task.o)
+696   171     0     0    lib_wifi_com_sec.a(rtw_timer.o)
+112   26      0     0    lib_wifi_single_core.a(rtw_vht.o)
+64    0       0     0    lib_wifi_com_sec.a(rtw_wakelock.o)
+1008  90      0     0    lib_wifi_single_core.a(rtw_xmit.o)
+780   219     0     0    lib_wifi_api_hp.a(wifi_auto_reconnect.o)
+1160  427     0     0    lib_wifi_api_hp.a(wifi_fast_connect.o)
+24    0       0     0    lib_wifi_feature_disable_hp.a(wifi_feature_dis_antdiv.o)
+8     0       0     0    lib_wifi_feature_disable_hp.a(wifi_feature_dis_csi.o)
+96    0       0     0    lib_wifi_feature_disable_hp.a(wifi_feature_dis_kvr.o)
+68    0       0     0    lib_wifi_feature_disable_hp.a(wifi_feature_dis_p2p.o)
+12    0       0     0    lib_wifi_feature_disable_hp.a(wifi_feature_dis_speaker.o)
+612   1107    0     0    lib_wifi_single_core.a(wifi_hal_debug.o)
+200   57      0     0    lib_wifi_single_core.a(wifi_hal_dm.o)
+296   0       0     0    lib_wifi_single_core.a(wifi_hal_h2c.o)
+2472  767     0     0    lib_wifi_single_core.a(wifi_hal_halinit.o)
+28    0       0     0    lib_wifi_single_core.a(wifi_hal_hci_intfs.o)
+200   0       0     0    lib_wifi_single_core.a(wifi_hal_interrupt.o)
+64    0       0     0    lib_wifi_single_core.a(wifi_hal_io.o)
+308   0       0     0    lib_wifi_single_core.a(wifi_hal_ops.o)
+784   0       0     0    lib_wifi_single_core.a(wifi_hal_phycfg.o)
+516   71      0     0    lib_wifi_single_core.a(wifi_hal_recv.o)
+564   0       0     0    lib_wifi_single_core.a(wifi_hal_rxdesc.o)
+76    0       0     0    lib_wifi_single_core.a(wifi_hal_suspend.o)
+1264  0       0     0    lib_wifi_single_core.a(wifi_hal_txdesc.o)
+60    0       0     0    lib_wifi_single_core.a(wifi_hal_txpower.o)
+72    0       0     0    lib_wifi_single_core.a(wifi_hal_xmit.o)
+856   298     0     0    lib_wifi_api_hp.a(wifi_ind.o)
+196   96      0     0    lib_wifi_api_hp.a(wifi_init.o)
+1320  568     0     0    lib_wifi_single_core.a(wifi_intf_drv_to_app_basic.o)
+2932  639     0     0    lib_wifi_single_core.a(wifi_intf_drv_to_app_ext.o)
+340   82      0     0    lib_wifi_single_core.a(wifi_intf_drv_to_lwip.o)
+2548  260     0     0    lib_wifi_single_core.a(wifi_intf_drv_to_upper.o)
+752   0       0     0    lib_wifi_single_core.a(wifi_intf_hal_to_g6_bb.o)
+676   147     0     0    lib_wifi_single_core.a(wifi_intf_hal_to_g6_mac.o)
+652   0       0     0    lib_wifi_single_core.a(wifi_intf_hal_to_g6_mac_common.o)
+800   0       0     0    lib_wifi_single_core.a(wifi_intf_rom_to_flash.o)
+1256  430     0     0    lib_wpa_lite.a(wpa_lite_owe.o)
+7140  618     0     0    lib_wpa_lite.a(wpa_lite_psk.o)
+3948  1423    0     0    lib_wpa_lite.a(wpa_lite_sae.o)
+------------------------- wifidrv End ---------------------------------------------
+text  rodata  data  bss  module  
+74380 10380   0     0    (TOTALS)
+Module wifidrv size:
+0x14b18			84760
+
+========================= wificoex Start ==========================================
+text  rodata  data  bss  module  
+1188  3       0     0    lib_coex.a(rtw_coex_action.o)
+28    0       0     0    lib_coex.a(rtw_coex_action_dual_ant.o)
+620   0       0     0    lib_coex.a(rtw_coex_action_dual_chip.o)
+2220  20      0     0    lib_coex.a(rtw_coex_action_single_ant.o)
+108   0       0     0    lib_coex.a(rtw_coex_api_bt.o)
+344   0       0     0    lib_coex.a(rtw_coex_api_ext.o)
+4140  141     0     0    lib_coex.a(rtw_coex_api_wl.o)
+24    0       0     0    lib_coex.a(rtw_coex_api_wp.o)
+396   0       0     0    lib_coex.a(rtw_coex_dbg.o)
+732   0       0     0    lib_coex.a(rtw_coex_ext_chip.o)
+32    0       0     0    lib_coex.a(rtw_coex_ext_chip_bt.o)
+848   0       0     0    lib_coex.a(rtw_coex_ext_chip_rtl8730e.o)
+40    0       0     0    lib_coex.a(rtw_coex_ext_chip_wpan.o)
+16    0       0     0    lib_coex_api.a(rtw_coex_host_api_bt.o)
+104   118     0     0    lib_coex_api.a(rtw_coex_host_api_ext.o)
+240   0       0     0    lib_coex.a(rtw_coex_ipc_dev.o)
+536   185     0     0    lib_coex.a(rtw_coex_ipc_dev_api.o)
+44    0       0     0    lib_coex_api.a(rtw_coex_ipc_host.o)
+480   195     0     0    lib_coex_api.a(rtw_coex_ipc_host_api.o)
+6796  25      0     0    lib_coex.a(rtw_coex_wl_chip.o)
+1216  74      0     0    lib_coex.a(rtw_coex_wl_chip_rtl8730e.o)
+808   17      0     0    lib_wifi_single_core.a(wifi_hal_btc_api.o)
+156   0       0     0    lib_wifi_single_core.a(wifi_hal_btc_rtl8730e.o)
+------------------------- wificoex End --------------------------------------------
+text  rodata  data  bss  module  
+21116 778     0     0    (TOTALS)
+Module wificoex size:
+0x5586			21894
+
+========================= wifibb Start ============================================
+text  rodata  data  bss  module  
+1156  0       0     0    lib_wifi_single_core.a(halbb.o)
+388   0       0     0    lib_wifi_single_core.a(halbb_8730e.o)
+4904  844     0     0    lib_wifi_single_core.a(halbb_8730e_api.o)
+344   0       0     0    lib_wifi_single_core.a(halbb_api.o)
+48    0       0     0    lib_wifi_single_core.a(halbb_cfo_trk.o)
+580   64      0     0    lib_wifi_single_core.a(halbb_ch_info.o)
+516   52      0     0    lib_wifi_single_core.a(halbb_cmn_rpt.o)
+20    0       0     0    lib_wifi_single_core.a(halbb_dbg.o)
+292   0       0     0    lib_wifi_single_core.a(halbb_env_clm.o)
+864   0       0     0    lib_wifi_single_core.a(halbb_env_mntr.o)
+1392  12      0     0    lib_wifi_single_core.a(halbb_env_nhm.o)
+748   10112   0     0    lib_wifi_single_core.a(halbb_hwimg_8730e.o)
+76    0       0     0    lib_wifi_single_core.a(halbb_hw_cfg.o)
+300   0       0     0    lib_wifi_single_core.a(halbb_init.o)
+216   0       0     0    lib_wifi_single_core.a(halbb_interface.o)
+88    0       0     0    lib_wifi_single_core.a(halbb_math_lib.o)
+1568  78      0     0    lib_wifi_single_core.a(halbb_physts.o)
+340   72      0     0    lib_wifi_single_core.a(halbb_pwr_ctrl.o)
+440   0       0     0    lib_wifi_single_core.a(halbb_reg_cfg_8730e.o)
+524   165     0     0    lib_wifi_single_core.a(halbb_statistics.o)
+------------------------- wifibb End ----------------------------------------------
+text  rodata  data  bss  module  
+14804 11399   0     0    (TOTALS)
+Module wifibb size:
+0x665b			26203
+
+========================= wifirf Start ============================================
+text  rodata  data  bss  module  
+216   606     0     0    lib_wifi_api_hp.a(ameba_wifi_country_code_table_usrcfg.o)
+696   1672    0     0    lib_wifi_api_hp.a(ameba_wifi_power_table_usrcfg.o)
+2192  0       0     0    lib_wifi_single_core.a(halrf.o)
+5512  139     0     0    lib_wifi_single_core.a(halrf_8730e.o)
+236   0       0     0    lib_wifi_single_core.a(halrf_8730e_api.o)
+800   0       0     0    lib_wifi_single_core.a(halrf_api.o)
+1636  28      0     0    lib_wifi_single_core.a(halrf_dack_8730e.o)
+12    0       0     0    lib_wifi_single_core.a(halrf_dbg.o)
+16    0       0     0    lib_wifi_single_core.a(halrf_dbg_cmd.o)
+3228  68      0     0    lib_wifi_single_core.a(halrf_dpk_8730e.o)
+664   14506   0     0    lib_wifi_single_core.a(halrf_hwimg_8730e.o)
+20    0       0     0    lib_wifi_single_core.a(halrf_hw_cfg.o)
+192   0       0     0    lib_wifi_single_core.a(halrf_init.o)
+212   0       0     0    lib_wifi_single_core.a(halrf_interface.o)
+5516  84      0     0    lib_wifi_single_core.a(halrf_iqk_8730e.o)
+208   0       0     0    lib_wifi_single_core.a(halrf_kfree_8730e.o)
+1176  96      0     0    lib_wifi_single_core.a(halrf_psd_8730e.o)
+908   0       0     0    lib_wifi_single_core.a(halrf_pwr_table.o)
+2512  0       0     0    lib_wifi_single_core.a(halrf_set_pwr_table_8730e.o)
+5832  119     0     0    lib_wifi_single_core.a(halrf_tssi_8730e.o)
+2860  24      0     0    lib_wifi_single_core.a(halrf_txgapk_8730e.o)
+------------------------- wifirf End ----------------------------------------------
+text  rodata  data  bss  module  
+34644 17342   0     0    (TOTALS)
+Module wifirf size:
+0xcb12			51986
+
+========================= wifios Start ============================================
+text  rodata  data  bss  module  
+988   0       0     0    lib_freertos.a(os_wrapper_static_functions.o)
+------------------------- wifios End ----------------------------------------------
+text  rodata  data  bss  module  
+988   0       0     0    (TOTALS)
+Module wifios size:
+0x3dc			988
+
+========================= atcmd Start =============================================
+text  rodata  data  bss  module  
+660   1163    0     0    lib_at_cmd.a(atcmd_bt_ext.o)
+1988  1462    0     0    lib_at_cmd.a(atcmd_coex.o)
+452   162     0     0    lib_at_cmd.a(atcmd_fs.o)
+536   83      0     0    lib_at_cmd.a(atcmd_service.o)
+1376  1101    0     0    lib_at_cmd.a(atcmd_sys.o)
+10104 9089    0     0    lib_at_cmd.a(atcmd_wifi.o)
+112   0       0     0    lib_at_cmd.a(low_level_io.o)
+2580  2229    0     0    lib_at_cmd.a(monitor.o)
+620   132     0     0    lib_at_cmd.a(shell_ram.o)
+------------------------- atcmd End -----------------------------------------------
+text  rodata  data  bss  module  
+18428 15421   0     0    (TOTALS)
+Module atcmd size:
+0x8439			33849
+
+========================= utils Start =============================================
+text  rodata  data  bss  module  
+11068 3593    0     0    lib_utilities.a(iperf.o)
+1688  1044    0     0    lib_utilities.a(ping_test.o)
+------------------------- utils End -----------------------------------------------
+text  rodata  data  bss  module  
+12756 4637    0     0    (TOTALS)
+Module utils size:
+0x43f1			17393
+
+========================= fwlib Start =============================================
+text  rodata  data  bss  module  
+480   67      0     0    lib_fwlib.a(ameba_app_start.o)
+32    0       0     0    lib_fwlib.a(ameba_arch.o)
+996   307     0     0    lib_fwlib.a(ameba_clk.o)
+1288  198     0     0    lib_fwlib.a(ameba_codec.o)
+524   208     0     0    lib_fwlib.a(ameba_fault_handle.o)
+108   46      0     0    lib_fwlib.a(ameba_flashcfg.o)
+0     255     0     0    lib_fwlib.a(ameba_flash_ram.o)
+240   385     0     0    lib_crashdump.a(ameba_freertos_backtrace.o)
+1048  361     0     0    lib_fwlib.a(ameba_ipc_api.o)
+212   101     0     0    lib_fwlib.a(ameba_ipc_ram.o)
+2020  174     0     0    lib_fwlib.a(ameba_ipc_toap.o)
+344   208     0     0    lib_fwlib.a(ameba_mpu_ram.o)
+132   0       0     0    lib_misc.a(ameba_ota.o)
+2320  551     0     0    lib_fwlib.a(ameba_otp.o)
+104   0       0     0    lib_fwlib.a(ameba_pinmap.o)
+0     288     0     0    lib_fwlib.a(ameba_pinmapcfg.o)
+132   28      0     0    lib_fwlib.a(ameba_pmc.o)
+1208  0       0     0    lib_pmc.a(ameba_pmc_lib.o)
+688   85      0     0    lib_misc.a(ameba_pmu.o)
+72    0       0     0    lib_fwlib.a(ameba_reset.o)
+936   97      0     0    lib_fwlib.a(ameba_rtc.o)
+32    0       0     0    lib_fwlib.a(ameba_system.o)
+680   197     0     0    lib_crashdump.a(ameba_v8m_backtrace.o)
+656   494     0     0    lib_crashdump.a(ameba_v8m_crashdump.o)
+1064  2244    0     0    lib_crashdump.a(ameba_v8m_fault_diagnosis.o)
+100   0       0     0    lib_hal.a(flash_api.o)
+132   0       0     0    lib_stdlib_wrap.a(gcc_wrap.o)
+408   352     0     0    lib_fwlib.a(locks.o)
+876   106     0     0    lib_fwlib.a(log.o)
+1492  0       0     0    lib_fwlib.a(sscanf_minimal.o)
+532   239     0     0    lib_hal.a(sys_api.o)
+0     44      0     0    lib_pmc.a(__tmp_pmc_hp_build_info.o)
+------------------------- fwlib End -----------------------------------------------
+text  rodata  data  bss  module  
+18856 7035    0     0    (TOTALS)
+Module fwlib size:
+0x6523			25891
+
+========================= os Start ================================================
+text  rodata  data  bss  module  
+240   89      0     0    lib_freertos.a(freertos_heap5_config.o)
+816   0       0     0    lib_freertos.a(heap_5.o)
+144   0       0     0    lib_freertos.a(list.o)
+116   0       0     0    lib_freertos.a(os_wrapper_critical.o)
+76    0       0     0    lib_freertos.a(os_wrapper_memory.o)
+448   100     0     0    lib_freertos.a(os_wrapper_mutex.o)
+416   91      0     0    lib_freertos.a(os_wrapper_queue.o)
+328   0       0     0    lib_freertos.a(os_wrapper_semaphore.o)
+128   0       0     0    lib_freertos.a(os_wrapper_task.o)
+84    0       0     0    lib_freertos.a(os_wrapper_time.o)
+552   0       0     0    lib_freertos.a(os_wrapper_timer.o)
+824   141     0     0    lib_freertos.a(port.o)
+248   0       0     0    lib_freertos.a(portasm_ntz.o)
+2748  0       0     0    lib_freertos.a(queue.o)
+4268  5       0     0    lib_freertos.a(tasks.o)
+1344  8       0     0    lib_freertos.a(timers.o)
+------------------------- os End --------------------------------------------------
+text  rodata  data  bss  module  
+12780 434     0     0    (TOTALS)
+Module os size:
+0x339e			13214
+
+========================= audio Start =============================================
+text  rodata  data  bss  module  
+144   154     0     0    lib_audio_mixer.a(audio_track.o)
+180   123     0     0    lib_base.a(condition.o)
+20    32      0     0    lib_base.a(format.o)
+24    8       0     0    lib_audio_mixer.a(general_audio.o)
+400   156     0     0    lib_audio_mixer.a(general_tracks.o)
+196   76      0     0    lib_base.a(log.o)
+272   120     0     0    lib_base.a(mutex.o)
+8     0       0     0    lib_base.a(osal_mem.o)
+216   209     0     0    lib_base.a(osal_mutex.o)
+12    0       0     0    lib_base.a(osal_time.o)
+13060 343     0     0    lib_audio_mixer.a(raw_mixer.o)
+936   541     0     0    lib_base.a(refptr.o)
+44    256     0     0    lib_base.a(strcasecmp.o)
+488   174     0     0    lib_audio_mixer.a(streaming_threads.o)
+24    0       0     0    lib_base.a(strnlen.o)
+184   0       0     0    lib_audio_mixer.a(track_client.o)
+80    0       0     0    lib_audio_mixer.a(track_shared.o)
+------------------------- audio End -----------------------------------------------
+text  rodata  data  bss  module  
+16288 2192    0     0    (TOTALS)
+Module audio size:
+0x4830			18480
+
+========================= ssl Start ===============================================
+text  rodata  data  bss  module  
+36    0       0     0    lib_mbedtls.a(platform.o)
+------------------------- ssl End -------------------------------------------------
+text  rodata  data  bss  module  
+36    0       0     0    (TOTALS)
+Module ssl size:
+0x24			36
+
+========================= network Start ===========================================
+text  rodata  data  bss  module  
+1704  0       0     0    lib_sram.a(api_lib.o)
+4192  15      0     0    lib_sram.a(api_msg.o)
+680   0       0     0    lib_xip.a(autoip.o)
+72    0       0     0    lib_sram.a(def.o)
+5816  0       0     0    lib_xip.a(dhcp.o)
+3756  444     0     0    lib_xip.a(dhcps.o)
+2284  10      0     0    lib_xip.a(dns.o)
+28    68      0     0    lib_xip.a(err.o)
+2044  0       0     0    lib_sram.a(etharp.o)
+336   12      0     0    lib_sram.a(ethernet.o)
+304   77      0     0    lib_sram.a(ethernetif.o)
+460   0       0     0    lib_xip.a(icmp.o)
+1268  0       0     0    lib_sram.a(igmp.o)
+380   0       0     0    lib_sram.a(inet_chksum.o)
+44    0       0     0    lib_xip.a(init.o)
+1384  0       0     0    lib_sram.a(ip4.o)
+664   8       0     0    lib_sram.a(ip4_addr.o)
+1692  0       0     0    lib_sram.a(ip4_frag.o)
+1396  209     0     0    lib_xip.a(lwip_netconf.o)
+40    0       0     0    lib_sram.a(mem.o)
+84    96      0     0    lib_sram.a(memp.o)
+128   0       0     0    lib_sram.a(netbuf.o)
+108   0       0     0    lib_sram.a(netdb.o)
+1168  0       0     0    lib_sram.a(netif.o)
+244   0       0     0    lib_sram.a(netifapi.o)
+1824  0       0     0    lib_sram.a(pbuf.o)
+788   0       0     0    lib_sram.a(raw.o)
+5288  0       0     0    lib_sram.a(sockets.o)
+604   0       0     0    lib_sram.a(sys_arch.o)
+4384  36      0     0    lib_sram.a(tcp.o)
+540   7       0     0    lib_sram.a(tcpip.o)
+5188  0       0     0    lib_sram.a(tcp_in.o)
+3636  0       0     0    lib_sram.a(tcp_out.o)
+500   64      0     0    lib_sram.a(timeouts.o)
+1656  0       0     0    lib_sram.a(udp.o)
+------------------------- network End ---------------------------------------------
+text  rodata  data  bss  module  
+54684 1046    0     0    (TOTALS)
+Module network size:
+0xd9b2			55730
+
+========================= file_system Start =======================================
+text  rodata  data  bss  module  
+140   0       0     0    lib_flt.a(ftl.o)
+1260  185     0     0    lib_flt.a(ftl_nand.o)
+4348  522     0     0    lib_flt.a(ftl_nor.o)
+2036  508     0     0    lib_kv.a(kv.o)
+20256 2787    0     0    lib_littlefs.a(lfs.o)
+960   182     0     0    lib_littlefs.a(lfs_nand_ftl.o)
+988   125     0     0    lib_littlefs.a(lfs_nand_ftl_mfg.o)
+68    64      0     0    lib_littlefs.a(lfs_util.o)
+704   223     0     0    lib_littlefs.a(littlefs_adapter.o)
+856   270     0     0    lib_vfs.a(vfs.o)
+1624  904     0     0    lib_vfs.a(vfs_littlefs.o)
+2028  373     0     0    lib_vfs.a(vfs_wrap.o)
+------------------------- file_system End -----------------------------------------
+text  rodata  data  bss  module  
+35268 6143    0     0    (TOTALS)
+Module file_system size:
+0xa1c3			41411
+
+========================= others Start ============================================
+text  rodata  data  bss  module  
+132   0       0     0    lib_wifi_api_hp.a(ameba_wificfg.o)
+0     53      0     0    lib_wifi_com_sec.a(lib_wifi_com_sec_git_version.o)
+0     57      0     0    lib_wifi_single_core.a(lib_wifi_single_core_git_version.o)
+0     49      0     0    lib_wpa_lite.a(lib_wpa_lite_git_version.o)
+0     44      0     0    lib_wps.a(lib_wps_git_version.o)
+524   98      0     0    lib_project_src.a(main.o)
+76    0       0     0    lib_wifi_single_core.a(phl.o)
+136   8       0     0    crtbegin.o
+------------------------- others End ----------------------------------------------
+text  rodata  data  bss  module  
+868   309     0     0    (TOTALS)
+Module others size:
+0x499			1177
+
+================================================================================
+text  rodata  data  bss  module  
+1178790326453  0     0    (TOTALS)
+
+Image size:
+0x16f7db			1505243
+
