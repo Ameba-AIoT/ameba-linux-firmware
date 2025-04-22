@@ -24,7 +24,7 @@
 #
 # < CONFIG Linux
 #
-CONFIG_LINUX_FW_EN=y
+# CONFIG_LINUX_FW_EN is not set
 
 #
 # < CONFIG Shell CMD

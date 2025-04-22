@@ -44,7 +44,7 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev
 	int ret = 0;
 
 	dev_dbg(global_idev.fullmac_dev, "--- %s ---", __func__);
-	if (global_idev.mp_fw) {
+	if (llhw_wifi_driver_is_mp()) {
 		return -EPERM;
 	}
 
@@ -149,7 +149,7 @@ static int cfg80211_rtw_set_pmksa(struct wiphy *wiphy, struct net_device *ndev, 
 
 	dev_dbg(global_idev.fullmac_dev, "--- %s ---", __func__);
 
-	if (global_idev.mp_fw) {
+	if (llhw_wifi_driver_is_mp()) {
 		return -EPERM;
 	}
 
@@ -187,7 +187,7 @@ static int cfg80211_rtw_del_pmksa(struct wiphy *wiphy, struct net_device *ndev, 
 
 	dev_dbg(global_idev.fullmac_dev, "--- %s ---", __func__);
 
-	if (global_idev.mp_fw) {
+	if (llhw_wifi_driver_is_mp()) {
 		return -EPERM;
 	}
 
@@ -224,7 +224,7 @@ static int cfg80211_rtw_flush_pmksa(struct wiphy *wiphy, struct net_device *ndev
 
 	dev_dbg(global_idev.fullmac_dev, "--- %s --- ", __func__);
 
-	if (global_idev.mp_fw) {
+	if (llhw_wifi_driver_is_mp()) {
 		return -EPERM;
 	}
 

@@ -17,7 +17,7 @@
 /*
  * < CONFIG Linux
  */
-#undef  CONFIG_LINUX_FW_EN
+#define CONFIG_LINUX_FW_EN 1
 
 /*
  * < CONFIG Shell CMD
