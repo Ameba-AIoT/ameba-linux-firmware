@@ -1,6 +1,7 @@
 #ifndef _WS_SERVER_MSG_H_
 #define _WS_SERVER_MSG_H_
-#include <websocket/wsserver_api.h>
+
+#include "wsserver_api.h"
 
 struct ws_data_header_type {
 	size_t header_size;
@@ -31,7 +32,7 @@ int ws_server_handshake_read_header(ws_conn *conn);
 
 int ws_server_handshake_response(ws_conn *conn);
 
-void ws_server_sendData(uint8_t type, size_t message_size, uint8_t *message, int useMask, uint8_t send_mode, ws_conn *conn);
+void ws_server_sendData(uint8_t type, size_t message_size, uint8_t *message, int useMask, uint8_t send_mode, uint8_t fin_flag, ws_conn *conn);
 
 void ws_server_dispatchBinary(ws_conn *conn);
 

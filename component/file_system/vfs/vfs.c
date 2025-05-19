@@ -123,7 +123,7 @@ void vfs_assign_region(int vfs_type, char region)
 
 	if (VFS1_FLASH_BASE_ADDR == 0) {
 		flash_get_layout_info(VFS1, &vfs1_start_addr, &vfs1_end_addr);
-		flash_get_layout_info(USER, &vfs2_start_addr, &vfs2_end_addr);
+		flash_get_layout_info(VFS2, &vfs2_start_addr, &vfs2_end_addr);
 		VFS1_FLASH_BASE_ADDR = vfs1_start_addr - SPI_FLASH_BASE;
 		VFS1_FLASH_SIZE = (vfs1_end_addr - vfs1_start_addr) + 1;
 		VFS2_FLASH_BASE_ADDR = vfs2_start_addr - SPI_FLASH_BASE;
@@ -138,7 +138,11 @@ void vfs_assign_region(int vfs_type, char region)
 #ifdef CONFIG_VFS_FATFS_INCLUDED
 	if (vfs_type == VFS_FATFS) {
 #ifdef CONFIG_FATFS_WITHIN_APP_IMG
+#ifndef OTA_IMGID_APP
+		u8 ota_index = ota_get_cur_index(OTA_IMGID_IMG2);
+#else
 		u8 ota_index = ota_get_cur_index(OTA_IMGID_APP);
+#endif
 		u32 img2_start_addr, img2_end_addr;
 		flash_get_layout_info(ota_index == OTA_INDEX_1 ? IMG_APP_OTA1 : IMG_APP_OTA2, &img2_start_addr, &img2_end_addr);
 		IMAGE_HEADER *img_hdr = (IMAGE_HEADER *)(img2_start_addr + 0x2000);  //add cert+manifest offset
@@ -152,7 +156,7 @@ void vfs_assign_region(int vfs_type, char region)
 		if ((u32)img_hdr >= img2_end_addr) {
 			VFS_DBG(VFS_INFO, "no fatfs binary \r\n");
 		} else {
-			FLASH_APP_BASE = (u32)img_hdr + 32 - SPI_FLASH_BASE;
+			FLASH_APP_BASE = (u32)img_hdr + 0x1000 - SPI_FLASH_BASE;
 			FLASH_SECTOR_COUNT = img_hdr->image_size / 512;
 		}
 #else

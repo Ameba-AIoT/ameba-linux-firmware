@@ -1,21 +1,14 @@
-#include "platform_stdlib.h"
-#include "basic_types.h"
-#include "os_wrapper.h"
-#include "ameba.h"
-#include <lwipconf.h>
-#include "httpc.h"
+#include "ameba_soc.h"
+#include "lwip_netconf.h"
+#include "httpc_util.h"
 
 int httpc_setsockopt_rcvtimeo(struct httpc_conn *conn, int recv_timeout)
 {
 	int ret = 0;
-#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	//lwip 2.0.2
 	struct timeval timeout;
 	timeout.tv_sec  = recv_timeout / 1000;
 	timeout.tv_usec = (recv_timeout % 1000) * 1000;
 	ret = setsockopt(conn->sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-#else	//lwip 1.4.1
-	ret = setsockopt(conn->sock, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
-#endif
 	return ret;
 }
 
@@ -104,11 +97,7 @@ void *httpc_tls_new(int *sock, char *client_cert, char *client_key, char *ca_cer
 				goto exit;
 			}
 
-#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER >= 0x03000000)
 			if ((ret = mbedtls_pk_parse_key(&tls->key, (const unsigned char *) client_key, strlen(client_key) + 1, NULL, 0, NULL, NULL)) != 0) {
-#else
-			if ((ret = mbedtls_pk_parse_key(&tls->key, (const unsigned char *) client_key, strlen(client_key) + 1, NULL, 0)) != 0) {
-#endif
 				printf("\n[HTTPC] ERROR: mbedtls_pk_parse_key %d\n", ret);
 				ret = -1;
 				goto exit;

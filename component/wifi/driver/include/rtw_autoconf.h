@@ -32,8 +32,10 @@
 #define WIFI_LOGO_CERTIFICATION 0
 #define RX_AMSDU
 
+#if !(defined(ZEPHYR_WIFI) && defined(CONFIG_AS_INIC_AP))
 /* no IOT chip supports 80M now, so close it in common */
 #define CONFIG_AUTO_RECONNECT 1
+#endif
 
 /* For WPA3 */
 #define CONFIG_IEEE80211W
@@ -60,16 +62,27 @@
 #if defined(CONFIG_AMEBADPLUS)
 /******************************* AmebaDPLUS (8721DA) *******************************/
 #include "autoconf_8721da.h"
+#elif defined(CONFIG_AMEBAD)
+/******************************* AmebaD2 (8730E) ******************************/
+#include "autoconf_8721d.h"
 #elif defined(CONFIG_AMEBASMART)
 /******************************* AmebaD2 (8730E) ******************************/
+#include "autoconf_8730e.h"
+#elif defined(CONFIG_AMEBASMARTPLUS)
+/******************************* AmebaD2 (8730F) ******************************/
 #include "autoconf_8730e.h"
 #elif defined(CONFIG_AMEBALITE)
 /***************************** AmebaLite (8720E) *****************************/
 #include "autoconf_8720e.h"
-#elif defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_AMEBAPRO3)
+#elif defined(CONFIG_AMEBAGREEN2)
 /******************************* Amebalite2 (8720f) ******************************/
 #include "autoconf_8720f.h"
-
+#elif defined(CONFIG_AMEBAPRO3)
+/******************************* AmebaPro3 (8735c) ******************************/
+#include "autoconf_8720f.h"
+#elif defined(CONFIG_AMEBAL2)
+/******************************* AmebaL2 (6955) ******************************/
+#include "autoconf_amebax.h"
 #endif
 /****************** Configurations for each platform end **********************/
 
@@ -82,8 +95,6 @@
 #define CONFIG_IEEE80211R
 #define CONFIG_IEEE80211K
 #if WIFI_LOGO_CERTIFICATION
-#undef WLAN_MAX_ETHFRM_LEN
-#define WLAN_MAX_ETHFRM_LEN	4000
 /* 80211 - K MBO */
 #define CONFIG_RTW_MBO
 #endif
@@ -92,11 +103,8 @@
 
 #define CONFIG_ACM_METHOD 0	// 0:By SW 1:By HW.
 
-/* for defrag in rom, remove after rom code freeze */
-#if (defined(CONFIG_AMEBAGREEN2) && CONFIG_AMEBAGREEN2) || (defined(CONFIG_AMEBAPRO3) && CONFIG_AMEBAPRO3)
+#ifndef CONFIG_AMEBAL2
 #define CONFIG_FRAME_DEFRAG // support frame defragmentaion
-#else
-//#define CONFIG_FRAME_DEFRAG // support frame defragmentaion
 #endif
 
 #ifdef CONFIG_MP_INCLUDED
@@ -118,7 +126,7 @@
 #endif
 
 #ifdef CONFIG_AS_INIC_NP
-#define INIC_SKIP_NP_MSG_TASK
+#define WHC_SKIP_NP_MSG_TASK
 #endif
 
 #endif //WLANCONFIG_H

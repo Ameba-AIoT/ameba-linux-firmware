@@ -4,12 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "atcmd_service.h"
-#include "ameba_soc.h"
-#include "os_wrapper.h"
+#include "platform_autoconf.h"
 
 #if defined(CONFIG_BT) && CONFIG_BT
 #if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
+#include "atcmd_service.h"
+#include "atcmd_bt_mp.h"
+
+#if defined(CONFIG_BT_COEXIST)
+#include "rtw_coex_host_api.h"
+#endif
 
 static bool open_flag = 0;
 
@@ -26,7 +30,7 @@ static uint8_t check_byte_num = 0;
 static uint32_t temp_uart_aggc = 0;
 
 #if (defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1))
-#if defined(ARM_CORE_CM4)
+#if defined(CONFIG_ARM_CORE_CM4)
 static void *UartBkFunc = NULL;
 #endif
 #endif
@@ -110,15 +114,15 @@ static void bt_uart_bridge_close(void)
 	/* km0 open shell loguart*/
 	IPC_MSG_STRUCT ipc_msg_temp;
 	ipc_msg_temp.msg = 2; // km0 open shell loguart
-#if defined(ARM_CORE_CA32)
+#if defined(CONFIG_ARM_CORE_CA32)
 	ipc_send_message(IPC_AP_TO_LP, IPC_A2L_UARTBRIDGE, &ipc_msg_temp);
-#elif defined(ARM_CORE_CM4)
+#elif defined(CONFIG_ARM_CORE_CM4)
 	ipc_send_message(IPC_NP_TO_LP, IPC_N2L_UARTBRIDGE, &ipc_msg_temp);
 #endif
 #endif
 
 #if defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)
-#if defined(RSICV_CORE_KR4)
+#if defined(CONFIG_RSICV_CORE_KR4)
 	irq_disable(UART_LOG_IRQ);
 	/* km4 open shell loguart*/
 	IPC_MSG_STRUCT ipc_msg_temp;
@@ -252,7 +256,7 @@ void bt_uart_bridge_open(void)
 	LOGUART_AGGCmd(LOGUART_DEV, DISABLE);
 
 #if defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)
-#if defined(RSICV_CORE_KR4)
+#if defined(CONFIG_RSICV_CORE_KR4)
 	/* km4 close shell loguart */
 	IPC_MSG_STRUCT ipc_msg_temp;
 	ipc_msg_temp.msg = 1;
@@ -267,9 +271,9 @@ void bt_uart_bridge_open(void)
 	/* km0 close shell loguart*/
 	IPC_MSG_STRUCT ipc_msg_temp;
 	ipc_msg_temp.msg = 1;
-#if defined(ARM_CORE_CA32)
+#if defined(CONFIG_ARM_CORE_CA32)
 	ipc_send_message(IPC_AP_TO_LP, IPC_A2L_UARTBRIDGE, &ipc_msg_temp);
-#elif defined(ARM_CORE_CM4)
+#elif defined(CONFIG_ARM_CORE_CM4)
 	ipc_send_message(IPC_NP_TO_LP, IPC_N2L_UARTBRIDGE, &ipc_msg_temp);
 #endif
 #endif
@@ -345,10 +349,13 @@ static int mp_ext2_gnt_bt(void **argv, int argc)
 
 	if (strcmp(argv[0], "wifi") == 0) {
 		MP_EXT2_PRINTF("Switch GNT_BT to WIFI.\n\r");
-		wifi_btcoex_set_pta(PTA_WIFI, PTA_HOST_BT, COMMON_ACTION);
+		rtk_coex_btc_set_pta(PTA_WIFI, PTA_HOST_BT, COMMON_ACTION);
 	} else if (strcmp(argv[0], "bt") == 0) {
 		MP_EXT2_PRINTF("Switch GNT_BT to BT.\n\r");
-		wifi_btcoex_set_pta(PTA_BT, PTA_HOST_BT, COMMON_ACTION);
+		rtk_coex_btc_set_pta(PTA_BT, PTA_HOST_BT, COMMON_ACTION);
+	} else if (strcmp(argv[0], "auto") == 0) {
+		MP_EXT2_PRINTF("Switch GNT_BT to AUTO.\n\r");
+		rtk_coex_btc_set_pta(PTA_AUTO, PTA_HOST_BT, COMMON_ACTION);
 	}
 
 	return 0;
@@ -360,11 +367,11 @@ static int mp_ext2_ant(void **argv, int argc)
 
 	if (strcmp(argv[0], "s0") == 0) {
 		MP_EXT2_PRINTF("BT use dedicated RF s0.\n\r");
-		wifi_btcoex_set_bt_ant(0);
+		rtk_coex_btc_set_bt_ant(0);
 		rtk_bt_set_bt_antenna(0);
 	} else if (strcmp(argv[0], "s1") == 0) {
 		MP_EXT2_PRINTF("BT use share RF s1.\n\r");
-		wifi_btcoex_set_bt_ant(1);
+		rtk_coex_btc_set_bt_ant(1);
 		rtk_bt_set_bt_antenna(1);
 	}
 
@@ -386,10 +393,10 @@ void fATM2(void *arg)
 	cmd_cnt = sizeof(at_mp_ext2_items) / sizeof(at_mp_ext2_items[0]);
 	argc = parse_param(arg, argv);
 	if (argc == 1) {
-                RTK_LOGS(NOTAG, "\n");
+		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "\n");
 		MP_EXT2_PRINTF("Command usage :\n");
 		for (idx = 0; idx < cmd_cnt; idx++) {
-			RTK_LOGS(NOTAG, "%s", at_mp_ext2_items[idx].mp_ext_usage);
+			RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "%s", at_mp_ext2_items[idx].mp_ext_usage);
 		}
 	} else {
 		for (idx = 0; idx < cmd_cnt; idx++) {

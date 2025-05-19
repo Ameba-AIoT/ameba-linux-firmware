@@ -7,12 +7,13 @@
 #include "utils/os.h"
 #include "eap_protocol_handler.h"
 #include "wps_protocol_handler.h"
-#include "wifi_conf.h"
-#include "wifi_ind.h"
+#include "wifi_api.h"
+#include "wifi_intf_drv_to_app_internal.h"
 #include "crypto/crypto.h"
 #include "crypto/tls.h"
 #include "eap_peer/eap_config.h"
 #include "wpa_lite_intf.h"
+#include "rtw_wifi_constants.h"
 
 struct task_struct eap_recvd_tsk;
 struct rtw_eap_context g_eap_context = {0};
@@ -346,7 +347,7 @@ int eap_sm_init(void)
 void dump_buf(void *buf, size_t len)
 {
 	unsigned char *b = buf;
-	for (int i = 0; i < len; i++) {
+	for (size_t i = 0; i < len; i++) {
 		DiagPrintf(" %02X", (unsigned int) b[i]);
 	}
 }
@@ -477,13 +478,15 @@ exit:
 	rtos_task_delete(eap_recvd_tsk.task);
 }
 
-void eap_eapol_recvd_hdl(char *buf, int buf_len, int flags, void *handler_user_data)
+void eap_eapol_recvd_hdl(u8 *buf, s32 buf_len, s32 flags, void *handler_user_data)
 {
+	(void)flags;
+	(void)handler_user_data;
 //	eap_eapol_recvd(buf, buf_len, flags, handler_user_data);
 
 	char *copy_buf = os_malloc(buf_len);
 	memcpy(copy_buf, buf, buf_len);
-	if (rtos_task_create(&eap_recvd_tsk.task, "eap_recvd", (thread_func_t)eap_eapol_recvd, copy_buf, 4096, 1) != SUCCESS) {
+	if (rtos_task_create(&eap_recvd_tsk.task, "eap_recvd", (thread_func_t)eap_eapol_recvd, copy_buf, 4096, 1) != RTK_SUCCESS) {
 		DiagPrintf("\n\r%s eap_recvd failed\n", __FUNCTION__);
 	} else {
 		Rx_handle = rtos_task_handle_get();
@@ -491,8 +494,11 @@ void eap_eapol_recvd_hdl(char *buf, int buf_len, int flags, void *handler_user_d
 	}
 }
 
-void eap_eapol_start_hdl(char *buf, int buf_len, int flags, void *handler_user_data)
+void eap_eapol_start_hdl(u8 *buf, s32 buf_len, s32 flags, void *handler_user_data)
 {
-	u8 *dst_mac = (u8 *)buf;
+	(void)buf_len;
+	(void)flags;
+	(void)handler_user_data;
+	u8 *dst_mac = buf;
 	eap_send_eapol_start(dst_mac);
 }

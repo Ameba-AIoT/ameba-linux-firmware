@@ -463,12 +463,12 @@ int fatfs_mount(int interface)
 	int ret = -1;
 	if (interface == VFS_INF_SD) {
 		VFS_DBG(VFS_INFO, "sd mount");
-#if defined(FATFS_DISK_SD) && FATFS_DISK_SD
+#if defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD
 		ret = fatfs_sd_init();
 #endif
 	} else if (interface == VFS_INF_FLASH) {
 		VFS_DBG(VFS_INFO, "flash mount");
-#if defined(FATFS_DISK_FLASH) && FATFS_DISK_FLASH
+#if defined(CONFIG_FATFS_DISK_FLASH) && CONFIG_FATFS_DISK_FLASH
 		ret = fatfs_flash_init();
 #endif
 	} else {
@@ -483,12 +483,12 @@ int fatfs_ummount(int interface)
 	int ret = 0;
 	if (interface == VFS_INF_SD) {
 		VFS_DBG(VFS_INFO, "sd unmount");
-#if defined(FATFS_DISK_SD) && FATFS_DISK_SD
+#if defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD
 		ret = fatfs_sd_close();
 #endif
 	} else if (interface == VFS_INF_FLASH) {
 		VFS_DBG(VFS_INFO, "flash unmount");
-#if defined(FATFS_DISK_FLASH) && FATFS_DISK_FLASH
+#if defined(CONFIG_FATFS_DISK_FLASH) && CONFIG_FATFS_DISK_FLASH
 		ret = fatfs_flash_close();
 #endif
 	} else {

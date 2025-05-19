@@ -42,9 +42,13 @@ user_cmd_parse_result_t user_cmd_net_key_set(user_cmd_parse_value_t *pparse_valu
     uint8_t net_key[16];
     plt_hex_to_bin(net_key, (uint8_t *)pparse_value->pparameter[2], sizeof(net_key));
     net_key_update(net_key_index, net_key_index_g, net_key);
+    uint8_t loop = key_state_to_tx_loop(mesh_node.net_key_list[net_key_index].key_state);
+    if (loop >= 2)
+    {
+        return USER_CMD_RESULT_ERROR;
+    }
     data_uart_debug("NetKey:\t\t");
-    data_uart_dump(mesh_node.net_key_list[net_key_index].pnet_key[key_state_to_tx_loop(
-                                                                      mesh_node.net_key_list[net_key_index].key_state)]->net_key, 16);
+    data_uart_dump(mesh_node.net_key_list[net_key_index].pnet_key[loop]->net_key, 16);
     return USER_CMD_RESULT_OK;
 }
 
@@ -67,9 +71,13 @@ user_cmd_parse_result_t user_cmd_app_key_set(user_cmd_parse_value_t *pparse_valu
     uint8_t app_key[16];
     plt_hex_to_bin(app_key, (uint8_t *)pparse_value->pparameter[3], sizeof(app_key));
     app_key_update(app_key_index, net_key_index, app_key_index_g, app_key);
+    uint8_t loop = key_state_to_tx_loop(mesh_node.app_key_list[app_key_index].key_state);
+    if (loop >= 2)
+    {
+        return USER_CMD_RESULT_ERROR;
+    }
     data_uart_debug("AppKey:\t\t");
-    data_uart_dump(mesh_node.app_key_list[app_key_index].papp_key[key_state_to_tx_loop(
-                                                                      mesh_node.app_key_list[app_key_index].key_state)]->app_key, 16);
+    data_uart_dump(mesh_node.app_key_list[app_key_index].papp_key[loop]->app_key, 16);
     return USER_CMD_RESULT_OK;
 }
 
@@ -169,7 +177,7 @@ user_cmd_parse_result_t user_cmd_test_send(user_cmd_parse_value_t *pparse_value)
     {
         app_msg[loop] = loop;
     }
-    mesh_msg_t mesh_msg;
+    mesh_msg_t mesh_msg = {0};
     mesh_msg.pmodel_info = NULL;
     access_cfg(&mesh_msg);
     mesh_msg.pbuffer = app_msg;
@@ -190,7 +198,7 @@ user_cmd_parse_result_t user_cmd_test_data(user_cmd_parse_value_t *pparse_value)
     uint8_t app_msg1[] = {0x80, 0x11, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0, 0, 0, 0};
     uint8_t app_msg2[] = {0x80, 0x11, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0, 0, 0, 0};
     uint8_t app_msg3[] = {0x01, 0x02, 0, 0, 0, 0, 0, 0, 0, 0};
-    mesh_msg_t mesh_msg;
+    mesh_msg_t mesh_msg = {0};
     mesh_msg.pmodel_info = NULL;
     mesh_msg.msg_offset = 0;
 

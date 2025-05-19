@@ -8,6 +8,8 @@
 #include "mydata_source.h"
 #include "example_mydata_source_player.h"
 
+#include "os_wrapper.h"
+
 /* source data */
 #include "48k_2c_30s_mp3.h"
 
@@ -124,14 +126,14 @@ int mydata_source_test(char *source, int length)
 
 	ret = RTPlayer_SetDataSource(g_mds_player, data_source);
 	if (ret) {
-		printf("RTPlayer_SetDataSource fail:error=%d\n", ret);
+		printf("RTPlayer_SetDataSource fail:error=%ld\n", ret);
 		goto exit;
 	}
 
 #ifdef USE_PREPARE_ASYNC
 	ret = RTPlayer_PrepareAsync(g_mds_player);
 	if (ret) {
-		printf("prepare async fail:error=%d\n", ret);
+		printf("prepare async fail:error=%ld\n", ret);
 		goto exit;
 	}
 
@@ -156,7 +158,7 @@ int mydata_source_test(char *source, int length)
 
 	ret = RTPlayer_Start(g_mds_player);
 	if (ret) {
-		printf("start fail:error=%d\n", ret);
+		printf("start fail:error=%ld\n", ret);
 		goto exit;
 	}
 
@@ -209,9 +211,10 @@ exit:
 #define MAX_URL_SIZE 1024
 void example_mydata_source_player_test_args_handle(u8  *argv[])
 {
+	(void) argv;
 	printf("mydata source player test start......\n");
 
-	mydata_source_test(ready_to_convert0, sizeof(ready_to_convert0));
+	mydata_source_test((char *)ready_to_convert0, sizeof(ready_to_convert0));
 	rtos_time_delay_ms(1 * 1000);
 
 	printf("mydata source player test done......\n");
@@ -224,7 +227,7 @@ u32 example_mydata_source_player_test(u16 argc, u8 *argv[])
 {
 	(void) argc;
 	example_mydata_source_player_test_args_handle(argv);
-	return _TRUE;
+	return TRUE;
 }
 #endif
 
@@ -234,7 +237,7 @@ void example_mydata_source_player_thread(void *param)
 
 	printf("mydata source player test start......\n");
 
-	mydata_source_test(ready_to_convert0, sizeof(ready_to_convert0));
+	mydata_source_test((void *)ready_to_convert0, sizeof(ready_to_convert0));
 	rtos_time_delay_ms(1 * 1000);
 
 	printf("mydata source player test done......\n");
@@ -245,8 +248,8 @@ void example_mydata_source_player_thread(void *param)
 
 void example_mydata_source_player(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"example_mydata_source_player_thread"), example_mydata_source_player_thread, NULL, 160 * 1024,
-						 1) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_mydata_source_player_thread"), example_mydata_source_player_thread, NULL, 10 * 1024,
+						 1) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create(example_mydata_source_player_thread) failed", __FUNCTION__);
 	}
 }

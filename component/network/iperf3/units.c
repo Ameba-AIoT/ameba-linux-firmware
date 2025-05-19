@@ -51,14 +51,14 @@
  * input and output numbers, converting with kilo, mega, giga, tera
  * ------------------------------------------------------------------- */
 
-#include <stdio.h>
 #include <assert.h>
 #include <ctype.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
-#include "lwip/sockets.h"
 #include <sys/time.h>
+
+#include "lwip_netconf.h" //realtek add
 
 #include "iperf.h"
 
@@ -199,7 +199,7 @@ double    unit_atof(const char *s)
 	char      suffix = '\0';
 
 	if (s == NULL) {
-		RTK_LOGS("%s s == NULL\n", __FUNCTION__);
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s s == NULL\n", __FUNCTION__);
 		for (;;);
 	}
 
@@ -244,7 +244,7 @@ double    unit_atof_rate(const char *s)
 	char      suffix = '\0';
 
 	if (s == NULL) {
-		RTK_LOGS("%s s == NULL\n", __FUNCTION__);
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s s == NULL\n", __FUNCTION__);
 		for (;;);
 	}
 
@@ -291,7 +291,7 @@ iperf_size_t unit_atoi(const char *s)
 	char      suffix = '\0';
 
 	if (s == NULL) {
-		RTK_LOGS("%s s == NULL\n", __FUNCTION__);
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s s == NULL\n", __FUNCTION__);
 		for (;;);
 	}
 

@@ -6,10 +6,10 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "GDMA";
+static const char *const TAG = "GDMA";
 
 static u8 GDMA_IrqNum[8] = {
-#if defined (ARM_CORE_CM4) || defined (ARM_CORE_CA32)
+#if defined (CONFIG_ARM_CORE_CM4) || defined (CONFIG_ARM_CORE_CA32)
 	/* CA32/KM4 GDMA IRQ */
 	GDMA0_CHANNEL0_IRQ,
 	GDMA0_CHANNEL1_IRQ,
@@ -19,7 +19,7 @@ static u8 GDMA_IrqNum[8] = {
 	GDMA0_CHANNEL5_IRQ,
 	GDMA0_CHANNEL6_IRQ,
 	GDMA0_CHANNEL7_IRQ,
-#elif defined (ARM_CORE_CM0)
+#elif defined (CONFIG_ARM_CORE_CM0)
 	/* KM0 GDMA IRQ */
 	NULL,
 	NULL,
@@ -82,7 +82,6 @@ void GDMA_Init(u8 GDMA_Index, u8 GDMA_ChNum, PGDMA_InitTypeDef GDMA_InitStruct)
 	u32 CtlxUp = 0;
 	u32 CfgxLow = 0;
 	u32 CfgxUp = 0;
-	u32 ChEn = BIT(GDMA_ChNum) | BIT((GDMA_ChNum + 8));
 	u32 BlockSize = GDMA_InitStruct->GDMA_BlockSize;
 	GDMA_TypeDef *GDMA = ((GDMA_TypeDef *) GDMA_BASE);
 
@@ -105,7 +104,7 @@ void GDMA_Init(u8 GDMA_Index, u8 GDMA_ChNum, PGDMA_InitTypeDef GDMA_InitStruct)
 	//GDMA->DmaCfgReg = 1;
 
 	/* Check chanel is avaliable */
-	if (GDMA->ChEnReg & ChEn) {
+	if (GDMA->ChEnReg & BIT(GDMA_ChNum)) {
 		/* Disable Channel */
 		RTK_LOGW(TAG, "Channel had used; Disable Channel!!!!\n");
 
@@ -148,15 +147,25 @@ void GDMA_Init(u8 GDMA_Index, u8 GDMA_ChNum, PGDMA_InitTypeDef GDMA_InitStruct)
 			  (GDMA_InitStruct->GDMA_ChPrior << 4);
 
 	CfgxUp = GDMA->CH[GDMA_ChNum].CFG_HIGH;
-	CfgxUp &= ~(BIT_CFGX_UP_SRC_PER | BIT_CFGX_UP_DEST_PER);
-	if (GDMA_InitStruct->GDMA_SrcHandshakeInterface >= 16) {
+	/*Handshake set*/
+	CfgxUp &= ~(BIT_CFGX_UP_SRC_PER | BIT_CFGX_UP_DEST_PER |
+				GDMA_BIT_ExtendedSRC_PER1 | GDMA_BIT_ExtendedDEST_PER1 |
+				GDMA_BIT_ExtendedSRC_PER2 | GDMA_BIT_ExtendedDEST_PER2);
+	/* Src Handshake*/
+	if (GDMA_InitStruct->GDMA_SrcHandshakeInterface >= 32) {
+		GDMA_InitStruct->GDMA_SrcHandshakeInterface = (GDMA_InitStruct->GDMA_SrcHandshakeInterface & 0xf);
+		CfgxUp |= (GDMA_InitStruct->GDMA_SrcHandshakeInterface << 7) | GDMA_BIT_ExtendedSRC_PER1 | GDMA_BIT_ExtendedSRC_PER2;
+	} else if (GDMA_InitStruct->GDMA_SrcHandshakeInterface >= 16) {
 		GDMA_InitStruct->GDMA_SrcHandshakeInterface = (GDMA_InitStruct->GDMA_SrcHandshakeInterface & 0xf);
 		CfgxUp |= (GDMA_InitStruct->GDMA_SrcHandshakeInterface << 7) | GDMA_BIT_ExtendedSRC_PER1;
 	} else {
 		CfgxUp |= (GDMA_InitStruct->GDMA_SrcHandshakeInterface << 7);
 	}
-
-	if (GDMA_InitStruct->GDMA_DstHandshakeInterface >= 16) {
+	/* Dst Handshake*/
+	if (GDMA_InitStruct->GDMA_DstHandshakeInterface >= 32) {
+		GDMA_InitStruct->GDMA_DstHandshakeInterface = (GDMA_InitStruct->GDMA_DstHandshakeInterface & 0xf);
+		CfgxUp |= (GDMA_InitStruct->GDMA_DstHandshakeInterface << 11) | GDMA_BIT_ExtendedDEST_PER1 | GDMA_BIT_ExtendedDEST_PER2;
+	} else if (GDMA_InitStruct->GDMA_DstHandshakeInterface >= 16) {
 		GDMA_InitStruct->GDMA_DstHandshakeInterface = (GDMA_InitStruct->GDMA_DstHandshakeInterface & 0xf);
 		CfgxUp |= (GDMA_InitStruct->GDMA_DstHandshakeInterface << 11) | GDMA_BIT_ExtendedDEST_PER1;
 	} else {
@@ -456,12 +465,12 @@ GDMA_ChCleanAutoReload(u8 GDMA_Index, u8 GDMA_ChNum, u32 CleanType)
 	CfgxLow = GDMA->CH[GDMA_ChNum].CFG_LOW;
 
 	if (CleanType == CLEAN_RELOAD_SRC) {
-		CfgxLow &= ~BIT_CFGX_LO_RELOAD_SRC;
+		CfgxLow &= ~BIT_CFGX_L_RELOAD_SRC;
 	} else if (CleanType == CLEAN_RELOAD_DST) {
-		CfgxLow &= ~BIT_CFGX_LO_RELOAD_DST;
+		CfgxLow &= ~BIT_CFGx_L_RELOAD_DST;
 	} else {
-		CfgxLow &= ~BIT_CFGX_LO_RELOAD_SRC;
-		CfgxLow &= ~BIT_CFGX_LO_RELOAD_DST;
+		CfgxLow &= ~BIT_CFGX_L_RELOAD_SRC;
+		CfgxLow &= ~BIT_CFGx_L_RELOAD_DST;
 	}
 
 	GDMA->CH[GDMA_ChNum].CFG_LOW = CfgxLow;
@@ -614,10 +623,10 @@ u32 GDMA_GetBlkSize(u8 GDMA_Index, u8 GDMA_ChNum)
 }
 
 /**
-  * @brief  register channel if this channel is used.
+  * @brief  Register channel if this channel is used.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
-  * @retval value: _TRUE/_FALSE
+  * @retval value: TRUE/FALSE
   */
 static void GDMA_ChnlRegister(u8 GDMA_Index, u8 GDMA_ChNum, IRQ_FUN IrqFun, u32 IrqData, u32 IrqPriority)
 {
@@ -639,7 +648,7 @@ static void GDMA_ChnlRegister(u8 GDMA_Index, u8 GDMA_ChNum, IRQ_FUN IrqFun, u32 
 }
 
 /**
-  * @brief  unregister channel if this channel is not used.
+  * @brief  Unregister channel if this channel is not used.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
   * @retval   None
@@ -661,7 +670,7 @@ static void GDMA_ChnlUnRegister(u8 GDMA_Index, u8 GDMA_ChNum)
 }
 
 /**
-  * @brief  alloc a free channel.
+  * @brief  Alloc a free channel.
   * @param  GDMA_Index: 0 .
   * @param  IrqFun: GDMA IRQ callback function.
   * @param  IrqData: GDMA IRQ callback data.
@@ -697,16 +706,16 @@ GDMA_ChnlAlloc(u32 GDMA_Index, IRQ_FUN IrqFun, u32 IrqData, u32 IrqPriority)
 }
 
 /**
-  * @brief  free a channel, this channel will not be used.
+  * @brief  Free a channel, this channel will not be used.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
-  * @retval   _TRUE/_FALSE
+  * @retval   TRUE/FALSE
   */
 __weak  u8
 GDMA_ChnlFree(u8 GDMA_Index, u8 GDMA_ChNum)
 {
 	GDMA_TypeDef *GDMA = NULL;
-	u8 ret = _FALSE;
+	u8 ret = FALSE;
 	/* Check the parameters */
 	assert_param(IS_GDMA_Index(GDMA_Index));
 	assert_param(IS_GDMA_ChannelNum(GDMA_ChNum));
@@ -719,12 +728,12 @@ GDMA_ChnlFree(u8 GDMA_Index, u8 GDMA_ChNum)
 
 	GDMA_ChnlUnRegister(GDMA_Index, GDMA_ChNum);
 
-	ret = _TRUE;
+	ret = TRUE;
 	return ret;
 }
 
 /**
-  * @brief  get irq number for a channel.
+  * @brief  Get irq number for a channel.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
   * @retval   IrqNum
@@ -743,7 +752,7 @@ GDMA_GetIrqNum(u8 GDMA_Index, u8 GDMA_ChNum)
 }
 
 /**
-  * @brief  set channel priority.
+  * @brief  Set channel priority.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
   * @retval   IrqNum
@@ -771,7 +780,7 @@ GDMA_SetChnlPriority(u8 GDMA_Index, u8 GDMA_ChNum, u32 ChnlPriority)
 }
 
 /**
-  * @brief  suspend a channel.
+  * @brief  Suspend a channel.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
   */
@@ -786,11 +795,11 @@ GDMA_Suspend(u8 GDMA_Index, u8 GDMA_ChNum)
 	assert_param(IS_GDMA_Index(GDMA_Index));
 	assert_param(IS_GDMA_ChannelNum(GDMA_ChNum));
 
-	GDMA->CH[GDMA_ChNum].CFG_LOW |= BIT_CFGX_LO_CH_SUSP;
+	GDMA->CH[GDMA_ChNum].CFG_LOW |= BIT_CFGx_L_CH_SUSP;
 }
 
 /**
-  * @brief  resume a channel.
+  * @brief  Resume a channel.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
   */
@@ -805,18 +814,19 @@ GDMA_Resume(u8 GDMA_Index, u8 GDMA_ChNum)
 	assert_param(IS_GDMA_Index(GDMA_Index));
 	assert_param(IS_GDMA_ChannelNum(GDMA_ChNum));
 
-	GDMA->CH[GDMA_ChNum].CFG_LOW &= ~BIT_CFGX_LO_CH_SUSP;
+	GDMA->CH[GDMA_ChNum].CFG_LOW &= ~BIT_CFGx_L_CH_SUSP;
 }
 
 /**
-  * @brief  abort a channel.
+  * @brief  Abort a channel.
   * @param  GDMA_Index: 0.
   * @param  GDMA_ChNum: 0 ~ 7.
+  * @retval TRUE/FALSE
   */
-__weak  void
+__weak  u8
 GDMA_Abort(u8 GDMA_Index, u8 GDMA_ChNum)
 {
-	u32 timeout;
+	u32 timeout = 500;
 	GDMA_TypeDef *GDMA = ((GDMA_TypeDef *) GDMA_BASE);
 	if (TrustZone_IsSecure()) {
 		GDMA = ((GDMA_TypeDef *) GDMA0_REG_BASE_S);
@@ -824,24 +834,25 @@ GDMA_Abort(u8 GDMA_Index, u8 GDMA_ChNum)
 	/* Check the parameters */
 	assert_param(IS_GDMA_Index(GDMA_Index));
 	assert_param(IS_GDMA_ChannelNum(GDMA_ChNum));
-	while (1) {
-		timeout = 500;
-		GDMA_Suspend(GDMA_Index, GDMA_ChNum);
-		while (BIT_CFGX_LO_GET_CH_Status(GDMA->CH[GDMA_ChNum].CFG_LOW) == 0x6) {
-			timeout--;
-			if (timeout == 0) {
-				break;
-			}
-		}
 
-		if (timeout > 0) {
+	GDMA_Suspend(GDMA_Index, GDMA_ChNum);
+	/*If ChEnReg[GDMA_ChNum] is not equal to 0, it means that
+	  the channel is working and the Suspend status must be checked.*/
+	while (timeout--) {
+		if ((GDMA->ChEnReg & BIT(GDMA_ChNum)) == 0 || \
+			(GDMA->CH[GDMA_ChNum].CFG_LOW & BIT_CFGx_L_INACTIVE)) {
 			break;
 		}
-		GDMA_Resume(GDMA_Index, GDMA_ChNum);
 	}
-	GDMA_Cmd(GDMA_Index, GDMA_ChNum, DISABLE);
-}
+	/*If the channel is still active after the timeout period, resume is required*/
+	if (timeout == 0) {
+		GDMA_Resume(GDMA_Index, GDMA_ChNum);
+		return FALSE;
+	}
 
+	GDMA_Cmd(GDMA_Index, GDMA_ChNum, DISABLE);
+	return TRUE;
+}
 /**
   * @}
   */

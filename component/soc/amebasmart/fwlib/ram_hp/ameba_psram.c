@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "PSRAM";
+static const char *const TAG = "PSRAM";
 u8 APM_WR_INIT_LATENCY_SPEC[6] = {
 	APM_WR_INIT_LATENCY_3CLK,
 	APM_WR_INIT_LATENCY_4CLK,
@@ -98,10 +98,10 @@ void PSRAM_INFO_Update(void)
 			PsramInfo.Psram_Latency_Set = 10;
 			PsramInfo.Psram_CSHI = Psram_WB_CSHI166;
 		}
-		/* backup latency code for KM0 for sleep */
-		RRAM->PSRAM_LATENCY = PsramInfo.Psram_Latency_Set;
 	}
 
+	/* backup latency code for KM0 for sleep */
+	RRAM->PSRAM_LATENCY = PsramInfo.Psram_Latency_Set;
 	RTK_LOGI(TAG, "PSRAM Ctrl CLK: %lu Hz \n", PsramClk);
 }
 
@@ -606,7 +606,7 @@ void PSRAM_WB_REG_Write(u32 regnum, u32 write_len, u8 *write_data)
   * @retval None
   * @note cache will be disable during calibration
   */
-BOOL PSRAM_calibration(void)
+bool PSRAM_calibration(void)
 {
 	PSPHY_TypeDef *psram_phy = PSRAMPHY_DEV;
 
@@ -625,8 +625,6 @@ BOOL PSRAM_calibration(void)
 
 	int phase_cnt = -1;
 
-	DCache_CleanInvalidate(0xFFFFFFFF, 0xFFFFFFFF);
-	DCache_Disable();
 	/*Disable HW calibration*/
 	psram_phy->PSPHY_CAL_CTRL &= (~PSPHY_BIT_CFG_CAL_EN);
 	for (phase = 0x1; phase <= 0x8; phase = phase * 2) {
@@ -637,19 +635,12 @@ BOOL PSRAM_calibration(void)
 
 		for (caltempN = 0; caltempN < 32; caltempN++) {
 			psram_phy->PSPHY_CAL_PAR = tempPHYPara | caltempN | PSPHY_PRE_CAL_PHASE(phase);
-			HAL_WRITE32(PSRAM_BASE, 0x0, tempdatawr[0]);
-			HAL_WRITE32(PSRAM_BASE, 0x50000, tempdatawr[1]);
-			HAL_WRITE32(PSRAM_BASE, 0x100000, tempdatawr[2]);
-			HAL_WRITE32(PSRAM_BASE, 0x150000, tempdatawr[3]);
-			HAL_WRITE32(PSRAM_BASE, 0x200000, tempdatawr[4]);
-			HAL_WRITE32(PSRAM_BASE, 0x250000, tempdatawr[5]);
 
-			tempdatard[0] = HAL_READ32(PSRAM_BASE, 0x0);
-			tempdatard[1] = HAL_READ32(PSRAM_BASE, 0x50000);
-			tempdatard[2] = HAL_READ32(PSRAM_BASE, 0x100000);
-			tempdatard[3] = HAL_READ32(PSRAM_BASE, 0x150000);
-			tempdatard[4] = HAL_READ32(PSRAM_BASE, 0x200000);
-			tempdatard[5] = HAL_READ32(PSRAM_BASE, 0x250000);
+			for (int i = 0; i < 6; i += 1) {
+				HAL_WRITE32(PSRAM_BASE, i * 0x50000, tempdatawr[i]);
+				DCache_CleanInvalidate(PSRAM_BASE + i * 0x50000, CACHE_LINE_SIZE);
+				tempdatard[i] = HAL_READ32(PSRAM_BASE, i * 0x50000);
+			}
 
 			if (_memcmp(tempdatard, PSRAM_CALIB_PATTERN, 24) == 0) {
 				//RTK_LOGD(TAG, "ok %lx %lx %lx %lx %lx %lx %lx\n",caltempN, tempdatard[0],tempdatard[1],tempdatard[2],tempdatard[3],tempdatard[4],tempdatard[5]);
@@ -687,10 +678,8 @@ BOOL PSRAM_calibration(void)
 
 	RTK_LOGI(TAG, "CalNmin = %x CalNmax = %x WindowSize = %x phase: %x \n", window_start, window_end, window_size, phase_cnt);
 
-	DCache_Enable();
-
 	if ((window_size) < 9) {
-		return _FALSE;
+		return FALSE;
 	}
 	tempPHYPara &= (~0xfffff);
 	tempPHYPara |= PSPHY_CFG_CAL_JMAX((window_end - window_start) / 2 - 2) | \
@@ -703,7 +692,7 @@ BOOL PSRAM_calibration(void)
 	/*start HW calibration*/
 	psram_phy->PSPHY_CAL_CTRL |= PSPHY_BIT_CFG_CAL_EN;
 
-	return _TRUE;
+	return TRUE;
 
 }
 

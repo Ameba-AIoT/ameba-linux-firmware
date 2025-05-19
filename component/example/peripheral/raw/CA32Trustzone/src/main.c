@@ -61,7 +61,7 @@ extern void ipc_app_init(void);
 extern void ipc2_app_init(void);
 #endif
 #ifdef CONFIG_WLAN
-extern void wlan_initialize(void);
+extern void wifi_init(void);
 #endif
 
 extern int rt_kv_init(void);
@@ -134,7 +134,7 @@ int main(void)
 	InterruptRegister(IPC_INTHandler, IPC_AP_IRQ, (u32)IPCAP_DEV, INT_PRI_MIDDLE);
 	InterruptEn(IPC_AP_IRQ, INT_PRI_MIDDLE);
 
-#ifdef CONFIG_MBED_TLS_ENABLED
+#ifdef CONFIG_MBEDTLS_ENABLED
 	app_mbedtls_rom_init();
 #endif
 
@@ -151,7 +151,7 @@ int main(void)
 
 	/* TODO: wifi init*/
 #ifdef CONFIG_WLAN
-	wlan_initialize();
+	wifi_init();
 #endif
 
 #if defined(CONFIG_IMQ_EN) && CONFIG_IMQ_EN

@@ -1,17 +1,8 @@
-/**
-  ******************************************************************************
-  * @file    usbh_msc.c
-  * @author  Realsil WLAN5 Team
-  * @brief   This file provides the functionalities of the USB MSC Class
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2020, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -30,14 +21,12 @@
 
 static int usbh_msc_attach(usb_host_t *host);
 static int usbh_msc_detach(usb_host_t *host);
-static int usbh_msc_process(usb_host_t *host);
+static int usbh_msc_process(usb_host_t *host, u32 msg);
 static int usbh_msc_setup(usb_host_t *host);
 static int usbh_msc_process_rw(usb_host_t *host, u8 lun);
-static int usbh_msc_sof(usb_host_t *host);
-
 /* Private variables ---------------------------------------------------------*/
 
-static const char *TAG = "MSC";
+static const char *const TAG = "MSC";
 
 /* USB Standard Device Descriptor */
 static usbh_class_driver_t usbh_msc_driver = {
@@ -46,7 +35,6 @@ static usbh_class_driver_t usbh_msc_driver = {
 	.detach = usbh_msc_detach,
 	.setup = usbh_msc_setup,
 	.process = usbh_msc_process,
-	.sof = usbh_msc_sof
 };
 
 static usbh_msc_host_t usbh_msc_host;
@@ -70,7 +58,7 @@ static int usbh_msc_attach(usb_host_t *host)
 
 	interface = usbh_get_interface(host, MSC_CLASS_CODE, USBH_MSC_TRANSPARENT, USBH_MSC_BOT);
 	if (interface == 0xFFU) {
-		RTK_LOGS(TAG, "[MSC] Get itf fail\n");
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Get itf fail\n");
 		return status;
 	}
 
@@ -79,7 +67,7 @@ static int usbh_msc_attach(usb_host_t *host)
 
 	msc_if_desc = usbh_get_interface_descriptor(host, interface, 0);
 	if (msc_if_desc == NULL) {
-		RTK_LOGS(TAG, "[MSC] Get itf desc fail\n");
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Get itf desc fail\n");
 		return status;
 	}
 
@@ -107,7 +95,7 @@ static int usbh_msc_attach(usb_host_t *host)
 	if (pipe_num != 0xFFU) {
 		msc->bulk_out_pipe = pipe_num;
 	} else {
-		RTK_LOGS(TAG, "[MSC] Alloc BULK out pipe fail\n");
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Alloc BULK out pipe fail\n");
 		return HAL_ERR_MEM;
 	}
 
@@ -116,7 +104,7 @@ static int usbh_msc_attach(usb_host_t *host)
 	if (pipe_num != 0xFFU) {
 		msc->bulk_in_pipe = pipe_num;
 	} else {
-		RTK_LOGS(TAG, "[MSC] Alloc BULK in pipe fail\n");
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Alloc BULK in pipe fail\n");
 		usbh_free_pipe(host, msc->bulk_out_pipe);
 		return HAL_ERR_MEM;
 	}
@@ -219,7 +207,7 @@ static int usbh_msc_setup(usb_host_t *host)
 
 		if (status == HAL_OK) {
 			msc->max_lun = (msc->max_lun > USBH_MSC_MAX_LUN) ? USBH_MSC_MAX_LUN : (msc->max_lun + 1U);
-			RTK_LOGS(TAG, "[MSC] Max lun %d\n", msc->max_lun);
+			RTK_LOGS(TAG, RTK_LOG_INFO, "Max lun %d\n", msc->max_lun);
 
 			for (i = 0U; i < msc->max_lun; i++) {
 				msc->unit[i].prev_ready_state = HAL_ERR_UNKNOWN;
@@ -231,7 +219,7 @@ static int usbh_msc_setup(usb_host_t *host)
 	case MSC_REQ_ERROR :
 		/* a Clear Feature should be issued here */
 		if (usbh_ctrl_clear_feature(host, 0x00U) == HAL_OK) {
-			RTK_LOGS(TAG, "[MSC] TX clear feature fail\n");
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "TX clear feature fail\n");
 		}
 		break;
 
@@ -247,11 +235,12 @@ static int usbh_msc_setup(usb_host_t *host)
   * @param  host: Host handle
   * @retval Status
   */
-static int usbh_msc_process(usb_host_t *host)
+static int usbh_msc_process(usb_host_t *host, u32 msg)
 {
 	usbh_msc_host_t *msc = &usbh_msc_host;
 	int status = HAL_BUSY;
 	int scsi_status = HAL_BUSY;
+	UNUSED(msg);
 
 	switch (msc->state) {
 	case MSC_INIT:
@@ -260,9 +249,9 @@ static int usbh_msc_process(usb_host_t *host)
 			/* Switch MSC REQ state machine */
 			switch (msc->unit[msc->current_lun].state) {
 			case MSC_INIT:
-				RTK_LOGS(TAG, "[MSC] Lun %d\n", msc->current_lun);
+				RTK_LOGS(TAG, RTK_LOG_INFO, "Lun %d\n", msc->current_lun);
 				msc->unit[msc->current_lun].state = MSC_READ_INQUIRY;
-				msc->tick = host->tick;
+				msc->tick = usbh_get_current_tick(host);
 				break;
 
 			case MSC_READ_INQUIRY:
@@ -270,9 +259,9 @@ static int usbh_msc_process(usb_host_t *host)
 
 				if (scsi_status == HAL_OK) {
 #if USBH_MSC_DEBUG
-					RTK_LOGS(TAG, "[MSC] Inq ven %s\n", msc->unit[msc->current_lun].inquiry.vendor_id);
-					RTK_LOGS(TAG, "[MSC] Inq prod %s\n", msc->unit[msc->current_lun].inquiry.product_id);
-					RTK_LOGS(TAG, "[MSC] Inq ver %s\n", msc->unit[msc->current_lun].inquiry.revision_id);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Inq ven %s\n", msc->unit[msc->current_lun].inquiry.vendor_id);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Inq prod %s\n", msc->unit[msc->current_lun].inquiry.product_id);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Inq ver %s\n", msc->unit[msc->current_lun].inquiry.revision_id);
 #endif
 					msc->unit[msc->current_lun].state = MSC_TEST_UNIT_READY;
 				}
@@ -292,7 +281,7 @@ static int usbh_msc_process(usb_host_t *host)
 				if (scsi_status == HAL_OK) {
 					if (msc->unit[msc->current_lun].prev_ready_state != HAL_OK) {
 						msc->unit[msc->current_lun].state_changed = 1U;
-						//RTK_LOGS(TAG, "[MSC] Device ready\n");
+						//RTK_LOGS(TAG, RTK_LOG_INFO, "Device ready\n");
 					} else {
 						msc->unit[msc->current_lun].state_changed = 0U;
 					}
@@ -304,7 +293,7 @@ static int usbh_msc_process(usb_host_t *host)
 					/* Media not ready, so try to check again during 10s */
 					if (msc->unit[msc->current_lun].prev_ready_state != HAL_ERR_UNKNOWN) {
 						msc->unit[msc->current_lun].state_changed = 1U;
-						RTK_LOGS(TAG, "[MSC] Device not ready\n");
+						RTK_LOGS(TAG, RTK_LOG_WARN, "Device not ready\n");
 					} else {
 						msc->unit[msc->current_lun].state_changed = 0U;
 					}
@@ -320,15 +309,15 @@ static int usbh_msc_process(usb_host_t *host)
 				break;
 
 			case MSC_READ_CAPACITY10:
-				scsi_status = usbh_scsi_read_capacity(msc, (u8)msc->current_lun, &msc->unit[msc->current_lun].capacity) ;
+				scsi_status = usbh_scsi_read_capacity(msc, (u8)msc->current_lun, &msc->unit[msc->current_lun].capacity);
 
 				if (scsi_status == HAL_OK) {
 					if (msc->unit[msc->current_lun].state_changed == 1U) {
 #if USBH_MSC_DEBUG
-						RTK_LOGS(TAG, "[MSC] Capacity %dB\n",
+						RTK_LOGS(TAG, RTK_LOG_INFO, "Capacity %dB\n",
 								 (msc->unit[msc->current_lun].capacity.block_nbr * msc->unit[msc->current_lun].capacity.block_size));
-						RTK_LOGS(TAG, "[MSC] Block num %d\n", msc->unit[msc->current_lun].capacity.block_nbr);
-						RTK_LOGS(TAG, "[MSC] Block size %d\n", msc->unit[msc->current_lun].capacity.block_size);
+						RTK_LOGS(TAG, RTK_LOG_INFO, "Block num %d\n", msc->unit[msc->current_lun].capacity.block_nbr);
+						RTK_LOGS(TAG, RTK_LOG_INFO, "Block size %d\n", msc->unit[msc->current_lun].capacity.block_size);
 #endif
 					}
 					msc->unit[msc->current_lun].state = MSC_IDLE;
@@ -351,22 +340,22 @@ static int usbh_msc_process(usb_host_t *host)
 					if ((msc->unit[msc->current_lun].sense.key == SCSI_SENSE_KEY_UNIT_ATTENTION) ||
 						(msc->unit[msc->current_lun].sense.key == SCSI_SENSE_KEY_NOT_READY)) {
 
-						if ((host->tick - msc->tick) < 10000U) {
+						if (usbh_get_elapsed_ticks(host, msc->tick) < 10000U) {
 							msc->unit[msc->current_lun].state = MSC_TEST_UNIT_READY;
 							break;
 						}
 					}
 
 #if USBH_MSC_DEBUG
-					RTK_LOGS(TAG, "[MSC] Sense key %x\n", msc->unit[msc->current_lun].sense.key);
-					RTK_LOGS(TAG, "[MSC] Sense code %x\n", msc->unit[msc->current_lun].sense.asc);
-					RTK_LOGS(TAG, "[MSC] Sense code qua %x\n", msc->unit[msc->current_lun].sense.ascq);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Sense key %x\n", msc->unit[msc->current_lun].sense.key);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Sense code %x\n", msc->unit[msc->current_lun].sense.asc);
+					RTK_LOGS(TAG, RTK_LOG_INFO, "Sense code qua %x\n", msc->unit[msc->current_lun].sense.ascq);
 #endif
 					msc->unit[msc->current_lun].state = MSC_IDLE;
 					msc->current_lun++;
 				}
 				if (scsi_status == HAL_ERR_UNKNOWN) {
-					RTK_LOGS(TAG, "[MSC] Device not ready\n");
+					RTK_LOGS(TAG, RTK_LOG_WARN, "Device not ready\n");
 					msc->unit[msc->current_lun].state = MSC_UNRECOVERED_ERROR;
 				} else {
 					if (scsi_status == HAL_ERR_HW) {
@@ -384,12 +373,12 @@ static int usbh_msc_process(usb_host_t *host)
 				break;
 			}
 
-			usbh_notify_class_state_change(host);
+			usbh_notify_class_state_change(host, 0);
 		} else {
 			msc->current_lun = 0U;
 			msc->state = MSC_IDLE;
 
-			usbh_notify_class_state_change(host);
+			usbh_notify_class_state_change(host, 0);
 			if ((msc->cb != NULL) && (msc->cb->setup != NULL)) {
 				msc->cb->setup();
 			}
@@ -408,17 +397,6 @@ static int usbh_msc_process(usb_host_t *host)
 }
 
 /**
-  * @brief  The function is for SOF state
-  * @param  host: Host handle  for MSC I/O Process
-  * @retval Status
-  */
-static int usbh_msc_sof(usb_host_t *host)
-{
-	UNUSED(host);
-	return HAL_OK;
-}
-
-/**
   * @brief  Transfer state machine handling
   * @param  host: Host handle  for MSC I/O Process
   * @param  lun: logical Unit Number
@@ -427,8 +405,8 @@ static int usbh_msc_sof(usb_host_t *host)
 static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 {
 	usbh_msc_host_t *msc = &usbh_msc_host;
-	int status = HAL_BUSY ;
-	int scsi_status = HAL_BUSY ;
+	int status = HAL_BUSY;
+	int scsi_status = HAL_BUSY;
 
 	/* Switch MSC REQ state machine */
 	switch (msc->unit[lun].state) {
@@ -448,7 +426,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host);
+		usbh_notify_class_state_change(host, 0);
 		break;
 
 	case MSC_WRITE:
@@ -466,7 +444,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host);
+		usbh_notify_class_state_change(host, 0);
 		break;
 
 	case MSC_REQUEST_SENSE:
@@ -474,9 +452,9 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 
 		if (scsi_status == HAL_OK) {
 #if USBH_MSC_DEBUG
-			RTK_LOGS(TAG, "[MSC] Sense key: %x\n", msc->unit[lun].sense.key);
-			RTK_LOGS(TAG, "[MSC] Sense code: %x\n", msc->unit[lun].sense.asc);
-			RTK_LOGS(TAG, "[MSC] Sense code qua: %x\n", msc->unit[lun].sense.ascq);
+			RTK_LOGS(TAG, RTK_LOG_INFO, "Sense key: %x\n", msc->unit[lun].sense.key);
+			RTK_LOGS(TAG, RTK_LOG_INFO, "Sense code: %x\n", msc->unit[lun].sense.asc);
+			RTK_LOGS(TAG, RTK_LOG_INFO, "Sense code qua: %x\n", msc->unit[lun].sense.ascq);
 #endif
 			msc->unit[lun].state = MSC_IDLE;
 			msc->unit[lun].error = MSC_ERROR;
@@ -484,7 +462,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			status = HAL_ERR_UNKNOWN;
 		}
 		if (scsi_status == HAL_ERR_UNKNOWN) {
-			RTK_LOGS(TAG, "[MSC] Device not ready\n");
+			RTK_LOGS(TAG, RTK_LOG_WARN, "Device not ready\n");
 		} else {
 			if (scsi_status == HAL_ERR_HW) {
 				msc->unit[lun].state = MSC_UNRECOVERED_ERROR;
@@ -492,7 +470,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host);
+		usbh_notify_class_state_change(host, 0);
 		break;
 
 	default:
@@ -652,17 +630,17 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 				msc->hbot.state = BOT_RECEIVE_CSW;
 			}
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else if (urb_state == USBH_URB_BUSY) {
 			/* Re-send CBW */
 			msc->hbot.state = BOT_SEND_CBW;
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else {
 			if (urb_state == USBH_URB_STALL) {
 				msc->hbot.state  = BOT_ERROR_OUT;
 
-				usbh_notify_urb_state_change(host);
+				usbh_notify_urb_state_change(host, 0);
 			}
 		}
 		break;
@@ -696,7 +674,7 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 				/* If value was 0, and successful transfer, then change the state */
 				msc->hbot.state  = BOT_RECEIVE_CSW;
 
-				usbh_notify_urb_state_change(host);
+				usbh_notify_urb_state_change(host, 0);
 			}
 		} else if (urb_state == USBH_URB_STALL) {
 			/* This is Data IN Stage STALL Condition */
@@ -709,7 +687,7 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 			The host shall clear the Bulk-In pipe.
 			4. The host shall attempt to receive a CSW.*/
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else {
 		}
 		break;
@@ -741,14 +719,14 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 				msc->hbot.state  = BOT_RECEIVE_CSW;
 			}
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		}
 
 		else if (urb_state == USBH_URB_BUSY) {
 			/* Resend same data */
 			msc->hbot.state  = BOT_DATA_OUT;
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		}
 
 		else if (urb_state == USBH_URB_STALL) {
@@ -761,7 +739,7 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 			4. The host shall attempt to receive a CSW.
 			*/
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else {
 		}
 		break;
@@ -789,11 +767,11 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 				status = HAL_ERR_UNKNOWN;
 			}
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else if (urb_state == USBH_URB_STALL) {
 			msc->hbot.state  = BOT_ERROR_IN;
 
-			usbh_notify_urb_state_change(host);
+			usbh_notify_urb_state_change(host, 0);
 		} else {
 		}
 		break;
@@ -943,14 +921,14 @@ int usbh_msc_read(u8 lun, u32 address, u8 *pbuf, u32 length)
 
 	usbh_scsi_read(msc, lun, address, pbuf, length);
 
-	timeout = msc->host->tick;
+	timeout = usbh_get_current_tick(msc->host);
 
 	while (usbh_msc_process_rw(msc->host, lun) == HAL_BUSY) {
-#if defined (ARM_CORE_CA32)
+#if defined(CONFIG_ARM_CORE_CA32) && CONFIG_ARM_CORE_CA32
 		//FIXME, remove this in AP
 		usb_os_delay_us(200);
 #endif
-		if (((msc->host->tick - timeout) > (10000U * length)) || (is_device_connected == 0U)) {
+		if ((usbh_get_elapsed_ticks(msc->host, timeout) > (10000U * length)) || (is_device_connected == 0U)) {
 			msc->state = MSC_IDLE;
 			return HAL_ERR_UNKNOWN;
 		}
@@ -988,13 +966,13 @@ int usbh_msc_write(u8 lun, u32 address, u8 *pbuf, u32 length)
 
 	usbh_scsi_write(msc, lun, address, pbuf, length);
 
-	timeout = msc->host->tick;
+	timeout = usbh_get_current_tick(msc->host);
 	while (usbh_msc_process_rw(msc->host, lun) == HAL_BUSY) {
-#if defined (ARM_CORE_CA32)
+#if defined(CONFIG_ARM_CORE_CA32) && CONFIG_ARM_CORE_CA32
 		//FIXME, remove this in AP
 		usb_os_delay_us(200);
 #endif
-		if (((msc->host->tick - timeout) > (10000U * length)) || (is_device_connected == 0U)) {
+		if ((usbh_get_elapsed_ticks(msc->host, timeout) > (10000U * length)) || (is_device_connected == 0U)) {
 			msc->state = MSC_IDLE;
 			return HAL_ERR_UNKNOWN;
 		}

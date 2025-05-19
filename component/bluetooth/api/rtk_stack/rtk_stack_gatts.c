@@ -301,15 +301,12 @@ static uint16_t _send_data(bool notify, rtk_bt_gatts_req_t *req)
 	struct rtk_bt_gatt_service *node = NULL;
 	uint8_t conn_id;
 	bool sent;
-
-#if !defined(RTK_BLE_MGR_LIB) || !RTK_BLE_MGR_LIB
-	/* ble_mgr.a will queue packets, no need to care credits. */
 	uint16_t credits = 0;
+
 	le_get_gap_param(GAP_PARAM_LE_REMAIN_CREDITS, &credits);
 	if (!credits) {
 		return RTK_BT_ERR_NO_CREDITS;
 	}
-#endif
 
 	if (!le_get_conn_id_by_handle(req->conn_handle, &conn_id)) {
 		return RTK_BT_ERR_PARAM_INVALID;
@@ -552,7 +549,7 @@ static T_APP_RESULT bt_stack_gatts_app_service_callback(T_SERVER_ID service_id, 
 		uint16_t cause = p_param->event_data.send_data_result.cause;
 		T_GATT_PDU_TYPE data_type = p_param->event_data.send_data_result.data_type;
 
-		app_result = _send_data_complete_cb(server_id, index, conn_id, cause, data_type);
+		app_result = (T_APP_RESULT)_send_data_complete_cb(server_id, index, conn_id, cause, data_type);
 	}
 
 	return app_result;
@@ -985,6 +982,7 @@ static uint16_t bt_stack_gatts_register_service(void  *p_gatts_srv)
 	uint16_t ret = 0;
 	uint32_t i = 0;
 
+	app_srv->alloc_ind = 0;
 	gatt_type = (GATT_SERVICE_OVER_BLE == app_srv->type) ? ATTRIB_FLAG_LE : ATTRIB_FLAG_BREDR;
 
 	node = bt_stack_gatts_find_service_node_by_app_id(app_srv->app_id);
@@ -1079,7 +1077,7 @@ static T_APP_RESULT att_err_to_app_result(uint8_t att_err)
 	case RTK_BT_ATT_ERR_MIN_APPLIC_CODE:
 	case RTK_BT_ATT_ERR_CCCD_IMPROPERLY_CONFIGURED:
 	case RTK_BT_ATT_ERR_PROC_ALREADY_IN_PROGRESS:
-		app_res = (ATT_ERR | att_err);
+		app_res = (T_APP_RESULT)(ATT_ERR | att_err);
 		break;
 	default:
 		app_res = APP_RESULT_REJECT;

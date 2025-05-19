@@ -1,17 +1,8 @@
-/**
-  ******************************************************************************
-  * @file    usbd.h
-  * @author  Realsil WLAN5 Team
-  * @brief   This file provides the API for USB device library
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef USBD_H
 #define USBD_H
@@ -20,8 +11,11 @@
 
 #include "usb_os.h"
 #include "usb_ch9.h"
+#include "usb_hal.h"
 
 /* Exported defines ----------------------------------------------------------*/
+/* This define used to debug the isr time issue */
+#define USBD_ISR_TASK_TIME_DEBUG		0U
 
 /* USB descriptor configurations */
 #define USBD_MAX_NUM_INTERFACES			16U
@@ -36,18 +30,11 @@
 
 /* USB device interrupt enable flag*/
 /* GINTSTS */
-#define USBD_SOF_INTR                 (BIT0) /* Start of (micro)Frame GINTSTS.bit3 */
-#define USBD_EOPF_INTR                (BIT1) /* End of Periodic Frame Interrupt GINTSTS.bit15 */
-#define USBD_EPMIS_INTR               (BIT2) /* Endpoint Mismatch Interrupt GINTSTS.bit17*/
-#define USBD_ICII_INTR                (BIT3) /* Incomplete Isochronous IN Transfer GINTSTS.bit20*/
+#define USBD_SOF_INTR                 (BIT0) /* Start of (micro)Frame, GINTSTS.Sof */
+#define USBD_EOPF_INTR                (BIT1) /* End of Periodic Frame Interrupt, GINTSTS.EOPF */
+#define USBD_EPMIS_INTR               (BIT2) /* Endpoint Mismatch Interrupt, GINTSTS.EPMis*/
 
 /* Exported types ------------------------------------------------------------*/
-/* USB device bus state */
-typedef enum {
-	USBD_BUS_STATUS_DN       = BIT0,  // D-
-	USBD_BUS_STATUS_DP    	 = BIT1,  // D+
-	USBD_BUS_STATUS_SUSPEND  = BIT2,  // suspend indication
-} usbd_bus_state_t;
 
 /* USB device state */
 typedef enum {
@@ -68,35 +55,27 @@ typedef enum {
 /* USB configuration structure */
 typedef struct {
 	u32 nptx_max_err_cnt[USB_MAX_ENDPOINTS]; /* Max Non-Periodical TX transfer error count allowed, if transfer
-							   error count is higher than this value, the transfer status will be determined as failed */
-	u32 ext_intr_en;		/* allow class to enable some interrupts*/
-	u32 nptx_max_epmis_cnt; /* Max Non-Periodical TX transfer epmis count allowed, if transfer
-							   epmis count is higher than this value,the EMIPS interrupt will be handled.
-							   This param works with the USB_OTG_GINTMSK_EPMISM interrupt which enable by USBD_EPMIS_INTR,
-							   make sure you has configed the appropriate value,
-							   a few epmis are possible and do not need to handle, it is not error
-							   but when we get a lot of epmis, it is a true Endpoint Mismatch. */
-	u8 speed;				/* USB speed:
-							   USB_SPEED_HIGH: USB 2.0 PHY, e.g. AmebaD/AmebaSmart
-							   USB_SPEED_HIGH_IN_FULL: USB 2.0 PHY in full speed mode, e.g. AmebaD/AmebaSmart
-							   USB_SPEED_FULL: USB 1.1 transceiver, e.g. AmebaDPlus */
-	u8 isr_priority;		/* USB ISR thread priority */
-	u8 dma_enable : 1;			/* Enable USB internal DMA mode, 0-Disable, 1-Enable */
-	u8 intr_use_ptx_fifo : 1;	/* Use Periodic TX FIFO for INTR IN transfer, only for shared TxFIFO mode */
-	/* For shared FIFO mode, e.g. AmabeD, AmebaSmart and AmebaDplus, the total DFIFO depth is 1016,
-	 and it is shared by RxFIFO, NPTxFIFO and PTxFIFO.
-	 This parameter specifies whether to assign a full PTxFIFO depth to support 1024 byte periodic transfer package size:
-		ptx_fifo_first = 0:
-			RxFIFO = 512
-			NPTxFIFO = 256
-			PTxFIFO = 248
-
-		ptx_fifo_first = 1:
-			RxFIFO = 504
-			NPTxFIFO = 256
-			PTxFIFO = 256  // Total DFIFO - RxFIFO - NPTxFIFO
-		*/
-	u8 ptx_fifo_first : 1;
+								error count is higher than this value, the transfer status will be determined as failed */
+	u32 nptx_max_epmis_cnt;		/* Max Non-Periodical TX transfer epmis count allowed, if epmis count is higher than this
+								value, the GINTSTS.EPMis interrupt will be handled. This parameter is enabled only when
+								USBD_EPMIS_INTR is enabled in ext_intr_en. */
+	u32 ext_intr_en;			/* Enable extra interrupts:
+								USBD_SOF_INTR: used for timing synchronization with SOF.
+								USBD_EOPF_INTR: used to toggle frame parity for ISOC transfers, only for slave mode.
+								USBD_EPMIS_INTR: used to re-activate the transfers of multiple non-periodic endpoints when
+								Endpoint Mismatch Interrupt happens, only for shared FIFO mode.	*/
+	u16 rx_fifo_depth;			/* Only for dedicated FIFO mode, RxFIFO depth in size of dword. */
+	u16 ptx_fifo_depth[USB_MAX_ENDPOINTS - 1]; /* Only for dedicated FIFO mode. Depth of TxFIFO n# (for n=1; n<OTG_NUM_IN_EPS) in size of dword,
+								where tx_fifo_depth[n] is for TxFIFO n+1 normally used by IN EP n+1, specially for AmebaGreen2,
+								tx_fifo_depth[4] is for IN EP6. TxFIFO 0# depth in not user configurable in dedicated FIFO mode. */
+	u8 speed;					/* USB speed:
+							   	USB_SPEED_HIGH: USB 2.0 PHY, e.g. AmebaD/AmebaSmart.
+							   	USB_SPEED_HIGH_IN_FULL: USB 2.0 PHY in full speed mode, e.g. AmebaD/AmebaSmart.
+							   	USB_SPEED_FULL: USB 1.1 transceiver, e.g. AmebaDPlus. */
+	u8 isr_priority;			/* USB ISR priority */
+	u8 isr_in_critical : 1;		/* Process USB ISR in critical state. */
+	u8 dma_enable : 1;			/* Enable USB internal DMA mode, 0-Disable, 1-Enable. */
+	u8 intr_use_ptx_fifo : 1;	/* Use Periodic TX FIFO for INTR IN transfer, only for shared TxFIFO mode. */
 } usbd_config_t;
 
 struct _usbd_class_driver_t;
@@ -107,6 +86,13 @@ typedef struct {
 	u32 ep0_xfer_total_len;					/* The total data length to transfer */
 	u32 ep0_xfer_rem_len;					/* The remain data length to transfer */
 	u32 ep0_recv_rem_len;					/* The remain data length to receive */
+#if USBD_ISR_TASK_TIME_DEBUG
+	__IO u32 isr_func_time_cost_max;
+	__IO u32 isr_func_time_cost;
+	__IO u32 isr_trigger_time_diff_max;
+	__IO u32 isr_trigger_time_diff;
+	u32 isr_trigger_last_time;
+#endif
 	u8 *ctrl_buf;							/* Buffer for control transfer */
 	void *pcd;								/* PCD handle */
 	u16 ep0_data_len;						/* EP0 data length */

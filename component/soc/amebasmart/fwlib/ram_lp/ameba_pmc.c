@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "PMC";
+static const char *const TAG = "PMC";
 u32 PMC_MemMode_BK[6];
 
 /* light-sleep: out-circut=on, out-val=keep, mem-arry=on */
@@ -78,7 +78,7 @@ int SOCPS_AONWakeReason(void)
   */
 static void OTP_Raise_AonVol(u32 status)
 {
-	if (SYSCFG_RLVersion() == SYSCFG_CUT_VERSION_A) {
+	if (EFUSE_GetChipVersion() == SYSCFG_CUT_VERSION_A) {
 		return;
 	} else {
 		u32 Aon_Vol;
@@ -97,6 +97,22 @@ static void OTP_Raise_AonVol(u32 status)
 		}
 	}
 
+}
+/**
+ * @brief set loguart rx pin as gpio waking-up
+ *
+ * @param status, ENABLE or DISABLE
+ *
+ * @return None
+ */
+void SOCPS_UartRxPinWakeSet(u32 status)
+{
+	if (status == ENABLE) {
+		GPIO_INTConfig(UART_LOG_RXD, ENABLE);
+		Pinmux_UartLogCtrl(PINMUX_S0, OFF);
+	} else {
+		Pinmux_UartLogCtrl(PINMUX_S0, ON);
+	}
 }
 
 void SOCPS_CLK_SwitchToLow(u32 status)
@@ -147,9 +163,6 @@ void SOCPS_SleepCG(void)
 		return;
 	}
 
-	/* switch chipen inti intr mode to wakeup system*/
-	CHIPEN_WorkMode(CHIPEN_INT_RESET_MODE);
-
 	/* switch IP clk to OSC4M, so that can wakeup system when need */
 	SOCPS_CLK_SwitchToLow(ENABLE);
 
@@ -195,9 +208,6 @@ void SOCPS_SleepPG(void)
 
 	//SOCPS_Hplat_OFF();
 
-	/* switch chipen inti intr mode to wakeup system*/
-	CHIPEN_WorkMode(CHIPEN_INT_RESET_MODE);
-
 	/* switch IP clk to OSC4M, so that can wakeup system when need */
 	SOCPS_CLK_SwitchToLow(ENABLE);
 
@@ -211,7 +221,16 @@ void SOCPS_SleepPG(void)
 	/* exec sleep hook functions */
 	pmu_exec_wakeup_hook_funs(PMU_MAX);
 }
-
+/* Dcut and later versions, wdg1~wdg4 wake-up source can be replaced with timer10-timer13.*/
+static void SOCPS_SwitchWakeSrc(void)
+{
+	u32 temp = 0;
+	if (SYSCFG_CUT_VERSION_D <= SYSCFG_RLVersion()) {
+		temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098);
+		temp |= BIT(10) | BIT(11) | BIT(12) | BIT(13);
+		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098, temp);
+	}
+}
 /**
   *  @brief set work modules/wake up event after sleep.
   *  @retval None
@@ -220,7 +239,8 @@ void SOCPS_SleepInit(void)
 {
 	int i = 0;
 	static u32 km0cg_pwrmgt_config_val;
-
+	/*replace wdg1~wdg4 wake-up source with timer10-timer13*/
+	SOCPS_SwitchWakeSrc();
 	/*power management setting*/
 	km0cg_pwrmgt_config_val = HAL_READ32(PMC_BASE, SYSPMC_OPT);
 
@@ -320,7 +340,7 @@ u32 SOCPS_DsleepWakeStatusGet(void)
 u32 LPWNP_INTHandler(UNUSED_WARN_DIS void *Data)
 {
 	UNUSED(Data);
-	RTK_LOGI(TAG, "LP WAKE NP HANDLER %lx %lx\n",
+	RTK_LOGD(TAG, "LP WAKE NP HANDLER %lx %lx\n",
 			 HAL_READ32(PMC_BASE, WAK_STATUS0), HAL_READ32(PMC_BASE, WAK_STATUS1));
 
 	InterruptDis(NP_WAKE_IRQ);
@@ -335,7 +355,7 @@ u32 LPWAP_INTHandler(UNUSED_WARN_DIS void *Data)
 	HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW,
 			   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) | LSYS_BIT_AP_RUNNING);
 
-	RTK_LOGI(TAG, "LP WAKE AP HANDLER %lx %lx\n",
+	RTK_LOGD(TAG, "LP WAKE AP HANDLER %lx %lx\n",
 			 HAL_READ32(PMC_BASE, WAK_STATUS0), HAL_READ32(PMC_BASE, WAK_STATUS1));
 
 	InterruptDis(AP_WAKE_IRQ);

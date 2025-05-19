@@ -1,10 +1,6 @@
-#include "platform_stdlib.h"
-#include "basic_types.h"
-#include "os_wrapper.h"
-#include "ameba.h"
-#include "httpd.h"
+#include "ameba_soc.h"
 #include "httpd_util.h"
-#
+
 #include "mbedtls/ssl.h"
 #include "mbedtls/platform.h"
 #include "mbedtls/net_sockets.h"
@@ -67,11 +63,8 @@ int httpd_tls_setup_init(const char *server_cert, const char *server_key, const 
 		ret = -1;
 		goto exit;
 	}
-#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER >= 0x03000000)
+
 	if ((ret = mbedtls_pk_parse_key(&httpd_key, (const unsigned char *) server_key, strlen(server_key) + 1, NULL, 0, NULL, NULL)) != 0) {
-#else
-	if ((ret = mbedtls_pk_parse_key(&httpd_key, (const unsigned char *) server_key, strlen(server_key) + 1, NULL, 0)) != 0) {
-#endif
 		httpd_log("\n[HTTPD] ERROR: mbedtls_pk_parse_key %d\n", ret);
 		ret = -1;
 		goto exit;

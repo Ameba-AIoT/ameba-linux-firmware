@@ -15,7 +15,10 @@ extern "C"
 
 #include <bt_api_config.h>
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
-#include <rtk_bt_le_audio.h>
+#include <bt_le_audio_app_config.h>
+#endif
+#if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
+#include <bt_le_iso_app_config.h>
 #endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
 #include <rtk_bt_mesh_def.h>
@@ -33,6 +36,7 @@ typedef struct {
 	uint8_t  hfp_role;                         /*!< Default HFP profile role (Only used in BR/EDR) */
 	uint8_t  hid_role;                         /*!< Default HID profile role (Only used in BR/EDR) */
 	uint32_t app_profile_support;              /*!< app profile support @ref rtk_bt_profile_t */
+	uint8_t  server_chann;                     /*!< rfc server channel */
 	uint16_t mtu_size;                         /*!< Deafult MTU config */
 	bool     master_init_mtu_req;              /*!< Whether local device as master will auto initiate exchange MTU request when connected.
                                                     If this value is false, user can use @ref rtk_bt_gattc_exchange_mtu
@@ -54,6 +58,9 @@ typedef struct {
                                                     cccd will be saved, and when reconnect to the bonded device, @ref RTK_BT_GATTS_EVT_CCCD_IND events
                                                     will be indicated immediately.
                                                     By default, cccd will be saved. And this value will be ignored if @ref RTK_BLE_AUDIO_SUPPORT is enabled.*/
+#if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
+	rtk_bt_le_iso_app_conf_t le_iso_app_conf; /*!< Default configuration for le iso */
+#endif
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 	rtk_bt_le_audio_app_conf_t le_audio_app_conf; /*!< Default configuration for le audio */
 #endif

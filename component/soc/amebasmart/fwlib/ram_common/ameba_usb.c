@@ -30,8 +30,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-static const char *const TAG = "USB";
-
 static const usb_cal_data_t usb_cal_data[] = {
 	{0x00, 0xE0, 0x9D},
 	{0x00, 0xE1, 0x19},
@@ -78,8 +76,10 @@ usb_cal_data_t *usb_chip_get_cal_data(u8 mode)
   * @param  void
   * @retval Status
   */
-int usb_chip_init(void)
+int usb_chip_init(u8 mode)
 {
+	UNUSED(mode);
+
 	u32 reg = 0;
 	u32 count = 0;
 
@@ -134,7 +134,6 @@ int usb_chip_init(void)
 		/* 1ms timeout expected, 10ms for safe */
 		DelayUs(10);
 		if (++count > 1000U) {
-			RTK_LOGS(TAG, "[USB] Chip init TO\n");
 			return HAL_TIMEOUT;
 		}
 	} while (!(HAL_READ32(USB_ADDON_REG_CTRL, 0U) & USB_ADDON_REG_CTRL_BIT_UPLL_CKRDY));

@@ -4,8 +4,7 @@
 #include "example_http_client.h"
 #include "platform_stdlib.h"
 #include "basic_types.h"
-#include "rtw_wifi_defs.h"
-#include "wifi_conf.h"
+#include "wifi_api.h"
 #include "lwip_netconf.h"
 
 
@@ -81,11 +80,8 @@ static void http_client_thread(void *param)
 	/* To avoid gcc warnings */
 	(void) param;
 
-	//wait for wifi connected, a rough time
-	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
-		printf("Wait for WIFI connection ...\n");
-		rtos_time_delay_ms(2000);
-	}
+	// Delay to check successful WiFi connection and obtain of an IP address
+	LwIP_Check_Connectivity();
 
 	printf("\nExample:  http_client\n");
 
@@ -95,7 +91,7 @@ static void http_client_thread(void *param)
 
 void example_http_client(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"http_client_thread"), http_client_thread, NULL, THREAD_STACK_SIZE * 4, 0) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"http_client_thread"), http_client_thread, NULL, THREAD_STACK_SIZE * 4, 0) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create(http_client_thread) failed\n", __FUNCTION__);
 	}
 	return;

@@ -1,5 +1,3 @@
-<<<<<<< HEAD   (bbd1c2 [common][media] fix the player example warning)
-=======
 
 
 #include "ameba_soc.h"
@@ -8,8 +6,9 @@
 #include "lv_hal.h"
 #include "lv_demo_benchmark.h"
 
+#include "os_wrapper.h"
 
-void lv_demo_benchmark_task(void* param)
+void lv_demo_benchmark_task(void *param)
 {
 	UNUSED(param);
 	printf("lv_demo_benchmark start\n");
@@ -35,7 +34,7 @@ u32 lv_demo_benchmark_show(void)
 {
 #endif
 	rtos_task_create(NULL, "lv_demo_benchmark_task", lv_demo_benchmark_task, NULL, 1024 * 4, 1);
-	return _TRUE;
+	return TRUE;
 }
 
 
@@ -52,4 +51,3 @@ void app_example(void)
 	lv_demo_benchmark_show();
 }
 #endif
->>>>>>> CHANGE (6580cb [ameba][gui] fix the example warning)
