@@ -52,7 +52,7 @@
  * GNU Compiler
  */
 #elif defined ( __GNUC__ )
-#ifdef CONFIG_ARM_CORE_CA32
+#ifdef ARM_CORE_CA32
   #include "cmsis_gcc_ca.h"
 #else
   #include "cmsis_gcc.h"
@@ -63,7 +63,7 @@
  * IAR Compiler
  */
 #elif defined ( __ICCARM__ )
-#ifdef CONFIG_ARM_CORE_CA32
+#ifdef ARM_CORE_CA32
   #include <cmsis_iccarm_ca.h>  
 #else
   #include <cmsis_iccarm.h>

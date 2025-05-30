@@ -10,7 +10,7 @@
 #define OS_H
 
 //#include "basic_types.h"
-#include "wifi_api_types.h"
+#include <rtw_wifi_constants.h>
 #include "os_wrapper.h"
 #include "rtw_timer.h"
 #include "rtw_misc.h" //for _ntohs
@@ -479,7 +479,7 @@ int os_snprintf(char *str, size_t size, const char *format, ...);
 
 #else /* OS_NO_C_LIB_DEFINES */
 
-#if !defined(CONFIG_AMEBASMART) && !defined(CONFIG_AMEBADPLUS) && !defined(CONFIG_AMEBASMARTPLUS)
+#if !defined(CONFIG_AMEBASMART) && !defined(CONFIG_AMEBADPLUS)
 #ifndef os_malloc
 #define os_malloc(sz) rtos_mem_malloc(sz)
 #endif

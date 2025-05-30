@@ -1,8 +1,17 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/**
+  ******************************************************************************
+  * @file    usbh_uvc_class.c
+  * @author  Realsil WLAN5 Team
+  * @brief   This file provides the functionalities of the USB UVC Class
+  ******************************************************************************
+  * @attention
+  *
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
+  ******************************************************************************
+  */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -22,13 +31,13 @@ extern usbh_uvc_host_t uvc_host;
 
 static int usbh_uvc_attach(usb_host_t *host);
 static int usbh_uvc_detach(usb_host_t *host);
-static int usbh_uvc_process(usb_host_t *host, u32 msg);
+static int usbh_uvc_process(usb_host_t *host);
 static int usbh_uvc_sof(usb_host_t *host);
 static int usbh_uvc_setup(usb_host_t *host);
 
 /* Private variables ---------------------------------------------------------*/
 
-static const char *const TAG = "UVC";
+static const char *TAG = "UVC";
 
 /* USB Standard Device Descriptor */
 static usbh_class_driver_t usbh_uvc_driver = {
@@ -59,7 +68,7 @@ static int usbh_uvc_attach(usb_host_t *host)
 
 	status = usbh_uvc_parse_cfgdesc(host);
 	if (status) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Parse uvc desc fail\n");
+		RTK_LOGS(TAG, "[UVC] Parse uvc desc fail\n");
 		return status;
 	}
 
@@ -89,14 +98,14 @@ static int usbh_uvc_attach(usb_host_t *host)
 		stream->cur_setting.pipe = usbh_alloc_pipe(host, stream->cur_setting.ep_addr);
 
 #if USBH_UVC_DEBUG
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.altsetting:%d\n", i, stream->cur_setting.altsetting);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.bAlternateSetting:%d\n", i, stream->cur_setting.bAlternateSetting);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.ep_addr:%d\n", i, stream->cur_setting.ep_addr);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.ep_size:%d\n", i, stream->cur_setting.ep_size);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.mps:%d\n", i, stream->cur_setting.mps);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.interval:%d\n", i, stream->cur_setting.interval);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.ep_type:%d\n", i, stream->cur_setting.ep_type);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.bInterfaceNumber:%d\n", i, stream->cur_setting.bInterfaceNumber);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.altsetting:%d\n", i, stream->cur_setting.altsetting);
+		TK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.bAlternateSetting:%d\n", i, stream->cur_setting.bAlternateSetting);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_addr:%d\n", i, stream->cur_setting.ep_addr);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_size:%d\n", i, stream->cur_setting.ep_size);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.mps:%d\n", i, stream->cur_setting.mps);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.interval:%d\n", i, stream->cur_setting.interval);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_type:%d\n", i, stream->cur_setting.ep_type);
+		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.bInterfaceNumber:%d\n", i, stream->cur_setting.bInterfaceNumber);
 #endif
 	}
 
@@ -114,7 +123,7 @@ static int usbh_uvc_attach(usb_host_t *host)
 static int usbh_uvc_detach(usb_host_t *host)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
-	uvc_stream_t *stream;
+	uvc_stream_t *stream ;
 	int i;
 
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
@@ -166,19 +175,18 @@ static int usbh_uvc_setup(usb_host_t *host)
   * @param  host: Host handle
   * @retval Status
   */
-static int usbh_uvc_process(usb_host_t *host, u32 msg)
+static int usbh_uvc_process(usb_host_t *host)
 {
 	int status = HAL_BUSY;
 	usbh_uvc_host_t *uvc = &uvc_host;
 	int i;
 	UNUSED(host);
-	UNUSED(msg);
 
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
 		if (uvc->stream[i].stream_data_state == STREAM_DATA_IN) {
 			status = usbh_uvc_process_rx(&uvc->stream[i]);
 			if (status) {
-				RTK_LOGS(TAG, RTK_LOG_ERROR, "Process rx err\n");
+				RTK_LOGS(TAG, "[UVC] Process rx err\n");
 			}
 		}
 	}

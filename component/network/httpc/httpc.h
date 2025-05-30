@@ -21,7 +21,9 @@
  *  @{
  */
 
+#include "platform_autoconf.h"
 #include "platform_stdlib.h"
+#include "basic_types.h"
 
 #define HTTPC_SECURE_NONE        0    /*!< Running with HTTP client */
 #define HTTPC_SECURE_TLS         1    /*!< Running with HTTPS client */
@@ -156,15 +158,6 @@ void httpc_conn_dump_header(struct httpc_conn *conn);
  * @return     -1 : if error occurred
  */
 int httpc_request_write_header_start(struct httpc_conn *conn, char *method, char *resource, char *content_type, size_t content_len);
-
-/**
- * @brief      This function is used to add an raw HTTP header field to HTTP request.
- * @param[in]  conn: pointer to connection context
- * @param[in]  raw_req_header: raw HTTP header field string
- * @return     0 : if successful
- * @return     -1 : if error occurred
- */
-int httpc_request_write_header_raw(struct httpc_conn *conn, char *raw_req_header);
 
 /**
  * @brief      This function is used to add an HTTP header field to HTTP request.

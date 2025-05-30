@@ -498,19 +498,19 @@ void RTAudioRecordTestApp(char **argv)
 		}
 	}
 
-	if (RTK_SUCCESS != rtos_task_create(NULL, ((const char *)"RecordTask"), RecordTask, NULL, 4096 * 4, 5)) {
+	if (SUCCESS != rtos_task_create(NULL, ((const char *)"RecordTask"), RecordTask, NULL, 4096 * 4, 5)) {
 		EXAMPLE_AUDIO_ERROR("%s rtos_task_create(RecordTask) failed \n", __FUNCTION__);
 	}
 
 	if (g_test_ref) {
 		rtos_time_delay_ms(1000);//for test noise
-		if (RTK_SUCCESS != rtos_task_create(NULL, (const char *const)"PlayTask", PlayTask, NULL, 4096 * 4, 5)) {
+		if (SUCCESS != rtos_task_create(NULL, (const char *const)"PlayTask", PlayTask, NULL, 4096 * 4, 5)) {
 			EXAMPLE_AUDIO_ERROR("create PlayTask error \n");
 		}
 	}
 
 #if TEST_TIMESTAMP
-	if (rtos_task_create(NULL, ((const char *)"example_audio_counter_time"), example_audio_counter_time, NULL, 8192 * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_audio_counter_time"), example_audio_counter_time, NULL, 8192 * 4, 1) != SUCCESS) {
 		EXAMPLE_AUDIO_ERROR("error: rtos_task_create(example_audio_counter_time) failed");
 	}
 #endif
@@ -523,5 +523,5 @@ u32 example_record_test(u16 argc, unsigned char **argv)
 {
 	(void) argc;
 	RTAudioRecordTestApp((char **)argv);
-	return TRUE;
+	return _TRUE;
 }

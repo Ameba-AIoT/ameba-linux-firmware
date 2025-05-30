@@ -4,35 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "sys_api.h"
+#include "ameba_soc.h"
+
+#include <sys_api.h>
+#include <flash_api.h>
 #include "ameba_rtos_version.h"
-#include "build_info.h"
-
-#include "at_intf_spi.h"
-#include "ameba_ota.h"
-
+#include <build_info.h>
 #include "atcmd_service.h"
+#ifndef CONFIG_MP_INCLUDED
+#include "atcmd_mqtt.h"
+#endif
 #ifndef CONFIG_MP_SHRINK
 #include "atcmd_wifi.h"
-#ifdef CONFIG_LWIP_LAYER
-#include "atcmd_mqtt.h"
-#include "atcmd_sockets.h"
-#include "atcmd_http.h"
-#include "atcmd_websocket.h"
-#include "atcmd_network.h"
 #endif
-#endif
-#if defined(CONFIG_BT) && CONFIG_BT
-#if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
-#include "atcmd_bt_mp.h"
-#endif
-#endif
-#ifndef CONFIG_MP_INCLUDED
-#if defined(CONFIG_BT_COEXIST)
-#include "atcmd_coex.h"
-#endif
-#endif
-#include "atcmd_sys.h"
 
 #include "FreeRTOS.h"
 #if (configGENERATE_RUN_TIME_STATS == 1)
@@ -77,8 +61,6 @@ extern void vTaskList(char *pcWriteBuffer);
 extern u32 cmd_dump_word(u16 argc, u8  *argv[]);
 extern u32 cmd_write_word(u16 argc, u8  *argv[]);
 
-static const char *const TAG = "AT-SYS";
-
 #ifndef CONFIG_INIC_NO_FLASH
 #if (configGENERATE_RUN_TIME_STATS == 1)
 static task_status_t *task_status = NULL;
@@ -108,7 +90,7 @@ delta_status_t *find_free_delta(delta_status_t *delta, int cnt)
 	return NULL;
 }
 
-static int update_status(void)
+static void update_status(void)
 {
 	delta_status_t *deltaone = NULL;
 	/* init */
@@ -119,7 +101,7 @@ static int update_status(void)
 
 	if (uxTaskGetNumberOfTasks() > TASK_CNT) {
 		RTK_LOGW(NOTAG, "number of tasks : %d(exceed TASK_CNT)! Please enlarge TASK_CNT\r\n", uxTaskGetNumberOfTasks());
-		return -1;
+		return;
 	}
 
 	/* update last */
@@ -158,8 +140,6 @@ static int update_status(void)
 			}
 		}
 	}
-
-	return 0;
 }
 
 void print_delta(int delta_tick)
@@ -192,15 +172,13 @@ void cpu_stat_thread(void *dummy)
 {
 	status_cmd_para_t *ppara = rtos_mem_malloc(sizeof(status_cmd_para_t));
 	if (NULL == ppara) {
-		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "%s malloc failed\r\n", __FUNCTION__);
+		RTK_LOGS(NOTAG, "%s malloc failed\r\n", __FUNCTION__);
 		goto end;
 	}
 	memcpy(ppara, dummy, sizeof(status_cmd_para_t));
 	last_tick = portGET_RUN_TIME_COUNTER_VALUE();
-	while ((rtos_sema_take((rtos_sema_t)top_exit_sema, ppara->time * 1000) == RTK_FAIL)) {
-		if (update_status()) {
-			continue;
-		}
+	while ((rtos_sema_take((rtos_sema_t)top_exit_sema, ppara->time * 1000) == FAIL)) {
+		update_status();
 		int delta_tick =  portGET_RUN_TIME_COUNTER_VALUE() - last_tick;
 		last_tick = portGET_RUN_TIME_COUNTER_VALUE();
 		print_delta(delta_tick);
@@ -232,7 +210,7 @@ void at_otaclear(void *arg)
 {
 	UNUSED(arg);
 	sys_clear_ota_signature();
-	at_printf(ATCMD_OK_END_STR);
+	at_printf("\r\n%sOK\r\n", "+OTACLEAR:");
 }
 
 /****************************************************************
@@ -245,17 +223,17 @@ void at_otarecover(void *arg)
 {
 	UNUSED(arg);
 	sys_recover_ota_signature();
-	at_printf(ATCMD_OK_END_STR);
+	at_printf("\r\n%sOK\r\n", "+OTARECOVER:");
 }
 
 #if (configGENERATE_RUN_TIME_STATS == 1)
 static void at_cpuload_help(void)
 {
-	RTK_LOGI(TAG, "\r\n");
-	RTK_LOGI(TAG, "AT+CPULOAD=<mode>[,<time_intval>,<counter>]\r\n");
-	RTK_LOGI(TAG, "\t<mode>:\t[0,2]\r\n");
-	RTK_LOGI(TAG, "\t<time_intval>:\tIn sec\r\n");
-	RTK_LOGI(TAG, "\t<counter>\t0 means infinit\r\n");
+	at_printf("\r\n");
+	at_printf("AT+CPULOAD=<mode>[,<time_intval>,<counter>]\r\n");
+	at_printf("\t<mode>:\t[0,2]\r\n");
+	at_printf("\t<time_intval>:\tIn sec\r\n");
+	at_printf("\t<counter>\t0 means infinit\r\n");
 }
 
 /****************************************************************
@@ -276,7 +254,7 @@ void at_cpuload(void *arg)
 
 	argc = parse_param(arg, argv);
 	if (argc > 4 || argc < 2) {
-		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS,
+		RTK_LOGS(NOTAG,
 				 "[top]Usage: top=mode,time,count\n\r mode: 0, start count cpu usage every [time] second.\r\n mode: 1, stop mode 0.\r\n mode: 2: start count cpu usage.\r\n mode: 3: stop mode 2.\r\n "
 				 "time: CPU statistics interval.Default 1. unit(s) \r\n count: CPU statistics count, default until stop or 1,2,3...");
 		error_no = 1;
@@ -309,10 +287,7 @@ void at_cpuload(void *arg)
 			break;
 		}
 		memset(task_status, 0, sizeof(task_status_t));
-		if (update_status()) {
-			error_no = 4;
-			break;
-		}
+		update_status();
 		rtos_sema_create(&top_exit_sema, 0, 1);
 		rtos_task_create(NULL, ((const char *)"cpu_stat_thread"), cpu_stat_thread, &para_in, 4096 * 4, configMAX_PRIORITIES - 1);
 		break;
@@ -327,18 +302,13 @@ void at_cpuload(void *arg)
 		}
 		memset(task_status, 0, sizeof(task_status_t));
 		last_tick = portGET_RUN_TIME_COUNTER_VALUE();
-		if (update_status()) {
-			error_no = 4;
-		}
+		update_status();
 		break;
 	case atcmd_cpuload_type_stop:
 		if (top_exit_sema)	{
 			break;
 		}
-		if (update_status()) {
-			error_no = 4;
-			break;
-		}
+		update_status();
 		print_delta(portGET_RUN_TIME_COUNTER_VALUE() - last_tick);
 		last_tick = portGET_RUN_TIME_COUNTER_VALUE();
 		rtos_mem_free(task_status);
@@ -351,9 +321,9 @@ void at_cpuload(void *arg)
 
 end:
 	if (error_no == 0) {
-		at_printf(ATCMD_OK_END_STR);
+		at_printf("\r\n%sOK\r\n", "+CPULOAD:");
 	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
+		at_printf("\r\n%sERROR:%d\r\n", "+CPULOAD:", error_no);
 		if (error_no == 1 || error_no == 3) {
 			at_cpuload_help();
 		}
@@ -362,14 +332,6 @@ end:
 #endif
 #endif /* CONFIG_INIC_NO_FLASH */
 
-static void at_test_help(void)
-{
-	RTK_LOGI(TAG, "\r\n");
-	RTK_LOGI(TAG, "AT+test=<mode>,<string/length>\r\n");
-	RTK_LOGI(TAG, "\t<mode>:\t0-echo, 1-tt mode test\r\n");
-	RTK_LOGI(TAG, "\t<string/length>:\tstring-mode 0 echo string, length-tt mode length\r\n");
-}
-
 /****************************************************************
 AT command process:
 	AT+TEST
@@ -377,91 +339,13 @@ AT command process:
 ****************************************************************/
 void at_test(void *arg)
 {
-	u8 *buffer = NULL;
-	u8 error_no = 0;
-	u32 start_time, end_time, tt_len;
-	int argc = 0, mode = 0;
-	char *argv[MAX_ARGC] = {0};
-
-	argc = parse_param(arg, argv);
-	if (argc == 1) {
-		goto end;
+	if (arg) {
+		at_printf("\r\n arg len = %d \r\n", strlen((char *)arg));
+		at_printf("\r\n arg = %s \r\n", (char *)arg);
 	}
 
-	if (argc != 3) {
-		error_no = 1;
-		goto end;
-	}
-
-	mode = (int)atoi(argv[1]);
-
-	if (mode == 0) {
-		at_printf("\r\n arg len = %d \r\n", strlen((char *)argv[2]));
-		at_printf("\r\n arg = %s \r\n", (char *)argv[2]);
-	} else if (mode == 1) {
-		buffer = (u8 *)rtos_mem_malloc(10 * 1024);
-		if (buffer == NULL) {
-			error_no = 2;
-			goto end;
-		}
-
-		tt_len = (u32)atoi(argv[2]);
-
-		if (atcmd_tt_mode_start(tt_len) != 0) {
-			error_no = 2;
-			goto end;
-		}
-
-		u8 *buffer_ptr = buffer;
-		int get_len = 0, remain_len = tt_len;
-
-		get_len = atcmd_tt_mode_get(buffer_ptr, 1);
-		remain_len -= get_len;
-		start_time = rtos_time_get_current_system_time_ms();
-
-		while (remain_len > 0) {
-			get_len = atcmd_tt_mode_get(buffer_ptr, remain_len);
-			if (get_len < 0) {
-				RTK_LOGI(TAG, "host stops tt mode\r\n");
-				break;
-			}
-			remain_len -= get_len;
-		}
-
-		end_time = rtos_time_get_current_system_time_ms();
-		atcmd_tt_mode_end();
-
-		at_printf("upstream test(tt mode): Send %d KBytes in %d ms, %d Kbits/sec\n\r", (int)((tt_len - remain_len) / 1024), (int)(end_time - start_time),
-				  (int)(((tt_len - remain_len) * 8) / (end_time - start_time)));
-	} else if (mode == 2) {
-		u32 at_len = (u32)atoi(argv[2]);
-		u32 send_len = 0;
-		u32 malloc_size = at_len > ATCMD_SPI_DMA_SIZE ? ATCMD_SPI_DMA_SIZE : at_len;
-		buffer = (u8 *)rtos_mem_malloc(malloc_size);
-		memset(buffer, 1, malloc_size);
-		at_printf(ATCMD_DOWNSTREAM_TEST_START_STR);
-		while (at_len > 0) {
-			send_len = at_len > (ATCMD_SPI_DMA_SIZE - 8) ? (ATCMD_SPI_DMA_SIZE - 8) : at_len;
-			at_printf_data((char *)buffer, send_len);
-			at_len -= send_len;
-		}
-		at_printf(ATCMD_DOWNSTREAM_TEST_END_STR);
-	} else {
-		error_no = 1;
-		goto end;
-	}
-
-end:
-	if (buffer != NULL) {
-		rtos_mem_free(buffer);
-	}
-
-	if (error_no == 0) {
-		at_printf(ATCMD_OK_END_STR);
-	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
-		at_test_help();
-	}
+	UNUSED(arg);
+	at_printf("\r\n%sOK\r\n", "+TEST:");
 }
 
 /****************************************************************
@@ -482,40 +366,25 @@ void at_list(void *arg)
 	at_printf("Common AT Command:\r\n");
 	print_system_at();
 
-#ifndef CONFIG_MP_SHRINK
 #ifdef CONFIG_WLAN
+#ifndef CONFIG_MP_SHRINK
 	/* Wifi commands. */
 	at_printf("Wi-Fi AT Command:\r\n");
 	print_wifi_at();
+#endif
+
 #ifdef CONFIG_LWIP_LAYER
-#if defined(CONFIG_ATCMD_SOCKET) && (CONFIG_ATCMD_SOCKET == 1)
-	/* Socket AT Commands. */
-	at_printf("Socket AT Commands:\r\n");
-	print_socket_at();
+	/* TCP/IP commands. */
+	at_printf("TCP/IP AT Command:\r\n");
+	print_lwip_at();
 #endif
-#if defined(CONFIG_ATCMD_HTTP) && (CONFIG_ATCMD_HTTP == 1)
-	/* HTTP commands. */
-	at_printf("HTTP AT Command:\r\n");
-	print_http_at();
-#endif
-#if defined(CONFIG_ATCMD_WEBSOCKET) && (CONFIG_ATCMD_WEBSOCKET == 1)
-	/* WEBSOCKET commands. */
-	at_printf("WEBSOCKET AT command:\r\n");
-	print_websocket_at();
-#endif
-#if defined(CONFIG_ATCMD_NETWORK) && (CONFIG_ATCMD_NETWORK == 1)
-	/* NETWORK commands. */
-	at_printf("NETWORK AT command:\r\n");
-	print_network_at();
-#endif
-#if defined(CONFIG_ATCMD_MQTT) && (CONFIG_ATCMD_MQTT == 1)
+
+#ifndef CONFIG_MP_INCLUDED
 	/* MQTT commands. */
 	at_printf("MQTT AT command:\r\n");
 	print_mqtt_at();
 #endif
-#endif // CONFIG_LWIP_LAYER
-#endif // CONFIG_WLAN
-#endif // CONFIG_MP_SHRINK
+#endif
 
 #if defined(CONFIG_BT) && CONFIG_BT
 	/* Bluetooth commands. */
@@ -526,15 +395,9 @@ void at_list(void *arg)
 #endif
 #endif
 
-#ifndef CONFIG_MP_INCLUDED
-#if defined(CONFIG_BT_COEXIST)
-	/* COEX commands. */
-	at_printf("COEX AT command:\r\n");
-	print_coex_at();
-#endif
-#endif
 
-	at_printf(ATCMD_OK_END_STR);
+
+	at_printf("\r\n%sOK\r\n", "+LIST:");
 }
 
 /****************************************************************
@@ -546,7 +409,7 @@ AT command process:
 void at_rst(void *arg)
 {
 	UNUSED(arg);
-	at_printf(ATCMD_OK_END_STR);
+	at_printf("\r\n%sOK\r\n", "+RST:");
 	sys_reset();
 }
 
@@ -560,7 +423,7 @@ extern u32 total_heap_size;
 void at_state(void *arg)
 {
 	UNUSED(arg);
-#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1) && (configUSE_STATS_FORMATTING_FUNCTIONS == 1) && (configGENERATE_RUN_TIME_STATS == 1)
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1) && (configUSE_STATS_FORMATTING_FUNCTIONS == 1)
 	{
 		char *pcWriteBuffer;
 		int task_n = uxTaskGetNumberOfTasks();
@@ -579,48 +442,8 @@ void at_state(void *arg)
 	at_printf("Heap Used Now:\t%u\r\n", total_heap_size - pxHeapStats.xAvailableHeapSpaceInBytes);
 	at_printf("Heap Used Max:\t%u\r\n", total_heap_size - pxHeapStats.xMinimumEverFreeBytesRemaining);
 
-	at_printf(ATCMD_OK_END_STR);
+	at_printf("\r\n%sOK\r\n", "+STATE:");
 }
-
-#ifndef CONFIG_AMEBAD
-static Certificate_TypeDef cert[2];
-static s64 ver[2] = {0};  //32-bit full version
-static u32 ota_region[3][2] = {0};
-static const u32 image_pattern[2] = {
-	0x35393138, 0x31313738,
-};
-
-static u8 at_get_ota_version(void)
-{
-	u16 MajorVer[2] = {0}; //16-bit major
-	u16 MinorVer[2] = {0}; //16-bit minor
-	u32 Vertemp;
-	u8 ImgIndex, i;
-
-	flash_get_layout_info(IMG_APP_OTA1, &ota_region[IMG_CERT][0], NULL);
-	flash_get_layout_info(IMG_APP_OTA2, &ota_region[IMG_CERT][1], NULL);
-
-	ota_region[IMG_IMG2][0] = ota_region[IMG_CERT][0] + 0x1000;
-	ota_region[IMG_IMG2][1] = ota_region[IMG_CERT][1] + 0x1000;
-
-	for (i = 0; i < 2; i++) {
-		_memcpy((void *)&cert[i], (void *)ota_region[IMG_CERT][i], sizeof(Certificate_TypeDef));
-
-		if (_memcmp(cert[i].Pattern, image_pattern, sizeof(image_pattern)) == 0) {
-			MajorVer[i] = (u16)cert[i].MajorKeyVer;
-			MinorVer[i] = (u16)cert[i].MinorKeyVer;
-			Vertemp = (MajorVer[i] << 16) | MinorVer[i]; // get 32-bit full version number
-			ver[i] = (s64)Vertemp;
-		} else {
-			ver[i] = -1;
-		}
-	}
-
-	ImgIndex = ota_get_cur_index(1);
-
-	return ImgIndex;
-}
-#endif
 
 
 /****************************************************************
@@ -631,36 +454,32 @@ AT command process:
 ****************************************************************/
 void at_gmr(void *arg)
 {
+	char at_buf[32];
+	char fw_buf[32];
+
 	UNUSED(arg);
+
 	u32 buflen = 1024;
 	char *buf = rtos_mem_malloc(buflen);
 	at_printf("AMEBA-RTOS SDK VERSION: %d.%d.%d\n", AMEBA_RTOS_VERSION_MAJOR, AMEBA_RTOS_VERSION_MINOR, AMEBA_RTOS_VERSION_PATCH);
-	at_printf("ATCMD VERSION: %d.%d.%d\r\n", ATCMD_VERSION, ATCMD_SUBVERSION, ATCMD_REVISION);
-
-#ifndef CONFIG_AMEBAD
-	u8 image_id = at_get_ota_version();
-	u32 version = (u32)(ver[image_id] & 0xFFFFFFFF);
-	at_printf("IMAGE VERSION: %d.%d\r\n", ((version >> 16) & 0xFFFF), (version & 0xFFFF));
-#endif
-
 	ChipInfo_GetSocName_ToBuf(buf, buflen - 1);
+	at_printf("%s", buf);
+	ChipInfo_GetLibVersion_ToBuf(buf, buflen - 1);
 	at_printf("%s", buf);
 	rtos_mem_free(buf);
 
-	at_printf("COMPILE TIME: %s\r\n", RTL_FW_COMPILE_TIME);
-	at_printf("COMPILE USER: %s@%s\r\n", RTL_FW_COMPILE_BY, RTL_FW_COMPILE_HOST);
-	at_printf("COMPILE ENV : %s\r\n", RTL_FW_COMPILER);
-
-	at_printf(ATCMD_OK_END_STR);
+	strncpy(at_buf, ATCMD_VERSION"."ATCMD_SUBVERSION"."ATCMD_REVISION, sizeof(at_buf));
+	strncpy(fw_buf, SDK_VERSION, sizeof(fw_buf));
+	at_printf("\r\n%s%s,%s,%s\r\n", "+GMR:", at_buf, fw_buf, RTL_FW_COMPILE_TIME);
 }
 
 static void at_log_help(void)
 {
-	RTK_LOGI(TAG, "\r\n");
-	RTK_LOGI(TAG, "AT+LOG=<get_set>,<module>[,<log_level>]\r\n");
-	RTK_LOGI(TAG, "\t<get_set>:\t0-get, 1-set, 2-print all, 3-clear all\r\n");
-	RTK_LOGI(TAG, "\t<module>:\t*-each module, others-specific module\r\n");
-	RTK_LOGI(TAG, "\t<log_level>:\t[0,5], only applicable for set mode\r\n");
+	at_printf("\r\n");
+	at_printf("AT+LOG=<get_set>,<module>[,<log_level>]\r\n");
+	at_printf("\t<get_set>:\t0-get, 1-set, 2-print all, 3-clear all\r\n");
+	at_printf("\t<module>:\t*-each module, others-specific module\r\n");
+	at_printf("\t<log_level>:\t[0,5], only applicable for set mode\r\n");
 }
 
 /****************************************************************
@@ -671,7 +490,7 @@ AT command process:
 ****************************************************************/
 void at_log(void *arg)
 {
-	int argc = 0, ret = 0, error_no = 0;
+	int argc = 0, error_no = 0;
 	enum atcmd_log_type_e mode = atcmd_log_type_invalid;
 	char *argv[MAX_ARGC] = {0};
 	rtk_log_level_t log_level;
@@ -707,12 +526,7 @@ void at_log(void *arg)
 			goto end;
 		}
 		log_level = (rtk_log_level_t)atoi(argv[3]);
-		ret = rtk_log_level_set(argv[2], log_level);
-		if (ret != RTK_SUCCESS) {
-			RTK_LOGA(NOTAG, "[LOG] Failed when set.\r\n");
-			error_no = 2;
-			goto end;
-		}
+		rtk_log_level_set(argv[2], log_level);
 		break;
 
 	/* Print all. */
@@ -747,13 +561,13 @@ void at_log(void *arg)
 	RTK_LOGW(NOTAG, "[LOG] Test warning level\r\n");
 	RTK_LOGI(NOTAG, "[LOG] Test info level\r\n");
 	RTK_LOGD(NOTAG, "[LOG] Test debug level\r\n");
-	RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "[LOG] Test LOG_ITEMS\r\n");
+	RTK_LOGS(NOTAG, "[LOG] Test LOG_ITEMS\r\n");
 
 end:
 	if (error_no == 0) {
-		at_printf(ATCMD_OK_END_STR);
+		at_printf("\r\n%sOK\r\n", "+LOG:");
 	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
+		at_printf("\r\n%sERROR:%d\r\n", "+LOG:", error_no);
 		at_log_help();
 	}
 }
@@ -786,9 +600,9 @@ void at_rreg(void *arg)
 
 end:
 	if (error_no == 0) {
-		at_printf(ATCMD_OK_END_STR);
+		at_printf("\r\n%sOK\r\n", "+RREG:");
 	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
+		at_printf("\r\n%sERROR:%d\r\n", "+RREG:", error_no);
 	}
 }
 
@@ -816,88 +630,13 @@ void at_wreg(void *arg)
 		goto end;
 	}
 
-	cmd_write_word((u16)(argc - 1), (u8 **)&argv[1]);
+	cmd_write_word((u16)(argc - 1), (u8 **)argv[1]);
 
 end:
 	if (error_no == 0) {
-		at_printf(ATCMD_OK_END_STR);
+		at_printf("\r\n%sOK\r\n", "+WREG:");
 	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
-	}
-}
-
-/****************************************************************
-AT command process:
-	AT+TICKPS
-	R: release os wakelock
-	A: acquire os wakelock
-	TYPE: GC OR PG
-****************************************************************/
-void at_tickps(void *arg)
-{
-	int argc = 0;
-	char *argv[MAX_ARGC] = {0};
-
-	if (arg == NULL) {
-		RTK_LOGW(NOTAG, "[TICKPS] Error parameters\r\n");
-		return;
-	}
-	argc = parse_param(arg, argv);
-	if (argc < 2) {
-		RTK_LOGW(NOTAG, "[TICKPS] Error parameters\r\n");
-		return;
-	}
-
-	if (_strcmp((const char *)argv[1], "R") == 0) {
-		pmu_release_wakelock(PMU_OS);
-	}
-
-	if (_strcmp((const char *)argv[1], "A") == 0) {
-		pmu_acquire_wakelock(PMU_OS);
-	}
-
-	if (_strcmp((const char *)argv[1], "DSLP") == 0) {
-		pmu_release_wakelock(PMU_OS);
-		pmu_release_deepwakelock(PMU_OS);
-	}
-
-	if (_strcmp((const char *)argv[1], "TYPE") == 0) {
-		if (argc < 3) {
-			RTK_LOGW(NOTAG, "[TICKPS] Error parameters\r\n");
-			return;
-		}
-
-		if (_strcmp((const char *)argv[2], "PG") == 0) {
-			pmu_set_sleep_type(SLEEP_PG);
-		} else if (_strcmp((const char *)argv[2], "CG") == 0) {
-			pmu_set_sleep_type(SLEEP_CG);
-		} else {
-			pmu_set_sleep_type(SLEEP_PG);
-		}
-	}
-
-	if (_strcmp((char *)argv[1], "TIMER") == 0) {
-		u32 min_time = 0, max_time = 0;
-		if (argc < 3 || argc > 4) {
-			RTK_LOGW(NOTAG, "[TICKPS] Error parameters\r\n");
-			return;
-		}
-		/*unit: ms*/
-		if (argc >= 4) {
-			max_time =  _strtoul((const char *)(argv[3]), (char **)NULL, 10);
-		}
-		if (argc >= 3) {
-			min_time =  _strtoul((const char *)(argv[2]), (char **)NULL, 10);
-		}
-
-		pmu_set_sleep_time_range(min_time, max_time);
-
-		pmu_release_wakelock(PMU_OS);
-	}
-
-	if (_strcmp((const char *)argv[1], "GET") == 0) {
-		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "lockbit:%x \r\n", pmu_get_wakelock_status());
-		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "dslp_lockbit:%x \r\n", pmu_get_deepwakelock_status());
+		at_printf("\r\n%sERROR:%d\r\n", "+WREG:", error_no);
 	}
 }
 
@@ -917,7 +656,6 @@ log_item_t at_sys_items[] = {
 	{"+LOG", at_log, {NULL, NULL}},
 	{"+RREG", at_rreg, {NULL, NULL}},
 	{"+WREG", at_wreg, {NULL, NULL}},
-	{"+TICKPS", at_tickps, {NULL, NULL}},
 };
 
 void print_system_at(void)

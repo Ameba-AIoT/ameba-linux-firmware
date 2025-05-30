@@ -12,16 +12,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
 
-#include "os_wrapper.h"
-
 #include "audio_hw_debug.h"
 #include "audio_hw_osal_errnos.h"
+#include "os_wrapper.h"
 
 #include "primary_audio_hw_card.h"
 
@@ -34,7 +32,7 @@ extern struct AudioHwStreamIn *CreateAudioHwStreamIn(struct AudioHwCard *card, c
 		const struct AudioHwConfig *config);
 extern void DestroyAudioHwStreamIn(struct AudioHwStreamIn *stream_in);
 
-static int32_t PrimarySetCardParameters(struct AudioHwCard *card, const char *strs)
+static int PrimarySetCardParameters(struct AudioHwCard *card, const char *strs)
 {
 	(void) card;
 	(void) strs;
@@ -49,56 +47,56 @@ static char *PrimaryGetCardParameters(const struct AudioHwCard *card,
 	return (char *)strdup("");
 }
 
-static int32_t PrimarySetCaptureVolume(const struct AudioHwCard *card, float volume)
-{
-	(void) card;
-	(void) volume;
-	return HAL_OSAL_OK;
-}
-
-static int32_t PrimaryGetCaptureVolume(const struct AudioHwCard *card, float *volume)
+static int PrimarySetCaptureVolume(const struct AudioHwCard *card, float volume)
 {
 	(void) card;
 	(void) volume;
 	return 0;
 }
 
-static int32_t PrimarySetRenderVolume(const struct AudioHwCard *card, float volume)
-{
-	(void) card;
-	(void) volume;
-	return HAL_OSAL_OK;
-}
-
-static int32_t PrimaryGetRenderVolume(const struct AudioHwCard *card, float *volume)
+static int PrimaryGetCaptureVolume(const struct AudioHwCard *card, float *volume)
 {
 	(void) card;
 	(void) volume;
 	return 0;
 }
 
-static int32_t PrimarySetRenderMute(const struct AudioHwCard *card, bool muted)
+static int PrimarySetRenderVolume(const struct AudioHwCard *card, float volume)
 {
 	(void) card;
-	(void) muted;
-	return HAL_OSAL_OK;
+	(void) volume;
+	return 0;
 }
 
-static int32_t PrimaryGetRenderMute(const struct AudioHwCard *card, bool *muted)
+static int PrimaryGetRenderVolume(const struct AudioHwCard *card, float *volume)
+{
+	(void) card;
+	(void) volume;
+	return 0;
+}
+
+static int PrimarySetRenderMute(const struct AudioHwCard *card, bool muted)
 {
 	(void) card;
 	(void) muted;
 	return 0;
 }
 
-static int32_t PrimarySetCaptureMute(const struct AudioHwCard *card, bool muted)
+static int PrimaryGetRenderMute(const struct AudioHwCard *card, bool *muted)
 {
 	(void) card;
 	(void) muted;
-	return HAL_OSAL_OK;
+	return 0;
 }
 
-static int32_t PrimaryGetCaptureMute(const struct AudioHwCard *card, bool *muted)
+static int PrimarySetCaptureMute(const struct AudioHwCard *card, bool muted)
+{
+	(void) card;
+	(void) muted;
+	return 0;
+}
+
+static int PrimaryGetCaptureMute(const struct AudioHwCard *card, bool *muted)
 {
 	(void) card;
 	(void) muted;

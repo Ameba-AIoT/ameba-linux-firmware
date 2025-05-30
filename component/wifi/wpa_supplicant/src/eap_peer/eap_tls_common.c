@@ -309,7 +309,6 @@ int eap_peer_tls_ssl_init(struct eap_sm *sm, struct eap_ssl_data *data,
  */
 void eap_peer_tls_ssl_deinit(struct eap_sm *sm, struct eap_ssl_data *data)
 {
-	(void)sm;
 	tls_connection_deinit(data->ssl_ctx, data->conn);
 	eap_peer_tls_reset_input(data);
 	eap_peer_tls_reset_output(data);
@@ -333,7 +332,6 @@ void eap_peer_tls_ssl_deinit(struct eap_sm *sm, struct eap_ssl_data *data)
 u8 *eap_peer_tls_derive_key(struct eap_sm *sm, struct eap_ssl_data *data,
 							const char *label, size_t len)
 {
-	(void)sm;
 	u8 *out;
 
 	out = os_malloc(len);
@@ -516,7 +514,6 @@ static int eap_tls_process_input(struct eap_sm *sm, struct eap_ssl_data *data,
 								 const struct wpabuf *in_data,
 								 struct wpabuf **out_data)
 {
-	(void)sm;
 	const struct wpabuf *msg;
 	int need_more_input;
 	struct wpabuf *appl_data;
@@ -775,7 +772,6 @@ struct wpabuf *eap_peer_tls_build_ack(u8 id, enum EapType eap_type,
  */
 int eap_peer_tls_reauth_init(struct eap_sm *sm, struct eap_ssl_data *data)
 {
-	(void)sm;
 	eap_peer_tls_reset_input(data);
 	eap_peer_tls_reset_output(data);
 	return tls_connection_shutdown(data->ssl_ctx, data->conn);
@@ -794,8 +790,6 @@ int eap_peer_tls_reauth_init(struct eap_sm *sm, struct eap_ssl_data *data)
 int eap_peer_tls_status(struct eap_sm *sm, struct eap_ssl_data *data,
 						char *buf, size_t buflen, int verbose)
 {
-	(void)sm;
-	(void)verbose;
 	char version[20], name[128];
 	int len = 0, ret;
 
@@ -976,7 +970,6 @@ int eap_peer_tls_decrypt(struct eap_sm *sm, struct eap_ssl_data *data,
 						 const struct wpabuf *in_data,
 						 struct wpabuf **in_decrypted)
 {
-	(void)sm;
 	const struct wpabuf *msg;
 	int need_more_input;
 
@@ -1011,7 +1004,6 @@ int eap_peer_tls_encrypt(struct eap_sm *sm, struct eap_ssl_data *data,
 						 const struct wpabuf *in_data,
 						 struct wpabuf **out_data)
 {
-	(void)sm;
 	if (in_data) {
 		eap_peer_tls_reset_output(data);
 		data->tls_out = tls_connection_encrypt(data->ssl_ctx,

@@ -34,7 +34,7 @@
 #include <stdint.h>
 #endif
 
-#include "lwip_netconf.h" //realtek add
+#include "lwip/sockets.h"
 #define _GNU_SOURCE
 
 #if defined(HAVE_CPUSET_SETAFFINITY)
@@ -44,7 +44,8 @@
 
 #include "timer.h"
 #include "queue.h"
-#include "cJSON.h"
+#include <cJSON.h>
+#include <os_wrapper.h>
 
 #define IPERF3_DBG_ON 0
 #if IPERF3_DBG_ON

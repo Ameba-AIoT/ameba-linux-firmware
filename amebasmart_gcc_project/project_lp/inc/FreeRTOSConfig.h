@@ -44,7 +44,7 @@
  * http://www.freertos.org/a00110.html
  *----------------------------------------------------------*/
 
-#if defined(__GNUC__)
+#if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
 #include <stdint.h>
 extern uint32_t SystemCoreClock;
 #endif
@@ -53,12 +53,6 @@ extern uint32_t SystemCoreClock;
 #endif
 #include "platform_autoconf.h"
 #include "ameba_userheapcfg.h"
-
-/* Realtek Heap Integrity Check configuration. */
-#ifdef CONFIG_HEAP_INTEGRITY_CHECK_IN_TASK_SWITCHED_OUT
-extern uint32_t ulPortCheckHeapIntegrity(int COMPREHENSIVE_CHECK);
-#define traceTASK_SWITCHED_OUT ulPortCheckHeapIntegrity
-#endif
 
 /* Cortex M33 port configuration. */
 #define configENABLE_MPU								0
@@ -96,7 +90,6 @@ extern uint32_t ulPortCheckHeapIntegrity(int COMPREHENSIVE_CHECK);
 #define configUSE_TASK_NOTIFICATIONS					1
 #define configUSE_TRACE_FACILITY						1
 #define configSUPPORT_STATIC_ALLOCATION			        1
-#define configNUM_THREAD_LOCAL_STORAGE_POINTERS			2
 
 /* Constants that define which hook (callback) functions should be used. */
 #define configUSE_IDLE_HOOK								1
@@ -218,14 +211,14 @@ standard names - or at least those used in the unmodified vector table. */
 #define traceLOW_POWER_IDLE_BEGIN()
 #define traceLOW_POWER_IDLE_END()
 
-/* system assert level controlled by rtk_assert.h header file. */
+/* Normal assert() semantics without relying on the provision of an assert.h
+header file. */
 #ifndef __ASSEMBLER__
-#include "rtk_assert.h"
-//#define configASSERT(x)    rtk_assert(x)
+void vAssertCalled(const char *pcFile, uint32_t ulLine);
+// #define configASSERT( x ) if( ( x ) == 0 ) vAssertCalled( __FILE__, __LINE__ );
 #endif
 
 #endif /* __IASMARM__ */
-extern void TaskExitError(void);
-#define configTASK_RETURN_ADDRESS TaskExitError
+
 #endif /* FREERTOS_CONFIG_H */
 

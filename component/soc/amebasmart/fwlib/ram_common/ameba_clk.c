@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *const TAG = "CLK";
+static const char *TAG = "CLK";
 
 /**
   * @brief  32K clock Enable,

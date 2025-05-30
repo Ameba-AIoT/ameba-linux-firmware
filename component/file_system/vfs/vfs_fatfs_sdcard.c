@@ -13,9 +13,7 @@
 #include "ameba.h"
 #include "ameba_sd.h"
 
-#ifndef SD_BLOCK_SIZE
 #define SD_BLOCK_SIZE	512
-#endif
 
 static rtos_mutex_t sd_mutex = NULL;
 static int init_status = 0;

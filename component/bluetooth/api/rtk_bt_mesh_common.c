@@ -86,17 +86,6 @@ uint16_t rtk_bt_mesh_stack_retrans_param_set(rtk_bt_mesh_stack_set_retrans_param
 	return ret;
 }
 
-#if defined(RTK_BLE_MESH_BASED_ON_CODED_PHY) && RTK_BLE_MESH_BASED_ON_CODED_PHY
-uint16_t rtk_bt_mesh_stack_set_tx_phy(rtk_bt_mesh_stack_act_set_tx_phy_t *tx_phy)
-{
-	uint16_t ret;
-
-	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_MESH_STACK, RTK_BT_MESH_STACK_ACT_SET_TX_PHY, tx_phy, sizeof(rtk_bt_mesh_stack_act_set_tx_phy_t));
-
-	return ret;
-}
-#endif
-
 #if defined(RTK_BLE_MESH_FN_SUPPORT) && RTK_BLE_MESH_FN_SUPPORT
 uint16_t rtk_bt_mesh_stack_fn_init(rtk_bt_mesh_stack_act_fn_init_t *friend_init)
 {
@@ -117,17 +106,17 @@ uint16_t rtk_bt_mesh_stack_fn_deinit(void)
 }
 #endif // end of RTK_BLE_MESH_FN_SUPPORT
 
-uint16_t rtk_bt_mesh_stack_prov_param_set(rtk_bt_mesh_stack_act_set_prov_param_t *init_setting)
+#if defined(RTK_BLE_MESH_PROVISIONER_SUPPORT) && RTK_BLE_MESH_PROVISIONER_SUPPORT
+uint16_t rtk_bt_mesh_stack_provisioner_setting_init(rtk_bt_mesh_stack_act_provisioner_init_setting_t *init_setting)
 {
 	uint16_t ret;
 
-	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_MESH_STACK, RTK_BT_MESH_STACK_ACT_SET_PROV_PARAM, init_setting,
-						  sizeof(rtk_bt_mesh_stack_act_set_prov_param_t));
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_MESH_STACK, RTK_BT_MESH_STACK_ACT_PROVISIONER_INIT_SETTING, init_setting,
+						  sizeof(rtk_bt_mesh_stack_act_provisioner_init_setting_t));
 
 	return ret;
 }
 
-#if defined(RTK_BLE_MESH_PROVISIONER_SUPPORT) && RTK_BLE_MESH_PROVISIONER_SUPPORT
 uint16_t rtk_bt_mesh_stack_prov_pb_adv_con(rtk_bt_mesh_stack_act_pb_adv_con_t *pbadvcon)
 {
 	uint16_t ret;

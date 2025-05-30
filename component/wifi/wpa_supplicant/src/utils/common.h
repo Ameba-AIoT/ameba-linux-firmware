@@ -18,10 +18,10 @@
 #include <byteswap.h>
 #endif /* __linux__ */
 
-#if defined(CONFIG_PLATFORM_FREERTOS)
+#if defined(PLATFORM_FREERTOS)
 //#include "little_endian.h"
 //#include "basic_types.h"
-#endif /* CONFIG_PLATFORM_FREERTOS */
+#endif /* PLATFORM_FREERTOS */
 
 
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || \

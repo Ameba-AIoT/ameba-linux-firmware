@@ -650,10 +650,12 @@ uint16_t bt_stack_a2dp_init(uint8_t role)
 	return RTK_BT_OK;
 }
 
+extern void a2dp_deinit(void);
+
 void bt_stack_a2dp_deinit(void)
 {
 	BT_LOGA("[A2DP]app_a2dp_init\n");
-	bt_a2dp_deinit();
+	a2dp_deinit();
 }
 
 #endif

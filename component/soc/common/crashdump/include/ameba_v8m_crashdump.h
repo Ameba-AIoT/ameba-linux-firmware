@@ -10,10 +10,8 @@
 
 extern struct cmb_hard_fault_regs regs;
 
-typedef uint32_t (*crash_on_task)(uint32_t *reg, uint32_t src);
-
+typedef void (*crash_on_task)(uint32_t *reg);
 extern crash_on_task crash_task_info;
-
 /**
  * @brief    Dump crash informtion
  *
@@ -29,15 +27,13 @@ extern int crash_dump(uint32_t *pc, uint32_t *sp, uint32_t *reg);
 
 extern uint32_t *vTaskStackAddr(void);
 
-extern uint32_t vTaskStackSize(void);
-
 extern volatile uint32_t *vTaskStackTOPAddr(void);
 
 extern char *vTaskName(void);
 
-extern uint32_t vTaskStatus(uint32_t src);
+extern void vTaskStatus(void);
 
-extern uint32_t vTaskCrashCallback(uint32_t *reg, uint32_t src);
+extern void vTaskCrashCallback(uint32_t *reg);
 
 extern void fault_diagnosis(struct cmb_hard_fault_regs *regs);
 

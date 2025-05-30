@@ -1,13 +1,14 @@
+#include "rtw_wifi_constants.h"
+#ifdef CONFIG_LWIP_LAYER
+#include <lwip_netconf.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <os_wrapper.h>
 #include "utils/os.h"
-#ifdef CONFIG_LWIP_LAYER
-#include "lwip_netconf.h"
-#endif
-#include "wifi_api.h"
-#include "wifi_intf_drv_to_app_internal.h"
-#include "eap_protocol_handler.h"
+#include "wifi_conf.h"
+#include "wifi_ind.h"
 
 #ifndef ENABLE
 #define ENABLE	(1)
@@ -36,6 +37,13 @@ char *eap_client_key_pwd = NULL;
 
 void set_eap_phase(unsigned char is_trigger_eap);
 int get_eap_phase(void);
+int get_eap_ctx_method(void);
+int set_eap_peap_method(void);
+int set_eap_tls_method(void);
+int set_eap_ttls_method(void);
+
+void eap_eapol_recvd_hdl(char *buf, int buf_len, int flags, void *handler_user_data);
+void eap_eapol_start_hdl(char *buf, int buf_len, int flags, void *handler_user_data);
 int connect_by_open_system(char *target_ssid);
 
 int eap_start(char *method);
@@ -69,7 +77,7 @@ void reset_config(void)
 
 void judge_station_disconnect(void)
 {
-	struct rtw_wifi_setting setting = {0};
+	struct _rtw_wifi_setting_t setting = {RTW_MODE_NONE, {0}, {0}, 0, RTW_SECURITY_OPEN, {0}, 0, 0, 0, 0, 0, 0};
 
 	wifi_get_setting(STA_WLAN_INDEX, &setting);
 
@@ -84,7 +92,7 @@ extern void eap_sm_deinit(void);
 void eap_disconnected_hdl(void)
 {
 	if (eap_event_reg_disconn) {
-		wifi_unreg_event_handler(RTW_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl);
+		wifi_unreg_event_handler(WIFI_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl);
 		eap_event_reg_disconn = 0;
 		//eap_peer_unregister_methods();
 		eap_sm_deinit();
@@ -179,7 +187,7 @@ int eap_start(char *method)
 		rtos_time_delay_ms(1000);
 	}
 
-	if (wifi_is_running(SOFTAP_WLAN_INDEX)) {
+	if (wifi_is_running(WLAN1_IDX)) {
 		DiagPrintf("\n\rNot support con-current mode!\n\r");
 		return -1;
 	}
@@ -216,8 +224,8 @@ int eap_start(char *method)
 	//eap_config();
 
 	set_eap_phase(ENABLE);
-	wifi_reg_event_handler(RTW_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl, NULL);
-	wifi_reg_event_handler(RTW_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl, NULL);
+	wifi_reg_event_handler(WIFI_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl, NULL);
+	wifi_reg_event_handler(WIFI_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl, NULL);
 
 
 
@@ -230,7 +238,7 @@ int eap_start(char *method)
 	}
 #endif
 
-	wifi_unreg_event_handler(RTW_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl);
+	wifi_unreg_event_handler(WIFI_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl);
 	eap_event_reg_disconn = 1;
 	set_eap_phase(DISABLE);
 
@@ -256,12 +264,13 @@ int eap_start(char *method)
 int connect_by_open_system(char *target_ssid)
 {
 	int ret;
-	struct rtw_network_info connect_param = {0};
+	struct _rtw_network_info_t connect_param = {0};
 	if (target_ssid != NULL) {
 		memcpy(connect_param.ssid.val, target_ssid, strlen(target_ssid));
 		connect_param.ssid.len = strlen(target_ssid);
+		connect_param.security_type = RTW_SECURITY_OPEN;
 		ret = wifi_connect(&connect_param, 1);
-		if (ret == RTK_SUCCESS) {
+		if (ret == RTW_SUCCESS) {
 			return 0;
 		} else {
 			return -1;
@@ -298,7 +307,7 @@ void eap_autoreconnect_hdl(u8 method_id)
 		DiagPrintf("invalid eap method\n");
 		return;
 	}
-	if (rtos_task_create(NULL, ((const char *)"eap_autoreconnect_thread"), eap_autoreconnect_thread, (void *) method, 1024 * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"eap_autoreconnect_thread"), eap_autoreconnect_thread, (void *) method, 1024 * 4, 1) != SUCCESS) {
 		DiagPrintf("\n\r%s rtos_task_create failed\n", __FUNCTION__);
 	}
 #endif
@@ -306,11 +315,22 @@ void eap_autoreconnect_hdl(u8 method_id)
 
 #include <mbedtls/platform.h>
 #include <mbedtls/ssl.h>
+
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER>=0x03000000)
 #include "mbedtls/build_info.h"
 #include <ssl_misc.h>
 #define MBEDTLS_SSL_COMPRESSION_ADD 0
 int max_buf_bio_in_size = MBEDTLS_SSL_IN_BUFFER_LEN;
 int max_buf_bio_out_size = MBEDTLS_SSL_OUT_BUFFER_LEN;
+#elif (MBEDTLS_VERSION >= MBEDTLS_VERSION_CONVERT(2,16,9))
+#include <mbedtls/config.h>
+#include <mbedtls/ssl_internal.h>
+int max_buf_bio_in_size = MBEDTLS_SSL_IN_BUFFER_LEN;
+int max_buf_bio_out_size = MBEDTLS_SSL_OUT_BUFFER_LEN;
+#else
+#include <mbedtls/ssl_internal.h>
+int max_buf_bio_size = MBEDTLS_SSL_BUFFER_LEN;
+#endif
 
 struct eap_tls {
 	void *ssl;
@@ -330,8 +350,7 @@ static int eap_verify(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *fl
 {
 
 	//char buf[1024];
-	(void) data;
-	(void) crt;
+	((void) data);
 
 	DiagPrintf("\nVerify requested for (Depth %d):\n", depth);
 	//mbedtls_x509_crt_info(buf, sizeof(buf) - 1, "", crt);
@@ -449,16 +468,20 @@ int eap_cert_setup(struct eap_tls *tls_context)
 			return -1;
 		}
 		if (eap_client_key_pwd) {
-			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, (const unsigned char *)eap_client_key_pwd, strlen(eap_client_key_pwd),
-									 TRNG_get_random_bytes_f_rng,
-									 (void *)1) != 0) {
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER>=0x03010000)
+			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, eap_client_key_pwd, strlen(eap_client_key_pwd), TRNG_get_random_bytes_f_rng,
+									 (void *)1) != 0)
+#else
+			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, eap_client_key_pwd, strlen(eap_client_key_pwd)) != 0)
+#endif
 				return -1;
-			}
 		} else {
-			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, (const unsigned char *)eap_client_key_pwd, 0, TRNG_get_random_bytes_f_rng,
-									 (void *)1) != 0) {
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER>=0x03010000)
+			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, eap_client_key_pwd, 0, TRNG_get_random_bytes_f_rng, (void *)1) != 0)
+#else
+			if (mbedtls_pk_parse_key(_clikey_rsa, eap_client_key, eap_client_key_len, eap_client_key_pwd, 0) != 0)
+#endif
 				return -1;
-			}
 		}
 
 		mbedtls_ssl_conf_own_cert(tls_context->conf, _cli_crt, _clikey_rsa);

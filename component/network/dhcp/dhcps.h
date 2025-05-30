@@ -1,7 +1,9 @@
 
 #ifndef __DHCPS_H__
 #define __DHCPS_H__
-#include "lwip_netconf.h"
+#include "lwipconf.h"
+#include "rtw_wifi_constants.h"
+#include "wifi_conf.h"
 
 #define CONFIG_DHCPS_KEPT_CLIENT_INFO
 
@@ -11,7 +13,7 @@
 #define DHCPS_MAX_CLIENT_NUM 	(DHCP_POOL_END-DHCP_POOL_START+1)
 
 #define IS_USE_FIXED_IP	0
-#define DEBUG_DHCPS 0
+#define debug_dhcps 0
 #define CONFIG_ENABLE_CAPTIVE_PORTAL  0
 
 
@@ -22,6 +24,8 @@
 #define DHCP_SERVER_STATE_NAK 				(4)
 #define DHCP_SERVER_STATE_IDLE 				(5)
 
+
+#define BOOTP_BROADCAST 				(0x8000)
 
 #define DHCP_MESSAGE_OP_REQUEST        			(1)
 #define DHCP_MESSAGE_OP_REPLY          			(2)
@@ -63,6 +67,11 @@
 #define DHCP_OPTION_CODE_REQ_LIST     			(55)
 #define DHCP_OPTION_CODE_END         			(255)
 
+#define IP_FREE_TO_USE		                	(1)
+#define IP_ALREADY_IN_USE	                	(0)
+
+#define HW_ADDRESS_LENGTH				(6)
+
 /* Reference by RFC 2131 */
 struct dhcp_msg {
 	uint8_t op; 		/* Message op code/message type. 1 = BOOTREQUEST, 2 = BOOTREPLY */
@@ -99,9 +108,14 @@ static const uint8_t dhcp_option_interface_mtu[] = {0x05, 0xDC};
 struct table {
 	uint32_t ip_range[8];
 #ifdef CONFIG_DHCPS_KEPT_CLIENT_INFO
-	uint8_t (*client_mac)[6];
-	uint8_t *ip_addr4;
+	uint8_t client_mac[AP_STA_NUM][6];
+	uint8_t ip_addr4[AP_STA_NUM];
 #endif
+};
+
+struct address_pool {
+	uint32_t start;
+	uint32_t end;
 };
 
 PACK_STRUCT_BEGIN

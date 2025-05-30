@@ -27,9 +27,10 @@
 #include "iperf_config.h"
 
 #include <errno.h>
+#include "lwip/netdb.h"
 #include <sys/time.h>
-
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
 
 #ifdef HAVE_NETINET_SCTP_H
 #include <netinet/sctp.h>

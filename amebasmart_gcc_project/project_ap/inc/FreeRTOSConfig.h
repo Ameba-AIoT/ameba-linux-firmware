@@ -49,51 +49,13 @@
  * setting configMAX_API_CALL_INTERRUPT_PRIORITY 0xFF represents the lowest
  * priority.
  */
-#include "platform_autoconf.h"
-
-/* Realtek Heap Integrity Check configuration. */
-#ifdef CONFIG_HEAP_INTEGRITY_CHECK_IN_TASK_SWITCHED_OUT
-extern uint32_t ulPortCheckHeapIntegrity(int COMPREHENSIVE_CHECK);
-#define traceTASK_SWITCHED_OUT ulPortCheckHeapIntegrity
-#endif
-
 #define configMAX_API_CALL_INTERRUPT_PRIORITY	0x11
 
 #define configNUM_CORES							CONFIG_CPUS_NUM  /* Do not modify core number here but in menuconfig*/
 
-#ifdef CONFIG_CA32_FREERTOS_V11_1_0
-/* SMP related */
-#define configNUMBER_OF_CORES					CONFIG_CORE_NUM
-#if ( configNUMBER_OF_CORES > 1 )
-#define configRUN_MULTIPLE_PRIORITIES			1
-#define configUSE_CORE_AFFINITY					1
-#define configTASK_DEFAULT_CORE_AFFINITY        tskNO_AFFINITY
-#define configUSE_TASK_PREEMPTION_DISABLE       1
-#define configUSE_PASSIVE_IDLE_HOOK             0
-#define configTIMER_SERVICE_TASK_CORE_AFFINITY  1
-#endif
-
-/* Different form v10.2.1_smp*/
-#define configUSE_TICKLESS_IDLE					0
-#define configTASK_NOTIFICATION_ARRAY_ENTRIES      3
-#define configENABLE_BACKWARD_COMPATIBILITY        1
-#define configSTACK_DEPTH_TYPE					   uint32_t
-#define configSUPPORT_DYNAMIC_ALLOCATION             1
-#define configAPPLICATION_ALLOCATED_HEAP             0
-#define configSTACK_ALLOCATION_FROM_SEPARATE_HEAP    0
-#define configUSE_MINI_LIST_ITEM                     1
-#define configKERNEL_PROVIDED_STATIC_MEMORY     0
-#define configUSE_TASK_NOTIFICATIONS           1
-#define INCLUDE_xTaskGetSchedulerState          1
-#define INCLUDE_xTaskGetIdleTaskHandle          1
-#define INCLUDE_uxTaskGetStackHighWaterMark     0
-#define INCLUDE_xEventGroupSetBitFromISR        1
-#else
-#define configUSE_TICKLESS_IDLE					1
-#endif  /* CONFIG_CA32_FREERTOS_V11_1_0 */
-
 #define configCPU_CLOCK_HZ						CPU_ClkGet()
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION	0
+#define configUSE_TICKLESS_IDLE					1
 #define configUSE_NEWLIB_REENTRANT				1
 #define configTICK_RATE_HZ						( ( TickType_t ) 1000 )
 #define configUSE_PREEMPTION					1
@@ -114,11 +76,8 @@ extern uint32_t ulPortCheckHeapIntegrity(int COMPREHENSIVE_CHECK);
 #define configUSE_COUNTING_SEMAPHORES			1
 #define configUSE_QUEUE_SETS					1
 #define configSUPPORT_STATIC_ALLOCATION			1
-#define configNUM_THREAD_LOCAL_STORAGE_POINTERS	2
 
 #define configRECORD_STACK_HIGH_ADDRESS					1
-
-#define configUSE_POSIX_ERRNO					1
 
 /* Include the query-heap CLI command to query the free heap space. */
 #define configINCLUDE_QUERY_HEAP_COMMAND		1
@@ -133,7 +92,7 @@ extern uint32_t ulPortCheckHeapIntegrity(int COMPREHENSIVE_CHECK);
 #if defined(CONFIG_AS_INIC_NP) || defined(CONFIG_SINGLE_CORE_WIFI)
 #define configTIMER_QUEUE_LENGTH				(5 + 64)
 #else
-#define configTIMER_QUEUE_LENGTH				15 /* Temporarily solve the ca32-smp timer Create and delete hang problem */
+#define configTIMER_QUEUE_LENGTH				5
 #endif
 #define configTIMER_TASK_STACK_DEPTH			( configMINIMAL_STACK_SIZE * 2 )
 
@@ -173,10 +132,11 @@ each implementation - which would waste RAM.  In this case, there is only one
 command interpreter running. */
 #define configCOMMAND_INT_MAX_OUTPUT_SIZE		2096
 
-/* system assert level controlled by rtk_assert.h header file. */
+/* Normal assert() semantics without relying on the provision of an assert.h
+header file. */
 #ifndef __ASSEMBLER__
-#include "rtk_assert.h"
-//#define configASSERT(x)    rtk_assert(x)
+void vAssertCalled(const char *pcFile, uint32_t ulLine);
+// #define configASSERT( x ) if( ( x ) == 0 ) vAssertCalled( __FILE__, __LINE__ );
 #endif
 
 /* If configTASK_RETURN_ADDRESS is not defined then a task that attempts to

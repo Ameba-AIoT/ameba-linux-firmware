@@ -31,9 +31,14 @@
  */
 
 /* lwIP includes. */
+#include "lwip/debug.h"
+#include "lwip/def.h"
 #include "lwip/sys.h"
+#include "lwip/mem.h"
 #include "lwip/stats.h"
+#include "os_wrapper.h"
 #include "lwip/timeouts.h"
+#include "rtw_autoconf.h"
 
 struct timeoutlist
 {
@@ -76,7 +81,7 @@ err_t sys_mbox_new(sys_mbox_t *mbox, int size)
 */
 void sys_mbox_free(sys_mbox_t *mbox)
 {
-    if( rtos_queue_message_waiting( *mbox ) )
+    if( rtos_queue_massage_waiting( *mbox ) )
     {
 #if SYS_STATS
         lwip_stats.sys.mbox.err++;
@@ -95,7 +100,7 @@ void sys_mbox_free(sys_mbox_t *mbox)
 //   Posts the "msg" to the mailbox.
 void sys_mbox_post(sys_mbox_t *mbox, void *data)
 {
-    while ( rtos_queue_send(*mbox, &data, RTOS_MAX_TIMEOUT ) != RTK_SUCCESS ){}
+    while ( rtos_queue_send(*mbox, &data, RTOS_MAX_TIMEOUT ) != SUCCESS ){}
 }
 
 
@@ -105,7 +110,7 @@ err_t sys_mbox_trypost(sys_mbox_t *mbox, void *msg)
 {
     err_t result;
 
-    if ( rtos_queue_send( *mbox, &msg, 0 ) == RTK_SUCCESS ){
+    if ( rtos_queue_send( *mbox, &msg, 0 ) == SUCCESS ){
         result = ERR_OK;
     }
     else {
@@ -156,7 +161,7 @@ u32_t sys_arch_mbox_fetch(sys_mbox_t *mbox, void **msg, u32_t timeout)
 
     if ( timeout != 0 )
     {
-        if ( RTK_SUCCESS == rtos_queue_receive( *mbox, &(*msg), timeout) )
+        if ( SUCCESS == rtos_queue_receive( *mbox, &(*msg), timeout) )
         {
             EndTime = rtos_time_get_current_system_time_ms();
             Elapsed = EndTime - StartTime;
@@ -172,7 +177,7 @@ u32_t sys_arch_mbox_fetch(sys_mbox_t *mbox, void **msg, u32_t timeout)
     }
     else // block forever for a message.
     {
-        while( RTK_SUCCESS != rtos_queue_receive( *mbox, &(*msg), RTOS_MAX_TIMEOUT ) ){} // time is arbitrary
+        while( SUCCESS != rtos_queue_receive( *mbox, &(*msg), RTOS_MAX_TIMEOUT ) ){} // time is arbitrary
         EndTime = rtos_time_get_current_system_time_ms();
         Elapsed = EndTime - StartTime;
 
@@ -194,7 +199,7 @@ void *dummyptr;
         msg = &dummyptr;
     }
 
-   if ( RTK_SUCCESS == rtos_queue_receive( *mbox, &(*msg), 0 ) )
+   if ( SUCCESS == rtos_queue_receive( *mbox, &(*msg), 0 ) )
    {
       return ERR_OK;
    }
@@ -270,7 +275,7 @@ u32_t sys_arch_sem_wait(sys_sem_t *sem, u32_t timeout)
 
     if(timeout != 0)
     {
-        if(rtos_sema_take(*sem, timeout) == RTK_SUCCESS)
+        if(rtos_sema_take(*sem, timeout) == SUCCESS)
         {
             EndTime = rtos_time_get_current_system_time_ms();
             Elapsed = EndTime - StartTime;
@@ -284,7 +289,7 @@ u32_t sys_arch_sem_wait(sys_sem_t *sem, u32_t timeout)
     }
     else // must block without a timeout
     {
-        while(rtos_sema_take(*sem, RTOS_MAX_TIMEOUT) != RTK_SUCCESS){}
+        while(rtos_sema_take(*sem, RTOS_MAX_TIMEOUT) != SUCCESS){}
         EndTime = rtos_time_get_current_system_time_ms();
         Elapsed = EndTime - StartTime;
 
@@ -411,7 +416,7 @@ void sys_mutex_free(sys_mutex_t *mutex)
 /* Lock a mutex*/
 void sys_mutex_lock(sys_mutex_t *mutex)
 {
-    rtos_mutex_take(*mutex, MUTEX_WAIT_TIMEOUT);
+    sys_arch_sem_wait(*mutex, 0);
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -438,15 +443,15 @@ sys_thread_t sys_thread_new(const char *name, lwip_thread_fn thread , void *arg,
 
    if ( s_nextthread < SYS_THREAD_MAX )
    {
-       rtos_critical_enter(RTOS_CRITICAL_LWIP);
+       rtos_critical_enter();
        result = rtos_task_create(&CreatedTask, (const char *) name, thread, arg, stacksize*4, prio);
 
        // For each task created, store the task handle (pid) in the timers array.
        // This scheme doesn't allow for threads to be deleted
        s_timeoutlist[s_nextthread++].pid = CreatedTask;
-       rtos_critical_exit(RTOS_CRITICAL_LWIP);
+       rtos_critical_exit();
 
-       if(result == RTK_SUCCESS)
+       if(result == SUCCESS)
        {
            return CreatedTask;
        }
@@ -470,7 +475,7 @@ int sys_thread_delete(rtos_task_t pid)
 
     if (s_nextthread)
     {
-        rtos_critical_enter(RTOS_CRITICAL_LWIP);
+        rtos_critical_enter();
 
         tend = &(s_timeoutlist[s_nextthread-1]);//the last one
         for(i = 0; i < s_nextthread; i++)
@@ -490,7 +495,7 @@ int sys_thread_delete(rtos_task_t pid)
             rtos_task_delete(pid);
         }
 
-        rtos_critical_exit(RTOS_CRITICAL_LWIP);
+        rtos_critical_exit();
 
         if (isFind)
         {
@@ -522,7 +527,7 @@ int sys_thread_delete(rtos_task_t pid)
 */
 sys_prot_t sys_arch_protect(void)
 {
-    rtos_critical_enter(RTOS_CRITICAL_LWIP);
+    rtos_critical_enter();
     return 1;
 }
 
@@ -535,7 +540,7 @@ sys_prot_t sys_arch_protect(void)
 void sys_arch_unprotect(sys_prot_t pval)
 {
     ( void ) pval;
-    rtos_critical_exit(RTOS_CRITICAL_LWIP);
+    rtos_critical_exit();
 }
 
 /*
@@ -548,7 +553,7 @@ void sys_assert( const char *msg )
     printf(msg);
     printf("\n\r");
     */
-    rtos_critical_enter(RTOS_CRITICAL_LWIP);
+    rtos_critical_enter(  );
     for(;;)
     ;
 }
@@ -562,55 +567,3 @@ u32_t sys_jiffies(void)
 {
     return rtos_time_get_current_system_time_ms();
 }
-
-#if LWIP_NETCONN_SEM_PER_THREAD
-sys_sem_t *sys_thread_sem_init(void)
-{
-    sys_sem_t *sem = (sys_sem_t *)rtos_mem_malloc(sizeof(sys_sem_t));
-    if (!sem) {
-        return 0;
-    }
-    err_t err = sys_sem_new(sem, 0);
-    if (err != ERR_OK) {
-        rtos_mem_free(sem);
-        return 0;
-    }
-    rtos_task_set_thread_local_storage_pointer(NULL, RTOS_LOCAL_STORAGE_LWIP_INDEX, (void *)sem);
-    return sem;
-}
-
-sys_sem_t* sys_thread_sem_get(void)
-{
-    sys_sem_t *sem = (sys_sem_t *)rtos_task_get_thread_local_storage_pointer(NULL, RTOS_LOCAL_STORAGE_LWIP_INDEX);
-    if (!sem) {
-        sem = sys_thread_sem_init();
-    }
-    return sem;
-}
-
-void sys_thread_sem_deinit(void)
-{
-    sys_sem_t *sem = (sys_sem_t *)rtos_task_get_thread_local_storage_pointer(NULL, RTOS_LOCAL_STORAGE_LWIP_INDEX);
-    if (sem != NULL) {
-        sys_sem_free(sem);
-        rtos_mem_free(sem);
-        rtos_task_set_thread_local_storage_pointer(NULL, RTOS_LOCAL_STORAGE_LWIP_INDEX, NULL);
-    }
-}
-
-void sys_thread_sem_deinit_tcb(uint32_t *pxTCB)
-{
-    sys_sem_t *sem = (sys_sem_t *)rtos_task_get_thread_local_storage_pointer((rtos_task_t)pxTCB, RTOS_LOCAL_STORAGE_LWIP_INDEX);
-    if (sem != NULL) {
-        sys_sem_free(sem);
-        rtos_mem_free(sem);
-        rtos_task_set_thread_local_storage_pointer((rtos_task_t)pxTCB, RTOS_LOCAL_STORAGE_LWIP_INDEX, NULL);
-    }
-}
-#else
-void sys_thread_sem_deinit_tcb(uint32_t *pxTCB)
-{
-    ( void ) pxTCB;
-    return;
-}
-#endif

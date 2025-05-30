@@ -1,7 +1,8 @@
 #include "platform_stdlib.h"
 #include "basic_types.h"
 #include "httpc/httpc.h"
-#include "wifi_api.h"
+#include "rtw_wifi_defs.h"
+#include "wifi_conf.h"
 #include "lwip_netconf.h"
 #include "os_wrapper.h"
 
@@ -26,9 +27,11 @@ static void example_httpc_thread(void *param)
 
 	struct httpc_conn *conn = NULL;
 
-	// Delay to check successful WiFi connection and obtain of an IP address
-	LwIP_Check_Connectivity();
-
+	// Delay to wait for IP by DHCP
+	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
+		printf("Wait for WIFI connection ...\n");
+		rtos_time_delay_ms(2000);
+	}
 	printf("\nExample: HTTPC\n");
 
 	/* test GET to http://httpbin.org/get?param1=test_data1&param2=test_data2 */
@@ -149,7 +152,7 @@ static void example_httpc_thread(void *param)
 
 void example_httpc(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"example_httpc_thread"), example_httpc_thread, NULL, 2048 * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_httpc_thread"), example_httpc_thread, NULL, 2048 * 4, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create(example_httpc_thread) failed", __FUNCTION__);
 	}
 }

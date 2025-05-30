@@ -1,9 +1,16 @@
-#include "lwip_netconf.h"
+#include "os_wrapper.h"
+#include "basic_types.h"
+#include "rtw_misc.h"
 
-#define printf	DiagPrintfNano
+#include <lwipconf.h>
+#include <lwip_netconf.h>
+#include "platform_stdlib.h"
+#include "basic_types.h"
+
+#define printf	DiagPrintf_minimal
 
 #define PING_IP		"192.168.159.1"
-#define PING_TO		3000
+#define PING_TO		1000
 #define PING_ID		0xABCD
 #undef BUF_SIZE
 #define BUF_SIZE	10000
@@ -91,12 +98,14 @@ void ping_test(void *param)
 			printf("create socket failed\r\n");
 		}
 		pint_timeout = PING_TO;
-
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	// lwip 1.5.0
 		struct timeval timeout;
 		timeout.tv_sec = pint_timeout / 1000;
 		timeout.tv_usec = pint_timeout % 1000 * 1000;
 		setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-
+#else	// lwip 1.4.1
+		setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &pint_timeout, sizeof(pint_timeout));
+#endif
 		to_addr.sin_len = sizeof(to_addr);
 		to_addr.sin_family = AF_INET;
 		if (inet_aton(host, &to_addr.sin_addr) == 0) {
@@ -160,10 +169,14 @@ void ping_test(void *param)
 				}
 				pint_timeout -= (int)((reply_time - ping_time));
 				if (pint_timeout > 0) {
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	// lwip 1.5.0
 					struct timeval timeout;
 					timeout.tv_sec = pint_timeout / 1000;
 					timeout.tv_usec = pint_timeout % 1000 * 1000;
 					setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+#else	// lwip 1.4.1
+					setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &pint_timeout, sizeof(pint_timeout));
+#endif
 					continue;
 				}
 			}
@@ -300,7 +313,7 @@ void cmd_ping(int argc, char **argv)
 
 	if (g_ping_task == NULL) {
 		if (rtos_task_create(&g_ping_task, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4,
-							 1 + 4) != RTK_SUCCESS) {
+							 1 + PRIORITIE_OFFSET) != SUCCESS) {
 			printf("\n\r Ping ERROR: Create ping task failed.");
 		}
 	}
@@ -350,7 +363,7 @@ void do_ping_test(char *ip, int size, int count, int interval)
 		ping_count = count;
 	}
 
-	if (rtos_task_create(NULL, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create failed", __FUNCTION__);
 	}
 }

@@ -35,9 +35,13 @@
 #include <time.h>
 #include <errno.h>
 
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
+#include "lwipconf.h" //realtek add
+#include "os_wrapper.h" //realtek add
+#include "rtw_misc.h" //realtek add
 
-#include "cJSON.h"
+#include <cJSON.h>
 #include "iperf.h"
 #include "iperf_api.h"
 
@@ -329,7 +333,7 @@ get_optional_features(void)
 	static char features[1024];
 	unsigned int numfeatures = 0;
 
-	DiagSnPrintf(features, sizeof(features), "Optional features available: ");
+	snprintf(features, sizeof(features), "Optional features available: ");
 
 #if defined(HAVE_CPU_AFFINITY)
 	if (numfeatures > 0) {

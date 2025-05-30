@@ -1,8 +1,10 @@
 #ifndef EASYWSCLIENT_H
 #define EASYWSCLIENT_H
-
-#include "ameba_soc.h"
+#include "platform_stdlib.h"
+#include "basic_types.h"
 #include "os_wrapper.h"
+#include "ameba.h"
+
 
 /****************Define the debug message level*********************/
 #define DEBUG_WSCLIENT    1
@@ -22,10 +24,10 @@
 
 /****************Define the structures used*************************/
 typedef enum {
-	WSC_CLOSING,
-	WSC_CLOSED,
-	WSC_CONNECTING,
-	WSC_OPEN
+	CLOSING,
+	CLOSED,
+	CONNECTING,
+	OPEN
 } readyStateValues;
 
 struct wsheader_type {
@@ -77,8 +79,6 @@ typedef struct _wsclient_context {
 	int version_len;
 	char *custom_token;
 	int custom_token_len;
-	char *header_fields;
-	int header_fields_len;
 	uint8_t use_ssl;
 	int sockfd;
 	readyStateValues readyState;
@@ -99,9 +99,6 @@ typedef struct _wsclient_context {
 	uint8_t *receivedData;
 	struct ws_fun_ops fun_ops;
 	rtos_mutex_t queue_mutex;
-	char *client_cert;
-	char *client_key;
-	char *ca_cert;
 } wsclient_context;
 /*******************************************************************/
 
@@ -111,7 +108,7 @@ void *ws_malloc(unsigned int size);
 void ws_free(void *buf);
 int ws_client_handshake(wsclient_context *wsclient);
 int ws_check_handshake(wsclient_context *wsclient);
-int ws_sendData(uint8_t type, size_t message_size, uint8_t *message, int useMask, uint8_t fin_flag, wsclient_context *wsclient);
+int ws_sendData(uint8_t type, size_t message_size, uint8_t *message, int useMask, wsclient_context *wsclient);
 /*******************************************************************/
 
 /*************Functions used by wsclient without SSL****************/
@@ -132,7 +129,6 @@ int wss_tls_handshake(void *tls_in);
 void wss_tls_close(void *tls_in, int *sock);
 int wss_tls_write(void *tls_in, char *request, int request_len);
 int wss_tls_read(void *tls_in, char *buffer, int buf_len);
-int wss_tls_set_cert_and_key(wsclient_context *wsclient, char *client_cert, char *client_key, char *ca_cert);
 /*******************************************************************/
 
 #endif

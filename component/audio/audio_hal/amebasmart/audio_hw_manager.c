@@ -13,13 +13,12 @@
  * limitations under the License.
  */
 
-#include "ameba.h"
-
-#include "basic_types.h"
-#include "os_wrapper.h"
-
+#include "ameba_soc.h"
 #include "audio_hw_debug.h"
 #include "audio_hw_osal_errnos.h"
+#include "os_wrapper.h"
+#include "platform_stdlib.h"
+#include "basic_types.h"
 
 #include "hardware/audio/audio_hw_manager.h"
 
@@ -46,7 +45,7 @@ static struct AudioHwCardDescriptor gAudioHwCardDescs[] = {
 static const int32_t CARD_DESCRIPTER_COUNT =
 	(sizeof(gAudioHwCardDescs) / sizeof(gAudioHwCardDescs[0]));
 
-static int32_t ClosePrimaryAudioHwCard(struct AudioHwCard *card)
+static int ClosePrimaryAudioHwCard(struct AudioHwCard *card)
 {
 	DestroyAudioHwCard(card);
 

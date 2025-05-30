@@ -13,7 +13,6 @@
 #define RTOS_TIME_GET_PASSING_TIME_MS(start)           (rtos_time_get_current_system_time_ms() - (start))
 #define RTOS_TIME_GET_TIME_INTERVAL_MS(start, end)     ((end) - (start))
 #define RTOS_TIME_SET_MS_TO_SYSTIME(time)              (time / RTOS_TICK_RATE_MS)
-#define RTOS_TIME_SET_SYSTIME_TO_MS(tick)              (tick * RTOS_TICK_RATE_MS)
 
 /**
  * @brief  If the current system is in a scheduling and non-interrupted state, it will switch to other tasks.
@@ -29,31 +28,24 @@ void rtos_time_delay_ms(uint32_t ms);
 void rtos_time_delay_us(uint32_t us);
 
 /**
- * @brief  Get the count of ticks since rtos_sched_start was called, and convert the return value to milliseconds.
- * @note   This interface does not consider systick overflow issues. If need check overflow, please use rtos_time_get_current_system_time_ms_64bit.
+ * @brief  For FreeRTOS, map to xTaskGetTickCount / xTaskGetTickCountFromISR,
+ *         and convert the return value to milliseconds.
+ * @note   This interface does not consider systick overflow issues.
+ * @retval
  */
 uint32_t rtos_time_get_current_system_time_ms(void);
 
 /**
- * @brief  Get the count of ticks since rtos_sched_start was called, and convert the return value to milliseconds. Overflow handled.
- * @note   This API return 64-bits value.
- */
-uint64_t rtos_time_get_current_system_time_ms_64bit(void);
-
-/**
- * @brief  Get the count of pended ticks since rtos_sched_start was called, and convert the return value to milliseconds.
- */
-uint32_t rtos_time_get_current_pended_time_ms(void);
-
-/**
- * @brief  Return value to in microseconds.
+ * @brief  Rreturn value to in microseconds.
  * @note   This interface does not consider systick overflow issues.
+ * @retval
  */
-uint64_t rtos_time_get_current_system_time_us(void);
+uint32_t rtos_time_get_current_system_time_us(void);
 
 /**
- * @brief  Return value to in nanoseconds.
+ * @brief  Rreturn value to in nanoseconds.
  * @note   This interface does not consider systick overflow issues. The accuracy is the clk frequency of the CPU
+ * @retval
  */
 uint64_t rtos_time_get_current_system_time_ns(void);
 

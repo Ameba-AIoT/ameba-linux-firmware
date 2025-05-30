@@ -16,7 +16,7 @@ extern "C"
 #include "platform_autoconf.h"
 
 /*
- * AmebaSmart
+ * PLATFORM_AMEBASMART (AmebaSmart)
  */
 #if defined(CONFIG_AMEBASMART) && CONFIG_AMEBASMART
 #define RTK_BLE_GAP_MAX_LINKS               4
@@ -69,7 +69,7 @@ extern "C"
 #endif /* RTK_BLE_5_2_SUPPORT */
 
 /*
- * AmebaLite
+ * PLATFORM_AMEBALITE (AmebaLite)
  */
 #elif defined(CONFIG_AMEBALITE) && CONFIG_AMEBALITE
 #define RTK_BLE_GAP_MAX_LINKS               4
@@ -120,7 +120,7 @@ extern "C"
 #endif /* RTK_BLE_5_2_SUPPORT */
 
 /*
- * AmebaPro2
+ * PLATFORM_8735B (AmebaPro2)
  */
 #elif defined(CONFIG_8735B) && CONFIG_8735B
 #define RTK_BLE_GAP_MAX_LINKS               4
@@ -149,7 +149,7 @@ extern "C"
 #endif /* RTK_BLE_5_0_SUPPORT */
 
 /*
- * AmebaDplus
+ * PLATFORM_AMEBADPLUS (AmebaDplus)
  */
 #elif defined(CONFIG_AMEBADPLUS) && CONFIG_AMEBADPLUS
 #define RTK_BLE_GAP_MAX_LINKS               4
@@ -180,7 +180,7 @@ extern "C"
 #endif /* RTK_BLE_5_0_SUPPORT */
 
 /*
- * AmebaGreen2
+ * PLATFORM_AMEBAGREEN2 (AmebaGreen2)
  */
 #elif defined(CONFIG_AMEBAGREEN2) && CONFIG_AMEBAGREEN2
 #define RTK_BLE_GAP_MAX_LINKS               4
@@ -222,18 +222,8 @@ extern "C"
 #endif
 #if defined(CONFIG_BT_LE_AUDIO) && CONFIG_BT_LE_AUDIO
 #define RTK_BLE_AUDIO_SUPPORT               1
-#if defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT
-#define RTK_BLE_AUDIO_TMAP_SUPPORT          1
-#endif
-#if defined(CONFIG_BT_GMAP_SUPPORT) && CONFIG_BT_GMAP_SUPPORT
-#define RTK_BLE_AUDIO_GMAP_SUPPORT          1
-#endif
 #endif
 #endif /* RTK_BLE_5_2_SUPPORT */
-
-#if (defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT) && (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT)
-#error "Can not enable RTK_BLE_ISO_SUPPORT and RTK_BLE_AUDIO_SUPPORT at same time"
-#endif
 
 #if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
 #undef RTK_BLE_5_0_AE_ADV_SUPPORT
@@ -257,7 +247,9 @@ extern "C"
 #define RTK_BLE_MGR_LIB_EADV                1
 #define RTK_BLE_5_0_PA_ADV_SUPPORT          0
 #define RTK_BLE_5_0_PA_SYNC_SUPPORT         0
+#endif
 
+#if defined(CONFIG_BT_CAP_SUPPORT) && CONFIG_BT_CAP_SUPPORT
 #define RTK_BLE_AUDIO_VCP_VOLUME_CONTROLLER_SUPPORT    0    //can set 1 when CAP Commander role
 #define RTK_BLE_AUDIO_VCP_VOLUME_RENDERER_SUPPORT      0    //can set 1 when CAP Acceptor role
 #define RTK_BLE_AUDIO_MICP_MIC_CONTROLLER_SUPPORT      0    //can set 1 when CAP Commander role
@@ -291,6 +283,11 @@ extern "C"
 #error "Please enable AE, AE Scan for corret platform when enable LE AUDIO"
 #endif
 
+#if (defined(CONFIG_AMEBASMART) && CONFIG_AMEBASMART) && defined(__ICCARM__) && (defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT)
+#undef RTK_BREDR_SUPPORT
+#define RTK_BREDR_SUPPORT  0
+#endif
+
 #if defined(CONFIG_BT_MESH_PROVISIONER_SUPPORT) && CONFIG_BT_MESH_PROVISIONER_SUPPORT
 #define RTK_BLE_MESH_SUPPORT                1
 #define RTK_BLE_MESH_PROVISIONER_SUPPORT    1
@@ -306,23 +303,8 @@ extern "C"
 #else
 #define RTK_BLE_MESH_DEVICE_SUPPORT         0
 #endif
-#if (defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT) && \
-    (defined(CONFIG_AMEBADPLUS) && CONFIG_AMEBADPLUS) && \
-    (defined(CONFIG_BT_MESH_BASED_ON_CODED_PHY) && CONFIG_BT_MESH_BASED_ON_CODED_PHY)
-#define RTK_BLE_MESH_BASED_ON_CODED_PHY     1
-#undef RTK_BLE_5_0_AE_ADV_SUPPORT
-#define RTK_BLE_5_0_AE_ADV_SUPPORT          1
-#undef RTK_BLE_5_0_AE_SCAN_SUPPORT
-#define RTK_BLE_5_0_AE_SCAN_SUPPORT         1
-#else
-#define RTK_BLE_MESH_BASED_ON_CODED_PHY     0
-#endif
 #if (defined(RTK_BLE_MESH_PROVISIONER_SUPPORT) && RTK_BLE_MESH_PROVISIONER_SUPPORT) && (defined(RTK_BLE_MESH_DEVICE_SUPPORT) && RTK_BLE_MESH_DEVICE_SUPPORT)
 #error "Can not enable RTK_BLE_MESH_PROVISIONER_SUPPORT and RTK_BLE_MESH_DEVICE_SUPPORT at same time"
-#endif
-
-#if (defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT) || (defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT)
-#define RTK_BLE_5_0_USE_EXTENDED_ADV        1
 #endif
 
 #ifdef __cplusplus

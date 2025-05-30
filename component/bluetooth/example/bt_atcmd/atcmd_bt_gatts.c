@@ -16,9 +16,6 @@
 #include <rtk_hrs.h>
 #include <rtk_simple_ble_service.h>
 #include <rtk_cte_service.h>
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-#include <atcmd_bt_cmd_sync.h>
-#endif
 
 static int atcmd_bt_gatts_notify(int argc, char **argv)
 {
@@ -32,16 +29,8 @@ static int atcmd_bt_gatts_notify(int argc, char **argv)
 
 	if (ntf_param.len != strlen(argv[4]) / 2) {
 		BT_LOGE("GATTS notify failed, notify data len is wrong!\r\n");
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 	}
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_init(BT_AT_SYNC_CMD_TYPE_BLE_GATTS_NOTIFY, BT_AT_SYNC_OP_TYPE_NONE, ntf_param.conn_handle);
-	if (ret != BT_AT_OK) {
-		return ret;
-	}
-#endif
-
 	ntf_param.data = (void *)osif_mem_alloc(RAM_TYPE_DATA_ON, ntf_param.len);
 	hexdata_str_to_array(argv[4], (uint8_t *)ntf_param.data, ntf_param.len);
 
@@ -53,24 +42,12 @@ static int atcmd_bt_gatts_notify(int argc, char **argv)
 	if (RTK_BT_OK != ret) {
 		osif_mem_free((void *)ntf_param.data);
 		BT_LOGE("GATTS notify failed! err: 0x%x\r\n", ret);
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-		bt_at_sync_deinit();
-#endif
-		return bt_at_rtk_err_to_at_err(ret);
+		return -1;
 	}
 
 	osif_mem_free((void *)ntf_param.data);
 	BT_LOGA("GATTS notify sending ...\r\n");
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_sem_take();
-	if (ret == BT_AT_OK) {
-		ret = bt_at_sync_get_result();
-	}
-	bt_at_sync_deinit();
-#endif
-	return ret;
-
+	return 0;
 }
 
 static int atcmd_bt_gatts_indicate(int argc, char **argv)
@@ -85,16 +62,8 @@ static int atcmd_bt_gatts_indicate(int argc, char **argv)
 
 	if (ntf_param.len != strlen(argv[4]) / 2) {
 		BT_LOGE("GATTS indicate failed: indicate data len is wrong!\r\n");
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 	}
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_init(BT_AT_SYNC_CMD_TYPE_BLE_GATTS_INDICATE, BT_AT_SYNC_OP_TYPE_NONE, ntf_param.conn_handle);
-	if (ret != BT_AT_OK) {
-		return ret;
-	}
-#endif
-
 	ntf_param.data = (void *)osif_mem_alloc(RAM_TYPE_DATA_ON, ntf_param.len);
 	hexdata_str_to_array(argv[4], (uint8_t *)ntf_param.data, ntf_param.len);
 
@@ -106,23 +75,12 @@ static int atcmd_bt_gatts_indicate(int argc, char **argv)
 	if (RTK_BT_OK != ret) {
 		osif_mem_free((void *)ntf_param.data);
 		BT_LOGE("GATTS indicate failed! err: 0x%x\r\n", ret);
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-		bt_at_sync_deinit();
-#endif
-		return bt_at_rtk_err_to_at_err(ret);
+		return -1;
 	}
 
 	osif_mem_free((void *)ntf_param.data);
 	BT_LOGA("GATTS indicate sending ...\r\n");
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_sem_take();
-	if (ret == BT_AT_OK) {
-		ret = bt_at_sync_get_result();
-	}
-	bt_at_sync_deinit();
-#endif
-	return ret;
+	return 0;
 }
 
 #if ((defined(CONFIG_BT_PERIPHERAL) && CONFIG_BT_PERIPHERAL) || \

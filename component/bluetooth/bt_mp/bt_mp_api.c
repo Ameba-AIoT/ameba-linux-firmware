@@ -11,7 +11,6 @@
 #include <basic_types.h>
 #include "bt_debug.h"
 #include "hci_common.h"
-#include "hci_transport.h"
 #include "hci_uart.h"
 #include <bt_mp_api.h>
 #if defined(CONFIG_BT_ENABLE_FAST_MP) && CONFIG_BT_ENABLE_FAST_MP

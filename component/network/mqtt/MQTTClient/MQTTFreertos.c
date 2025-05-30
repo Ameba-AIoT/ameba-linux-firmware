@@ -16,6 +16,7 @@
  *******************************************************************************/
 
 #include "MQTTFreertos.h"
+#include "lwip/netdb.h"
 
 #ifdef LWIP_IPV6
 #undef LWIP_IPV6
@@ -71,8 +72,8 @@ int MutexUnlock(Mutex *mutex)
 
 void TimerCountdownMS(Timer *timer, unsigned int timeout_ms)
 {
-	timer->ms_to_wait = timeout_ms;
-	rtos_task_set_time_out_state(&timer->xTimeOut); /* Record the time at which this function was entered. */
+	timer->xTicksToWait = timeout_ms; /* convert milliseconds to ticks */
+	vTaskSetTimeOutState(&timer->xTimeOut); /* Record the time at which this function was entered. */
 }
 
 
@@ -84,36 +85,44 @@ void TimerCountdown(Timer *timer, unsigned int timeout)
 
 int TimerLeftMS(Timer *timer)
 {
-	rtos_task_check_for_time_out(&timer->xTimeOut, &timer->ms_to_wait); /* updates ms_to_wait to the number left */
-	return (timer->ms_to_wait);
+	xTaskCheckForTimeOut(&timer->xTimeOut, &timer->xTicksToWait); /* updates xTicksToWait to the number left */
+	return (timer->xTicksToWait);
 }
 
 
 char TimerIsExpired(Timer *timer)
 {
-	return rtos_task_check_for_time_out(&timer->xTimeOut, &timer->ms_to_wait) == TRUE;
+	return xTaskCheckForTimeOut(&timer->xTimeOut, &timer->xTicksToWait) == pdTRUE;
 }
 
 
 void TimerInit(Timer *timer)
 {
-	timer->ms_to_wait = 0;
+	timer->xTicksToWait = 0;
 	memset(&timer->xTimeOut, '\0', sizeof(timer->xTimeOut));
 }
 
 int FreeRTOS_read(Network *n, unsigned char *buffer, int len, int timeout_ms)
 {
-	uint32_t ms_to_wait = timeout_ms; /* convert milliseconds to ticks */
-	rtos_time_out_t xTimeOut;
+	uint32_t xTicksToWait = timeout_ms; /* convert milliseconds to ticks */
+	TimeOut_t xTimeOut;
 	int recvLen = 0;
 
-	rtos_task_set_time_out_state(&xTimeOut); /* Record the time at which this function was entered. */
+	int so_error = 0;
+	socklen_t errlen = sizeof(so_error);
+
+	vTaskSetTimeOutState(&xTimeOut); /* Record the time at which this function was entered. */
 	do {
 		int rc = 0;
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)
+		// timeout format is changed in lwip 1.5.0
 		struct timeval timeout;
-		timeout.tv_sec  = ms_to_wait / 1000;
-		timeout.tv_usec = (ms_to_wait % 1000) * 1000;
+		timeout.tv_sec  = xTicksToWait / 1000;
+		timeout.tv_usec = (xTicksToWait % 1000) * 1000;
 		setsockopt(n->my_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(struct timeval));
+#else
+		setsockopt(n->my_socket, SOL_SOCKET, SO_RCVTIMEO, &xTicksToWait, sizeof(xTicksToWait));
+#endif
 #if (MQTT_OVER_SSL)
 		if (n->use_ssl) {
 			rc = mbedtls_ssl_read(n->ssl, buffer + recvLen, len - recvLen);
@@ -124,30 +133,39 @@ int FreeRTOS_read(Network *n, unsigned char *buffer, int len, int timeout_ms)
 		if (rc > 0) {
 			recvLen += rc;
 		} else if (rc < 0) {
-			if (errno && (errno != EAGAIN)) {
+			getsockopt(n->my_socket, SOL_SOCKET, SO_ERROR, &so_error, &errlen);
+			if (so_error && (so_error != EAGAIN)) {
 				n->disconnect(n);
 			}
 			recvLen = rc;
 			break;
 		}
-	} while (recvLen < len && rtos_task_check_for_time_out(&xTimeOut, &ms_to_wait) == FALSE);
+	} while (recvLen < len && xTaskCheckForTimeOut(&xTimeOut, &xTicksToWait) == pdFALSE);
 
 	return recvLen;
 }
 
 int FreeRTOS_write(Network *n, unsigned char *buffer, int len, int timeout_ms)
 {
-	uint32_t ms_to_wait = timeout_ms; /* convert milliseconds to ticks */
-	rtos_time_out_t xTimeOut;
+	uint32_t xTicksToWait = timeout_ms; /* convert milliseconds to ticks */
+	TimeOut_t xTimeOut;
 	int sentLen = 0;
 
-	rtos_task_set_time_out_state(&xTimeOut); /* Record the time at which this function was entered. */
+	int so_error = 0;
+	socklen_t errlen = sizeof(so_error);
+
+	vTaskSetTimeOutState(&xTimeOut); /* Record the time at which this function was entered. */
 	do {
 		int rc = 0;
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)
+		// timeout format is changed in lwip 1.5.0
 		struct timeval timeout;
-		timeout.tv_sec  = ms_to_wait / 1000;
-		timeout.tv_usec = (ms_to_wait % 1000) * 1000;
+		timeout.tv_sec  = xTicksToWait / 1000;
+		timeout.tv_usec = (xTicksToWait % 1000) * 1000;
 		setsockopt(n->my_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(struct timeval));
+#else
+		setsockopt(n->my_socket, SOL_SOCKET, SO_SNDTIMEO, &xTicksToWait, sizeof(xTicksToWait));
+#endif
 #if (MQTT_OVER_SSL)
 		if (n->use_ssl) {
 			rc = mbedtls_ssl_write(n->ssl, buffer + sentLen, len - sentLen);
@@ -158,13 +176,14 @@ int FreeRTOS_write(Network *n, unsigned char *buffer, int len, int timeout_ms)
 		if (rc > 0) {
 			sentLen += rc;
 		} else if (rc < 0) {
-			if (errno && (errno != EAGAIN)) {
+			getsockopt(n->my_socket, SOL_SOCKET, SO_ERROR, &so_error, &errlen);
+			if (so_error && (so_error != EAGAIN)) {
 				n->disconnect(n);
 			}
 			sentLen = rc;
 			break;
 		}
-	} while (sentLen < len && rtos_task_check_for_time_out(&xTimeOut, &ms_to_wait) == FALSE);
+	} while (sentLen < len && xTaskCheckForTimeOut(&xTimeOut, &xTicksToWait) == pdFALSE);
 
 	return sentLen;
 }
@@ -390,7 +409,11 @@ int NetworkConnect(Network *n, char *addr, int port)
 				goto err;
 			}
 
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER >= 0x03000000)
 			if (mbedtls_pk_parse_key(client_rsa, (const unsigned char *)n->private_key, strlen(n->private_key) + 1, NULL, 0, NULL, NULL) != 0) {
+#else
+			if (mbedtls_pk_parse_key(client_rsa, (const unsigned char *)n->private_key, strlen(n->private_key) + 1, NULL, 0) != 0) {
+#endif
 				mqtt_printf(MQTT_DEBUG, "parse client_rsa failed!");
 				goto err;
 			}

@@ -13,42 +13,42 @@ extern "C" {
 #include "gap_msg.h"
 
 /**
- * \defgroup    LEA_GAF_LE_Audio_Group LE Audio Group
+ * \defgroup    LEA_GAF_BAP BAP Profile
  *
- * \brief   LE audio group related definition.
+ * \brief   Basic Audio Profile.
  */
 
 /**
- * \defgroup    LE_Audio_Group_Exported_Types LE Audio Group Exported Types
+ * \defgroup    BAP_Exported_Types BAP Profile Exported Types
  *
- * \ingroup LEA_GAF_LE_Audio_Group
- * @{
+ * \ingroup LEA_GAF_BAP
+ * \{
  */
 
 /**
  * bap_audio_group.h
  *
- * \brief  Define type T_BLE_AUDIO_GROUP_HANDLE. LE audio group handle.
+ * \brief  Define type T_BLE_AUDIO_GROUP_HANDLE. BLE Audio Group Handle.
  *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef void *T_BLE_AUDIO_GROUP_HANDLE;
 
 /**
  * bap_audio_group.h
  *
- * \brief  Define type T_BLE_AUDIO_DEV_HANDLE. LE audio device handle.
+ * \brief  Define type T_BLE_AUDIO_DEV_HANDLE. BLE Audio Device Handle.
  *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef void *T_BLE_AUDIO_DEV_HANDLE;
 
 /**
  * bap_audio_group.h
  *
- * \brief  LE audio group message type.
+ * \brief  BLE Audio Group Message Type.
  *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef enum
 {
@@ -66,17 +66,16 @@ typedef enum
     AUDIO_GROUP_MSG_DEV_DISCONN                       = 0x21,
     AUDIO_GROUP_MSG_DEV_BOND_REMOVE                   = 0x22,
     AUDIO_GROUP_MSG_DEV_BOND_CLEAR                    = 0x23,
-    AUDIO_GROUP_MSG_DEV_EMPTY                         = 0x24,    /**< Triggered by @ref ble_audio_group_remove_dev. */
+    AUDIO_GROUP_MSG_DEV_EMPTY                         = 0x24,    /**< trigger by ble_audio_group_remove_dev */
 } T_AUDIO_GROUP_MSG;
 
 /**
  * bap_audio_group.h
  *
- * \brief  LE audio device connection message data.
+ * \brief  BLE Audio Device Connection Message Data.
+ *         The message data for AUDIO_GROUP_MSG_DEV_CONN.
  *
- * The message data for @ref AUDIO_GROUP_MSG_DEV_CONN.
- *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef struct
 {
@@ -86,11 +85,10 @@ typedef struct
 /**
  * bap_audio_group.h
  *
- * \brief  LE audio device disconnect message data.
+ * \brief  BLE Audio Device Disconnect Message Data.
+ *         The message data for AUDIO_GROUP_MSG_DEV_DISCONN.
  *
- * The message data for @ref AUDIO_GROUP_MSG_DEV_DISCONN.
- *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef struct
 {
@@ -101,11 +99,10 @@ typedef struct
 /**
  * bap_audio_group.h
  *
- * \brief  LE audio device remove bond information message data.
+ * \brief  BLE Audio Device Remove Bond Information Message Data.
+ *         The message data for AUDIO_GROUP_MSG_DEV_BOND_REMOVE.
  *
- * The message data for @ref AUDIO_GROUP_MSG_DEV_BOND_REMOVE.
- *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef struct
 {
@@ -115,9 +112,9 @@ typedef struct
 /**
  * bap_audio_group.h
  *
- * \brief  LE audio device information.
+ * \brief  BLE Audio Device Information.
  *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef struct
 {
@@ -133,84 +130,82 @@ typedef struct
  * bap_audio_group.h
  *
  * \brief  P_FUN_GATT_CLIENT_CB Audio Group Callback Function Point Definition.
+ *         Function pointer used in ble audio group module, to send events
+ *         @ref T_AUDIO_GROUP_MSG to application.
  *
- * Function pointer used in LE audio group module, to send events
- * @ref T_AUDIO_GROUP_MSG to application.
- *
- * \ingroup LE_Audio_Group_Exported_Types
+ * \ingroup BAP_Exported_Types
  */
 typedef void(*P_FUN_AUDIO_GROUP_CB)(T_AUDIO_GROUP_MSG msg, T_BLE_AUDIO_GROUP_HANDLE handle,
                                     void *buf);
 /**
- * End of LE_Audio_Group_Exported_Types
- * @}
+ * End of BAP_Exported_Types
+ * \}
  */
 
 /**
- * \defgroup    LE_Audio_Group_Exported_Functions LE Audio Group Exported Functions
+ * \defgroup    BAP_Exported_Functions BAP Profile Exported Functions
  *
- * \ingroup LEA_GAF_LE_Audio_Group
- * @{
+ * \ingroup LEA_GAF_BAP
+ * \{
  */
 
 /**
  * bap_audio_group.h
  *
- * \brief  Allocate LE audio group.
+ * \brief  Allocate ble audio group.
  *
- * \return         LE audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
- * \retval NULL    Allocate LE audio group failed.
+ * \return         BLE audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
+ * \retval NULL    Allocate ble audio group failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 T_BLE_AUDIO_GROUP_HANDLE ble_audio_group_allocate(void);
 
 /**
  * bap_audio_group.h
  *
- * \brief  Register LE audio group callback function.
+ * \brief  Register ble audio group callback function.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  * \param[in]  p_fun_cb          Audio group callback function: @ref P_FUN_AUDIO_GROUP_CB.
  *
- * \return         The result of registering LE audio group callback function.
- * \retval true    Registering LE audio group callback function is successful.
- * \retval false   Registering LE audio group callback function failed.
+ * \return         The result of register ble audio group callback function.
+ * \retval true    Register ble audio group callback function success.
+ * \retval false   Register ble audio group callback function failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 bool ble_audio_group_reg_cb(T_BLE_AUDIO_GROUP_HANDLE group_handle, P_FUN_AUDIO_GROUP_CB p_fun_cb);
 
 /**
  * bap_audio_group.h
  *
- * \brief  Release LE audio group.
+ * \brief  Release ble audio group.
+ *         If this api is successfully invoked, the referred group handle will be cleared.
  *
- * If this API is successfully invoked, the referred group handle will be cleared.
+ * \param[in]  group_handle      Pointer to audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  *
- * \param[in]  p_group_handle      Pointer to audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
+ * \return         The result of release ble audio group.
+ * \retval true    Release ble audio group success.
+ * \retval false   Release ble audio group failed.
  *
- * \return         The result of releasing LE audio group.
- * \retval true    Releasing LE audio group is successful.
- * \retval false   Releasing LE audio group failed.
- *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 bool ble_audio_group_release(T_BLE_AUDIO_GROUP_HANDLE *p_group_handle);
 
 /**
  * bap_audio_group.h
  *
- * \brief  Add device into LE audio group.
+ * \brief  Add device into ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
- * \param[in]  bd_addr           Pointer to Bluetooth device address.
+ * \param[in]  bd_addr           Pointer to bluetooth device address.
  * \param[in]  addr_type         Address type.
  *
- * \return         The LE audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
- * \retval NULL    Add device to LE audio group failed.
+ * \return         The ble audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
+ * \retval NULL    Add device to ble audio group failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 T_BLE_AUDIO_DEV_HANDLE ble_audio_group_add_dev(T_BLE_AUDIO_GROUP_HANDLE group_handle,
                                                uint8_t *bd_addr, uint8_t addr_type);
@@ -218,16 +213,16 @@ T_BLE_AUDIO_DEV_HANDLE ble_audio_group_add_dev(T_BLE_AUDIO_GROUP_HANDLE group_ha
 /**
  * bap_audio_group.h
  *
- * \brief  Delete device from LE audio group.
+ * \brief  Delete device from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  * \param[in]  p_dev_handle      Pointer to device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
  *
- * \return         The result of Deleting device from LE audio group.
- * \retval true    Deleting device from LE audio group succeeded.
- * \retval false   Deleting device from LE audio group failed.
+ * \return         The result of remove device from ble audio group.
+ * \retval true    Remove device from ble audio group success.
+ * \retval false   Remove device from ble audio group failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 bool ble_audio_group_del_dev(T_BLE_AUDIO_GROUP_HANDLE group_handle,
                              T_BLE_AUDIO_DEV_HANDLE *p_dev_handle);
@@ -235,16 +230,16 @@ bool ble_audio_group_del_dev(T_BLE_AUDIO_GROUP_HANDLE group_handle,
 /**
  * bap_audio_group.h
  *
- * \brief  Find device from LE audio group.
+ * \brief  Find device from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
- * \param[in]  bd_addr           Pointer to Bluetooth device address.
+ * \param[in]  bd_addr           Pointer to bluetooth device address.
  * \param[in]  addr_type         Address type.
  *
- * \return         The LE audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
- * \retval NULL    Finding device from LE audio group failed.
+ * \return         The ble audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
+ * \retval NULL    Find device from ble audio group failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 T_BLE_AUDIO_DEV_HANDLE ble_audio_group_find_dev(T_BLE_AUDIO_GROUP_HANDLE group_handle,
                                                 uint8_t *bd_addr, uint8_t addr_type);
@@ -252,15 +247,15 @@ T_BLE_AUDIO_DEV_HANDLE ble_audio_group_find_dev(T_BLE_AUDIO_GROUP_HANDLE group_h
 /**
  * bap_audio_group.h
  *
- * \brief  Find device from LE audio group by connection handle.
+ * \brief  Find device from ble audio group by connection handle.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  * \param[in]  conn_handle       Connection handle.
  *
- * \return         The LE audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
- * \retval NULL    Finding device from LE audio group by connection handle failed.
+ * \return         The ble audio device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
+ * \retval NULL    Find device from ble audio group by connection handle failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 T_BLE_AUDIO_DEV_HANDLE ble_audio_group_find_dev_by_conn_handle(T_BLE_AUDIO_GROUP_HANDLE
                                                                group_handle,
@@ -269,17 +264,17 @@ T_BLE_AUDIO_DEV_HANDLE ble_audio_group_find_dev_by_conn_handle(T_BLE_AUDIO_GROUP
 /**
  * bap_audio_group.h
  *
- * \brief  Get device information from LE audio group.
+ * \brief  Get device information from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  * \param[in]  dev_handle        Device handle: @ref T_BLE_AUDIO_DEV_HANDLE.
  * \param[in,out]  p_info        Pointer to audio device information: @ref T_AUDIO_DEV_INFO.
  *
- * \return         The result of getting device information.
- * \retval true    Getting device information succeeded.
- * \retval false   Getting device information failed.
+ * \return         The result of get device information.
+ * \retval true    Get device information success.
+ * \retval false   Get device information failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 bool ble_audio_group_get_dev_info(T_BLE_AUDIO_GROUP_HANDLE group_handle,
                                   T_BLE_AUDIO_DEV_HANDLE dev_handle,
@@ -288,16 +283,16 @@ bool ble_audio_group_get_dev_info(T_BLE_AUDIO_GROUP_HANDLE group_handle,
 /**
  * bap_audio_group.h
  *
- * \brief  Get the number of used devices from LE audio group.
+ * \brief  Get used device number from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
- * \param[in]  check_conn        Whether to check if the connection state is connected.
+ * \param[in]  check_conn        Whether to check the connection state is connected.
  * \arg    true    Check the connection state.
- * \arg    false   Do not check the connection state.
+ * \arg    false   Not check the connection state.
  *
- * \return         The number of used LE audio devices.
+ * \return         The number of used ble audio device.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 
 
@@ -306,42 +301,38 @@ uint8_t ble_audio_group_get_used_dev_num(T_BLE_AUDIO_GROUP_HANDLE group_handle, 
 /**
  * bap_audio_group.h
  *
- * \brief  Get the number of devices from LE audio group.
+ * \brief  Get device number from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  *
- * \return         The number of LE audio devices.
+ * \return         The number of ble audio device.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 uint8_t ble_audio_group_get_dev_num(T_BLE_AUDIO_GROUP_HANDLE group_handle);
 
 /**
  * bap_audio_group.h
  *
- * \brief  Get device information from LE audio group.
+ * \brief  Get device information from ble audio group.
  *
  * \param[in]  group_handle      Audio group handle: @ref T_BLE_AUDIO_GROUP_HANDLE.
  * \param[in,out]  p_dev_num     Pointer to device number.
  * \param[in,out]  p_dev_tbl     Pointer to device information table: @ref T_AUDIO_DEV_INFO.
  *
- * \return         The result of getting device information.
- * \retval true    Getting device information succeeded.
- * \retval false   Getting device information failed.
+ * \return         The result of get device information.
+ * \retval true    Get device information success.
+ * \retval false   Get device information failed.
  *
- * \ingroup LE_Audio_Group_Exported_Functions
+ * \ingroup BAP_Exported_Functions
  */
 bool ble_audio_group_get_info(T_BLE_AUDIO_GROUP_HANDLE group_handle, uint8_t *p_dev_num,
                               T_AUDIO_DEV_INFO *p_dev_tbl);
 /**
- * End of LE_Audio_Group_Exported_Functions
- * @}
+ * End of BAP_Exported_Functions
+ * \}
  */
 
-/**
- * End of LEA_GAF_LE_Audio_Group
- * @}
- */
 #ifdef  __cplusplus
 }
 #endif      /*  __cplusplus */

@@ -1,8 +1,8 @@
 
-#include "wifi_api.h"
-#include "atcmd_service.h"
 #include "dhcps.h"
-
+#include "lwip/tcpip.h"
+#include "rtw_wifi_constants.h"
+#include "lwip_netconf.h"
 //static struct dhcp_server_state dhcp_server_state_machine;
 static uint8_t dhcp_server_state_machine = DHCP_SERVER_STATE_IDLE;
 /* recorded the client MAC addr(default sudo mac) */
@@ -10,7 +10,7 @@ static uint8_t dhcp_server_state_machine = DHCP_SERVER_STATE_IDLE;
 /* recorded transaction ID (default sudo id)*/
 static uint8_t dhcp_recorded_xid[4] = {0xff, 0xff, 0xff, 0xff};
 
-#define printf	DiagPrintfNano
+#define printf	DiagPrintf_minimal
 
 /* UDP Protocol Control Block(PCB) */
 static struct udp_pcb *dhcps_pcb;
@@ -38,7 +38,7 @@ static struct dhcp_msg *dhcp_message_repository;
 static int dhcp_message_total_options_lenth;
 
 /* allocated IP range */
-struct table  ip_table;
+static struct table  ip_table;
 static struct ip_addr client_request_ip;
 static uint8_t client_addr[6];
 
@@ -78,48 +78,48 @@ int dhcps_ip_in_table_check(uint8_t gate, uint8_t d)
 #if (!IS_USE_FIXED_IP)
 static void mark_ip_in_table(uint8_t d)
 {
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 	printf("\r\nmark ip %d\r\n", d);
 #endif
 	rtos_mutex_take(dhcps_ip_table_semaphore, RTOS_MAX_DELAY);
 	if (0 < d && d <= 32) {
 		ip_table.ip_range[0] = MARK_RANGE1_IP_BIT(ip_table, d);
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[0] = 0x%x\r\n", ip_table.ip_range[0]);
 #endif
 	} else if (32 < d && d <= 64) {
 		ip_table.ip_range[1] = MARK_RANGE2_IP_BIT(ip_table, (d - 32));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[1] = 0x%x\r\n", ip_table.ip_range[1]);
 #endif
 	} else if (64 < d && d <= 96) {
 		ip_table.ip_range[2] = MARK_RANGE3_IP_BIT(ip_table, (d - 64));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[2] = 0x%x\r\n", ip_table.ip_range[2]);
 #endif
 	} else if (96 < d && d <= 128) {
 		ip_table.ip_range[3] = MARK_RANGE4_IP_BIT(ip_table, (d - 96));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[3] = 0x%x\r\n", ip_table.ip_range[3]);
 #endif
 	} else if (128 < d && d <= 160) {
 		ip_table.ip_range[4] = MARK_RANGE5_IP_BIT(ip_table, d - 128);
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[4] = 0x%x\r\n", ip_table.ip_range[4]);
 #endif
 	} else if (160 < d && d <= 192) {
 		ip_table.ip_range[5] = MARK_RANGE6_IP_BIT(ip_table, (d - 160));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[5] = 0x%x\r\n", ip_table.ip_range[5]);
 #endif
 	} else if (192 < d && d <= 224) {
 		ip_table.ip_range[6] = MARK_RANGE7_IP_BIT(ip_table, (d - 192));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[6] = 0x%x\r\n", ip_table.ip_range[6]);
 #endif
 	} else if (224 < d) {
 		ip_table.ip_range[7] = MARK_RANGE8_IP_BIT(ip_table, (d - 224));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n ip_table.ip_range[7] = 0x%x\r\n", ip_table.ip_range[7]);
 #endif
 	} else {
@@ -134,14 +134,14 @@ static void save_client_addr(struct ip_addr *client_ip, uint8_t *hwaddr)
 	int i, j;
 	uint8_t invalid_ipaddr4;
 	unsigned int client_number;
-	struct rtw_client_list client_info;
-	memset(&client_info, 0, sizeof(struct rtw_client_list));
+	rtw_client_list_t client_info;
+	memset(&client_info, 0, sizeof(rtw_client_list_t));
 
 	uint8_t d = (uint8_t)ip4_addr4(ip_2_ip4(client_ip));
 
 	rtos_mutex_take(dhcps_ip_table_semaphore, RTOS_MAX_DELAY);
 
-	for (i = 0; i < wifi_user_config.ap_sta_num; i++) {
+	for (i = 0; i < AP_STA_NUM; i++) {
 		if ((ip_table.ip_addr4[i] == 0 || ip_table.ip_addr4[i] == d)) {
 			ip_table.ip_addr4[i] = d;
 			memcpy(ip_table.client_mac[i], hwaddr, 6);
@@ -149,9 +149,9 @@ static void save_client_addr(struct ip_addr *client_ip, uint8_t *hwaddr)
 		}
 	}
 	/* cache of ip_table is full,write the new mac&ip instead of an invalid pairs */
-	if (i == wifi_user_config.ap_sta_num) {
-		wifi_ap_get_connected_clients(&client_info);
-		for (j = 0; j < wifi_user_config.ap_sta_num; j++) {
+	if (i == AP_STA_NUM) {
+		wifi_get_associated_client_list(&client_info);
+		for (j = 0; j < AP_STA_NUM; j++) {
 			for (client_number = 0; client_number < client_info.count; client_number++) {
 				if (memcmp(ip_table.client_mac[j], client_info.mac_list[client_number].octet, 6) == 0) {
 					break;
@@ -168,7 +168,7 @@ static void save_client_addr(struct ip_addr *client_ip, uint8_t *hwaddr)
 		}
 	}
 
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 	printf("\r\n%s: ip %d.%d.%d.%d, hwaddr 0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x\n", __func__,
 		   ip4_addr1(ip_2_ip4(client_ip)), ip4_addr2(ip_2_ip4(client_ip)), ip4_addr3(ip_2_ip4(client_ip)), ip4_addr4(ip_2_ip4(client_ip)),
 		   hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3], hwaddr[4], hwaddr[5]);
@@ -183,7 +183,7 @@ static uint8_t check_client_request_ip(struct ip_addr *client_req_ip, uint8_t *h
 
 	int ip_addr4 = 0, i;
 
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 	printf("\r\n%s: ip %d.%d.%d.%d, hwaddr 0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x\n", __func__,
 		   ip4_addr1(ip_2_ip4(client_req_ip)), ip4_addr2(ip_2_ip4(client_req_ip)), ip4_addr3(ip_2_ip4(client_req_ip)), ip4_addr4(ip_2_ip4(client_req_ip)),
 		   hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3], hwaddr[4], hwaddr[5]);
@@ -191,7 +191,7 @@ static uint8_t check_client_request_ip(struct ip_addr *client_req_ip, uint8_t *h
 
 	rtos_mutex_take(dhcps_ip_table_semaphore, RTOS_MAX_DELAY);
 
-	for (i = 0; i < wifi_user_config.ap_sta_num; i++) {
+	for (i = 0; i < AP_STA_NUM; i++) {
 		if (memcmp(ip_table.client_mac[i], hwaddr, 6) == 0) {
 			uint8_t temp = ip_table.ip_addr4[i];
 			if ((temp % 32 != 0) && ((ip_table.ip_range[temp / 32] >> (temp % 32 - 1)) & 1)) {
@@ -203,7 +203,7 @@ static uint8_t check_client_request_ip(struct ip_addr *client_req_ip, uint8_t *h
 
 	rtos_mutex_give(dhcps_ip_table_semaphore);
 
-	if (i == wifi_user_config.ap_sta_num) {
+	if (i == AP_STA_NUM) {
 		ip_addr4 = 0;
 	}
 
@@ -214,7 +214,7 @@ static uint8_t check_client_direct_request_ip(struct ip_addr *client_req_ip, uin
 {
 	int ip_addr4 = 0;
 
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 	printf("\r\n%s: ip %d.%d.%d.%d, hwaddr 0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x\n", __func__,
 		   ip4_addr1(ip_2_ip4(client_req_ip)), ip4_addr2(ip_2_ip4(client_req_ip)), ip4_addr3(ip_2_ip4(client_req_ip)), ip4_addr4(ip_2_ip4(client_req_ip)),
 		   hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3], hwaddr[4], hwaddr[5]);
@@ -234,7 +234,7 @@ static uint8_t check_client_direct_request_ip(struct ip_addr *client_req_ip, uin
 	}
 	rtos_mutex_take(dhcps_ip_table_semaphore, RTOS_MAX_DELAY);
 
-	for (int i = 0; i < wifi_user_config.ap_sta_num; i++) {
+	for (int i = 0; i < AP_STA_NUM; i++) {
 		if ((ip_table.ip_addr4[i] == ip_addr4 &&
 			 !(ip_table.client_mac[i][0] == hwaddr[0] &&
 			   ip_table.client_mac[i][1] == hwaddr[1] &&
@@ -262,7 +262,7 @@ void dump_client_table(void)
 	printf("\r\nip_range: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x",
 		   ip_table.ip_range[0], ip_table.ip_range[1], ip_table.ip_range[2], ip_table.ip_range[3],
 		   ip_table.ip_range[4], ip_table.ip_range[5], ip_table.ip_range[6], ip_table.ip_range[7]);
-	for (i = 0; i < wifi_user_config.ap_sta_num; i++) {
+	for (i = 0; i < AP_STA_NUM; i++) {
 		p = ip_table.client_mac[i];
 		printf("\r\nip_addr4 = %d; Client[%d]: 0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x",
 			   ip_table.ip_addr4[i], i, p[0], p[1], p[2], p[3], p[4], p[5]);
@@ -522,14 +522,11 @@ static void dhcps_send_offer(struct pbuf *packet_buffer)
 #ifdef CONFIG_DHCPS_KEPT_CLIENT_INFO
 	temp_ip = check_client_request_ip(&client_request_ip, client_addr);
 #endif
+	/* create new client ip */
 	if (temp_ip == 0) {
-		temp_ip = check_client_direct_request_ip(&client_request_ip, client_addr);
-		/* create new client ip */
-		if (temp_ip == 0) {
-			temp_ip = search_next_ip();
-		}
+		temp_ip = search_next_ip();
 	}
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 	printf("\r\n temp_ip = %d", temp_ip);
 #endif
 	if (temp_ip == 0) {
@@ -540,13 +537,12 @@ static void dhcps_send_offer(struct pbuf *packet_buffer)
 #endif
 		printf("\r\n No useable ip!!!!\r\n");
 	}
-
-	at_printf_indicate("assign client ip:\"%d.%d.%d.%d\",hwaddr:\""MAC_FMT"\"\r\n", \
-					   ip4_addr1(ip_2_ip4(&dhcps_network_id)), \
-					   ip4_addr2(ip_2_ip4(&dhcps_network_id)), \
-					   ip4_addr3(ip_2_ip4(&dhcps_network_id)), temp_ip, \
-					   MAC_ARG(client_addr));
-
+	printf("\n\r[%d]DHCP assign ip = %d.%d.%d.%d, hwaddr 0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x\n", \
+		   (int)rtos_time_get_current_system_time_ms(), ip4_addr1(ip_2_ip4(&dhcps_network_id)), \
+		   ip4_addr2(ip_2_ip4(&dhcps_network_id)), \
+		   ip4_addr3(ip_2_ip4(&dhcps_network_id)), temp_ip, \
+		   client_addr[0], client_addr[1], client_addr[2], \
+		   client_addr[3], client_addr[4], client_addr[5]);
 	IP4_ADDR(ip_2_ip4(&dhcps_allocated_client_address), (ip4_addr1(ip_2_ip4(&dhcps_network_id))),
 			 ip4_addr2(ip_2_ip4(&dhcps_network_id)), ip4_addr3(ip_2_ip4(&dhcps_network_id)), temp_ip);
 #endif
@@ -645,13 +641,13 @@ uint8_t dhcps_handle_state_machine_change(uint8_t option_message_type)
 {
 	switch (option_message_type) {
 	case DHCP_MESSAGE_TYPE_DECLINE:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\nget message DHCP_MESSAGE_TYPE_DECLINE\n");
 #endif
 		dhcp_server_state_machine = DHCP_SERVER_STATE_IDLE;
 		break;
 	case DHCP_MESSAGE_TYPE_DISCOVER:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\nget message DHCP_MESSAGE_TYPE_DISCOVER\n");
 #endif
 		if (dhcp_server_state_machine == DHCP_SERVER_STATE_IDLE) {
@@ -659,11 +655,11 @@ uint8_t dhcps_handle_state_machine_change(uint8_t option_message_type)
 		}
 		break;
 	case DHCP_MESSAGE_TYPE_REQUEST:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\n[%d]get message DHCP_MESSAGE_TYPE_REQUEST\n", rtos_time_get_current_system_time_ms());
 #endif
 #if (!IS_USE_FIXED_IP)
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 		printf("\r\ndhcp_server_state_machine=%d", dhcp_server_state_machine);
 		printf("\r\ndhcps_allocated_client_address=%d.%d.%d.%d",
 			   ip4_addr1(ip_2_ip4(&dhcps_allocated_client_address)),
@@ -849,13 +845,13 @@ static void dhcps_receive_udp_packet_handler(void *arg, struct udp_pcb *udp_pcb,
 		}
 		switch (dhcps_check_msg_and_handle_options(udp_packet_buffer)) {
 		case  DHCP_SERVER_STATE_OFFER:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 			printf("%s DHCP_SERVER_STATE_OFFER\n", __func__);
 #endif
 			dhcps_send_offer(udp_packet_buffer);
 			break;
 		case DHCP_SERVER_STATE_ACK:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 			printf("%s DHCP_SERVER_STATE_ACK\n", __func__);
 #endif
 			/*retry 20 times for alloc skb while softap TX UDP packet*/
@@ -874,7 +870,7 @@ static void dhcps_receive_udp_packet_handler(void *arg, struct udp_pcb *udp_pcb,
 			memset(&client_request_ip, 0, sizeof(client_request_ip));
 			memset(&client_addr, 0, sizeof(client_addr));
 			memset(&dhcps_allocated_client_address, 0, sizeof(dhcps_allocated_client_address));
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 			dump_client_table();
 #endif
 #endif
@@ -882,14 +878,14 @@ static void dhcps_receive_udp_packet_handler(void *arg, struct udp_pcb *udp_pcb,
 			dhcp_server_state_machine = DHCP_SERVER_STATE_IDLE;
 			break;
 		case DHCP_SERVER_STATE_NAK:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 			printf("%s DHCP_SERVER_STATE_NAK\n", __func__);
 #endif
 			dhcps_send_nak(udp_packet_buffer);
 			dhcp_server_state_machine = DHCP_SERVER_STATE_IDLE;
 			break;
 		case DHCP_OPTION_CODE_END:
-#if (DEBUG_DHCPS)
+#if (debug_dhcps)
 			printf("%s DHCP_OPTION_CODE_END\n", __func__);
 #endif
 			break;
@@ -945,7 +941,7 @@ static void dnss_receive_udp_packet_handler(
 
 #if(defined(CONFIG_ENABLE_CAPTIVE_PORTAL) && CONFIG_ENABLE_CAPTIVE_PORTAL)
 	if (1) {
-		uint8_t len = strlen((const char *) hdr + sizeof(struct dns_hdr)) + 1;
+		uint8_t len = strlen((uint8_t *) hdr + sizeof(struct dns_hdr)) + 1;
 		struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sizeof(struct dns_hdr) + len + 20, PBUF_RAM);
 #else
 	if (memcmp((uint8_t *) hdr + sizeof(struct dns_hdr), domain_name_buf, sizeof(domain_name_buf)) == 0) {
@@ -1073,12 +1069,7 @@ void dhcps_init(struct netif *pnetif)
 	uint8_t *ip;
 //	printf("dhcps_init,wlan:%c\n\r",pnetif->name[1]);
 #ifdef CONFIG_DHCPS_KEPT_CLIENT_INFO
-	ip_table.client_mac = rtos_mem_zmalloc(wifi_user_config.ap_sta_num * 6 * sizeof(uint8_t));
-	ip_table.ip_addr4 = rtos_mem_zmalloc(wifi_user_config.ap_sta_num * sizeof(uint8_t));
-
-	memset(ip_table.client_mac, 0, wifi_user_config.ap_sta_num * 6 * sizeof(uint8_t));
-	memset(ip_table.ip_addr4, 0, wifi_user_config.ap_sta_num * sizeof(uint8_t));
-	memset(ip_table.ip_range, 0, sizeof(ip_table.ip_range));
+	memset(&ip_table, 0, sizeof(struct table));
 //	int i = 0;
 //	for(i=0; i< DHCPS_MAX_CLIENT_NUM+2; i++)
 //		memset(ip_table.client_mac[i], 0, 6);
@@ -1129,6 +1120,7 @@ void dhcps_init(struct netif *pnetif)
 	rtos_mutex_create(&dhcps_ip_table_semaphore);
 
 	//dhcps_ip_table = (struct ip_table *)(rtos_mem_malloc(sizeof(struct ip_table)));
+	memset(&ip_table, 0, sizeof(struct table));
 	mark_ip_in_table((uint8_t)ip4_addr4(ip_2_ip4(&dhcps_local_address)));
 	mark_ip_in_table((uint8_t)ip4_addr4(ip_2_ip4(&dhcps_local_gateway)));
 #if 0
@@ -1163,14 +1155,6 @@ void dhcps_deinit(void)
 	if (dhcps_ip_table_semaphore != NULL) {
 		rtos_mutex_delete(dhcps_ip_table_semaphore);
 		dhcps_ip_table_semaphore = NULL;
-	}
-	if (ip_table.client_mac != NULL) {
-		rtos_mem_free(ip_table.client_mac);
-		ip_table.client_mac = NULL;
-	}
-	if (ip_table.ip_addr4 != NULL) {
-		rtos_mem_free(ip_table.ip_addr4);
-		ip_table.ip_addr4 = NULL;
 	}
 #ifndef IP_NAT
 	//DNS server deinit

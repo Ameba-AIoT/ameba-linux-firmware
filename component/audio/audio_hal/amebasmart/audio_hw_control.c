@@ -14,7 +14,6 @@
  */
 
 #include "ameba_audio_stream_control.h"
-
 #include "audio_hw_debug.h"
 #include "audio_hw_osal_errnos.h"
 
@@ -205,7 +204,6 @@ void DestroyAudioHwControl(struct AudioHwControl *control)
 		ameba_audio_destroy_ctl();
 		if (control != NULL) {
 			rtos_mem_free(control);
-			s_hw_ctl_instance = NULL;
 		}
 	}
 }

@@ -1,8 +1,13 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/**
+  ******************************************************************************
+  * The header file for usbd_composite_hid.c
+  *
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
+  ******************************************************************************
+  */
 
 #ifndef USBD_COMPOSITE_HID_H
 #define USBD_COMPOSITE_HID_H

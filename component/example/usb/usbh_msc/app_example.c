@@ -1,9 +1,8 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
+/******************************************************************************
+*
+* Copyright(c) 2007 - 2018 Realtek Corporation. All rights reserved.
+*
+******************************************************************************/
 #include "example_usbh_msc.h"
 
 void app_example(void)

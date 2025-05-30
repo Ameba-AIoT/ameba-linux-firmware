@@ -1133,7 +1133,7 @@ size_t utf8_unescape(const char *inp, size_t in_size,
 				return 0;
 			}
 			inp++;
-			__attribute__((fallthrough));
+		/* fall through */
 
 		default:
 			*outp++ = *inp++;
@@ -1177,7 +1177,7 @@ size_t utf8_escape(const char *inp, size_t in_size,
 				return 0;
 			}
 			*outp++ = '\\';
-			__attribute__((fallthrough));
+		/* fall through */
 
 		default:
 			*outp++ = *inp++;

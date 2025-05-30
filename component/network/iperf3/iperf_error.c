@@ -25,7 +25,9 @@
  * file for complete information.
  */
 #include <errno.h>
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
+#include "lwip/netdb.h" //realtek add
 #include "iperf.h"
 #include "iperf_api.h"
 #include "diag.h"
@@ -40,7 +42,7 @@ iperf_err(struct iperf_test *test, const char *format, ...)
 	//char str[1000];
 
 	va_start(argp, format);
-	DiagVprintf(format, argp);
+	DiagVSprintf(NULL, format, argp);
 #if 0
 	vsnprintf(str, sizeof(str), format, argp);
 	if (test != NULL && test->json_output && test->json_top != NULL) {

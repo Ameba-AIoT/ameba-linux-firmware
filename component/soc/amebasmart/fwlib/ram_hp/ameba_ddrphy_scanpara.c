@@ -7,7 +7,7 @@
 #include "ameba_soc.h"
 #include "ameba_ddrphy_scanpara.h"
 
-static const char *const TAG = "DDRPHY";
+static const char *TAG = "DDRPHY";
 #if 0
 #define SCAN_PRINT DiagPrintf
 #define BSTC_DEBUG_PRINT TRUE
@@ -788,7 +788,7 @@ static u8 DDR_PHY_Scan_param_setup_map(void)
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 
 	while (!(LOGUART_Readable()));
-	scan_stage = LOGUART_GetChar(FALSE) - '0';
+	scan_stage = LOGUART_GetChar(_FALSE) - '0';
 
 	LOGUART_ClearRxFifo(LOGUART_DEV);
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, ENABLE);
@@ -3020,7 +3020,7 @@ static u8 DDR_PHY_Scan_param_Stage(void)
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 
 	while (!(LOGUART_Readable()));
-	scan_stage = LOGUART_GetChar(FALSE) - '0';
+	scan_stage = LOGUART_GetChar(_FALSE) - '0';
 
 	LOGUART_ClearRxFifo(LOGUART_DEV);
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, ENABLE);
@@ -3032,13 +3032,6 @@ static u8 DDR_PHY_Scan_param_Stage(void)
 void DDR_PHY_Scan_param(void)
 {
 	u8 scan_stage = DDR_PHY_Scan_param_Stage();
-
-	if ((HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1) & LSYS_BIT_BG_ON_USB2) == 0) {
-		/* ZQK will use ref current controlled by LSYS_BIT_BG_ON_USB2 */
-		assert_param(0);
-	}
-
-	RTK_LOGI(TAG,  "ChipInfo_Get:[%08x]\n", ChipInfo_Get());
 
 	//when ddrphy init, do R480/ZQ K first
 	DDR_PHY_BSTC_STARK();
