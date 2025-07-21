@@ -1,7 +1,7 @@
 
 #include "utils/os.h"
 #include <lwipconf.h>
-#include <wifi_conf.h>
+#include <wifi_api.h>
 #include "wps/wps_defs.h"
 
 #if defined(CONFIG_ENABLE_P2P) && CONFIG_ENABLE_P2P
@@ -75,11 +75,11 @@ int wifi_start_p2p_go(char *ssid, char *passphrase, u8 channel)
 {
 	extern struct netif xnetif[NET_IF_NUM];
 	struct netif *pnetif = &xnetif[0];
-	struct _rtw_softap_info_t softAP_config = {0};
+	struct rtw_softap_info softAP_config = {0};
 
-	u32 addr = WIFI_MAKEU32(P2P_GW_ADDR0, P2P_GW_ADDR1, P2P_GW_ADDR2, P2P_GW_ADDR3);
-	u32 netmask = WIFI_MAKEU32(P2P_NETMASK_ADDR0, P2P_NETMASK_ADDR1, P2P_NETMASK_ADDR2, P2P_NETMASK_ADDR3);
-	u32 gw = WIFI_MAKEU32(P2P_GW_ADDR0, P2P_GW_ADDR1, P2P_GW_ADDR2, P2P_GW_ADDR3);
+	u32 addr = CONCAT_TO_UINT32(P2P_GW_ADDR0, P2P_GW_ADDR1, P2P_GW_ADDR2, P2P_GW_ADDR3);
+	u32 netmask = CONCAT_TO_UINT32(P2P_NETMASK_ADDR0, P2P_NETMASK_ADDR1, P2P_NETMASK_ADDR2, P2P_NETMASK_ADDR3);
+	u32 gw = CONCAT_TO_UINT32(P2P_GW_ADDR0, P2P_GW_ADDR1, P2P_GW_ADDR2, P2P_GW_ADDR3);
 	LwIP_SetIP(0, addr, netmask, gw);
 
 	// start ap
@@ -89,7 +89,7 @@ int wifi_start_p2p_go(char *ssid, char *passphrase, u8 channel)
 	softAP_config.password_len = strlen(passphrase);
 	softAP_config.security_type = RTW_SECURITY_WPA2_AES_PSK;
 	softAP_config.channel = channel;
-	if (wifi_start_ap(&softAP_config) != RTW_SUCCESS) {
+	if (wifi_start_ap(&softAP_config) != RTK_SUCCESS) {
 		DiagPrintf("\n\rERROR: Operation failed!");
 		return -1;
 	}

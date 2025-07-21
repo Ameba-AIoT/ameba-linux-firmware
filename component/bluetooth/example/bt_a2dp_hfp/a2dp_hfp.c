@@ -1390,6 +1390,110 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		break;
 	}
 
+	case RTK_BT_AVRCP_EVT_ELEMENT_ATTR_INFO: {
+		uint8_t temp_buff[50];
+		const char *attr[] = {"", "Title:", "Artist:", "Album:", "Track:",
+							  "TotalTrack:", "Genre:", "PlayingTime:", "CoverArt:"
+							 };
+		rtk_bt_avrcp_element_attr_info_t *p_attr_t = (rtk_bt_avrcp_element_attr_info_t *)param;
+
+		if (p_attr_t->state == 0) {
+			BT_LOGA("[AVRCP] Get element attr information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_attr_t->num_of_attr; i ++) {
+				if (p_attr_t->attr[i].length) {
+					memset((void *)temp_buff, 0, 50);
+					if (RTK_BT_AVRCP_ELEM_ATTR_DEFAULT_COVER_ART == p_attr_t->attr[i].attribute_id) {
+						uint8_t image_handle[16] = {0};
+						for (uint8_t j = 0; j < p_attr_t->attr[i].length; j++) {
+							image_handle[2 * j + 1] = p_attr_t->attr[i].p_buf[j];
+						}
+						BT_LOGA("[AVRCP] Get cover art image handle ");
+						for (uint8_t i = 0; i < 16; i ++) {
+							BT_LOGA(" 0x%02x ", image_handle[i]);
+						}
+						BT_LOGA("\r\n");
+						continue;
+					} else {
+						uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
+						snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
+						BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+					}
+					osif_mem_free(p_attr_t->attr[i].p_buf);
+				}
+			}
+		} else {
+			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
+		}
+		if (p_attr_t->num_of_attr) {
+			osif_mem_free(p_attr_t->attr);
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_ATTRS_LIST_RSP: {
+		uint8_t temp_buff[10];
+		rtk_bt_avrcp_app_setting_attrs_list_t *p_list_t = (rtk_bt_avrcp_app_setting_attrs_list_t *)param;
+		const char *attr[] = {"", "EQ", "Repeat Mode", "Shuffle", "Scan"};
+
+		if (p_list_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings attrs information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
+				memset((void *)temp_buff, 0, 10);
+				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
+				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_VALUES_LIST_RSP: {
+		rtk_bt_avrcp_app_setting_values_list_t *p_values_t = (rtk_bt_avrcp_app_setting_values_list_t *)param;
+
+		if (p_values_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings values information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_values_t->bd_addr[5], p_values_t->bd_addr[4], p_values_t->bd_addr[3], p_values_t->bd_addr[2], p_values_t->bd_addr[1], p_values_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_values_t->num_of_value; i ++) {
+				BT_LOGA("[AVRCP] value 0x%02x \r\n", p_values_t->p_value[i]);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_GET_RSP: {
+		uint8_t temp_buff[20];
+		rtk_bt_avrcp_app_setting_get_rsp_t *p_rsp_t = (rtk_bt_avrcp_app_setting_get_rsp_t *)param;
+		const char *attr[] = {"", "EQ:", "Repeat Mode:", "Shuffle:", "Scan:"};
+
+		if (p_rsp_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings response information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
+				memset((void *)temp_buff, 0, 20);
+				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
+				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_COVER_ART_DATA_IND: {
+		rtk_bt_avrcp_cover_art_data_ind_t *p_data_t = (rtk_bt_avrcp_cover_art_data_ind_t *)param;
+
+		for (uint16_t i = 0; i < p_data_t->data_len; i ++) {
+			if (i % 10 == 0) {
+				BT_LOGA("\r\n");
+			}
+			BT_LOGA(" 0x%02x ", p_data_t->p_data[i]);
+		}
+		if (p_data_t->data_end) {
+			BT_LOGA("[AVRCP] Data End -> Get art cover successfully \r\n");
+		}
+		break;
+	}
+
 	case RTK_BT_AVRCP_EVT_ABSOLUTE_VOLUME_SET: {
 		rtk_bt_avrcp_absolute_volume_set_t *p_avrcp_absolute_volume_set_t = (rtk_bt_avrcp_absolute_volume_set_t *)param;
 		uint8_t volume = p_avrcp_absolute_volume_set_t->volume;
@@ -1980,7 +2084,7 @@ static uint16_t rtk_bt_hfp_cvsd_parse_decoder_struct(rtk_bt_hfp_codec_t *phfp_co
 		BT_LOGE("[HFP] bt audio track add fail \r\n");
 		return 1;
 	}
-	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, 1, 8000, 0);
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, 1, 8000, 0, 0x7f);
 	if (!hfp_demo_audio_record_hdl) {
 		BT_LOGE("[HFP] bt audio record add fail \r\n");
 		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl);
@@ -2058,7 +2162,7 @@ static void app_hfp_ring_alert_start(void)
 		BT_LOGE("[HFP] Create alert timer fail \r\n");
 		return;
 	}
-	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)44100, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
+	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)48000, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
 	if (!alert_track_hdl) {
 		BT_LOGE("[HFP]alert track init fail \r\n");
 		osif_timer_delete(&alert_timer);

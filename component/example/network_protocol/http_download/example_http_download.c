@@ -1,12 +1,4 @@
-#include "platform_autoconf.h"
-
-#include "platform_stdlib.h"
-#include "basic_types.h"
-#include "lwipconf.h"
-#include "rtw_wifi_defs.h"
-#include "wifi_conf.h"
 #include "lwip_netconf.h"
-
 
 #define SERVER_HOST    "176.34.62.248"
 #define SERVER_PORT    80
@@ -22,11 +14,8 @@ static void example_http_download_thread(void *param)
 
 	(void) param;
 
-	// Delay to wait for IP by DHCP
-	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
-		printf("Wait for WIFI connection ...\n");
-		rtos_time_delay_ms(2000);
-	}
+	// Delay to check successful WiFi connection and obtain of an IP address
+	LwIP_Check_Connectivity();
 
 	printf("\nExample: HTTP download\n");
 
@@ -34,15 +23,10 @@ static void example_http_download_thread(void *param)
 		printf("ERROR: socket\n");
 		goto exit;
 	} else {
-		int recv_timeout_ms = RECV_TO;
-#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	// lwip 1.5.0
 		struct timeval recv_timeout;
-		recv_timeout.tv_sec = recv_timeout_ms / 1000;
-		recv_timeout.tv_usec = recv_timeout_ms % 1000 * 1000;
+		recv_timeout.tv_sec = RECV_TO / 1000;
+		recv_timeout.tv_usec = (RECV_TO % 1000) * 1000;
 		setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
-#else	// lwip 1.4.1
-		setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout_ms, sizeof(recv_timeout_ms));
-#endif
 	}
 
 	server_addr.sin_family = AF_INET;
@@ -121,7 +105,7 @@ exit:
 
 void example_http_download(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"example_http_download_thread"), example_http_download_thread, NULL, 2048 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_http_download_thread"), example_http_download_thread, NULL, 2048 * 4, 1) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create failed", __FUNCTION__);
 	}
 }

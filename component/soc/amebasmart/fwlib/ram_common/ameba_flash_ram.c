@@ -14,7 +14,7 @@ void FLASH_TxCmd_InUserMode(u8 cmd, u8 DataPhaseLen, u8 *pData);
 void FLASH_UserMode_Enter(void);
 void FLASH_UserMode_Exit(void);
 
-#ifdef ARM_CORE_CM4
+#ifdef CONFIG_ARM_CORE_CM4
 SRAMDRAM_ONLY_TEXT_SECTION
 void FLASH_Write_IPC_Int(void *Data, u32 IrqStatus, u32 ChanNum)
 {
@@ -48,7 +48,7 @@ const IPC_INIT_TABLE ipc_flashpg_table[] = {
 		.USER_MSG_TYPE = IPC_USER_DATA,
 		.Rxfunc = FLASH_Write_IPC_Int,
 		.RxIrqData = (void *) NULL,
-		.Txfunc = IPC_TXHandler,
+		.Txfunc = NULL,
 		.TxIrqData = (void *) NULL,
 		.IPC_Direction = IPC_AP_TO_NP,
 		.IPC_Channel = IPC_A2N_FLASHPG_REQ
@@ -71,13 +71,13 @@ void FLASH_Write_Lock(void)
 	PrevIrqStatus = portSET_INTERRUPT_MASK_FROM_ISR();
 
 	/* Add This Code For XIP when ca32 Program Flah */
-#ifdef ARM_CORE_CA32
+#ifdef CONFIG_ARM_CORE_CA32
 	/*1. Close Core1 to avoid Core1 Access Flash */
 	vPortGateOtherCore();
 #ifdef CONFIG_XIP_FLASH
 	/*2. Sent IPC to KM4 */
 	IPC_MSG_STRUCT ipc_msg_temp;
-	memset(Flash_Sync_Flag, 0, sizeof(Flash_Sync_Flag));
+	_memset(Flash_Sync_Flag, 0, sizeof(Flash_Sync_Flag));
 	DCache_Clean((u32)Flash_Sync_Flag, sizeof(Flash_Sync_Flag));
 
 	ipc_msg_temp.msg_type = IPC_USER_POINT;
@@ -105,7 +105,7 @@ void FLASH_Write_Lock(void)
 SRAMDRAM_ONLY_TEXT_SECTION
 void FLASH_Write_Unlock(void)
 {
-#ifdef ARM_CORE_CA32
+#ifdef CONFIG_ARM_CORE_CA32
 #ifdef CONFIG_XIP_FLASH
 	/*1. Let KM4 Go */
 	Flash_Sync_Flag[0] = 0;
@@ -280,6 +280,16 @@ int  FLASH_WriteStream(u32 address, u32 len, u8 *pbuf)
 	u32 addr_end = (page_cnt == 1) ? (address + len) : (page_begin + 0x100);
 	u32 size = addr_end - addr_begin;
 
+	if (len == 0) {
+		RTK_LOGW(NOTAG, "function %s, data length is invalid (0) \r\n", __func__);
+		goto exit;
+	}
+
+	if (IS_FLASH_ADDR((u32)pbuf)) {
+		RTK_LOGE(NOTAG, "function %s, source address(%08x) can not be flash address\r\n", __func__, pbuf);
+		assert_param(0);
+	}
+
 	FLASH_Write_Lock();
 	while (page_cnt) {
 		FLASH_TxData(addr_begin, size, pbuf);
@@ -292,8 +302,11 @@ int  FLASH_WriteStream(u32 address, u32 len, u8 *pbuf)
 	}
 
 	DCache_Invalidate(SPI_FLASH_BASE + address, len);
+	/* Clean MMU cache */
+	RSIP_MMU_Cache_Clean();
 	FLASH_Write_Unlock();
 
+exit:
 	return 1;
 }
 
@@ -312,7 +325,7 @@ void FLASH_ClockSwitch(u32 Source, u32 Protection)
 	/* To avoid gcc warnings */
 	(void) Source;
 	(void) Protection;
-#if defined (ARM_CORE_CM0)
+#if defined (CONFIG_ARM_CORE_CM0)
 	u32 Temp = 0;
 	u32 timeout = 20;
 

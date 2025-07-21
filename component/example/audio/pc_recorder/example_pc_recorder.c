@@ -10,11 +10,11 @@
 
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#include "rtw_wifi_constants.h"
+#include "wifi_api.h"
 
 #include <dlist.h>
 
-extern int wifi_get_join_status(void);
+extern s32 wifi_get_join_status(u8 *join_status);
 
 #define PR_UART_TX			PA_25
 #define PR_UART_RX			PA_24
@@ -535,9 +535,9 @@ bool check_cjson(char *inbuf, int len)
 	}
 
 	if (left == right && (left != 0)) {
-		return _TRUE;
+		return TRUE;
 	}
-	return _FALSE;
+	return FALSE;
 }
 
 void pc_msg_process(msg_attrib_t *pattrib)
@@ -560,7 +560,7 @@ void pc_msg_process(msg_attrib_t *pattrib)
 		return;
 	}
 
-	if (check_cjson(tempbuf, datasize) == _FALSE) {
+	if (check_cjson(tempbuf, datasize) == FALSE) {
 		printf("[PC RECORDER INFO] invaild json\n");
 		return;
 	}
@@ -606,14 +606,14 @@ void pc_msg_process(msg_attrib_t *pattrib)
 			pattrib->url = rtos_mem_malloc(strlen(curl->valuestring) + 1);
 			memset(pattrib->url, 0x00, strlen(curl->valuestring) + 1);
 
-			strncpy((char *)pattrib->url, curl->valuestring, strlen(curl->valuestring));
+			memcpy(pattrib->url, curl->valuestring, strlen(curl->valuestring));
 			if (player_is_running) {
 				rtos_time_delay_ms(200);
 				printf("[PC RECORDER INFO] %s, Player is running\n", __func__);
 			} else {
 				pr_adapter.record_stop = 0; // add for play before start record
 				if (rtos_task_create(&playback_task, ((const char *)"playback_task"), pc_playback_task,
-									 pattrib, 8192 * 4, 2) != SUCCESS) {
+									 pattrib, 8192 * 4, 2) != RTK_SUCCESS) {
 					printf("\n\r%s rtos_task_create(playback_task) failed", __FUNCTION__);
 				}
 			}
@@ -820,7 +820,10 @@ void pc_playback_task(void *param)
 		printf("[PC RECORDER INFO] create socket: %d\n", server_fd);
 
 		int recv_timeout_ms = 5000;
-		setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout_ms, sizeof(recv_timeout_ms));
+		struct timeval tv;
+		tv.tv_sec  = recv_timeout_ms / 1000;
+		tv.tv_usec = (recv_timeout_ms % 1000) * 1000;
+		setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
 		server_addr.sin_family = AF_INET;
 		server_addr.sin_port = htons(80);
@@ -1052,12 +1055,12 @@ void pc_recorder_start(msg_attrib_t *pattrib)
 
 
 	if (rtos_task_create(&record_task, ((const char *)"pc_recorder_task"), pc_recorder_task,
-						 NULL, 1024 * 4, 9) != SUCCESS) {
+						 NULL, 1024 * 4, 9) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create(pc_recorder_task) failed", __FUNCTION__);
 	}
 #if PR_UART_USE_DMA_TX == 0
 	if (rtos_task_create(&tx_task, ((const char *)"pc_tx_task"), pc_tx_task,
-						 NULL, 1024 * 4, 3) != SUCCESS) {
+						 NULL, 1024 * 4, 3) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create(pc_tx_task) failed", __FUNCTION__);
 	}
 #endif
@@ -1066,10 +1069,11 @@ void pc_recorder_start(msg_attrib_t *pattrib)
 void pc_recorder_main(void *param)
 {
 	(void)param;
+	u8 join_status = RTW_JOINSTATUS_UNKNOWN;
 
 	rtos_time_delay_ms(1000);
 
-	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS))) {
+	while (!((wifi_get_join_status(&join_status) == RTK_SUCCESS)  && (join_status == RTW_JOINSTATUS_SUCCESS))) {
 		printf("Please connect to WIFI\n");
 		rtos_time_delay_ms(1000);
 	}
@@ -1098,7 +1102,7 @@ void pc_recorder_main(void *param)
 	RTAudioControl_SetAmplifierEnPin(PA_12);
 	RTAudioControl_SetHardwareVolume(0.6, 0.6);
 #endif
-	if (rtos_task_create(NULL, (char const *)"pc_rx_task", pc_rx_task, NULL, 2048 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, (char const *)"pc_rx_task", pc_rx_task, NULL, 2048 * 4, 1) != RTK_SUCCESS) {
 		printf("\n\r[%s] Create pc_rx_task failed", __FUNCTION__);
 	}
 
@@ -1107,7 +1111,7 @@ void pc_recorder_main(void *param)
 
 void example_pc_recorder(void)
 {
-	if (rtos_task_create(NULL, (char const *)"pr_main", pc_recorder_main, NULL, 2048 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, (char const *)"pr_main", pc_recorder_main, NULL, 2048 * 4, 1) != RTK_SUCCESS) {
 		printf("\n\r[%s] Create pr_main failed", __FUNCTION__);
 	}
 }

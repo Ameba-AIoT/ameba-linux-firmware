@@ -4,27 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#ifndef AT_INTF_UART_H
+#define AT_INTF_UART_H
+
 #include "ameba_soc.h"
 
-#define UART_DEV	UART2_DEV
-#define UART_BAUD	38400
+/* note: Selected UART shall not conflict with UART_BT, */
+/* e.g. UART3 in AmebaSmart/AmebaLite or UART2 in AmebaDplus */
+#define UART_DEV	UART0_DEV
 #define DMA_TX_BURST_SIZE	8
 
 #define POLL_LEN_MAX		16
 
-#if defined (CONFIG_AMEBASMART)
-#define UART_TX		_PB_22 // UART2 TX
-#define UART_RX		_PB_21 // UART2 RX
-#elif defined (CONFIG_AMEBALITE)
-/* fully programmable zone */
-#define UART_TX		_PA_28 // UART TX
-#define UART_RX		_PA_29 // UART RX
-#elif defined (CONFIG_AMEBADPLUS)
-/* fully programmable zone */
-#define UART_TX		_PA_26 // UART TX
-#define UART_RX		_PA_27 // UART RX
-#endif
+extern u32 UART_BAUD;
+extern u8 UART_TX;
+extern u8 UART_RX;
 
 _LONG_CALL_ void atio_uart_output(char *buf, int len);
-_LONG_CALL_ void atio_uart_init(void);
+_LONG_CALL_ int atio_uart_init(void);
 
+#endif /* AT_INTF_UART_H */

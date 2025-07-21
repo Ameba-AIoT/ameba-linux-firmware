@@ -1,6 +1,7 @@
 #ifndef _HTTPD_UTIL_H_
 #define _HTTPD_UTIL_H_
 
+#include "os_wrapper.h"
 #include "httpd.h"
 
 extern uint8_t httpd_debug;
@@ -8,22 +9,22 @@ extern uint8_t httpd_debug;
 #define httpd_log(...) \
 	do { \
 		if(httpd_debug) { \
-			rtos_critical_enter(); \
-			RTK_LOGS(NOTAG, "\n\r[HTTPD] "); \
-			RTK_LOGS(NOTAG, __VA_ARGS__); \
-			RTK_LOGS(NOTAG, "\n\r"); \
-			rtos_critical_exit(); \
+			rtos_critical_enter(RTOS_CRITICAL_NETWORK); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r[HTTPD] "); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, __VA_ARGS__); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r"); \
+			rtos_critical_exit(RTOS_CRITICAL_NETWORK); \
 		} \
 	} while(0)
 
 #define httpd_log_verbose(...) \
 	do { \
 		if(httpd_debug == HTTPD_DEBUG_VERBOSE) { \
-			rtos_critical_enter(); \
-			RTK_LOGS(NOTAG, "\n\r[HTTPD] "); \
-			RTK_LOGS(NOTAG, __VA_ARGS__); \
-			RTK_LOGS(NOTAG, "\n\r"); \
-			rtos_critical_exit(); \
+			rtos_critical_enter(RTOS_CRITICAL_NETWORK); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r[HTTPD] "); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, __VA_ARGS__); \
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r"); \
+			rtos_critical_exit(RTOS_CRITICAL_NETWORK); \
 		} \
 	} while(0)
 

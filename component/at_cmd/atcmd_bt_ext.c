@@ -4,13 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdio.h>
-#include <osif.h>
-#include <os_wrapper.h>
-#include <atcmd_service.h>
-#include <atcmd_bt_impl.h>
-#include <bt_utils.h>
-#include <bt_api_config.h>
+#include "atcmd_service.h"
+#include "atcmd_bt_impl.h"
+#include "bt_utils.h"
+#include "bt_api_config.h"
 
 #define BT_ATCMD_HELP   0  // decide whether open the usage of atcmd help
 
@@ -42,10 +39,14 @@ cmd_help_table_t mesh_gp_help_table[] = {{NULL,},};
 cmd_help_table_t mesh_sensor_help_table[] = {{NULL,},};
 cmd_help_table_t mesh_health_help_table[] = {{NULL,},};
 cmd_help_table_t mesh_rmt_help_table[] = {{NULL,},};
+cmd_help_table_t mesh_df_help_table[] = {{NULL,},};
+cmd_help_table_t mesh_sbr_help_table[] = {{NULL,},};
+cmd_help_table_t mesh_prb_help_table[] = {{NULL,},};
 #endif
 cmd_help_table_t a2dp_help_table[] = {{NULL,},};
 cmd_help_table_t avrcp_help_table[] = {{NULL,},};
 cmd_help_table_t spp_help_table[] = {{NULL,},};
+cmd_help_table_t rfc_help_table[] = {{NULL,},};
 
 cmd_help_table_t cmd_help_table[] = {
 	{
@@ -226,6 +227,26 @@ cmd_help_table_t cmd_help_table[] = {
 		"[subcmd] = <scan_start, scan_cap_get, link_open>",
 		mesh_rmt_help_table
 	},
+	{
+		"mesh_df",   "[AT+BTCMDHELP] mesh_df: BLE mesh directed forwarding model operation\n\r"
+		"usage: AT+BLEMESHDF=[sub_cmd],...\n\r"
+		"[subcmd] = <dfpdis, dfpsol, dfpdupt, mdu, dcss, dcg, dcs, pmg, pms, dtcg, dtcs, fta, ftd, \n\r"
+		"			 ftda, ftdd, ftdg, ftecg, fteg, wlg, wls, twpg, twps, peig, peis, dntg, dnts, \n\r"
+		"			 drrg, drrs, rssitg, rssits, dpg, dppg, dpps, pdtcg, pdtcs, dcntg, dcnts, dcrrg, dcrrs>",
+		mesh_df_help_table
+	},
+	{
+		"mesh_sbr",   "[AT+BTCMDHELP] mesh_sbr: BLE mesh subnet bridge model operation\n\r"
+		"usage: AT+BLEMESHSBR=[sub_cmd],...\n\r"
+		"[subcmd] = <sbg, sbs, bta, btr, bsg, btbg, btsg>",
+		mesh_sbr_help_table
+	},
+	{
+		"mesh_prb",   "[AT+BTCMDHELP] mesh_prb: BLE mesh private beacon model operation\n\r"
+		"usage: AT+BLEMESHPRB=[sub_cmd],...\n\r"
+		"[subcmd] = <prbg, prbs, pgpg, pgps, pnig, pnis>",
+		mesh_prb_help_table
+	},
 #endif
 #if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	{
@@ -245,6 +266,12 @@ cmd_help_table_t cmd_help_table[] = {
 		"usage: AT+BTSPP=[sub_cmd],..\n\r"
 		"[sub_cmd] = <conn, disconn, disconn_all, send_data, give_credits>",
 		spp_help_table
+	},
+	{
+		"rfc_cmd",    "[AT+BTCMDHELP] rfc_cmd: BT RFC operation\n\r"
+		"usage: AT+BTRFC=[sub_cmd],..\n\r"
+		"[sub_cmd] = <conn, disconn, send_data>",
+		rfc_help_table
 	},
 #endif /* RTK_BREDR_SUPPORT */
 	{NULL,},
@@ -310,6 +337,12 @@ cmd_help_table_t example_help_table[] = {
 		NULL
 	},
 	{
+		"rfc", "[AT+BTDEMO] rfc: run as a RFC demo\n\r"
+		"usage: AT+BTDEMO=rfc,[val]\n\r"
+		"[val] = <0-(disable), 1-(enable)>",
+		NULL
+	},
+	{
 		"hfp", "[AT+BTDEMO] hfp: run as a HFP hf(hand free))/ag(audio gate)\n\r"
 		"usage: AT+BTDEMO=hfp,[role][val]\n\r"
 		"[role] = <hf-(hand free), ag-(audio gate)>"
@@ -336,6 +369,27 @@ cmd_help_table_t vendor_help_table[] = {
 	{
 		"hci_debug_enable",     "[AT+BTVENDOR] hci_debug_enable: enable hci uart to external pin\n\r"
 		"usage: AT+BTVENDOR=hci_debug_enable\n\r",
+		NULL
+	},
+	{
+		"bt_debug_port",     "[AT+BTVENDOR] bt_debug_port: enable BT debug port to external pin\n\r"
+		"usage: AT+BTVENDOR=bt_debug_port,enable,[bt_sel],[type],{[mask]/[dbg_port_name]{,[pad_name]}}\n\r"
+		"[bt_sel] = <bt_vendor, bt_on>\n\r"
+		"[type] = <0-(mask), 1-(pad specified)>\n\r"
+		"[mask] = <0-0xFFFFFFFF(decimal or hexnum)>\n\r"
+		"[dbg_port_name] = <0-31(decimal or hexnum)>\n\r"
+		"[pad_name] = <string>\n\r"
+		"\n\r"
+		"usage: AT+BTVENDOR=bt_debug_port,shift,[original],[mapping]\n\r"
+		"[original] = <0-31(decimal or hexnum)>\n\r"
+		"[mapping] = <0-7(decimal or hexnum)>\n\r",
+		NULL
+	},
+	{
+		"bt_gpio",     "[AT+BTVENDOR] bt_gpio: enable BT GPIO to external pin\n\r"
+		"usage: AT+BTVENDOR=bt_gpio,[gpio_name]{,[pad_name]}\n\r"
+		"[gpio_name] = <0-MAX (decimal or hexnum)>\n\r"
+		"[pad_name] = <string>\n\r",
 		NULL
 	},
 	{
@@ -402,7 +456,7 @@ static int atcmd_bt_cmd_help(int argc, char *argv[])
 							  "usage: AT+BTCMDHELP=[cmd]\n\r"
 							  "       AT+BTCMDHELP=[cmd],[subcmd]\n\r"
 							  "[cmd] = <bt, ble_gap, br_gap, gattc, gatts, mesh_stack, mesh_data, mesh_config, mesh_goo, mesh_rmt\n\r"
-							  "			mesh_ll, mesh_lctl, mesh_lhsl, mesh_lxyl, mesh_llc, a2dp, avrcp, spp_cmd>\n\r"
+							  "			mesh_ll, mesh_lctl, mesh_lhsl, mesh_lxyl, mesh_llc, a2dp, avrcp, spp_cmd, rfc_cmd>\n\r"
 							  "[subcmd] = 'use AT+BTCMDHELP=[cmd] to show subcmds'";
 	atcmd_bt_help_common(argc, argv, "AT+BTCMDHELP", help_usage, cmd_help_table);
 	return 0;
@@ -413,7 +467,7 @@ static int atcmd_bt_example_help(int argc, char *argv[])
 	const char *help_usage =  "[AT+BTDEMO] help: show AT+BTDEMO cmds usage and description\n\r"
 							  "usage: AT+BTDEMO=help,[cmd]\n\r"
 							  "       AT+BTDEMO=help,[cmd],[subcmd]\n\r"
-							  "[cmd] = <central, peripheral, scatternet, provisioner, device, provisioner_scatternet, device_scatternet, a2dp, spp, hfp>\n\r"
+							  "[cmd] = <central, peripheral, scatternet, provisioner, device, provisioner_scatternet, device_scatternet, a2dp, spp, rfc, hfp>\n\r"
 							  "[subcmd] = 'use AT+BTDEMO=help,[cmd] to show subcmds'";
 	atcmd_bt_help_common(argc, argv, "AT+BTDEMO", help_usage, example_help_table);
 	return 0;
@@ -434,11 +488,9 @@ static int atcmd_bt_vendor_help(int argc, char *argv[])
 
 #define CMD_NAME_BT_DEMO         "+BTDEMO"
 #define CMD_NAME_BT_VENDOR       "+BTVENDOR"
-#define CMD_NAME_BT_TEST         "+BTTEST"
 #if defined(BT_ATCMD_HELP) && BT_ATCMD_HELP
 #define CMD_NAME_HELP            "+BTCMDHELP"
 #endif
-#define CMD_NAME_BT              "+BTENABLE"
 #define CMD_NAME_BLE_GAP         "+BLEGAP"
 #if defined(RTK_BLE_GATTS) && RTK_BLE_GATTS
 #define CMD_NAME_GATTS           "+BLEGATTS"
@@ -470,6 +522,10 @@ static int atcmd_bt_vendor_help(int argc, char *argv[])
 #define CMD_NAME_MESH_GP         "+BLEMESHGP"
 #define CMD_NAME_MESH_SENSOR     "+BLEMESHSENSOR"
 #define CMD_NAME_MESH_HEALTH     "+BLEMESHHEALTH"
+#define CMD_NAME_MESH_DF         "+BLEMESHDF"
+#define CMD_NAME_MESH_SBR        "+BLEMESHSBR"
+#define CMD_NAME_MESH_PRB        "+BLEMESHPRB"
+#define CMD_NAME_MESH_DFU        "+BLEMESHDFU"
 #endif /* RTK_BLE_MESH_SUPPORT */
 #if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 #define CMD_NAME_BR_GAP          "+BRGAP"
@@ -477,6 +533,7 @@ static int atcmd_bt_vendor_help(int argc, char *argv[])
 #define CMD_NAME_A2DP            "+BTA2DP"
 #define CMD_NAME_AVRCP           "+BTAVRCP"
 #define CMD_NAME_SPP             "+BTSPP"
+#define CMD_NAME_RFC             "+BTRFC"
 #define CMD_NAME_HID             "+BTHID"
 #define CMD_NAME_HFP             "+BTHFP"
 #define CMD_NAME_PBAP            "+BTPBAP"
@@ -487,13 +544,11 @@ static int atcmd_bt_vendor_help(int argc, char *argv[])
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 #define CMD_NAME_BAP             "+BLEBAP"
 #define CMD_NAME_CAP             "+BLECAP"
-#define CMD_NAME_PBP             "+BLEPBP"
 #define CMD_NAME_TMAP            "+BLETMAP"
 #define CMD_NAME_GMAP            "+BLEGMAP"
 #endif /* RTK_BLE_AUDIO_SUPPORT */
 
 static const cmd_table_t cmd_table[] = {
-	{CMD_NAME_BT,               atcmd_bt_device,                                2, 2},
 	{CMD_NAME_BLE_GAP,          atcmd_bt_le_gap,                                2, 21},
 #if defined(RTK_BLE_GATTS) && RTK_BLE_GATTS
 	{CMD_NAME_GATTS,            atcmd_bt_gatts,                                 3, 16},
@@ -507,7 +562,7 @@ static const cmd_table_t cmd_table[] = {
 	{CMD_NAME_MESH_DATA,        atcmd_bt_mesh_datatrans_model,                  5, 6},
 	{CMD_NAME_MESH_CONFIG,      atcmd_bt_mesh_config,                           3, 13},
 	{CMD_NAME_MESH_GOO,         atcmd_bt_mesh_generic_onoff,                    4, 9},
-	{CMD_NAME_MESH_RMT,         atcmd_bt_mesh_remote_prov_client_model,         4, 7},
+	{CMD_NAME_MESH_RMT,         atcmd_bt_mesh_remote_prov_client_model,         2, 7},
 	{CMD_NAME_MESH_LL,          atcmd_bt_mesh_light_lightness,                  4, 9},
 	{CMD_NAME_MESH_LCTL,        atcmd_bt_mesh_light_ctl,                        4, 11},
 	{CMD_NAME_MESH_LHSL,        atcmd_bt_mesh_light_hsl,                        4, 11},
@@ -525,13 +580,18 @@ static const cmd_table_t cmd_table[] = {
 	{CMD_NAME_MESH_GP,          atcmd_bt_mesh_generic_property,                 4, 8},
 	{CMD_NAME_MESH_SENSOR,      atcmd_bt_mesh_sensor,                           4, 14},
 	{CMD_NAME_MESH_HEALTH,      atcmd_bt_mesh_health,                           4, 7},
+	{CMD_NAME_MESH_DF,          atcmd_bt_mesh_df,                               4, 21},
+	{CMD_NAME_MESH_SBR,         atcmd_bt_mesh_sbr,                              4, 9},
+	{CMD_NAME_MESH_PRB,         atcmd_bt_mesh_prb,                              4, 6},
+	{CMD_NAME_MESH_DFU,         atcmd_bt_mesh_device_firmware_update,           3, 11},
 #endif  // end of RTK_BLE_MESH_SUPPORT
 #if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	{CMD_NAME_BR_GAP,           atcmd_bt_br_gap,                                2, 13},
 	{CMD_NAME_SDP,              atcmd_bt_sdp_cmd,                               1, 3},
 	{CMD_NAME_A2DP,             atcmd_bt_a2dp_cmd,                              1, 8},
-	{CMD_NAME_AVRCP,            atcmd_bt_avrcp_cmd,                             1, 4},
+	{CMD_NAME_AVRCP,            atcmd_bt_avrcp_cmd,                             1, 5},
 	{CMD_NAME_SPP,              atcmd_bt_spp_cmd,                               1, 8},
+	{CMD_NAME_RFC,              atcmd_bt_rfc_cmd,                               1, 8},
 	{CMD_NAME_HID,              atcmd_bt_hid_cmd,                               1, 23},
 	{CMD_NAME_HFP,              atcmd_bt_hfp_cmd,                               1, 8},
 	{CMD_NAME_PBAP,             atcmd_bt_pbap_cmd,                              1, 8},
@@ -540,17 +600,12 @@ static const cmd_table_t cmd_table[] = {
 	{CMD_NAME_ISO,              atcmd_bt_iso_cmd,                               1, 9},
 #endif
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
-	{CMD_NAME_BAP,              atcmd_bt_bap_cmd,                               3, 10},
-#if defined(CONFIG_BT_CAP_SUPPORT) && CONFIG_BT_CAP_SUPPORT
+	{CMD_NAME_BAP,              atcmd_bt_bap_cmd,                               2, 10},
 	{CMD_NAME_CAP,              atcmd_bt_cap_cmd,                               3, 10},
-#endif
-#if defined(CONFIG_BT_PBP_SUPPORT) && CONFIG_BT_PBP_SUPPORT
-	{CMD_NAME_PBP,              atcmd_bt_pbp_cmd,                               3, 10},
-#endif
-#if (defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT)
+#if (defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT)
 	{CMD_NAME_TMAP,             atcmd_bt_tmap_cmd,                              3, 10},
 #endif
-#if defined(CONFIG_BT_GMAP_SUPPORT) && CONFIG_BT_GMAP_SUPPORT
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
 	{CMD_NAME_GMAP,             atcmd_bt_gmap_cmd,                              3, 10},
 #endif
 #endif
@@ -567,6 +622,9 @@ static const cmd_table_t example_table[] = {
 #if defined(CONFIG_BT_PERIPHERAL) && CONFIG_BT_PERIPHERAL
 	{"peripheral",       atcmd_bt_peripheral,       2, 2},
 #endif
+#if defined(CONFIG_BT_HOGP) && CONFIG_BT_HOGP
+	{"hogp",       atcmd_bt_hogp_gamepad,           2, 2},
+#endif
 #if defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL
 	{"central",          atcmd_bt_central,          2, 2},
 #endif
@@ -575,6 +633,12 @@ static const cmd_table_t example_table[] = {
 #endif
 #if defined(CONFIG_BT_THROUGHPUT) && CONFIG_BT_THROUGHPUT
 	{"throughput",       atcmd_bt_throughput,       2, 13},
+#endif
+#if defined(CONFIG_BT_OTA_CENTRAL) && CONFIG_BT_OTA_CENTRAL
+	{"ota_central",      atcmd_bt_ota_central,      2, 2},
+#endif
+#if defined(CONFIG_BT_OTA_PERIPHERAL) && CONFIG_BT_OTA_PERIPHERAL
+	{"ota_peripheral",   atcmd_bt_ota_peripheral,   2, 2},
 #endif
 #if defined(CONFIG_BT_MESH_PROVISIONER) && CONFIG_BT_MESH_PROVISIONER
 	{"provisioner",      atcmd_bt_mesh_provisioner, 2, 2},
@@ -609,11 +673,17 @@ static const cmd_table_t example_table[] = {
 #if defined(CONFIG_BT_A2DP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_LE_AUDIO_PBP
 	{"a2dp_pbp",         atcmd_bt_a2dp_pbp,         2, 2},
 #endif
+#if defined(CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP
+	{"a2dp_hfp_pbp",     atcmd_bt_a2dp_hfp_pbp,     2, 2},
+#endif
 #if defined(CONFIG_BT_A2DP_LE_AUDIO_TMAP) && CONFIG_BT_A2DP_LE_AUDIO_TMAP
 	{"a2dp_tmap",        atcmd_bt_a2dp_tmap,        3, 3},
 #endif
 #if defined(CONFIG_BT_SPP) && CONFIG_BT_SPP
 	{"spp",              atcmd_bt_spp,              3, 6},
+#endif
+#if defined(CONFIG_BT_RFC) && CONFIG_BT_RFC
+	{"rfc",              atcmd_bt_rfc,              2, 3},
 #endif
 #if defined(CONFIG_BT_HID) && CONFIG_BT_HID
 	{"hid",              atcmd_bt_hid,              2, 3},
@@ -624,28 +694,30 @@ static const cmd_table_t example_table[] = {
 #if defined(CONFIG_BT_A2DP_HFP) && CONFIG_BT_A2DP_HFP
 	{"a2dp_hfp",         atcmd_bt_a2dp_hfp,         3, 3},
 #endif
-#if defined(CONFIG_BT_BAP_SUPPORT) && CONFIG_BT_BAP_SUPPORT
-	{"bap",              atcmd_bt_bap,              4, 4},
+#if defined(CONFIG_BT_LE_AUDIO_GENERIC_DEMO) && CONFIG_BT_LE_AUDIO_GENERIC_DEMO
+	{"generic_le_audio_demo", atcmd_bt_generic_le_audio_demo, 3, 4},
 #endif
-#if defined(CONFIG_BT_CAP_SUPPORT) && CONFIG_BT_CAP_SUPPORT
-	{"cap",              atcmd_bt_cap,              3, 3},
+#if defined(CONFIG_BT_PBP) && CONFIG_BT_PBP
+	{"pbp",              atcmd_bt_pbp,              3, 4},
 #endif
-#if defined(CONFIG_BT_PBP_SUPPORT) && CONFIG_BT_PBP_SUPPORT
-	{"pbp",              atcmd_bt_pbp,              3, 3},
+#if defined(CONFIG_BT_TMAP) && CONFIG_BT_TMAP
+	{"tmap",             atcmd_bt_tmap,             3, 4},
 #endif
-#if defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT
-	{"tmap",             atcmd_bt_tmap,             3, 3},
-#endif
-#if defined(CONFIG_BT_GMAP_SUPPORT) && CONFIG_BT_GMAP_SUPPORT
-	{"gmap",             atcmd_bt_gmap,             3, 3},
+#if defined(CONFIG_BT_GMAP) && CONFIG_BT_GMAP
+	{"gmap",             atcmd_bt_gmap,             3, 4},
 #endif
 #if defined(CONFIG_BT_PTS) && CONFIG_BT_PTS
 	{"pts",              atcmd_bt_pts,              2, 4},
 #endif
-	// {"bt_config",        atcmd_bt_config,           2, 2},
 	// {"demo",             atcmd_bt_demo,             1, 1},
 #if defined(CONFIG_BT_TRANSFER_MODULE) && CONFIG_BT_TRANSFER_MODULE
-	{"transfer_module",  atcmd_bt_transfer_module,  2, 4},
+	{"transfer_module",  atcmd_bt_transfer_module,  2, 6},
+#endif
+#if defined(CONFIG_BT_WIFIMATE_DEVICE) && CONFIG_BT_WIFIMATE_DEVICE
+	{"ble_wifimate_device", atcmd_bt_wifimate_device, 2, 3},
+#endif
+#if defined(CONFIG_BT_WIFIMATE_CONFIGURATOR) && CONFIG_BT_WIFIMATE_CONFIGURATOR
+	{"ble_wifimate_configurator", atcmd_bt_wifimate_configurator, 2, 6},
 #endif
 	{NULL,},
 };
@@ -654,12 +726,19 @@ static const cmd_table_t vendor_table[] = {
 #if defined(BT_ATCMD_HELP) && BT_ATCMD_HELP
 	{"help",             atcmd_bt_vendor_help,      1, 3},
 #endif
+	{"bt_enable",        atcmd_bt_enable,           2, 2},
+	{"bt_power",         atcmd_bt_power,            2, 2},
 	{"tx_power_gain",    atcmd_bt_tx_power_gain,    2, 5},
 	{"hci_debug_enable", atcmd_bt_hci_debug_enable, 1, 1},
+	{"bt_debug_port",    atcmd_bt_debug_port,       4, 6},
+	{"bt_gpio",          atcmd_bt_gpio,             2, 3},
 	{"sleep",            atcmd_bt_sleep_mode,       2, 2},
 	/*{"ant",              atcmd_bt_ant,              2, 2},*/
 	{"tx_power",         atcmd_bt_set_tx_power,     4, 5},
 	{"sof",              atcmd_bt_sof_eof_ind,      2, 3},
+#if ((defined(CONFIG_BT_INIC) && CONFIG_BT_INIC))
+	{"remote_wakeup",    atcmd_bt_remote_wakeup,    1, 1},
+#endif
 	{NULL,},
 };
 
@@ -685,13 +764,13 @@ static void atcmd_bt_cmd(void *arg, char *cmd_name, char *tag)
 	if (ret == 0) {
 		BT_AT_PRINTOK();
 	} else {
-		BT_AT_PRINTERROR();
+		BT_AT_PRINTERROR(ret);
 	}
 	return;
 
 exit:
 	BT_LOGA("%s Info: Use '%s' to help\r\n", tag, "AT+BTCMDHELP");
-	BT_AT_PRINTERROR();
+	BT_AT_PRINTERROR(BT_AT_ERR_PARAM_INVALID);
 }
 
 static inline int atcmd_bt_example(int argc, char *argv[])
@@ -725,13 +804,13 @@ static void fBTDEMO(void *arg)
 	if (ret == 0) {
 		BT_AT_PRINTOK();
 	} else {
-		BT_AT_PRINTERROR();
+		BT_AT_PRINTERROR(ret);
 	}
 	return;
 
 exit:
 	BT_LOGA("[AT+BTDEMO] Info: Use 'AT+BTDEMO=help' to help\r\n");
-	BT_AT_PRINTERROR();
+	BT_AT_PRINTERROR(BT_AT_ERR_PARAM_INVALID);
 }
 
 static inline void fBLEGAP(void *arg)
@@ -775,6 +854,11 @@ static inline void fBTSPP(void *arg)
 	atcmd_bt_cmd(arg, CMD_NAME_SPP, "[AT+BTSPP]");
 }
 
+static inline void fBTRFC(void *arg)
+{
+	atcmd_bt_cmd(arg, CMD_NAME_RFC, "[AT+BTRFC]");
+}
+
 static inline void fBTHID(void *arg)
 {
 	atcmd_bt_cmd(arg, CMD_NAME_HID, "[AT+BTHID]");
@@ -806,33 +890,24 @@ static inline void fBLEBAP(void *arg)
 	atcmd_bt_cmd(arg, CMD_NAME_BAP, "[AT+BLEBAP]");
 }
 
-#if defined(CONFIG_BT_CAP_SUPPORT) && CONFIG_BT_CAP_SUPPORT
 static inline void fBLECAP(void *arg)
 {
 	atcmd_bt_cmd(arg, CMD_NAME_CAP, "[AT+BLECAP]");
 }
-#endif /* CONFIG_BT_CAP_SUPPORT */
 
-#if defined(CONFIG_BT_PBP_SUPPORT) && CONFIG_BT_PBP_SUPPORT
-static inline void fBLEPBP(void *arg)
-{
-	atcmd_bt_cmd(arg, CMD_NAME_PBP, "[AT+BLEPBP]");
-}
-#endif /* CONFIG_BT_PBP_SUPPORT */
-
-#if (defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT)
+#if (defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT)
 static inline void fBLETMAP(void *arg)
 {
 	atcmd_bt_cmd(arg, CMD_NAME_TMAP, "[AT+BLETMAP]");
 }
-#endif /* CONFIG_BT_TMAP_SUPPORT */
+#endif /* RTK_BLE_AUDIO_TMAP_SUPPORT */
 
-#if defined(CONFIG_BT_GMAP_SUPPORT) && CONFIG_BT_GMAP_SUPPORT
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
 static inline void fBLEGMAP(void *arg)
 {
 	atcmd_bt_cmd(arg, CMD_NAME_GMAP, "[AT+BLEGMAP]");
 }
-#endif /* CONFIG_BT_GMAP_SUPPORT */
+#endif /* RTK_BLE_AUDIO_GMAP_SUPPORT */
 
 #endif /* RTK_BLE_AUDIO_SUPPORT */
 
@@ -948,12 +1023,27 @@ static inline void fBLEMESHHEALTH(void *arg)
 	atcmd_bt_cmd(arg, CMD_NAME_MESH_HEALTH, "[AT+BLEMESHHEALTH]");
 }
 
-#endif /* RTK_BLE_MESH_SUPPORT */
-
-static inline void fBTDEVICE(void *arg)
+static inline void fBLEMESHDF(void *arg)
 {
-	atcmd_bt_cmd(arg, CMD_NAME_BT, "[AT+BTENABLE]");
+	atcmd_bt_cmd(arg, CMD_NAME_MESH_DF, "[AT+BLEMESHDF]");
 }
+
+static inline void fBLEMESHSBR(void *arg)
+{
+	atcmd_bt_cmd(arg, CMD_NAME_MESH_SBR, "[AT+BLEMESHSBR]");
+}
+
+static inline void fBLEMESHPRB(void *arg)
+{
+	atcmd_bt_cmd(arg, CMD_NAME_MESH_PRB, "[AT+BLEMESHPRB]");
+}
+
+static inline void fBLEMESHDFU(void *arg)
+{
+	atcmd_bt_cmd(arg, CMD_NAME_MESH_DFU, "[AT+BLEMESHDFU]");
+}
+
+#endif /* RTK_BLE_MESH_SUPPORT */
 
 static inline void fBTGAP(void *arg)
 {
@@ -973,7 +1063,7 @@ static inline void fBTCMDHELP(void *arg)
 		argc = parse_param(arg, argv);
 		if (argc < 1 || argc > 3) {
 			BT_LOGE("[AT+BTCMDHELP] Error: Wrong input args number!\r\n");
-			BT_AT_PRINTERROR();
+			BT_AT_PRINTERROR(BT_AT_ERR_PARAM_INVALID);
 			return;
 		}
 
@@ -983,7 +1073,7 @@ static inline void fBTCMDHELP(void *arg)
 	if (ret == 0) {
 		BT_AT_PRINTOK();
 	} else {
-		BT_AT_PRINTERROR();
+		BT_AT_PRINTERROR(ret);
 	}
 	return;
 }
@@ -1010,58 +1100,13 @@ static void fBTVENDOR(void *arg)
 	if (ret == 0) {
 		BT_AT_PRINTOK();
 	} else {
-		BT_AT_PRINTERROR();
+		BT_AT_PRINTERROR(ret);
 	}
 	return;
 
 exit:
 	BT_LOGA("[AT+BTVENDOR] Info: Use 'AT+BTVENDOR=help' to help\r\n");
-	BT_AT_PRINTERROR();
-}
-
-_WEAK int rtk_bt_verify(int param_num, int *param)
-{
-	(void)param_num;
-	(void)param;
-
-	BT_LOGE("[ATBT] Error: rtk_bt_verify is not compiled\r\n");
-	return 0;
-}
-
-_WEAK int rtk_bt_get_verify_cmd_index(char *cmd_str)
-{
-	(void)cmd_str;
-
-	BT_LOGE("[ATBT] Error: rtk_bt_get_verify_cmd_index is not compiled\r\n");
-	return 0;
-}
-
-static void fBTTEST(void *arg)
-{
-	int argc = 0;
-	char *argv[MAX_ARGC] = {0};
-	argc = parse_param(arg, argv);
-	int param[20] = {0};
-	int param_num = argc - 1;
-
-	if (param_num < 1) {
-		BT_LOGE("[AT+BTTEST] Error: No input args number!\r\n");
-		return;
-	}
-
-	char *cmd_str = argv[1];
-	param[0] = rtk_bt_get_verify_cmd_index(cmd_str);
-	if (0xFFFF == param[0]) {
-		return;
-	}
-
-	BT_LOGA("[AT+BTTEST] %s ", cmd_str);
-	for (int i = 1; i < param_num; i++) {
-		param[i] = str_to_int(argv[i + 1]);
-		BT_LOGA("%d ", param[i]);
-	}
-	BT_LOGA("\r\n");
-	rtk_bt_verify(param_num, param);
+	BT_AT_PRINTERROR(BT_AT_ERR_PARAM_INVALID);
 }
 
 static log_item_t at_bt_items[] = {
@@ -1069,7 +1114,6 @@ static log_item_t at_bt_items[] = {
 #if defined(BT_ATCMD_HELP) && BT_ATCMD_HELP
 	{CMD_NAME_HELP,             fBTCMDHELP,           {NULL, NULL}},
 #endif
-	{CMD_NAME_BT,               fBTDEVICE,            {NULL, NULL}},
 	{CMD_NAME_BLE_GAP,          fBLEGAP,              {NULL, NULL}},
 #if defined(RTK_BLE_GATTS) && RTK_BLE_GATTS
 	{CMD_NAME_GATTS,            fBLEGATTS,            {NULL, NULL}},
@@ -1084,6 +1128,7 @@ static log_item_t at_bt_items[] = {
 	{CMD_NAME_A2DP,             fBTA2DP,              {NULL, NULL}},
 	{CMD_NAME_AVRCP,            fBTAVRCP,             {NULL, NULL}},
 	{CMD_NAME_SPP,              fBTSPP,               {NULL, NULL}},
+	{CMD_NAME_RFC,              fBTRFC,               {NULL, NULL}},
 	{CMD_NAME_HID,              fBTHID,               {NULL, NULL}},
 	{CMD_NAME_HFP,              fBTHFP,               {NULL, NULL}},
 	{CMD_NAME_PBAP,             fBTPBAP,              {NULL, NULL}},
@@ -1093,16 +1138,11 @@ static log_item_t at_bt_items[] = {
 #endif
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 	{CMD_NAME_BAP,              fBLEBAP,              {NULL, NULL}},
-#if defined(CONFIG_BT_CAP_SUPPORT) && CONFIG_BT_CAP_SUPPORT
 	{CMD_NAME_CAP,              fBLECAP,              {NULL, NULL}},
-#endif
-#if defined(CONFIG_BT_PBP_SUPPORT) && CONFIG_BT_PBP_SUPPORT
-	{CMD_NAME_PBP,              fBLEPBP,              {NULL, NULL}},
-#endif
-#if (defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT)
+#if (defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT)
 	{CMD_NAME_TMAP,             fBLETMAP,             {NULL, NULL}},
 #endif
-#if defined(CONFIG_BT_GMAP_SUPPORT) && CONFIG_BT_GMAP_SUPPORT
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
 	{CMD_NAME_GMAP,             fBLEGMAP,             {NULL, NULL}},
 #endif
 #endif /* RTK_BLE_AUDIO_SUPPORT */
@@ -1129,34 +1169,48 @@ static log_item_t at_bt_items[] = {
 	{CMD_NAME_MESH_GP,          fBLEMESHGP,           {NULL, NULL}},
 	{CMD_NAME_MESH_SENSOR,      fBLEMESHSENSOR,       {NULL, NULL}},
 	{CMD_NAME_MESH_HEALTH,      fBLEMESHHEALTH,       {NULL, NULL}},
+	{CMD_NAME_MESH_DF,          fBLEMESHDF,           {NULL, NULL}},
+	{CMD_NAME_MESH_SBR,         fBLEMESHSBR,          {NULL, NULL}},
+	{CMD_NAME_MESH_PRB,         fBLEMESHPRB,          {NULL, NULL}},
+	{CMD_NAME_MESH_DFU,         fBLEMESHDFU,          {NULL, NULL}},
 #endif /* RTK_BLE_MESH_SUPPORT */
 	{CMD_NAME_BT_VENDOR,        fBTVENDOR,            {NULL, NULL}},
-	{CMD_NAME_BT_TEST,          fBTTEST,              {NULL, NULL}},
 };
 
 /* BT atcmd as a part of AT command "AT+LIST". */
 void print_bt_ext_at(void)
 {
 #if ((defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED) && (defined(CONFIG_MP_SHRINK) && CONFIG_MP_SHRINK)) || \
-    ((!defined(CONFIG_MP_INCLUDED) || !CONFIG_MP_INCLUDED) && (defined(CONFIG_BT_EXCLUDE_AT_COMMAND) && CONFIG_BT_EXCLUDE_AT_COMMAND))
+    ((!defined(CONFIG_MP_INCLUDED) || !CONFIG_MP_INCLUDED) && (defined(CONFIG_BT_EXCLUDE_AT_COMMAND) && CONFIG_BT_EXCLUDE_AT_COMMAND)) || \
+    ((defined(CONFIG_BT_INIC) && CONFIG_BT_INIC))
 	//Print nothing
+#else
+
+#if (defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL)
+	at_printf("AT+BTDEMO\r\n");
+	at_printf("AT+BLEGAP\r\n");
+	at_printf("AT+BLEGATTS\r\n");
+	at_printf("AT+BLEGATTC\r\n");
 #else
 	int index;
 	int num = 0;
 
 	num = sizeof(at_bt_items) / sizeof(at_bt_items[0]);
 	for (index = 0; index < num; index++) {
-		if (0 != strcmp(CMD_NAME_BT_TEST, at_bt_items[index].log_cmd)) {
+		if (0 != strcmp(CMD_NAME_BT_VENDOR, at_bt_items[index].log_cmd)) {
 			at_printf("AT%s\r\n", at_bt_items[index].log_cmd);
 		}
 	}
+#endif //CONFIG_ATCMD_HOST_CONTROL
+
 #endif
 }
 
 void at_bt_init(void)
 {
 #if ((defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED) && (defined(CONFIG_MP_SHRINK) && CONFIG_MP_SHRINK)) || \
-    ((!defined(CONFIG_MP_INCLUDED) || !CONFIG_MP_INCLUDED) && (defined(CONFIG_BT_EXCLUDE_AT_COMMAND) && CONFIG_BT_EXCLUDE_AT_COMMAND))
+    ((!defined(CONFIG_MP_INCLUDED) || !CONFIG_MP_INCLUDED) && (defined(CONFIG_BT_EXCLUDE_AT_COMMAND) && CONFIG_BT_EXCLUDE_AT_COMMAND)) || \
+    ((defined(CONFIG_BT_INIC) && CONFIG_BT_INIC))
 	(void)at_bt_items;
 #else
 	atcmd_service_add_table(at_bt_items, sizeof(at_bt_items) / sizeof(at_bt_items[0]));

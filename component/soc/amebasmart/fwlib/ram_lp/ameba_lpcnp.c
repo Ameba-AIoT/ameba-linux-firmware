@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "LPCNP";
+static const char *const TAG = "LPCNP";
 u32 NPSleepTick = 0;
 u32 np_sleep_type;
 u32 np_sleep_timeout = 0xffffffff;
@@ -42,7 +42,7 @@ u32 FLASH_CalibrationNewCmd(u32 NewStatus)
 
 	HAL_WRITE32(SYSTEM_CTRL_BASE_HP, REG_HSYS_SPIC_CTRL, temp);
 
-	return _TRUE;
+	return TRUE;
 }
 
 SRAM_ONLY_TEXT_SECTION
@@ -747,11 +747,7 @@ void np_clk_gate_ctrl(void)
 
 	/* Disable KM4/HPlatform clock */
 	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKE_GRP0);
-#if defined(CONFIG_CLINTWOOD ) && CONFIG_CLINTWOOD
-	Rtemp &= (~(APBPeriph_NP_CLOCK));
-#else
 	Rtemp &= (~(APBPeriph_NP_CLOCK | APBPeriph_HPLFM_CLOCK));
-#endif
 	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKE_GRP0, Rtemp);
 
 	if (ps_config.km0_audio_vad_on == TRUE) {
@@ -772,13 +768,11 @@ void np_clk_gate_ctrl(void)
 		PLL->PLL_AUX_BG |= PLL_BIT_POW_I;
 	}
 
-#ifndef CONFIG_CLINTWOOD
 	if (!SWR_In_BST_MODE()) {
 		/* sys req pfm mode when only km0 an in normal mode*/
 		SWR_PFM_MODE_Set(ENABLE);
 
 	}
-#endif
 }
 
 void np_clk_wake_ctrl(void)
@@ -912,7 +906,7 @@ void np_power_gate(void)
 	}
 
 	if (ps_config.km0_tickles_debug) {
-		RTK_LOGD(TAG, "M4G\n");
+		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPG\n");
 	}
 	/* poll KM4 clock gate */
 	while (1) {
@@ -949,12 +943,13 @@ void np_power_wake(void)
 		i++;
 	}
 
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGD(TAG, "M4W\n");
-	}
 	pmu_acquire_wakelock(PMU_KM4_RUN);
 
 	np_power_wake_ctrl();
+
+	if (ps_config.km0_tickles_debug) {
+		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPW\n");
+	}
 }
 
 void np_clock_gate(void)
@@ -965,9 +960,6 @@ void np_clock_gate(void)
 		return;
 	}
 
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGD(TAG, "M4CG\n");
-	}
 	/* poll KM4 clock gate */
 	while (1) {
 		temp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HPLAT_STATUS);	/*get KM4 sleep status*/
@@ -980,7 +972,7 @@ void np_clock_gate(void)
 
 
 	if (ps_config.km0_tickles_debug) {
-		RTK_LOGD(TAG, "M4CG-\n");
+		RTK_LOGS(TAG, RTK_LOG_DEBUG, "NPCG\n");
 	}
 
 	pmu_release_wakelock(PMU_KM4_RUN);
@@ -1014,7 +1006,10 @@ void np_clock_on(void)
 
 	/* tell KM4 wake */
 	asm volatile("sev");
-	RTK_LOGI(TAG, "M4CW-\n");
+
+	if (ps_config.km0_tickles_debug) {
+		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPCW\n");
+	}
 }
 
 u32 ap_clk_status_on(void)
@@ -1036,10 +1031,10 @@ u32 ap_status_on(void)
 	}
 }
 
-u32 np_suspend(u32 type)
+int np_suspend(u32 type)
 {
 	u32 Rtemp;
-	u32 ret = _SUCCESS;
+	int ret = RTK_SUCCESS;
 
 	HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_NP_STATUS_SW,
 			   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_NP_STATUS_SW) & (~LSYS_BIT_NP_RUNNING));
@@ -1058,11 +1053,6 @@ u32 np_suspend(u32 type)
 	NVIC_ClearPendingIRQ(NP_WAKE_IRQ);
 	InterruptEn(NP_WAKE_IRQ, 10);
 
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-	NVIC_ClearPendingIRQ(WL_PROTOCOL_IRQ);
-	irq_enable(WL_PROTOCOL_IRQ);
-#endif
-
 	return ret;
 }
 
@@ -1071,9 +1061,7 @@ void np_resume(void)
 	if (np_status_on()) {
 		return;
 	}
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-	irq_disable(WL_PROTOCOL_IRQ);
-#endif
+
 	pmu_acquire_wakelock(PMU_KM4_RUN);
 	pmu_acquire_deepwakelock(PMU_KM4_RUN);
 
@@ -1109,9 +1097,9 @@ void np_tickless_ipc_int(UNUSED_WARN_DIS void *Data, UNUSED_WARN_DIS u32 IrqStat
 	if (pmu_ready_to_dsleep()) {
 		RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
 		if (psleep_param->sleep_time) {
-			SOCPS_AONTimerClearINT();
-			SOCPS_AONTimer(psleep_param->sleep_time);
-			SOCPS_AONTimerINT_EN(ENABLE);
+			AONTimer_ClearINT();
+			AONTimer_Setting(psleep_param->sleep_time);
+			AONTimer_INT(ENABLE);
 		}
 		SWR_MEM(DISABLE);
 		SWR_AUDIO(DISABLE);
@@ -1146,22 +1134,14 @@ void np_tickless_ipc_int(UNUSED_WARN_DIS void *Data, UNUSED_WARN_DIS u32 IrqStat
 		}
 	}
 
-#if defined(CONFIG_CLINTWOOD ) && CONFIG_CLINTWOOD
-	/* pfm req immediately when KM4 enter wfe */
-	if (!SWR_In_BST_MODE()) {
-		SWR_PFM_MODE_Set(ENABLE);
-
-	}
-#endif
-
 	switch (psleep_param->sleep_type) {
 	case SLEEP_PG:
-		if (_SUCCESS == np_suspend(SLEEP_PG)) {
+		if (RTK_SUCCESS == np_suspend(SLEEP_PG)) {
 			pmu_set_sleep_type(SLEEP_PG);
 		}
 		break;
 	case SLEEP_CG:
-		if (_SUCCESS == np_suspend(SLEEP_CG)) {
+		if (RTK_SUCCESS == np_suspend(SLEEP_CG)) {
 			pmu_set_sleep_type(SLEEP_CG);
 			//pmu_set_sysactive_time(2);
 		}

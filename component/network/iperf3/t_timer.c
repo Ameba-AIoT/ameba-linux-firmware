@@ -32,7 +32,6 @@
 #include <sys/time.h>
 
 #include "platform_stdlib.h"
-#include "basic_types.h"
 
 #include "timer.h"
 
@@ -91,7 +90,7 @@ EXIT:
 
 void example_timer(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"timer_thread"), timer_thread, NULL, 524 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"timer_thread"), timer_thread, NULL, 524 * 4, 1) != RTK_SUCCESS) {
 		printf("\n\r%s rtos_task_create(timer_thread) failed", __FUNCTION__);
 	}
 }

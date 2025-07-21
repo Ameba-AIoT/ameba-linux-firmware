@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "PMC";
+static const char *const TAG = "PMC";
 _OPTIMIZE_NONE_
 void SOCPS_SleepPG(void)
 {
@@ -40,9 +40,7 @@ void SOCPS_SleepCG(void)
 {
 
 	u32 nDeviceIdOffset = 0;
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-	irq_disable(WL_PROTOCOL_IRQ);
-#endif
+
 	/* exec sleep hook functions */
 	nDeviceIdOffset = pmu_exec_sleep_hook_funs();
 	if (nDeviceIdOffset != PMU_MAX) {
@@ -59,9 +57,6 @@ void SOCPS_SleepCG(void)
 
 	/* exec sleep hook functions */
 	pmu_exec_wakeup_hook_funs(PMU_MAX);
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-	irq_enable(WL_PROTOCOL_IRQ);
-#endif
 }
 /**
   *  @brief Get dslp wake status.

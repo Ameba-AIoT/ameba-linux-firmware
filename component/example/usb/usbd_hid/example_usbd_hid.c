@@ -1,11 +1,8 @@
-/**
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
-
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /* Includes ------------------------------------------------------------------ */
 
@@ -18,13 +15,13 @@
 #include "example_usbd_hid.h"
 
 /* Private defines -----------------------------------------------------------*/
-static const char *TAG = "HID";
+static const char *const TAG = "HID";
 // This configuration is used to enable a thread to check hotplug event
 // and reset USB stack to avoid memory leak, only for example.
 #define CONFIG_USBD_HID_HOTPLUG						1
 
 // USB speed
-#ifdef CONFIG_USB_FS
+#ifdef CONFIG_SUPPORT_USB_FS_ONLY
 #define CONFIG_USBD_HID_SPEED						USB_SPEED_FULL
 #else
 #define CONFIG_USBD_HID_SPEED						USB_SPEED_HIGH
@@ -32,7 +29,6 @@ static const char *TAG = "HID";
 
 // Thread priorities
 #define CONFIG_USBD_HID_INIT_THREAD_PRIORITY		5U
-#define CONFIG_USBD_HID_ISR_THREAD_PRIORITY			7U
 #define CONFIG_USBD_HID_HOTPLUG_THREAD_PRIORITY		8U // Should be higher than CONFIG_USBD_HID_ISR_THREAD_PRIORITY
 
 // Send mouse data through monitor.
@@ -70,7 +66,7 @@ static void hid_cb_transmitted(u8 status);
 #if USBD_HID_DEVICE_TYPE == USBD_HID_KEYBOARD_DEVICE
 static void hid_cb_received(u8 *buf, u32 len);
 #endif
-static void hid_cb_status_changed(u8 status);
+static void hid_cb_status_changed(u8 old_status, u8 status);
 
 #if CONFIG_USBD_HID_MOUSE_CMD
 #if USBD_HID_DEVICE_TYPE == USBD_HID_MOUSE_DEVICE
@@ -140,7 +136,17 @@ const COMMAND_TABLE usbd_hid_mouse_data_cmd[] = {
 static usbd_config_t hid_cfg = {
 	.speed = CONFIG_USBD_HID_SPEED,
 	.dma_enable = 1U,
-	.isr_priority = CONFIG_USBD_HID_ISR_THREAD_PRIORITY,
+	.isr_priority = INT_PRI_MIDDLE,
+#if defined (CONFIG_AMEBAGREEN2)
+	.rx_fifo_depth = 660U,
+	.ptx_fifo_depth = {16U, 256U, 16U, 16U, 16U},
+#elif defined (CONFIG_AMEBASMARTPLUS)
+	.rx_fifo_depth = 914U,
+	.ptx_fifo_depth = {256U, 16U, 16U, 16U, 16U, },
+#elif defined (CONFIG_AMEBAL2)
+	.rx_fifo_depth = 677U,
+	.ptx_fifo_depth = {256U, 16U, 16U, 16U},
+#endif
 };
 
 static usbd_hid_usr_cb_t hid_usr_cb = {
@@ -158,12 +164,12 @@ static usbd_hid_usr_cb_t hid_usr_cb = {
 
 static void hid_cb_init(void)
 {
-	RTK_LOGS(TAG, "[HID] INIT\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "INIT\n");
 }
 
 static void hid_cb_deinit(void)
 {
-	RTK_LOGS(TAG, "[HID] DEINIT\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "DEINIT\n");
 }
 
 static void hid_cb_setup(void)
@@ -181,21 +187,15 @@ static void hid_cb_transmitted(u8 status)
 #if USBD_HID_DEVICE_TYPE == USBD_HID_KEYBOARD_DEVICE
 static void hid_cb_received(u8 *buf, u32 len)
 {
-	UNUSED(buf);
-	u32 i = 0;
-	RTK_LOGS(TAG, "[HID] RX %dB\n", len);
-	for (i = 0; i < len ; i++) {
-		RTK_LOGS(TAG, " 0x%x ", buf[i]);
-		if ((i + 1) % 10 == 0) {
-			RTK_LOGS(TAG, "\n");
-		}
+	if (len > 0) {
+		RTK_LOGS(TAG, RTK_LOG_INFO, "RX %d byte(s): 0x%02x\n", len, buf[0]);
 	}
 }
 #endif
 
-static void hid_cb_status_changed(u8 status)
+static void hid_cb_status_changed(u8 old_status, u8 status)
 {
-	RTK_LOGS(TAG, "[HID] Status change: %d\n", status);
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Status change: %d -> %d \n", old_status, status);
 #if CONFIG_USBD_HID_HOTPLUG
 	hid_attach_status = status;
 	rtos_sema_give(hid_attach_status_changed_sema);
@@ -209,7 +209,7 @@ static u32 hid_cmd_mouse_data(u16 argc, u8  *argv[])
 	usbd_hid_mouse_data_t data;
 
 	if (argc == 0U) {
-		RTK_LOGS(TAG, "[HID] Invalid arguments, usage:\n"
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid arguments, usage:\n"
 				 "mouse <left> [<right> <middle> <x_axis> <y_axis> <wheel>]\n");
 		return HAL_ERR_PARA;
 	}
@@ -240,7 +240,7 @@ static u32 hid_cmd_mouse_data(u16 argc, u8  *argv[])
 		data.wheel = strtoul((const char *)(argv[5]), (char **)NULL, 10);
 	}
 
-	RTK_LOGS(TAG, "[HID] Send mouse data\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Send mouse data\n");
 
 	hid_send_device_data(&data);
 
@@ -299,14 +299,14 @@ static void hid_hotplug_thread(void *param)
 	UNUSED(param);
 
 	for (;;) {
-		if (rtos_sema_take(hid_attach_status_changed_sema, RTOS_SEMA_MAX_COUNT) == SUCCESS) {
+		if (rtos_sema_take(hid_attach_status_changed_sema, RTOS_SEMA_MAX_COUNT) == RTK_SUCCESS) {
 			if (hid_attach_status == USBD_ATTACH_STATUS_DETACHED) {
-				RTK_LOGS(TAG, "[HID] DETACHED\n");
+				RTK_LOGS(TAG, RTK_LOG_INFO, "DETACHED\n");
 				usbd_hid_deinit();
 				usbd_deinit();
 
 				rtos_time_delay_ms(100);
-				RTK_LOGS(TAG, "[HID] Free heap: 0x%x\n", rtos_mem_get_free_heap_size());
+				RTK_LOGS(TAG, RTK_LOG_INFO, "Free heap: 0x%x\n", rtos_mem_get_free_heap_size());
 
 				ret = usbd_init(&hid_cfg);
 				if (ret != 0) {
@@ -318,13 +318,13 @@ static void hid_hotplug_thread(void *param)
 					break;
 				}
 			} else if (hid_attach_status == USBD_ATTACH_STATUS_ATTACHED) {
-				RTK_LOGS(TAG, "[HID] ATTACHED\n");
+				RTK_LOGS(TAG, RTK_LOG_INFO, "ATTACHED\n");
 			} else {
-				RTK_LOGS(TAG, "[HID] INIT\n");
+				RTK_LOGS(TAG, RTK_LOG_INFO, "INIT\n");
 			}
 		}
 	}
-	RTK_LOGS(TAG, "[HID] Hotplug thread fail\n");
+	RTK_LOGS(TAG, RTK_LOG_ERROR, "Hotplug thread fail\n");
 	rtos_task_delete(NULL);
 }
 #endif // CONFIG_USBD_HID_HOTPLUG
@@ -334,14 +334,14 @@ static void example_usbd_hid_thread(void *param)
 	int ret = 0;
 	u32 i = 0;
 	u32 delaytime = 0;
-	u8 array_len = 0 ;
+	u8 array_len = 0;
 	int loop = 0;
 #if CONFIG_USBD_HID_HOTPLUG
 	rtos_task_t task;
 #endif
 
 	UNUSED(param);
-	RTK_LOGS(TAG, "[HID] USBD HID demo start\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "USBD HID demo start\n");
 
 	rtos_sema_create(&hid_connect_sema, 0U, 1U);
 	rtos_sema_create(&hid_transmit_sema, 0U, 1U);
@@ -363,7 +363,7 @@ static void example_usbd_hid_thread(void *param)
 
 #if CONFIG_USBD_HID_HOTPLUG
 	ret = rtos_task_create(&task, "hid_hotplug_thread", hid_hotplug_thread, NULL, 1024U, CONFIG_USBD_HID_HOTPLUG_THREAD_PRIORITY);
-	if (ret != SUCCESS) {
+	if (ret != RTK_SUCCESS) {
 		usbd_hid_deinit();
 		usbd_deinit();
 		goto example_usbd_hid_device_thread_fail;
@@ -380,16 +380,16 @@ static void example_usbd_hid_thread(void *param)
 
 #if USBD_HID_DEVICE_TYPE == USBD_HID_MOUSE_DEVICE
 	array_len = sizeof(mdata) / sizeof(usbd_hid_mouse_data_t);
-	delaytime = 1000 ;
-	RTK_LOGS(TAG, "[HID] Mouse data TX test start\n");
+	delaytime = 1000;
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Mouse data TX test start\n");
 #else
 	array_len = sizeof(mdata) / sizeof(usbd_hid_keyboard_data_t);
-	delaytime = 50 ;
-	RTK_LOGS(TAG, "[HID] Keyboard data TX test start\n");
+	delaytime = 50;
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Keyboard data TX test start\n");
 #endif
 
 	do {
-		RTK_LOGS(TAG, "[HID] Test round %d/%d\n", loop + 1, CONFIG_USBD_HID_CONSTANT_LOOP);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Test round %d/%d\n", loop + 1, CONFIG_USBD_HID_CONSTANT_LOOP);
 		for (i = 0; i < array_len; i++) {
 			rtos_sema_take(hid_transmit_sema, RTOS_SEMA_MAX_COUNT);
 			hid_send_device_data(&mdata[i]);
@@ -398,7 +398,7 @@ static void example_usbd_hid_thread(void *param)
 		rtos_time_delay_ms(5 * 1000); //next loop
 	} while (++loop < CONFIG_USBD_HID_CONSTANT_LOOP);
 
-	RTK_LOGS(TAG, "[HID] Test done\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Test done\n");
 
 #endif
 
@@ -421,7 +421,7 @@ void example_usbd_hid(void)
 	rtos_task_t task;
 
 	ret = rtos_task_create(&task, "example_usbd_hid_thread", example_usbd_hid_thread, NULL, 1024, CONFIG_USBD_HID_INIT_THREAD_PRIORITY);
-	if (ret != SUCCESS) {
-		RTK_LOGS(TAG, "[HID] Create USBD HID thread fail\n");
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD HID thread fail\n");
 	}
 }
