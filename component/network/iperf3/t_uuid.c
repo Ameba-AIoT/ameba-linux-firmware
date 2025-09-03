@@ -27,7 +27,7 @@
 #include <sys/time.h>
 
 #include "platform_stdlib.h"
-
+#include "basic_types.h"
 #include "iperf_util.h"
 
 void uuid_thread(void *param)
@@ -50,7 +50,7 @@ void uuid_thread(void *param)
 
 void example_uuid(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"uuid_thread"), uuid_thread, NULL, 524 * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"uuid_thread"), uuid_thread, NULL, 524 * 4, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create(uuid_thread) failed", __FUNCTION__);
 	}
 	return;

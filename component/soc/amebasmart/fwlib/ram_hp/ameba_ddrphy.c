@@ -21,7 +21,7 @@
 #define DDRPHY_SSC_EN				ENABLE
 #endif
 
-static const char *const TAG = "DDRPHY";
+static const char *TAG = "DDRPHY";
 typedef struct {
 	u32 ODT_TTCP0_SET0;
 	u32 ODT_TTCN0_SET0;
@@ -84,7 +84,6 @@ static const DDRPHY_Tx_Scan_Def ddrphy_tx_scan[] = {
 static u8 DDR_PHY_ChipInfo(void)
 {
 	static u8 s_chipinfo_ddr = 0xFF; //0xFF means None
-	u32 i;
 
 	if (s_chipinfo_ddr != 0xFF) {
 		return s_chipinfo_ddr;
@@ -102,17 +101,13 @@ static u8 DDR_PHY_ChipInfo(void)
 		s_chipinfo_ddr = 3;
 		break;
 	case 0x0D:
-	case 0x0F:
 		s_chipinfo_ddr = 4;
 		break;
 	case 0x0E:
-	case 0x10:
 		s_chipinfo_ddr = 5;
 		break;
 	default:
-		for (i = 0; i < 20; i++) {
-			RTK_LOGE(TAG, "DRAM is not Calibraion\r\n");
-		}
+		RTK_LOGE(TAG, "DRAM is not Calibraion\r\n");
 		s_chipinfo_ddr = 0;
 		break;
 	}

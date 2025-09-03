@@ -701,42 +701,7 @@ static rtk_bt_a2dp_media_codec_sbc_t codec_sbc = {
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
 static int16_t pcm_buffer[512] = {0};
 static uint16_t a2dp_demo_send_data_seq = 0;
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-static void app_a2dp_src_send_data(void)
-{
-	rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
-	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
 
-	if (src_a2dp_credits) {
-		if (!demo_usb_read_buffer((uint8_t *)pcm_buffer, (uint16_t)1024)) {
-			// BT_LOGA("[A2DP SRC Demo]: uart buffer read success \r\n");
-			penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, (int16_t *)pcm_buffer, (uint32_t)1024);
-			if (penc_codec_buffer_t) {
-				memset((void *)&data_send_t, 0, sizeof(rtk_bt_a2dp_stream_data_send_t));
-				memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
-				data_send_t.seq_num = a2dp_demo_send_data_seq++;
-				data_send_t.frame_buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
-				data_send_t.frame_num = (uint8_t)penc_codec_buffer_t->frame_num;
-				data_send_t.time_stamp += data_send_t.frame_num * sbc_codec_t.encoder_t.subbands * sbc_codec_t.encoder_t.blocks;
-				data_send_t.len = (uint16_t)(penc_codec_buffer_t->frame_num * penc_codec_buffer_t->frame_size);
-				data_send_t.flush = false;
-				if (rtk_bt_a2dp_data_send(&data_send_t)) {
-					BT_LOGE("[A2DP] data send fail \r\n");
-				} else {
-					src_a2dp_credits --;
-				}
-				rtk_bt_audio_free_encode_buffer(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, penc_codec_buffer_t);
-			} else {
-				BT_LOGE("[A2DP SRC Demo]: Encode fail \r\n");
-			}
-		} else {
-			// BT_LOGE("[A2DP SRC Demo]: uart buffer length is not enough \r\n");
-		}
-	} else {
-		// BT_LOGE("[A2DP] waiting src_a2dp_credits \r\n");
-	}
-}
-#else
 static void app_a2dp_src_send_data(void)
 {
 	rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
@@ -771,7 +736,6 @@ static void app_a2dp_src_send_data(void)
 		// BT_LOGE("[A2DP] waiting src_a2dp_credits \r\n");
 	}
 }
-#endif
 #else
 static uint32_t pcm_offset = 0;
 static uint16_t a2dp_demo_send_data_seq = 0;
@@ -1243,110 +1207,6 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		memcpy((void *)bd_addr, param, 6);
 		BT_LOGA("[AVRCP] Receive AVRCP connection from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_ELEMENT_ATTR_INFO: {
-		uint8_t temp_buff[50];
-		const char *attr[] = {"", "Title:", "Artist:", "Album:", "Track:",
-							  "TotalTrack:", "Genre:", "PlayingTime:", "CoverArt:"
-							 };
-		rtk_bt_avrcp_element_attr_info_t *p_attr_t = (rtk_bt_avrcp_element_attr_info_t *)param;
-
-		if (p_attr_t->state == 0) {
-			BT_LOGA("[AVRCP] Get element attr information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_attr_t->num_of_attr; i ++) {
-				if (p_attr_t->attr[i].length) {
-					memset((void *)temp_buff, 0, 50);
-					if (RTK_BT_AVRCP_ELEM_ATTR_DEFAULT_COVER_ART == p_attr_t->attr[i].attribute_id) {
-						uint8_t image_handle[16] = {0};
-						for (uint8_t j = 0; j < p_attr_t->attr[i].length; j++) {
-							image_handle[2 * j + 1] = p_attr_t->attr[i].p_buf[j];
-						}
-						BT_LOGA("[AVRCP] Get cover art image handle ");
-						for (uint8_t i = 0; i < 16; i ++) {
-							BT_LOGA(" 0x%02x ", image_handle[i]);
-						}
-						BT_LOGA("\r\n");
-						continue;
-					} else {
-						uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
-						snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
-						BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-					}
-					osif_mem_free(p_attr_t->attr[i].p_buf);
-				}
-			}
-		} else {
-			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-		}
-		if (p_attr_t->num_of_attr) {
-			osif_mem_free(p_attr_t->attr);
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_ATTRS_LIST_RSP: {
-		uint8_t temp_buff[10];
-		rtk_bt_avrcp_app_setting_attrs_list_t *p_list_t = (rtk_bt_avrcp_app_setting_attrs_list_t *)param;
-		const char *attr[] = {"", "EQ", "Repeat Mode", "Shuffle", "Scan"};
-
-		if (p_list_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings attrs information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
-				memset((void *)temp_buff, 0, 10);
-				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
-				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_VALUES_LIST_RSP: {
-		rtk_bt_avrcp_app_setting_values_list_t *p_values_t = (rtk_bt_avrcp_app_setting_values_list_t *)param;
-
-		if (p_values_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings values information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_values_t->bd_addr[5], p_values_t->bd_addr[4], p_values_t->bd_addr[3], p_values_t->bd_addr[2], p_values_t->bd_addr[1], p_values_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_values_t->num_of_value; i ++) {
-				BT_LOGA("[AVRCP] value 0x%02x \r\n", p_values_t->p_value[i]);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_GET_RSP: {
-		uint8_t temp_buff[20];
-		rtk_bt_avrcp_app_setting_get_rsp_t *p_rsp_t = (rtk_bt_avrcp_app_setting_get_rsp_t *)param;
-		const char *attr[] = {"", "EQ:", "Repeat Mode:", "Shuffle:", "Scan:"};
-
-		if (p_rsp_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings response information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
-				memset((void *)temp_buff, 0, 20);
-				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
-				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_COVER_ART_DATA_IND: {
-		rtk_bt_avrcp_cover_art_data_ind_t *p_data_t = (rtk_bt_avrcp_cover_art_data_ind_t *)param;
-
-		for (uint16_t i = 0; i < p_data_t->data_len; i ++) {
-			if (i % 10 == 0) {
-				BT_LOGA("\r\n");
-			}
-			BT_LOGA(" 0x%02x ", p_data_t->p_data[i]);
-		}
-		if (p_data_t->data_end) {
-			BT_LOGA("[AVRCP] Data End -> Get art cover successfully \r\n");
-		}
 		break;
 	}
 
@@ -2064,13 +1924,7 @@ int bt_a2dp_main(uint8_t role, uint8_t enable)
 		rtk_bt_br_addr_to_str(bd_addr.addr, addr_str, sizeof(addr_str));
 		BT_LOGA("[APP] BD_ADDR: %s\r\n", addr_str);
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-		if (!demo_usb_init()) {
-			BT_LOGE("demo_usb_init failed\r\n");
-		}
-#else
 		demo_uart_init();
-#endif
 #endif
 		/* Initilize GAP part */
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_GAP, br_gap_app_callback));
@@ -2185,13 +2039,6 @@ int bt_a2dp_main(uint8_t role, uint8_t enable)
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_SDP));
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_AVRCP));
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_A2DP));
-#if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-		if (!demo_usb_deinit()) {
-			BT_LOGE("demo_usb_deinit failed\r\n");
-		}
-#endif
-#endif
 		/* Disable BT */
 		BT_APP_PROCESS(rtk_bt_disable());
 		/* audio related resources release */

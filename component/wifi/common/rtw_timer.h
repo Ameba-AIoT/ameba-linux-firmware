@@ -40,7 +40,8 @@ typedef struct timer_list	_timer;
 #define AP_CSA_TO	(102)
 #define REAUTH_TO	(800) //(50)
 #define REASSOC_TO	(300) //(50)
-#define SAE_REAUTH_TO	(800)
+#define REAUTH_LIMIT	(4)
+#define REASSOC_LIMIT	(4)
 
 void init_timer(struct timer_list *timer, const char *name);
 void mod_timer(struct timer_list *timer, uint32_t delay_time_ms);

@@ -34,7 +34,10 @@
 #include <signal.h>
 #include <assert.h>
 
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
+#include "lwipconf.h" //realtek add
+
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -1448,6 +1451,8 @@ iperf_exchange_parameters(struct iperf_test *test)
 {
 	int s;
 	int32_t err;
+	int so_error = 0;
+	socklen_t errlen = sizeof(so_error);
 
 	if (test->role == 'c') {
 
@@ -1487,7 +1492,8 @@ iperf_exchange_parameters(struct iperf_test *test)
 				return -1;
 			}
 
-			err = htonl(errno);
+			getsockopt(test->ctrl_sck, SOL_SOCKET, SO_ERROR, &so_error, &errlen);
+			err = htonl(so_error);
 			if (Nwrite(test->ctrl_sck, (char *) &err, sizeof(err), Ptcp) < 0) {
 				i_errno = IECTRLWRITE;
 				return -1;
@@ -3875,7 +3881,7 @@ iperf_printf(struct iperf_test *test, const char *format, ...)
 	if (test->role == 'c') {
 		if (test->title) {
 			//fprintf(test->outfile, "%s:  ", test->title);
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s", test->title);
+			RTK_LOGS(NOTAG, "%s", test->title);
 		}
 		va_start(argp, format);
 		r = vfprintf(test->outfile, format, argp);
@@ -3886,7 +3892,7 @@ iperf_printf(struct iperf_test *test, const char *format, ...)
 		r = vsnprintf(linebuffer, sizeof(linebuffer), format, argp);
 		va_end(argp);
 		//fprintf(test->outfile, "%s", linebuffer);
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s", linebuffer);
+		RTK_LOGS(NOTAG, "%s", linebuffer);
 		if (test->role == 's' && iperf_get_test_get_server_output(test)) {
 			struct iperf_textline *l = (struct iperf_textline *) malloc(sizeof(struct iperf_textline));
 			l->line = strdup(linebuffer);

@@ -34,7 +34,9 @@
 #include <stdint.h>
 #endif
 
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
+#include "lwipconf.h" //realtek add
 
 #include <sys/time.h>
 #include <setjmp.h>
@@ -117,10 +119,13 @@ iperf_accept(struct iperf_test *test)
 	signed char rbuf = ACCESS_DENIED;
 	socklen_t len;
 	struct sockaddr_storage addr;
+	int so_error = 0;
+	socklen_t errlen = sizeof(so_error);
 
 	len = sizeof(addr);
 	if ((s = accept(test->listener, (struct sockaddr *) &addr, &len)) < 0) {
-		printf("iperf_accept fail, error : %d\n", errno);
+		getsockopt(test->listener, SOL_SOCKET, SO_ERROR, &so_error, &errlen);
+		printf("iperf_accept fail, error : %d\n", so_error);
 		i_errno = IEACCEPT;
 		return -1;
 	}

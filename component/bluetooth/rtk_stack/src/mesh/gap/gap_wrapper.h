@@ -21,20 +21,11 @@
 
 BEGIN_DECLS
 
-/** @addtogroup GAP_Wrapper
+/** @addtogroup Gap_Wrapper
   * @{
   */
 
-/** @defgroup GAP_Wrapper_Exported_Macros Exported Macros
-  * @brief
-  * @{
-  */
-
-#define GAP_BT_ADDR_TYPE_LE_PUBLIC                      GAP_LOCAL_ADDR_LE_PUBLIC
-#define GAP_BT_ADDR_TYPE_LE_RANDOM                      GAP_LOCAL_ADDR_LE_RANDOM
-/** @} */
-
-/** @defgroup GAP_Wrapper_Exported_Functions Exported Functions
+/** @defgroup Gap_Wrapper_Exported_Functions Exported Functions
   * @brief
   * @{
   */
@@ -46,6 +37,13 @@ BEGIN_DECLS
   * @return operation result
   */
 #define gap_get_att_mtu_size(conn_id, pvalue)          le_get_conn_param(GAP_PARAM_CONN_MTU_SIZE, pvalue, conn_id)
+
+/** @defgroup BT_Addr_Type BT Addr Type
+  * @{
+  */
+#define GAP_BT_ADDR_TYPE_LE_PUBLIC                      GAP_LOCAL_ADDR_LE_PUBLIC
+#define GAP_BT_ADDR_TYPE_LE_RANDOM                      GAP_LOCAL_ADDR_LE_RANDOM
+/** @} */
 
 /**
   * @brief Get the MTU size of the link
@@ -66,7 +64,7 @@ BEGIN_DECLS
   * @param[in] conn_id: the link handle
   * @return operation result
   */
-#define gap_disc(conn_id)                               le_disconnect(conn_id) //GAP_CAUSE_SUCCESS ==
+#define gap_disc(conn_id)                               le_disconnect(conn_id) //GAP_CAUSE_SUCCESS == 
 
 /** @} */
 /** @} */

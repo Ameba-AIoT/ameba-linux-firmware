@@ -7,20 +7,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "main.h"
 
 /* Scheduler includes. */
 
 #include "ameba_soc.h"
-#ifdef CONFIG_CORE_AS_AP
 #include "vfs.h"
-#endif
 #include "os_wrapper.h"
-#if defined(CONFIG_BT_COEXIST)
-#include "rtw_coex_ipc.h"
-#endif
 
-static const char *const TAG = "MAIN";
+static const char *TAG = "MAIN";
+u32 use_hw_crypto_func;
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 #include "ftl_int.h"
@@ -62,6 +57,8 @@ static void app_mbedtls_free_func(void *buf)
 void app_mbedtls_rom_init(void)
 {
 	mbedtls_platform_set_calloc_free(app_mbedtls_calloc_func, app_mbedtls_free_func);
+	use_hw_crypto_func = 0;
+	//rtl_cryptoEngine_init();
 }
 /*
  * This function will be replaced when Sdk example is compiled using CMD "make all EXAMPLE=xxx" or "make xip EXAMPLE=xxx"
@@ -80,14 +77,14 @@ _WEAK void app_example(void)
 }
 
 #ifdef CONFIG_WLAN
-extern void wifi_init(void);
+extern void wlan_initialize(void);
 #endif
 
 extern int rt_kv_init(void);
 
 void app_filesystem_init(void)
 {
-#if !(defined(CONFIG_MP_INCLUDED)) && defined(CONFIG_CORE_AS_AP)
+#if defined(CONFIG_AS_INIC_AP)
 	int ret = 0;
 	vfs_init();
 #ifdef CONFIG_FATFS_WITHIN_APP_IMG
@@ -110,36 +107,7 @@ void app_filesystem_init(void)
 
 	RTK_LOGE(TAG, "File System Init Fail \n");
 #endif
-}
-
-u32 app_uart_rx_pin_wake_int_handler(void *data)
-{
-	GPIO_InitTypeDef *GPIO_InitStruct = (GPIO_InitTypeDef *)data;
-	/*clear edge interrupt*/
-	GPIO_INTConfig(GPIO_InitStruct->GPIO_Pin, DISABLE);
-	/*Keep the AP active for 5 seconds */
-	pmu_set_sysactive_time(5000);
-
-	return 0;
-}
-void app_uart_rx_pin_wake_init(void)
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {
-		.GPIO_Pin = UART_LOG_RXD,	/*PB_23*/
-		.GPIO_PuPd = GPIO_PuPd_UP,
-		.GPIO_Mode = GPIO_Mode_INT,
-		.GPIO_ITTrigger = GPIO_INT_Trigger_EDGE,
-		.GPIO_ITPolarity = GPIO_INT_POLARITY_ACTIVE_LOW,
-	};
-	GPIO_INTConfig(UART_LOG_RXD, DISABLE);
-	GPIO_Direction(GPIO_InitStruct.GPIO_Pin, GPIO_Mode_IN);
-	PAD_PullCtrl(GPIO_InitStruct.GPIO_Pin, GPIO_InitStruct.GPIO_PuPd);
-
-	GPIO_INTMode(GPIO_InitStruct.GPIO_Pin, ENABLE, GPIO_InitStruct.GPIO_ITTrigger,
-				 GPIO_InitStruct.GPIO_ITPolarity, GPIO_InitStruct.GPIO_ITDebounce);
-	InterruptRegister(GPIO_INTHandler, GPIOB_IRQ, (u32)GPIOB_BASE, 3);
-	InterruptEn(GPIOB_IRQ, 3);
-	GPIO_UserRegIrq(UART_LOG_RXD, app_uart_rx_pin_wake_int_handler, &GPIO_InitStruct);
+	return;
 }
 
 void app_pmu_init(void)
@@ -166,15 +134,22 @@ int main(void)
 	InterruptRegister(IPC_INTHandler, IPC_AP_IRQ, (u32)IPCAP_DEV, INT_PRI_MIDDLE);
 	InterruptEn(IPC_AP_IRQ, INT_PRI_MIDDLE);
 
-#ifdef CONFIG_MBEDTLS_ENABLED
+#ifdef CONFIG_MBED_TLS_ENABLED
 	app_mbedtls_rom_init();
 #endif
 
 	ipc_table_init(IPCAP_DEV);
 
+	/* init console */
+	shell_init_rom(0, 0);
+	shell_init_ram();
+
 	app_pmu_init();
 
+#ifndef CONFIG_MP_INCLUDED
 	app_filesystem_init();
+#endif
+
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 	app_ftl_init();
@@ -183,24 +158,14 @@ int main(void)
 	/* pre-processor of application example */
 	app_pre_example();
 
-#if defined(CONFIG_BT_COEXIST)
-	/* init coex ipc */
-	coex_ipc_entry();
-#endif
-
 	/* wifi init*/
 #ifdef CONFIG_WLAN
-	wifi_init();
+	wlan_initialize();
 #endif
-
-	/* init console */
-	shell_init_rom(0, 0);
-	shell_init_ram();
 
 	/* Execute application example */
 	app_example();
 
-	IPC_patch_function(&rtos_critical_enter, &rtos_critical_exit);
 	IPC_SEMDelayStub(&rtos_time_delay_ms);
 
 	/* Start the tasks and timer running. */

@@ -21,7 +21,7 @@
 
 BEGIN_DECLS
 
-/** @addtogroup Provision_Client
+/** @addtogroup Prov_Client
   * @{
   */
 
@@ -30,7 +30,7 @@ BEGIN_DECLS
   * @{
   */
 
-/** @brief Handle cache for interested UUIDs */
+/** @brief Handle cache for intrested UUIDs */
 typedef enum
 {
     HDL_PROV_SRV_START,           // start handle of simple ble service
@@ -113,7 +113,7 @@ typedef struct
 typedef enum
 {
     PROV_CLIENT_CB_TYPE_DISC_STATE,          //!< Discovery procedure state, done or pending.
-    PROV_CLIENT_CB_TYPE_READ_RESULT,         //!< Read request's result data, responded from server.
+    PROV_CLIENT_CB_TYPE_READ_RESULT,         //!< Read request's result data, responsed from server.
     PROV_CLIENT_CB_TYPE_WRITE_RESULT,        //!< Write request result, success or fail.
     PROV_CLIENT_CB_TYPE_NOTIF_IND_RESULT,    //!< Notification or indication data received from server.
     PROV_CLIENT_CB_TYPE_INVALID              //!< Invalid callback type, no practical usage.
@@ -136,6 +136,7 @@ typedef struct
     prov_client_cb_content_t cb_content;
 } prov_client_cb_data_t;
 
+extern uint8_t prov_client_conn_id;
 extern T_CLIENT_ID prov_client_id;
 /** @} */
 
@@ -151,17 +152,11 @@ extern T_CLIENT_ID prov_client_id;
 T_CLIENT_ID prov_client_add(P_FUN_GENERAL_APP_CB app_cb);
 
 /**
-  * @brief deinit the client
-  *
-  */
-void prov_client_deinit(void);
-
-/**
   * @brief set the handle of the client
   * @param[in] conn_id: the connection id
   * @param[in] type: the handle type
   * @param[in] value: the handle value
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_handle_set(uint8_t conn_id, prov_handle_type_t type, uint16_t value);
 
@@ -178,7 +173,7 @@ uint16_t prov_client_handle_get(uint8_t conn_id, prov_handle_type_t type);
   *
   * contains the service/characteristic/cccd declaration
   * @param[in] conn_id: the connection id
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_start_discovery(uint8_t conn_id);
 
@@ -186,7 +181,7 @@ bool prov_client_start_discovery(uint8_t conn_id);
   * @brief read the server by handle
   * @param[in] conn_id: the connection id
   * @param[in] type: the read type
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_read_by_handle(uint8_t conn_id, prov_read_type_t type);
 
@@ -194,7 +189,7 @@ bool prov_client_read_by_handle(uint8_t conn_id, prov_read_type_t type);
   * @brief read the server by uuid
   * @param[in] conn_id: the connection id
   * @param[in] type: the handle type
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_read_by_uuid(uint8_t conn_id, prov_read_type_t type);
 
@@ -202,7 +197,7 @@ bool prov_client_read_by_uuid(uint8_t conn_id, prov_read_type_t type);
   * @brief write the cccd of the characteristic
   * @param[in] conn_id: the connection id
   * @param[in] command: the cccd value
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_data_out_cccd_set(uint8_t conn_id, bool command);
 
@@ -211,7 +206,7 @@ bool prov_client_data_out_cccd_set(uint8_t conn_id, bool command);
   * @param[in] conn_id: the connection id
   * @param[in] pdata: the data pointer
   * @param[in] length: the data length
-  * @return the operation result
+  * @return the operatino result
   */
 bool prov_client_data_in_write(uint8_t conn_id, uint8_t *pdata, uint16_t length);
 

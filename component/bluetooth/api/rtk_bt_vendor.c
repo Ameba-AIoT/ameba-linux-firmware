@@ -27,21 +27,6 @@ extern int wifi_set_ips_internal(u8 enable);
 static bool need_restore = false;
 #endif
 
-_WEAK void hci_platform_external_fw_log_pin(void)
-{
-	BT_LOGE("External fw log pin is not supported!\r\n");
-}
-
-_WEAK void hci_platform_controller_reset(void)
-{
-	BT_LOGE("Controller reset is not supported!\r\n");
-}
-
-_WEAK void bt_power_off(void)
-{
-	BT_LOGE("BT power off is not supported!\r\n");
-}
-
 _WEAK void hci_platform_set_tx_power_gain_index(uint32_t index)
 {
 	(void)index;
@@ -59,47 +44,7 @@ _WEAK void hci_platform_debug_enable(void)
 	BT_LOGE("HCI debug is not supported!\r\n");
 }
 
-_WEAK void hci_platform_debug_port_mask_enable(uint8_t bt_sel, uint32_t bt_bdg_mask)
-{
-	(void)bt_sel;
-	(void)bt_bdg_mask;
-	BT_LOGE("BT Debug Port enable by mask is not supported!\r\n");
-}
-
-_WEAK void hci_platform_debug_port_pad_enable(uint8_t bt_sel, uint8_t bt_dbg_port, char *pad)
-{
-	(void)bt_sel;
-	(void)bt_dbg_port;
-	(void)pad;
-	BT_LOGE("BT Debug Port enable by pad is not supported!\r\n");
-}
-
-_WEAK void hci_platform_debug_port_shift(uint8_t original, uint8_t mapping)
-{
-	(void)original;
-	(void)mapping;
-	BT_LOGE("BT Debug Port shift is not supported!\r\n");
-}
-
-_WEAK void hci_platform_gpio_enable(uint8_t bt_gpio, char *pad)
-{
-	(void)bt_gpio;
-	(void)pad;
-	BT_LOGE("BT GPIO enable is not supported!\r\n");
-}
-
 /* -------------------------------- Functions ------------------------------*/
-
-void rtk_bt_controller_power_on(void)
-{
-	hci_platform_external_fw_log_pin();
-	hci_platform_controller_reset();
-}
-
-void rtk_bt_controller_power_off(void)
-{
-	bt_power_off();
-}
 
 void rtk_bt_set_bt_tx_power_gain_index(uint32_t index)
 {
@@ -114,26 +59,6 @@ void rtk_bt_set_bt_antenna(uint8_t ant)
 void rtk_bt_hci_debug_enable(void)
 {
 	hci_platform_debug_enable();
-}
-
-void rtk_bt_debug_port_mask_enable(uint8_t bt_sel, uint32_t bt_bdg_mask)
-{
-	hci_platform_debug_port_mask_enable(bt_sel, bt_bdg_mask);
-}
-
-void rtk_bt_debug_port_pad_enable(uint8_t bt_sel, uint8_t bt_dbg_port, char *pad)
-{
-	hci_platform_debug_port_pad_enable(bt_sel, bt_dbg_port, pad);
-}
-
-void rtk_bt_debug_port_shift(uint8_t original, uint8_t mapping)
-{
-	hci_platform_debug_port_shift(original, mapping);
-}
-
-void rtk_bt_gpio_enable(uint8_t bt_gpio, char *pad)
-{
-	hci_platform_gpio_enable(bt_gpio, pad);
 }
 
 void rtk_bt_sleep_mode(unsigned int mode)
@@ -170,6 +95,11 @@ uint16_t rtk_bt_set_tx_power(rtk_bt_vendor_tx_power_param_t *tx_power)
 		data[2] = tx_power->tx_gain;
 		param.len = 3;
 	} else if (1 == tx_power->tx_power_type) {
+		uint8_t conn_id = 0;
+		if (RTK_BT_OK != rtk_bt_le_gap_get_conn_id(tx_power->conn_tx_power.conn_handle, &conn_id)) {
+			BT_LOGE("%s: conn_handle %d is not connect!\r\n", __func__, tx_power->conn_tx_power.conn_handle);
+			return RTK_BT_FAIL;
+		}
 		data[0] = SUB_CMD_SET_CONN_TX_POWER;
 		data[1] = tx_power->conn_tx_power.conn_handle & 0xFF;
 		data[2] = (tx_power->conn_tx_power.conn_handle >> 8) & 0xFF;
@@ -181,7 +111,7 @@ uint16_t rtk_bt_set_tx_power(rtk_bt_vendor_tx_power_param_t *tx_power)
 		return RTK_BT_FAIL;
 	}
 
-	param.op = VENDOR_CMD_LE_EXTENSION_FEATURE_OPCODE;
+	param.op = VENDOR_CMD_SET_TX_POWER_OPCODE;
 	param.cmd_param = data;
 
 	return rtk_bt_gap_vendor_cmd_req(&param);

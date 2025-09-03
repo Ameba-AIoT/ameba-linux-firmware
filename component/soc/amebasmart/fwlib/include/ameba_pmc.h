@@ -199,13 +199,12 @@ extern u32 np_sleep_timeout;
 void SOCPS_SleepCG_RAM(void);
 void np_pm_init(void);
 void np_boot_on(void);
-int np_suspend(u32 type);
+u32 np_suspend(u32 type);
 void np_resume(void);
 u32 np_status_on(void);
 void km4_set_wake_event(u32 wevt);
 void np_tickless_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum);
 void ap_resume(void);
-int ap_suspend(SLEEP_ParamDef *psleep_param);
 void ap_tickless_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum);
 uint32_t pmu_get_km4sleeptime(void);
 void SOCPS_ResMemMode(u32 module);
@@ -214,7 +213,7 @@ void SOCPS_SetMemMode(u32 module, u32 mem_mode);
 void SOCPS_SleepPG_LIB(void);
 void SOCPS_SleepCG_LIB(void);
 
-#if defined (CONFIG_ARM_CORE_CM4)
+#if defined (ARM_CORE_CM4)
 void SOCPS_WakeFromPG_HP(void);
 void SOCPS_DeepSleep(void);
 

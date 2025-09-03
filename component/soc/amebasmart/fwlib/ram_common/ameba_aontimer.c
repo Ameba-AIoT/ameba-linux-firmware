@@ -13,7 +13,7 @@
   * @note This is 100KHz timer, max counter = 0xFFFFFFFF/100000/60 = 715min
   * @retval None
   */
-void AONTimer_Setting(u32 SDuration)
+void SOCPS_AONTimer(u32 SDuration)
 {
 	if (SDuration == 0) {
 		return;
@@ -29,7 +29,7 @@ void AONTimer_Setting(u32 SDuration)
   * @param  Status: interrupt status
   * @retval None
   */
-void AONTimer_INT(u32 Status)
+void SOCPS_AONTimerINT_EN(u32 Status)
 {
 	u32 Rtemp = 0;
 
@@ -49,7 +49,7 @@ void AONTimer_INT(u32 Status)
   * @note wakeup state:sleep PG & CG & deep sleep
   * @retval The current Aon Timer counter, the unit is ms.
   */
-u32 AONTimer_Get(void)
+u32 SOCPS_AONTimerGet(void)
 {
 	u32 Rtemp = 0;
 
@@ -63,7 +63,7 @@ u32 AONTimer_Get(void)
   * @brief  Clear aontimer interrupt.
   * @retval   None
   */
-void AONTimer_ClearINT(void)
+void SOCPS_AONTimerClearINT(void)
 {
 	u32 temp = 0;
 

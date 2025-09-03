@@ -320,7 +320,6 @@ static int eap_tlv_add_cryptobinding(struct eap_sm *sm,
 									 struct eap_peap_data *data,
 									 struct wpabuf *buf)
 {
-	(void)sm;
 	u8 *mac;
 	u8 eap_type = EAP_TYPE_PEAP;
 	const u8 *addr[2];
@@ -1161,14 +1160,16 @@ static struct wpabuf *eap_peap_process(struct eap_sm *sm, void *priv,
 	return resp;
 }
 
-#if defined(EAP_REMOVE_UNUSED_CODE) && (EAP_REMOVE_UNUSED_CODE == 0)
+#if !EAP_REMOVE_UNUSED_CODE
 static Boolean eap_peap_has_reauth_data(struct eap_sm *sm, void *priv)
 {
 	struct eap_peap_data *data = priv;
 	return (Boolean)(tls_connection_established(sm->ssl_ctx, data->ssl.conn) &&
 					 data->phase2_success);
 }
+#endif /* !EAP_REMOVE_UNUSED_CODE */
 
+#if !EAP_REMOVE_UNUSED_CODE
 static void eap_peap_deinit_for_reauth(struct eap_sm *sm, void *priv)
 {
 	struct eap_peap_data *data = priv;
@@ -1176,7 +1177,9 @@ static void eap_peap_deinit_for_reauth(struct eap_sm *sm, void *priv)
 	data->pending_phase2_req = NULL;
 	data->crypto_binding_used = 0;
 }
+#endif /* !EAP_REMOVE_UNUSED_CODE */
 
+#if !EAP_REMOVE_UNUSED_CODE
 static void *eap_peap_init_for_reauth(struct eap_sm *sm, void *priv)
 {
 	struct eap_peap_data *data = priv;
@@ -1199,7 +1202,9 @@ static void *eap_peap_init_for_reauth(struct eap_sm *sm, void *priv)
 	sm->peap_done = FALSE;
 	return priv;
 }
+#endif /* !EAP_REMOVE_UNUSED_CODE */
 
+#if !EAP_REMOVE_UNUSED_CODE
 static int eap_peap_get_status(struct eap_sm *sm, void *priv, char *buf,
 							   size_t buflen, int verbose)
 {
@@ -1223,7 +1228,6 @@ static int eap_peap_get_status(struct eap_sm *sm, void *priv, char *buf,
 
 static Boolean eap_peap_isKeyAvailable(struct eap_sm *sm, void *priv)
 {
-	(void)sm;
 	struct eap_peap_data *data = priv;
 	return (Boolean)(data->key_data != NULL && data->phase2_success);
 }
@@ -1231,7 +1235,6 @@ static Boolean eap_peap_isKeyAvailable(struct eap_sm *sm, void *priv)
 
 static u8 *eap_peap_getKey(struct eap_sm *sm, void *priv, size_t *len)
 {
-	(void)sm;
 	struct eap_peap_data *data = priv;
 	u8 *key;
 
@@ -1271,7 +1274,7 @@ static u8 *eap_peap_getKey(struct eap_sm *sm, void *priv, size_t *len)
 }
 
 
-#if defined(EAP_REMOVE_UNUSED_CODE) && (EAP_REMOVE_UNUSED_CODE == 0)
+#if !EAP_REMOVE_UNUSED_CODE
 static u8 *eap_peap_get_session_id(struct eap_sm *sm, void *priv, size_t *len)
 {
 	struct eap_peap_data *data = priv;
@@ -1310,7 +1313,7 @@ int eap_peer_peap_register(void)
 	eap->getKey = eap_peap_getKey;
 	eap->isKeyAvailable = eap_peap_isKeyAvailable;
 
-#if defined(EAP_REMOVE_UNUSED_CODE) && (EAP_REMOVE_UNUSED_CODE == 0)
+#if !EAP_REMOVE_UNUSED_CODE
 	eap->get_status = eap_peap_get_status;
 	eap->has_reauth_data = eap_peap_has_reauth_data;
 	eap->deinit_for_reauth = eap_peap_deinit_for_reauth;
@@ -1324,5 +1327,4 @@ int eap_peer_peap_register(void)
 	}
 	return ret;
 }
-//#endif 
-/* CONFIG_PEAP */
+//#endif /* CONFIG_PEAP */

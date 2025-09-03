@@ -12,11 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include "errno.h"
-
 #include "audio_hw_debug.h"
-
 #include "audio_hw_params_handle.h"
 
 char *param_strdup(const char *s)
@@ -27,7 +24,7 @@ char *param_strdup(const char *s)
 
 	const char *sin = s;
 	size_t len = strlen(sin) + 1;
-	char *new = (char *) rtos_mem_zmalloc(len);
+	char *new = (char *) malloc(len);
 	if (new == NULL) {
 		return NULL;
 	}
@@ -35,12 +32,12 @@ char *param_strdup(const char *s)
 	return (char *) memcpy(new, sin, len);
 }
 
-char *param_strndup(const char *s, int32_t count)
+char *param_strndup(const char *s, int count)
 {
 	const char *sin = s;
 	size_t len = strnlen(sin, (count)) + 1;
 	HAL_AUDIO_VERBOSE("count:%d, len:%d", count, len);
-	char *new = (char *) rtos_mem_zmalloc(len);
+	char *new = (char *) malloc(len);
 	if (new == NULL) {
 		return NULL;
 	}
@@ -51,7 +48,7 @@ char *param_strndup(const char *s, int32_t count)
 static struct string_cell *string_cells_create(void)
 {
 	HAL_AUDIO_VERBOSE("malloc string cells");
-	struct string_cell *cell_head = (struct string_cell *) rtos_mem_zmalloc(sizeof(struct string_cell));
+	struct string_cell *cell_head = (struct string_cell *) malloc(sizeof(struct string_cell));
 	cell_head->key = NULL;
 	cell_head->value = NULL;
 	cell_head->next = NULL;
@@ -60,7 +57,7 @@ static struct string_cell *string_cells_create(void)
 
 static void insert_string_cell_by_last(struct string_cell *cell_head, char *key, char *value)
 {
-	struct string_cell *new_cell = (struct string_cell *) rtos_mem_zmalloc(sizeof(struct string_cell));
+	struct string_cell *new_cell = (struct string_cell *) malloc(sizeof(struct string_cell));
 	new_cell->key = param_strdup(key);
 	new_cell->value = param_strdup(value);
 	struct string_cell *cell_iterate = cell_head;
@@ -78,13 +75,13 @@ void string_cells_destroy(struct string_cell *cell_head)
 	struct string_cell *next_cell = NULL;
 	while (cell_iterate != NULL) {
 		if (cell_iterate->key) {
-			rtos_mem_free(cell_iterate->key);
+			free(cell_iterate->key);
 		}
 		if (cell_iterate->value) {
-			rtos_mem_free(cell_iterate->value);
+			free(cell_iterate->value);
 		}
 		next_cell = cell_iterate->next;
-		rtos_mem_free(cell_iterate);
+		free(cell_iterate);
 		cell_iterate = next_cell;
 	}
 }
@@ -139,22 +136,22 @@ struct string_cell *string_cells_create_from_str(const char *string)
 		insert_string_cell_by_last(cell_head, key, value);
 
 		if (NULL != key) {
-			rtos_mem_free(key);
+			free(key);
 		}
 		if (value) {
-			rtos_mem_free(value);
+			free(value);
 		}
 
 		one_cell_str = (char *)strtok_r(NULL, ";", &str_left);
 	}
 
-	rtos_mem_free(duped_str);
+	free(duped_str);
 
 	return cell_head;
 
 }
 
-int32_t string_cells_has_key(struct string_cell *cell_head, const char *key)
+int string_cells_has_key(struct string_cell *cell_head, const char *key)
 {
 	struct string_cell *cell_iterate = cell_head;
 	while (cell_iterate != NULL) {
@@ -173,8 +170,8 @@ int32_t string_cells_has_key(struct string_cell *cell_head, const char *key)
 	return FALSE;
 }
 
-int32_t string_cells_get_str(struct string_cell *cell_head, const char *key, char *val,
-						 int32_t len)
+int string_cells_get_str(struct string_cell *cell_head, const char *key, char *val,
+						 int len)
 {
 	struct string_cell *cell_iterate = cell_head;
 	while (cell_iterate != NULL) {
@@ -194,7 +191,7 @@ int32_t string_cells_get_str(struct string_cell *cell_head, const char *key, cha
 	return -ENOENT;
 }
 
-int32_t string_cells_get_int(struct string_cell *cell_head, const char *key, int32_t *val)
+int string_cells_get_int(struct string_cell *cell_head, const char *key, int *val)
 {
 	struct string_cell *cell_iterate = cell_head;
 	while (cell_iterate != NULL) {
@@ -210,7 +207,7 @@ int32_t string_cells_get_int(struct string_cell *cell_head, const char *key, int
 				return -ENOENT;
 			}
 			char *end;
-			*val = (int32_t)strtol(value, &end, 0);
+			*val = (int)strtol(value, &end, 0);
 			if (*value != '\0' && *end == '\0') {
 				return 0;
 			}

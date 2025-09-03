@@ -34,8 +34,8 @@
  * @version 1.0
  */
 
-#ifndef AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_CONTROL_H
-#define AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_CONTROL_H
+#ifndef AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_CONTROL_H
+#define AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_CONTROL_H
 
 #include <stdint.h>
 
@@ -188,8 +188,6 @@ int32_t RTAudioControl_GetAmplifierEnPin(void);
 
 /**
  * @brief Set Amplifier Mute.
- * Note: this interface may take some time, see component/audio/audio_hal/ameba_audio_stream_control:
- *       ameba_audio_ctl_set_amp_state.
  *
  * @param mute true means mute amplifier, false means unmute amplifier.
  * @return  Returns a value listed below: \n

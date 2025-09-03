@@ -25,7 +25,6 @@ extern void* GetAACExtractorType();
 extern void* GetMPEG4ExtractorType();
 extern void* GetFLACExtractorType();
 extern void* GetOGGExtractorType();
-extern void* GetAMRExtractorType();
 
 // ---------------------------
 //Media
@@ -51,9 +50,6 @@ MediaExtractorConfig kMediaExtractorConfigs[] = {
 #endif
 #if defined(MEDIA_DEMUX_OGG)
     { "ogg-opus", GetOGGExtractorType() },
-#endif
-#if defined(MEDIA_DEMUX_AMR)
-    { "amr", GetAMRExtractorType() },
 #endif
 };
 

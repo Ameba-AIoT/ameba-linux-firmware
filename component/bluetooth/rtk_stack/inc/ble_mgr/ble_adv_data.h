@@ -1,6 +1,6 @@
 /**
  * @file   ble_adv_data.h
- * @brief  Struct and interface about LE ADV data manager
+ * @brief  struct and interface about ble adv data manager
  * @author leon
  * @date   2020.9.3
  * @version 1.0
@@ -15,8 +15,8 @@
 extern "C" {
 #endif
 
-/** @defgroup LE_ADV_DATA LE Extended ADV Data
-  * @brief LE extended advertising data manager module
+/** @defgroup BLE_ADV_DATA Ble Adv Data
+  * @brief Ble extended advertising data manager module
   * @{
   */
 
@@ -24,24 +24,16 @@ extern "C" {
 #include <stdbool.h>
 #include "gap_msg.h"
 
-/*============================================================================*
- *                              Functions
- *============================================================================*/
-/** @defgroup LE_ADV_DATA_Exported_Functions LE Extended ADV Data Exported Functions
-  * @{
-  */
-
 /**
- *  @brief Interface of enable ADV for APP user
- *  @param[in]  pp_handle     When add ADV data success, manager return a handle for deleting.
- *  @param[in]  adv_data_len  ADV data length.
- *  @param[in]  p_adv_data    Pointer to ADV data.
- *  @param[in]  scan_resp_len Scan rsp data length.
- *  @param[in]  p_scan_resp   Pointer to scan rsp data.
- *  @return Operation result.
- *  @retval true  Success.
- *  @retval false Failed.
- *
+ *  @brief interface of enable adv for app user
+ *  @param[in]  pp_handle   when add adv data success, manager return a handle for deleting
+ *  @param[in]  adv_data_len  adv data length
+ *  @param[in]  p_adv_data    pointer to adv data
+ *  @param[in]  scan_resp_len scan rsp data length
+ *  @param[in]  p_scan_resp   pointer to scan rsp data
+ *  @return operation result
+ *  @retval true  success
+ *  @retval false failed
  * <b>Example usage</b>
  * \code{.c}
     void *p_le_xxxx_adv_handle = NULL;
@@ -78,13 +70,11 @@ bool ble_adv_data_add(void **pp_handle, uint16_t adv_data_len, uint8_t *p_adv_da
                       uint16_t scan_resp_len, uint8_t *p_scan_resp);
 
 /**
- *  @brief Interface of disable ADV for APP user
- *  @param[in]  p_handle  ADV set handle which get from add operation.
- *  @return Operation result.
- *  @retval true  Success.
- *  @retval false Failed.
- *
- * <b>Example usage</b>
+ *  @brief interface of disable adv for app user
+ *  @param[in]  pp_handle  adv set handle which get from add operation
+ *  @return operation result
+ *  @retval true  success
+ *  @retval false failed
  *  \code{.c}
     void *p_le_xxxx_adv_handle = NULL;
     bool le_xxxx_adv_stop(void)
@@ -107,12 +97,10 @@ bool ble_adv_data_add(void **pp_handle, uint16_t adv_data_len, uint8_t *p_adv_da
 bool ble_adv_data_del(void *p_handle);
 
 /**
- *  @brief Interface of enable ADV data manager
- *  @return Operation result.
- *  @retval true  Success.
- *  @retval false Failed.
- *
- * <b>Example usage</b>
+ *  @brief interface of enable adv data manager
+ *  @return operation result
+ *  @retval true  success
+ *  @retval false failed
  *  \code{.c}
     void app_ble_device_handle_power_on(void)
     {
@@ -125,12 +113,10 @@ bool ble_adv_data_del(void *p_handle);
 bool ble_adv_data_enable(void);
 
 /**
- *  @brief Interface to disable ADV data manager
- *  @return Operation result.
- *  @retval true  Success.
- *  @retval false Failed.
- *
- * <b>Example usage</b>
+ *  @brief interface of disenable adv data manager
+ *  @return operation result
+ *  @retval true  success
+ *  @retval false failed
  *  \code{.c}
     void app_ble_device_handle_power_off(void)
     {
@@ -141,11 +127,8 @@ bool ble_adv_data_enable(void);
  * \endcode
  */
 bool ble_adv_data_disable(void);
-/** End of LE_ADV_DATA_Exported_Functions
- * @}
- */
 
-/** End of LE_ADV_DATA
+/** End of BLE_ADV_DATA
 * @}
 */
 

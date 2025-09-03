@@ -1,8 +1,17 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/**
+  ******************************************************************************
+  * @file    usbd_scsi.c
+  * @author  Realsil WLAN5 Team
+  * @brief   This file provides the functionalities of the USB MSC SCSI
+  ******************************************************************************
+  * @attention
+  *
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
+  ******************************************************************************
+  */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -35,8 +44,8 @@ static int usbd_scsi_process_write(usbd_msc_dev_t  *cdev);
 
 /* Private variables ---------------------------------------------------------*/
 
-/* MSC page 0 inquiry data */
-static const u8 usbd_msc_page0_inquiry_data[] = {
+/* USB Mass storage Page 0 Inquiry Data */
+const u8  Page00_Inquiry_Data[] = {
 	0x00,
 	0x00,
 	0x00,
@@ -46,8 +55,7 @@ static const u8 usbd_msc_page0_inquiry_data[] = {
 	0x83
 };
 
-/* MSC standard inquiry data */
-static const u8 usbd_msc_standard_inquiry_data[] = {
+const u8 Standard_Inquiry_Data[] = {
 	0x00,          /* Direct Access Device */
 	0x80,          /* RMB = 1: Removable Medium */
 	0x02,          /* Version: No conformance claim to standard */
@@ -65,16 +73,16 @@ static const u8 usbd_msc_standard_inquiry_data[] = {
 	'1', '.', '0', ' '
 };
 
-/* MSC sense 6 data */
-static const u8 usbd_msc_mode_sense6_data[] = {
+/* USB Mass storage sense 6  Data */
+const u8  Mode_Sense6_data[] = {
 	0x03,
 	0x00,
 	0x00,
 	0x00
 };
 
-/* MSC sense 10 data */
-static const u8 usbd_msc_mode_sense10_data[] = {
+/* USB Mass storage sense 10  Data */
+const u8  Mode_Sense10_data[] = {
 	0x00,
 	0x06,
 	0x00,
@@ -86,6 +94,80 @@ static const u8 usbd_msc_mode_sense10_data[] = {
 };
 
 /* Private functions ---------------------------------------------------------*/
+
+/**
+* @brief  Process SCSI commands
+* @param  cdev: Device instance
+* @param  cmd: Command parameters
+* @retval Status
+*/
+int usbd_scsi_process_cmd(usbd_msc_dev_t *cdev, u8 *cmd)
+{
+	int ret = 0;
+
+	switch (cmd[0]) {
+	case SCSI_TEST_UNIT_READY:
+		ret = usbd_scsi_test_unit_ready(cdev, cmd);
+		break;
+
+	case SCSI_REQUEST_SENSE:
+		ret = usbd_scsi_request_sense(cdev, cmd);
+		break;
+	case SCSI_INQUIRY:
+		ret = usbd_scsi_inquiry(cdev, cmd);
+		break;
+
+	case SCSI_START_STOP_UNIT:
+		ret = usbd_scsi_start_stop_unit(cdev, cmd);
+		break;
+
+	case SCSI_ALLOW_MEDIUM_REMOVAL:
+		ret = usbd_scsi_prevent_allow(cdev, cmd);
+		break;
+
+	case SCSI_MODE_SENSE6:
+		ret = usbd_scsi_mode_sense6(cdev, cmd);
+		break;
+
+	case SCSI_MODE_SENSE10:
+		ret = usbd_scsi_mode_sense10(cdev, cmd);
+		break;
+
+	case SCSI_READ_FORMAT_CAPACITIES:
+		ret = usbd_scsi_read_format_capacity(cdev, cmd);
+		break;
+
+	case SCSI_READ_CAPACITY10:
+		ret = usbd_scsi_read_capacity10(cdev, cmd);
+		break;
+
+	case SCSI_READ12:
+	case SCSI_READ10:
+		ret = usbd_scsi_read(cdev, cmd);
+		break;
+
+	case SCSI_WRITE12:
+	case SCSI_WRITE10:
+		ret = usbd_scsi_write(cdev, cmd);
+		break;
+
+	case SCSI_MODE_SELECT6:
+	case SCSI_MODE_SELECT10:
+		cdev->data_length = 0U;
+		ret = 0;
+		break;
+
+	case SCSI_VERIFY10:
+		ret = usbd_scsi_verify10(cdev, cmd);
+		break;
+
+	default:
+		usbd_scsi_sense_code(cdev, ILLEGAL_REQUEST, INVALID_CDB);
+		return -1;
+	}
+	return ret;
+}
+
 
 /**
 * @brief  Process SCSI Test Unit Ready Command
@@ -125,10 +207,10 @@ static int  usbd_scsi_inquiry(usbd_msc_dev_t *cdev, u8 *params)
 {
 	if (params[1] & 0x01U) { /*Evpd is set*/
 		cdev->data_length = PAGE00_INQUIRY_DATA_LEN;
-		usb_os_memcpy((void *)cdev->data, (void *)usbd_msc_page0_inquiry_data, cdev->data_length);
+		usb_os_memcpy((void *)cdev->data, (void *)Page00_Inquiry_Data, cdev->data_length);
 	} else {
 		cdev->data_length = MIN(params[4], STANDARD_INQUIRY_DATA_LEN);
-		usb_os_memcpy((void *)cdev->data, (void *)usbd_msc_standard_inquiry_data, cdev->data_length);
+		usb_os_memcpy((void *)cdev->data, (void *)Standard_Inquiry_Data, cdev->data_length);
 	}
 
 	return 0;
@@ -214,7 +296,7 @@ static int usbd_scsi_mode_sense6(usbd_msc_dev_t *cdev, u8 *params)
 	UNUSED(params);
 
 	cdev->data_length = MODE_SENSE6_DATA_LEN;
-	usb_os_memcpy((void *)cdev->data, (void *)usbd_msc_mode_sense6_data, cdev->data_length);
+	usb_os_memcpy((void *)cdev->data, (void *)Mode_Sense6_data, cdev->data_length);
 
 	return 0;
 }
@@ -230,7 +312,7 @@ static int usbd_scsi_mode_sense10(usbd_msc_dev_t *cdev, u8 *params)
 	UNUSED(params);
 
 	cdev->data_length = MODE_SENSE10_DATA_LEN;
-	usb_os_memcpy((void *)cdev->data, (void *)usbd_msc_mode_sense10_data, cdev->data_length);
+	usb_os_memcpy((void *)cdev->data, (void *)Mode_Sense10_data, cdev->data_length);
 
 	return 0;
 }
@@ -268,6 +350,24 @@ static int usbd_scsi_request_sense(usbd_msc_dev_t *cdev, u8 *params)
 	return 0;
 }
 
+/**
+* @brief  Load the last error code in the error list
+* @param  cdev: Device instance
+* @param  skey: Sense Key
+* @param  asc: Additional Sense Key
+* @retval none
+
+*/
+void usbd_scsi_sense_code(usbd_msc_dev_t *cdev, u8 skey, u8 asc)
+{
+	usbd_msc_scsi_sense_data_t *data = &cdev->scsi_sense_data[cdev->scsi_sense_tail];
+	data->skey  = skey;
+	data->w.asc = asc << 8;
+	cdev->scsi_sense_tail++;
+	if (cdev->scsi_sense_tail == USBD_MSC_SENSE_LIST_DEPTH) {
+		cdev->scsi_sense_tail = 0U;
+	}
+}
 /**
 * @brief  Process Start Stop Unit command
 * @param  cdev: Device instance
@@ -548,96 +648,3 @@ static int usbd_scsi_process_write(usbd_msc_dev_t *cdev)
 	return 0;
 }
 
-/* Exported functions --------------------------------------------------------*/
-
-/**
-* @brief  Process SCSI commands
-* @param  cdev: Device instance
-* @param  cmd: Command parameters
-* @retval Status
-*/
-int usbd_scsi_process_cmd(usbd_msc_dev_t *cdev, u8 *cmd)
-{
-	int ret = 0;
-
-	switch (cmd[0]) {
-	case SCSI_TEST_UNIT_READY:
-		ret = usbd_scsi_test_unit_ready(cdev, cmd);
-		break;
-
-	case SCSI_REQUEST_SENSE:
-		ret = usbd_scsi_request_sense(cdev, cmd);
-		break;
-	case SCSI_INQUIRY:
-		ret = usbd_scsi_inquiry(cdev, cmd);
-		break;
-
-	case SCSI_START_STOP_UNIT:
-		ret = usbd_scsi_start_stop_unit(cdev, cmd);
-		break;
-
-	case SCSI_ALLOW_MEDIUM_REMOVAL:
-		ret = usbd_scsi_prevent_allow(cdev, cmd);
-		break;
-
-	case SCSI_MODE_SENSE6:
-		ret = usbd_scsi_mode_sense6(cdev, cmd);
-		break;
-
-	case SCSI_MODE_SENSE10:
-		ret = usbd_scsi_mode_sense10(cdev, cmd);
-		break;
-
-	case SCSI_READ_FORMAT_CAPACITIES:
-		ret = usbd_scsi_read_format_capacity(cdev, cmd);
-		break;
-
-	case SCSI_READ_CAPACITY10:
-		ret = usbd_scsi_read_capacity10(cdev, cmd);
-		break;
-
-	case SCSI_READ12:
-	case SCSI_READ10:
-		ret = usbd_scsi_read(cdev, cmd);
-		break;
-
-	case SCSI_WRITE12:
-	case SCSI_WRITE10:
-		ret = usbd_scsi_write(cdev, cmd);
-		break;
-
-	case SCSI_MODE_SELECT6:
-	case SCSI_MODE_SELECT10:
-		cdev->data_length = 0U;
-		ret = 0;
-		break;
-
-	case SCSI_VERIFY10:
-		ret = usbd_scsi_verify10(cdev, cmd);
-		break;
-
-	default:
-		usbd_scsi_sense_code(cdev, ILLEGAL_REQUEST, INVALID_CDB);
-		return -1;
-	}
-	return ret;
-}
-
-/**
-* @brief  Load the last error code in the error list
-* @param  cdev: Device instance
-* @param  skey: Sense Key
-* @param  asc: Additional Sense Key
-* @retval none
-
-*/
-void usbd_scsi_sense_code(usbd_msc_dev_t *cdev, u8 skey, u8 asc)
-{
-	usbd_msc_scsi_sense_data_t *data = &cdev->scsi_sense_data[cdev->scsi_sense_tail];
-	data->skey  = skey;
-	data->w.asc = asc << 8;
-	cdev->scsi_sense_tail++;
-	if (cdev->scsi_sense_tail == USBD_MSC_SENSE_LIST_DEPTH) {
-		cdev->scsi_sense_tail = 0U;
-	}
-}

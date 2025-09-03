@@ -8,12 +8,12 @@
  */
 
 #include "ameba_soc.h"
-#include "ameba_secure_boot.h"
+#include "amebahp_secure_boot.h"
 #include "bootloader_hp.h"
 #include "boot_ota_hp.h"
 #include "ameba_boot_lzma.h"
 
-static const char *const TAG = "BOOT";
+static const char *TAG = "BOOT";
 static Certificate_TypeDef Cert[2]; //Certificate of SlotA & SlotB
 static Manifest_TypeDef Manifest[2]; //Manifest of SlotA & SlotB
 u8 Signature[2][SIGN_MAX_LEN];
@@ -136,10 +136,10 @@ u8 BOOT_LoadSubImage(SubImgInfo_TypeDef *SubImgInfo, u32 StartAddr, u8 Num, char
 		BOOT_ImgCopy((void *)&ImgHdr, (void *)StartAddr, IMAGE_HEADER_LEN);
 
 		if ((ImgHdr.signature[0] != 0x35393138) || (ImgHdr.signature[1] != 0x31313738)) {
-			if (ErrLog == TRUE) {
+			if (ErrLog == _TRUE) {
 				RTK_LOGI(TAG, "%s Invalid\n", ImgName[i]);
 			}
-			return FALSE;
+			return _FALSE;
 		}
 
 		DstAddr = ImgHdr.image_addr - IMAGE_HEADER_LEN;
@@ -166,7 +166,7 @@ u8 BOOT_LoadSubImage(SubImgInfo_TypeDef *SubImgInfo, u32 StartAddr, u8 Num, char
 		StartAddr += Len;
 	}
 
-	return TRUE;
+	return _TRUE;
 }
 
 BOOT_RAM_TEXT_SECTION
@@ -251,7 +251,7 @@ u8 BOOT_OTA_LoadIMG2(u8 ImgIndex)
 	Cnt = sizeof(Km0Label) / sizeof(char *);
 	ImgAddr = SYSCFG_BootFromNor() ? LogAddr : PhyAddr;
 
-	if (BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, Km0Label, TRUE) == FALSE) {
+	if (BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, Km0Label, _TRUE) == FALSE) {
 		return FALSE;
 	}
 	SubImgInfo[Index].Addr = SYSCFG_BootFromNor() ? LogAddr : PhyAddr;
@@ -279,7 +279,7 @@ u8 BOOT_OTA_LoadIMG2(u8 ImgIndex)
 	/* KM4 XIP & SRAM, read with virtual addr in case of encryption */
 	Cnt = sizeof(Km4Label) / sizeof(char *);
 	ImgAddr = SYSCFG_BootFromNor() ? LogAddr : PhyAddr;
-	if (BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, Km4Label, TRUE) == FALSE) {
+	if (BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, Km4Label, _TRUE) == FALSE) {
 		return FALSE;
 	}
 	SubImgInfo[Index].Addr = SYSCFG_BootFromNor() ? LogAddr : PhyAddr;
@@ -474,10 +474,8 @@ u8 BOOT_OTA_IMG2(void)
 		/* step3.3: load and check img2 if cert passed */
 		ret = BOOT_OTA_LoadIMG2(ImgIndex);
 
-		/* step3.4: try another ver from cert if valid ver exist */
+		/* step3.4: try another ver from cert if valid ver exsit */
 		if (ret != TRUE) {
-			/* OTA1 and OTA2 share one MMU virtual address. when image header of one OTA is error, will cause another OTA fail, here invalid all D-cache to avoid corner case. */
-			DCache_CleanInvalidate(0xFFFFFFFF, 0xFFFFFFFF);
 			ImgIndex = (ImgIndex + 1) % 2;
 			continue;
 		} else {
@@ -491,7 +489,7 @@ u8 BOOT_OTA_IMG2(void)
 	}
 	version = (u32)(Ver[ImgIndex] & 0xFFFFFFFF);
 
-	RTK_LOGI(TAG, "IMG2 BOOT from OTA %d, Version: %ld.%ld \n", ImgIndex + 1, ((version >> 16) & 0xFFFF), (version & 0xFFFF));
+	RTK_LOGI(TAG, "IMG2 BOOT from OTA %d, Version: %x.%x \n", ImgIndex + 1, ((version >> 16) & 0xFFFF), (version & 0xFFFF));
 
 	return ImgIndex; //verified slot index
 
@@ -551,11 +549,7 @@ u8 BOOT_OTA_AP(SubImgInfo_TypeDef *SubImgInfo, u8 Index, u8 ImgIndex)
 	u32 LogAddr;
 	u32 ImgAddr;
 	//AP XIP IMG is BL33(RTOS), place at First for MMU remap
-#ifdef CONFIG_DYNAMIC_APP_LOAD_EN
-	char *APLabel[] = {"AP XIP IMG", "AP BL1 SRAM", "AP BL1 DRAM", "AP FIP", "AP DYNAMIC APP"};
-#else
 	char *APLabel[] = {"AP XIP IMG", "AP BL1 SRAM", "AP BL1 DRAM", "AP FIP"};
-#endif
 
 	/* calculate ap phy addr */
 	PhyAddr = Img2Addr;
@@ -577,7 +571,7 @@ u8 BOOT_OTA_AP(SubImgInfo_TypeDef *SubImgInfo, u8 Index, u8 ImgIndex)
 
 	ImgAddr = SYSCFG_BootFromNor() ? LogAddr : PhyAddr;
 
-	ret = BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, APLabel, TRUE); // Check sub-image pattern and load AP sub-image
+	ret = BOOT_LoadSubImage(&SubImgInfo[Index], ImgAddr, Cnt, APLabel, _TRUE); // Check sub-image pattern and load AP sub-image
 
 	if (ret != TRUE) {
 		goto Fail;
@@ -614,7 +608,7 @@ u8 BOOT_OTA_AP_Linux(u8 CertImgIndex)
 		Cnt = sizeof(APLabel) / sizeof(char *);
 		PhyAddr += MANIFEST_SIZE_4K_ALIGN;
 
-		ret = BOOT_LoadSubImage(SubImgInfo, PhyAddr, Cnt, APLabel, TRUE); // Check sub-image pattern and load AP sub-image
+		ret = BOOT_LoadSubImage(SubImgInfo, PhyAddr, Cnt, APLabel, _TRUE); // Check sub-image pattern and load AP sub-image
 
 		if (ret != TRUE) {
 			APImgIndex = (APImgIndex + 1) % 2;
@@ -624,8 +618,6 @@ u8 BOOT_OTA_AP_Linux(u8 CertImgIndex)
 		ret = BOOT_SignatureCheck(&Manifest, SubImgInfo, Cnt, &Cert[CertImgIndex], KEYID_AP); //BL1 ECC verify if need
 
 		if (ret != TRUE) {
-			/* OTA1 and OTA2 share one MMU virtual address. when image header of one OTA is error, will cause another OTA fail, here invalid all D-cache to avoid corner case. */
-			DCache_CleanInvalidate(0xFFFFFFFF, 0xFFFFFFFF);
 			APImgIndex = (APImgIndex + 1) % 2;
 			continue;
 		} else {

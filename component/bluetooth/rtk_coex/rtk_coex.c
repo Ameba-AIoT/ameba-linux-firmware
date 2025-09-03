@@ -8,28 +8,47 @@
 #include <osif.h>
 #include "hci_platform.h"
 #include "rtk_coex.h"
-#if defined(CONFIG_BT_COEXIST)
-#include "rtw_coex_host_api.h"
-#else
-#error "Please Enable Coexist!!!"
-#endif
 
 #if defined(HCI_BT_COEX_ENABLE) && HCI_BT_COEX_ENABLE
+extern void wifi_btcoex_bt_hci_notify(uint8_t *pdata, uint16_t len, uint8_t dir);
+#if defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
 
-struct rtk_bt_coex_priv_t *p_rtk_bt_coex_priv = NULL;
+void bt_coex_init(void)
+{
+
+}
+
+void bt_coex_process_rx_frame(uint8_t type, uint8_t *pdata, uint16_t len)
+{
+
+}
+
+void bt_coex_process_tx_frame(uint8_t type, uint8_t *pdata, uint16_t len)
+{
+
+}
+
+void bt_coex_deinit(void)
+{
+
+}
+
+#else //defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
+
+rtk_bt_coex_priv_t *p_rtk_bt_coex_priv = NULL;
 
 extern bool hci_if_write_internal(uint8_t *buf, uint32_t len);
 
-static struct rtk_bt_coex_conn_t  *bt_coex_find_link_by_handle(uint16_t conn_handle)
+static rtk_bt_coex_conn_t  *bt_coex_find_link_by_handle(uint16_t conn_handle)
 {
 	bool b_find = false;
 	struct list_head *plist = NULL;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	if (!list_empty(&p_rtk_bt_coex_priv->conn_list)) {
 		plist = p_rtk_bt_coex_priv->conn_list.next;
 		while (plist != &p_rtk_bt_coex_priv->conn_list) {
-			p_conn = (struct rtk_bt_coex_conn_t *)plist;
+			p_conn = (rtk_bt_coex_conn_t *)plist;
 			if ((p_conn->conn_handle & 0xFFF) == conn_handle) {
 				b_find = true;
 				break;
@@ -46,13 +65,13 @@ static struct rtk_bt_coex_conn_t  *bt_coex_find_link_by_handle(uint16_t conn_han
 	}
 }
 
-static void bt_coex_send_vendor_cmd(uint16_t cmd_id, uint8_t *pbuf, uint8_t len)
+static void bt_coex_send_vendor_cmd(uint8_t *pbuf, uint8_t len)
 {
-	DBG_BT_COEX("bt_coex_send_vendor_cmd -----> cmd_id 0x%x\r\n", cmd_id);
+	DBG_BT_COEX("bt_coex_send_vendor_cmd -----> \r\n");
 
 	pbuf[0] = HCI_CMD;
-	pbuf[1] = cmd_id & 0xFF;
-	pbuf[2] = (cmd_id >> 8) & 0xFF;
+	pbuf[1] = HCI_VENDOR_SET_PROFILE_REPORT_COMMAND & 0xFF;
+	pbuf[2] = (HCI_VENDOR_SET_PROFILE_REPORT_COMMAND >> 8) & 0xFF;
 	pbuf[3] = len - 4;
 
 	DBG_BT_COEX("bt_coex_send_vendor_cmd: len = %d\r\n", len);
@@ -68,14 +87,14 @@ static void bt_coex_set_profile_info_to_fw(void)
 	uint8_t handle_number = 0;
 	uint8_t report_number = 0;
 	struct list_head *plist = NULL;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 	uint8_t *pbuf = NULL;
 	uint8_t offset = 0;
 
 	if (!list_empty(&p_rtk_bt_coex_priv->conn_list)) {
 		plist = p_rtk_bt_coex_priv->conn_list.next;
 		while (plist != &p_rtk_bt_coex_priv->conn_list) {
-			p_conn = (struct rtk_bt_coex_conn_t *)plist;
+			p_conn = (rtk_bt_coex_conn_t *)plist;
 			if (p_conn->profile_bitmap != 0) {
 				handle_number ++;
 			}
@@ -87,7 +106,7 @@ static void bt_coex_set_profile_info_to_fw(void)
 	}
 
 	if (handle_number == 0) {
-		handle_number ++;    /* profile 0x00 should be reported to bt fw */
+		handle_number ++;    // profile 0x00 should be reported to bt fw
 	}
 
 	pbuf = (uint8_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, (1 + handle_number * 6) + 4);
@@ -95,7 +114,6 @@ static void bt_coex_set_profile_info_to_fw(void)
 		return;
 	}
 
-	/* the first 4 byte reserved for header */
 	pbuf[offset + 4] = handle_number;
 	offset ++;
 
@@ -103,7 +121,7 @@ static void bt_coex_set_profile_info_to_fw(void)
 	if (!list_empty(&p_rtk_bt_coex_priv->conn_list)) {
 		plist = p_rtk_bt_coex_priv->conn_list.next;
 		while (plist != &p_rtk_bt_coex_priv->conn_list) {
-			p_conn = (struct rtk_bt_coex_conn_t *)plist;
+			p_conn = (rtk_bt_coex_conn_t *)plist;
 			DBG_BT_COEX("conn_handle 0x%x, profile_bitmap 0x%x, profile_status_bitmap 0x%x\r\n", p_conn->conn_handle, p_conn->profile_bitmap,
 						p_conn->profile_status_bitmap);
 			if (p_conn->profile_bitmap != 0) {
@@ -122,22 +140,22 @@ static void bt_coex_set_profile_info_to_fw(void)
 		}
 	}
 
-	/* DBG_BT_COEX_DUMP("", pbuf, offset + 4); */
+	//BT_DUMPA("", pbuf, offset + 4);
 
-	bt_coex_send_vendor_cmd(HCI_VENDOR_SET_PROFILE_REPORT_COMMAND, pbuf, offset + 4);
+	bt_coex_send_vendor_cmd(pbuf, offset + 4);
 
 	osif_mem_free(pbuf);
 }
 
-static void bt_coex_setup_check_timer(struct rtk_bt_coex_conn_t *p_conn, uint16_t profile_idx)
+static void bt_coex_setup_check_timer(rtk_bt_coex_conn_t *p_conn, uint16_t profile_idx)
 {
-	struct rtk_bt_coex_monitor_node_t *p_monitor_node = NULL;
+	rtk_bt_coex_monitor_node_t *p_monitor_node = NULL;
 
 	if (profile_idx != PROFILE_A2DP && profile_idx != PROFILE_PAN) {
 		return;
 	}
 
-	p_monitor_node = (struct rtk_bt_coex_monitor_node_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_monitor_node_t));
+	p_monitor_node = (rtk_bt_coex_monitor_node_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_monitor_node_t));
 	if (!p_monitor_node) {
 		return;
 	}
@@ -157,9 +175,9 @@ static void bt_coex_setup_check_timer(struct rtk_bt_coex_conn_t *p_conn, uint16_
 	osif_mutex_give(p_rtk_bt_coex_priv->monitor_mutex);
 }
 
-static void bt_coex_del_check_timer(struct rtk_bt_coex_conn_t *p_conn, uint16_t profile_idx)
+static void bt_coex_del_check_timer(rtk_bt_coex_conn_t *p_conn, uint16_t profile_idx)
 {
-	struct rtk_bt_coex_monitor_node_t *p_monitor_node = NULL;
+	rtk_bt_coex_monitor_node_t *p_monitor_node = NULL;
 	struct list_head *plist = NULL;
 
 	if (profile_idx != PROFILE_A2DP && profile_idx != PROFILE_PAN) {
@@ -170,7 +188,7 @@ static void bt_coex_del_check_timer(struct rtk_bt_coex_conn_t *p_conn, uint16_t 
 	if (!list_empty(&p_rtk_bt_coex_priv->monitor_list)) {
 		plist = p_rtk_bt_coex_priv->monitor_list.next;
 		while (plist != &p_rtk_bt_coex_priv->monitor_list) {
-			p_monitor_node = (struct rtk_bt_coex_monitor_node_t *)plist;
+			p_monitor_node = (rtk_bt_coex_monitor_node_t *)plist;
 			if ((p_monitor_node->p_conn == p_conn) && (p_monitor_node->profile_idx == profile_idx)) {
 				break;
 			} else {
@@ -191,7 +209,7 @@ static void bt_coex_del_check_timer(struct rtk_bt_coex_conn_t *p_conn, uint16_t 
 	osif_mem_free(p_monitor_node);
 }
 
-static void bt_coex_update_profile_info(struct rtk_bt_coex_conn_t *p_conn, uint8_t profile_index, bool b_is_add)
+static void bt_coex_update_profile_info(rtk_bt_coex_conn_t *p_conn, uint8_t profile_index, bool b_is_add)
 {
 	bool b_need_update = false;
 
@@ -231,7 +249,7 @@ static void bt_coex_handle_connection_complet_evt(uint8_t *p_evt_data)
 {
 	uint8_t conn_status = p_evt_data[0];
 	uint16_t conn_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 	uint8_t link_type = p_evt_data[9];
 
 	if (conn_status) {
@@ -245,11 +263,11 @@ static void bt_coex_handle_connection_complet_evt(uint8_t *p_evt_data)
 
 	if (!p_conn) {
 		DBG_BT_COEX("bt_coex_handle_connection_complet_evt: alloc new connection \r\n");
-		p_conn = (struct rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_conn_t));
+		p_conn = (rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_conn_t));
 		if (!p_conn) {
 			return;
 		}
-		memset(p_conn, 0, sizeof(struct rtk_bt_coex_conn_t));
+		memset(p_conn, 0, sizeof(rtk_bt_coex_conn_t));
 		p_conn->conn_handle = conn_handle;
 		INIT_LIST_HEAD(&p_conn->profile_list);
 		list_add_tail(&p_conn->list, &p_rtk_bt_coex_priv->conn_list);
@@ -270,8 +288,8 @@ static void bt_coex_handle_disconnection_complete_evt(uint8_t *pdata)
 {
 	uint16_t conn_handle = 0;
 	uint8_t status = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
 	struct list_head *plist = NULL;
 
 	status = pdata[0];
@@ -292,7 +310,7 @@ static void bt_coex_handle_disconnection_complete_evt(uint8_t *pdata)
 		if (!list_empty(&p_conn->profile_list)) {
 			plist = p_conn->profile_list.next;
 			while (plist != &p_conn->profile_list) {
-				p_profile = (struct rtk_bt_coex_profile_info_t *)plist;
+				p_profile = (rtk_bt_coex_profile_info_t *)plist;
 				bt_coex_update_profile_info(p_conn, p_profile->idx, false);
 				plist = plist->next;
 				list_del(&p_profile->list);
@@ -323,7 +341,7 @@ static void bt_coex_le_connect_complete_evt(uint8_t enhance, uint8_t *pdata)
 {
 	uint16_t conn_handle = 0;
 	uint16_t interval = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	if (pdata[0] != 0) { /* status */
 		return;
@@ -342,11 +360,11 @@ static void bt_coex_le_connect_complete_evt(uint8_t enhance, uint8_t *pdata)
 	p_conn = bt_coex_find_link_by_handle(conn_handle);
 
 	if (!p_conn) {
-		p_conn = (struct rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_conn_t));
+		p_conn = (rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_conn_t));
 		if (!p_conn) {
 			return;
 		}
-		memset(p_conn, 0, sizeof(struct rtk_bt_coex_conn_t));
+		memset(p_conn, 0, sizeof(rtk_bt_coex_conn_t));
 		p_conn->conn_handle = conn_handle;
 		INIT_LIST_HEAD(&p_conn->profile_list);
 		list_add_tail(&p_conn->list, &p_rtk_bt_coex_priv->conn_list);
@@ -358,7 +376,7 @@ static void bt_coex_le_connect_complete_evt(uint8_t enhance, uint8_t *pdata)
 	p_conn->type = HCI_CONN_TYPE_LE;
 
 	bt_coex_update_profile_info(p_conn, PROFILE_HID, true);
-	if (interval < BT_LE_BUSY_CONN_INTERVAL) {
+	if (interval < 60) {
 		p_conn->profile_status_bitmap |= BIT(PROFILE_HID);
 		bt_coex_update_profile_info(p_conn, PROFILE_HID_INTERVAL, true);
 	}
@@ -368,7 +386,7 @@ static void bt_coex_le_update_connection_evt(uint8_t *pdata)
 {
 	uint16_t interval = 0;
 	uint16_t conn_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	conn_handle = (uint16_t)((pdata[2] << 8) | pdata[1]);
 	interval = (uint16_t)((pdata[4] << 8) | pdata[3]);
@@ -382,7 +400,7 @@ static void bt_coex_le_update_connection_evt(uint8_t *pdata)
 		return;
 	}
 
-	if (interval < BT_LE_BUSY_CONN_INTERVAL) {
+	if (interval < 60) {
 		if ((p_conn->profile_bitmap & BIT(PROFILE_HID_INTERVAL)) == 0) {
 			p_conn->profile_status_bitmap |= BIT(PROFILE_HID);
 			bt_coex_update_profile_info(p_conn, PROFILE_HID_INTERVAL, true);
@@ -398,7 +416,7 @@ static void bt_coex_le_update_connection_evt(uint8_t *pdata)
 static void rtk_handle_le_cis_established_evt(uint8_t *pdata)
 {
 	uint16_t conn_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	if (pdata[0] != 0) { /* status */
 		return;
@@ -410,11 +428,11 @@ static void rtk_handle_le_cis_established_evt(uint8_t *pdata)
 
 	p_conn = bt_coex_find_link_by_handle(conn_handle);
 	if (!p_conn) {
-		p_conn = (struct rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_conn_t));
+		p_conn = (rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_conn_t));
 		if (!p_conn) {
 			return;
 		}
-		memset(p_conn, 0, sizeof(struct rtk_bt_coex_conn_t));
+		memset(p_conn, 0, sizeof(rtk_bt_coex_conn_t));
 		p_conn->conn_handle = conn_handle;
 		INIT_LIST_HEAD(&p_conn->profile_list);
 		list_add_tail(&p_conn->list, &p_rtk_bt_coex_priv->conn_list);
@@ -431,7 +449,7 @@ static void rtk_handle_le_cis_established_evt(uint8_t *pdata)
 static void rtk_handle_le_big_complete_evt(uint8_t *pdata)
 {
 	uint8_t big_handle = 0, status = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	status = pdata[0];
 	big_handle = pdata[1];
@@ -445,11 +463,11 @@ static void rtk_handle_le_big_complete_evt(uint8_t *pdata)
 
 	p_conn = bt_coex_find_link_by_handle((uint16_t)big_handle);
 	if (!p_conn) {
-		p_conn = (struct rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_conn_t));
+		p_conn = (rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_conn_t));
 		if (!p_conn) {
 			return;
 		}
-		memset(p_conn, 0, sizeof(struct rtk_bt_coex_conn_t));
+		memset(p_conn, 0, sizeof(rtk_bt_coex_conn_t));
 		p_conn->conn_handle = big_handle;
 		INIT_LIST_HEAD(&p_conn->profile_list);
 		list_add_tail(&p_conn->list, &p_rtk_bt_coex_priv->conn_list);
@@ -466,7 +484,7 @@ static void rtk_handle_le_big_complete_evt(uint8_t *pdata)
 static void rtk_handle_le_terminate_big_complete_evt(uint8_t *pdata)
 {
 	uint8_t big_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	big_handle = pdata[0];
 
@@ -486,7 +504,7 @@ static void rtk_handle_le_terminate_big_complete_evt(uint8_t *pdata)
 static void rtk_handle_le_big_sync_establish_evt(uint8_t *pdata)
 {
 	uint8_t big_handle = 0, status = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	status = pdata[0];
 	big_handle = pdata[1];
@@ -500,11 +518,11 @@ static void rtk_handle_le_big_sync_establish_evt(uint8_t *pdata)
 
 	p_conn = bt_coex_find_link_by_handle((uint16_t)big_handle);
 	if (!p_conn) {
-		p_conn = (struct rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_conn_t));
+		p_conn = (rtk_bt_coex_conn_t *) osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_conn_t));
 		if (!p_conn) {
 			return;
 		}
-		memset(p_conn, 0, sizeof(struct rtk_bt_coex_conn_t));
+		memset(p_conn, 0, sizeof(rtk_bt_coex_conn_t));
 		p_conn->conn_handle = big_handle;
 		INIT_LIST_HEAD(&p_conn->profile_list);
 		list_add_tail(&p_conn->list, &p_rtk_bt_coex_priv->conn_list);
@@ -521,7 +539,7 @@ static void rtk_handle_le_big_sync_establish_evt(uint8_t *pdata)
 static void rtk_handle_le_big_sync_lost_evt(uint8_t *pdata)
 {
 	uint8_t big_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	big_handle = pdata[0];
 
@@ -541,7 +559,7 @@ static void rtk_handle_le_big_sync_lost_evt(uint8_t *pdata)
 static void bt_coex_handle_le_meta_evt(uint8_t *pdata)
 {
 	uint8_t sub_evt = pdata[0];
-	/* DBG_BT_COEX("bt_coex_handle_le_meta_evt: sub evt = 0x%x \r\n", sub_evt); */
+	//DBG_BT_COEX("bt_coex_handle_le_meta_evt: sub evt = 0x%x \r\n", sub_evt);
 	switch (sub_evt) {
 	case HCI_EV_LE_CONN_COMPLETE:
 		bt_coex_le_connect_complete_evt(0, pdata + 1);
@@ -572,11 +590,11 @@ static void bt_coex_handle_le_meta_evt(uint8_t *pdata)
 	}
 }
 
-static void bt_coex_handle_mode_change_evt(uint8_t *pdata)
+static void bt_coex_le_handle_mode_change_evt(uint8_t *pdata)
 {
 	uint16_t interval = 0;
 	uint16_t conn_handle = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	conn_handle = (uint16_t)((pdata[2] << 8) | pdata[1]);
 	interval = (uint16_t)((pdata[5] << 8) | pdata[4]);
@@ -590,7 +608,7 @@ static void bt_coex_handle_mode_change_evt(uint8_t *pdata)
 		return;
 	}
 
-	if (interval < BT_HID_BUSY_INTERVAL) {
+	if (interval < 60) {
 		if ((p_conn->profile_bitmap & BIT(PROFILE_HID_INTERVAL)) == 0) {
 			p_conn->profile_status_bitmap |= BIT(PROFILE_HID);
 			bt_coex_update_profile_info(p_conn, PROFILE_HID_INTERVAL, true);
@@ -615,7 +633,7 @@ static void bt_coex_process_evt(uint8_t *pdata)
 
 	switch (evt) {
 	case HCI_EV_MODE_CHANGE:
-		bt_coex_handle_mode_change_evt(pdata + 2);
+		bt_coex_le_handle_mode_change_evt(pdata + 2);
 		break;
 	case HCI_EV_DISCONN_COMPLETE:
 		bt_coex_handle_disconnection_complete_evt(pdata + 2);
@@ -635,7 +653,7 @@ static int psm_to_profile(u16 psm)
 	switch (psm) {
 	case PSM_AVCTP:
 	case PSM_SDP:
-		return 0xFF;    /* ignore */
+		return 0xFF;    //ignore
 
 	case PSM_HID:
 	case PSM_HID_INT:
@@ -656,18 +674,18 @@ static int psm_to_profile(u16 psm)
 	}
 }
 
-static struct rtk_bt_coex_profile_info_t *bt_coex_find_profile(struct rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t dir)
+static rtk_bt_coex_profile_info_t *bt_coex_find_profile(rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t dir)
 {
 	bool b_find = false;
 	struct list_head *plist = NULL;
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
 
 	if (!list_empty(&p_conn->profile_list)) {
 		plist = p_conn->profile_list.next;
 		while (plist != &p_conn->profile_list) {
-			p_profile = (struct rtk_bt_coex_profile_info_t *)plist;
+			p_profile = (rtk_bt_coex_profile_info_t *)plist;
 
-			if (dcid == 0) { /* for l2cap connect req */
+			if (dcid == 0) { //for l2cap connect req
 				if ((dir == DIR_IN) && (scid == p_profile->dcid)) {
 					DBG_BT_COEX("bt_coex_find_profile for rx l2cap connect req: dir %d, p_profile->dcid = 0x%x\r\n", dir, p_profile->dcid);
 					b_find = true;
@@ -678,7 +696,7 @@ static struct rtk_bt_coex_profile_info_t *bt_coex_find_profile(struct rtk_bt_coe
 					DBG_BT_COEX("bt_coex_find_profile for tx l2cap connect req: dir %d, p_profile->scid = 0x%x\r\n", dir, p_profile->scid);
 					break;
 				}
-			} else if (scid == 0) { /* for packet_counter_handle */
+			} else if (scid == 0) { //for packet_counter_handle
 				if ((dir == DIR_IN) && (dcid == p_profile->scid)) {
 					b_find = true;
 					break;
@@ -687,7 +705,7 @@ static struct rtk_bt_coex_profile_info_t *bt_coex_find_profile(struct rtk_bt_coe
 					b_find = true;
 					break;
 				}
-			} else { /* for l2cap connect rsp */
+			} else { //for l2cap connect rsp
 				if ((dir == DIR_IN) && (scid == p_profile->scid)) {
 					b_find = true;
 					DBG_BT_COEX("bt_coex_find_profile for rx l2cap connect rsp: dir %d, p_profile->scid = 0x%x\r\n", dir, p_profile->scid);
@@ -712,11 +730,11 @@ static struct rtk_bt_coex_profile_info_t *bt_coex_find_profile(struct rtk_bt_coe
 	}
 }
 
-static void bt_coex_handle_l2cap_conn_req(struct rtk_bt_coex_conn_t *p_conn, uint16_t psm, uint16_t scid, uint8_t dir)
+static void bt_coex_handle_l2cap_conn_req(rtk_bt_coex_conn_t *p_conn, uint16_t psm, uint16_t scid, uint8_t dir)
 {
 	int idx = psm_to_profile(psm);
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
-	struct rtk_bt_coex_profile_info_t *p_profile_info = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_profile_info_t *p_profile_info = NULL;
 	struct list_head *plist = NULL;
 
 	DBG_BT_COEX("bt_coex_handle_l2cap_conn_req : psm = 0x%x scid = 0x%x dir = %d\r\n", psm, scid, dir);
@@ -730,12 +748,12 @@ static void bt_coex_handle_l2cap_conn_req(struct rtk_bt_coex_conn_t *p_conn, uin
 		return;
 	}
 
-	p_profile = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_profile_info_t));
+	p_profile = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_profile_info_t));
 	if (!p_profile) {
 		return;
 	}
 
-	memset(p_profile, 0, sizeof(struct rtk_bt_coex_profile_info_t));
+	memset(p_profile, 0, sizeof(rtk_bt_coex_profile_info_t));
 
 	p_profile->psm = psm;
 	p_profile->idx = idx;
@@ -751,7 +769,7 @@ static void bt_coex_handle_l2cap_conn_req(struct rtk_bt_coex_conn_t *p_conn, uin
 		if (!list_empty(&p_conn->profile_list)) {
 			plist = p_conn->profile_list.next;
 			while (plist != &p_conn->profile_list) {
-				p_profile_info = (struct rtk_bt_coex_profile_info_t *)plist;
+				p_profile_info = (rtk_bt_coex_profile_info_t *)plist;
 				if (p_profile_info->psm == psm) {
 					b_find = true;
 					break;
@@ -773,9 +791,9 @@ static void bt_coex_handle_l2cap_conn_req(struct rtk_bt_coex_conn_t *p_conn, uin
 	list_add_tail(&p_profile->list, &p_conn->profile_list);
 }
 
-static void bt_coex_handle_l2cap_conn_rsp(struct rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t res, uint8_t dir)
+static void bt_coex_handle_l2cap_conn_rsp(rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t res, uint8_t dir)
 {
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
 
 	DBG_BT_COEX("bt_coex_handle_l2cap_conn_rsp: dcid = 0x%x, scid = 0x%x, res = 0x%x, dir = %d\r\n", dcid, scid, res, dir);
 
@@ -798,16 +816,16 @@ static void bt_coex_handle_l2cap_conn_rsp(struct rtk_bt_coex_conn_t *p_conn, uin
 	}
 }
 
-static void bt_coex_handle_handle_l2cap_dis_conn_req(struct rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t dir)
+static void bt_coex_handle_handle_l2cap_dis_conn_req(rtk_bt_coex_conn_t *p_conn, uint16_t scid, uint16_t dcid, uint8_t dir)
 {
 	bool b_find = false;
 	struct list_head *plist = NULL;
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
 
 	if (!list_empty(&p_conn->profile_list)) {
 		plist = p_conn->profile_list.next;
 		while (plist != &p_conn->profile_list) {
-			p_profile = (struct rtk_bt_coex_profile_info_t *)plist;
+			p_profile = (rtk_bt_coex_profile_info_t *)plist;
 			if (dir == DIR_IN) {
 				if ((p_profile->dcid == scid) && (p_profile->scid == dcid)) {
 					b_find = true;
@@ -852,40 +870,9 @@ static void bt_coex_handle_handle_l2cap_dis_conn_req(struct rtk_bt_coex_conn_t *
 	osif_mem_free(p_profile);
 }
 
-
-static void bt_coex_set_bitpool_to_fw(uint8_t *user_data, uint16_t length)
+static void bt_coex_packet_counter_handle(rtk_bt_coex_conn_t *p_conn, uint16_t cid, uint8_t dir)
 {
-#define HCI_VENDOR_SET_BITPOOL_LENGTH  5
-	struct sbc_frame_hdr *sbc_header = NULL;
-	struct rtp_header *rtph = NULL;
-	uint8_t hci_buf[HCI_VENDOR_SET_BITPOOL_LENGTH] = {0};
-
-	/* We assume it is SBC if the packet length
-	    * is bigger than 100 bytes
-	    */
-	if (length > 100) {
-		rtph = (struct rtp_header *)user_data;
-
-		DBG_BT_COEX("bt_coex_set_bitpool_to_fw rtp: v 0x%x, cc 0x%x, pt 0x%x \r\n", rtph->v, rtph->cc, rtph->pt);
-
-		/* move forward */
-		user_data += sizeof(struct rtp_header) + rtph->cc * 4 + 1;
-
-		/* point to the sbc frame header */
-		sbc_header = (struct sbc_frame_hdr *)user_data;
-		hci_buf[HCI_VENDOR_SET_BITPOOL_LENGTH - 1] = (uint8_t)sbc_header->bitpool;
-
-		DBG_BT_COEX("bt_coex_set_bitpool_to_fw bitpool %d channel_mode %d sampling_frequency %d\r\n", sbc_header->bitpool, sbc_header->channel_mode,
-					sbc_header->sampling_frequency);
-
-		/* the first 4 byte reserved for header */
-		bt_coex_send_vendor_cmd(HCI_VENDOR_SET_BITPOOL, hci_buf, HCI_VENDOR_SET_BITPOOL_LENGTH);
-	}
-}
-
-static void bt_coex_packet_counter_handle(struct rtk_bt_coex_conn_t *p_conn, uint16_t cid, uint8_t dir, uint8_t *pdata, uint16_t length)
-{
-	struct rtk_bt_coex_profile_info_t *p_profile = NULL;
+	rtk_bt_coex_profile_info_t *p_profile = NULL;
 
 	p_profile = bt_coex_find_profile(p_conn, 0, cid, dir);
 
@@ -905,7 +892,6 @@ static void bt_coex_packet_counter_handle(struct rtk_bt_coex_conn_t *p_conn, uin
 				}
 			}
 			bt_coex_set_profile_info_to_fw();
-			bt_coex_set_bitpool_to_fw(pdata, length);
 		}
 
 		p_conn->a2dp_cnt ++;
@@ -934,8 +920,7 @@ static void bt_coex_process_acl_data(uint8_t *pdata, uint16_t len, uint8_t dir)
 	uint16_t scid = 0;
 	uint16_t dcid = 0;
 	uint16_t res = 0;
-	uint16_t pdu_len = 0;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	conn_handle = (uint16_t)((pdata[1] << 8) | pdata[0]);
 
@@ -952,7 +937,6 @@ static void bt_coex_process_acl_data(uint8_t *pdata, uint16_t len, uint8_t dir)
 		return;
 	}
 
-	pdu_len = (uint16_t)((pdata[5] << 8) | pdata[4]);
 	channel_id = (uint16_t)((pdata[7] << 8) | pdata[6]);
 
 	if ((channel_id == 0x0001) && len < 11) {
@@ -987,7 +971,7 @@ static void bt_coex_process_acl_data(uint8_t *pdata, uint16_t len, uint8_t dir)
 		}
 	} else {
 		if ((((p_conn->profile_bitmap & BIT(PROFILE_A2DP)) > 0) || ((p_conn->profile_bitmap & BIT(PROFILE_PAN)) > 0))) {
-			bt_coex_packet_counter_handle(p_conn, channel_id, dir, pdata + 9, pdu_len);
+			bt_coex_packet_counter_handle(p_conn, channel_id, dir);
 		}
 	}
 }
@@ -995,8 +979,8 @@ static void bt_coex_process_acl_data(uint8_t *pdata, uint16_t len, uint8_t dir)
 static void bt_coex_monitor_timer_handler(void *arg)
 {
 	UNUSED(arg);
-	struct rtk_bt_coex_monitor_node_t *p_monitor = NULL;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_monitor_node_t *p_monitor = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 	struct list_head *plist = NULL;
 
 	if (list_empty(&p_rtk_bt_coex_priv->monitor_list)) {
@@ -1005,7 +989,7 @@ static void bt_coex_monitor_timer_handler(void *arg)
 
 	plist = p_rtk_bt_coex_priv->monitor_list.next;
 	while (plist != &p_rtk_bt_coex_priv->monitor_list) {
-		p_monitor = (struct rtk_bt_coex_monitor_node_t *)plist;
+		p_monitor = (rtk_bt_coex_monitor_node_t *)plist;
 		p_conn = p_monitor->p_conn;
 
 		if (p_monitor->b_first_add) {
@@ -1043,121 +1027,51 @@ static void bt_coex_monitor_timer_handler(void *arg)
 	}
 }
 
-#if defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
-void bt_coex_send_mailbox_cmd(uint8_t *user_data, uint16_t length)
-{
-	uint8_t *pbuf = NULL;
-	uint8_t offset = 0;
-
-	pbuf = (uint8_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, 1 + length + 4);
-	if (!pbuf) {
-		return;
-	}
-
-	/* the first 4 byte reserved for header */
-	pbuf[offset + 4] = length;
-	offset ++;
-	memcpy(pbuf + offset + 4, user_data, length);
-
-	/* the first 4 byte reserved for header */
-	bt_coex_send_vendor_cmd(HCI_VENDOR_MAILBOX_CMD, pbuf, offset + 4);
-
-	osif_mem_free(pbuf);
-}
-
-
-static void bt_coex_set_mailbox_to_wifi(uint8_t *user_data, uint16_t length)
-{
-#if defined(CONFIG_BT_COEXIST)
-	DBG_BT_COEX_DUMP("bt_coex_set_mailbox_to_wifi: pdata = ", user_data, length);
-	rtk_coex_btc_bt_hci_notify(user_data, length, COEX_H2C_BT_HCI_NOTIFY_SW_MAILBOX);
-#else
-	(void) user_data;
-	(void) length;
-#endif
-}
-
-static void bt_coex_parse_mailbox_event(uint8_t status, uint8_t mailbox_id, uint8_t payload_len, uint8_t *payload)
-{
-	uint8_t *pdata = NULL;
-	uint8_t data_len = 0;
-	DBG_BT_COEX("bt_coex_parse_mailbox_event status %d mailbox_id 0x%x\r\n", status, mailbox_id);
-
-	switch (mailbox_id) {
-	case RTK_COEX_MAILBOX_BT_IGNORE_WLAN_ACT:
-		break;
-	case RTK_COEX_MAILBOX_BT_MP_REPORT:
-		break;
-	case RTK_COEX_MAILBOX_BT_INFO_REPORT:
-	case RTK_COEX_MAILBOX_BT_INFO_REPORT_BY_ITSELF:
-		if (status == 0) {
-			pdata = (uint8_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, 1 + payload_len);
-			if (!pdata || payload_len == 0) {
-				return;
-			}
-			pdata[0] = mailbox_id;
-			memcpy(pdata + 1, payload, payload_len);
-			data_len = payload_len + 1;
-			DBG_BT_COEX_DUMP("bt_coex_set_mailbox_to_wifi: pdata = ", pdata, data_len);
-			bt_coex_set_mailbox_to_wifi(pdata, data_len);
-			osif_mem_free(pdata);
-		}
-		break;
-
-	default:
-		break;
-	}
-}
-#endif
-
 void bt_coex_evt_notify(uint8_t *pdata, uint16_t len)
 {
 	uint8_t evt = pdata[0];
+	bool need_notify = FALSE;
 	switch (evt) {
-	case HCI_EV_CMD_COMPLETE: {
-		/* B0: event code, B1: length, B2: Num_HCI_Command_Packets, B3&B4: Command_Opcode: B5: cmd_status */
-		uint16_t cmd_opcode = (uint16_t)((pdata[4] << 8) | pdata[3]);
-		uint8_t length = pdata[1];
-		uint8_t status = pdata[5];
-		switch (cmd_opcode) {
-#if defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
-		case HCI_VENDOR_MAILBOX_CMD: {
-			uint8_t mailbox_id = pdata[1];
-			uint8_t payload_len = length - 5;
-			uint8_t *payload = pdata + 7;
-			bt_coex_parse_mailbox_event(status, mailbox_id, payload_len, payload);
+	case HCI_EV_LE_META: {
+		uint8_t sub_evt = pdata[2];
+		switch (sub_evt) {
+		case HCI_EV_LE_CONN_COMPLETE:
+		case HCI_EV_LE_ENHANCED_CONN_COMPLETE:
+		case HCI_EV_LE_CONN_UPDATE_COMPLETE:
+			need_notify = TRUE;
 			break;
-		}
-#endif
 		default:
-			(void) length;
-			(void) status;
 			break;
 		}
-		break;
 	}
-
-#if defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
-	case HCI_EV_VENDOR_SPECIFIC: { /* fix me, test in amebad */
-		/* B0: event code, B1: length, B2: sub event code, B3: cmd_status, B4&B11 coex info */
-		uint8_t length = pdata[1];
-		uint8_t sub_event_code = pdata[2];
-		uint8_t status = pdata[3];
-		uint8_t payload_len = length - 2;
-		uint8_t *payload = pdata + 4;
-		if (sub_event_code == RTK_COEX_MAILBOX_BT_INFO_REPORT_BY_ITSELF) {
-			bt_coex_parse_mailbox_event(status, sub_event_code, payload_len, payload);
-		}
+	break;
+	case HCI_EV_DISCONN_COMPLETE:
+		need_notify = TRUE;
 		break;
-	}
-#endif
-
 	default:
-		(void) len;
+		break;
+	}
+	if (need_notify == TRUE) {
+		wifi_btcoex_bt_hci_notify(pdata, len, DIR_IN);
+	}
+}
+void bt_coex_cmd_notify(uint8_t *pdata, uint16_t len)
+{
+	uint16_t opcode;
+	opcode = (uint16_t)((pdata[1] << 8) | pdata[0]);
+	switch (opcode) {
+	case BT_HCI_OP_LE_SET_SCAN_PARAM:
+	case BT_HCI_OP_LE_SET_EX_SCAN_PARAM:
+	case BT_HCI_OP_BR_WR_SCAN_ENABLE:
+	case BT_HCI_OP_BR_WR_PAGE_SCAN_ACTIVITY:
+	case BT_HCI_OP_BR_WR_INQ_SCAN_ACTIVITY:
+	case BT_HCI_OP_LE_CREATE_CONNECTION:
+		wifi_btcoex_bt_hci_notify(pdata, len, DIR_OUT);
+		break;
+	default:
 		break;
 	}
 }
-
 void bt_coex_process_rx_frame(uint8_t type, uint8_t *pdata, uint16_t len)
 {
 	if (!pdata) {
@@ -1183,16 +1097,19 @@ void bt_coex_process_tx_frame(uint8_t type, uint8_t *pdata, uint16_t len)
 	if (type == HCI_ACL) {
 		bt_coex_process_acl_data(pdata, len, DIR_OUT);
 	}
+	if (type == HCI_CMD) {
+		bt_coex_cmd_notify(pdata, len);
+	}
 }
 
 void bt_coex_init(void)
 {
 	DBG_BT_COEX("Init \r\n");
-	p_rtk_bt_coex_priv = (struct rtk_bt_coex_priv_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct rtk_bt_coex_priv_t));
+	p_rtk_bt_coex_priv = (rtk_bt_coex_priv_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_coex_priv_t));
 	if (!p_rtk_bt_coex_priv) {
 		return;
 	}
-	memset(p_rtk_bt_coex_priv, 0, sizeof(struct rtk_bt_coex_priv_t));
+	memset(p_rtk_bt_coex_priv, 0, sizeof(rtk_bt_coex_priv_t));
 	INIT_LIST_HEAD(&p_rtk_bt_coex_priv->conn_list);
 	INIT_LIST_HEAD(&p_rtk_bt_coex_priv->monitor_list);
 	if (false == osif_mutex_create(&p_rtk_bt_coex_priv->monitor_mutex)) {
@@ -1208,8 +1125,8 @@ void bt_coex_init(void)
 void bt_coex_deinit(void)
 {
 	struct list_head *plist = NULL;
-	struct rtk_bt_coex_monitor_node_t *p_monitor = NULL;
-	struct rtk_bt_coex_conn_t *p_conn = NULL;
+	rtk_bt_coex_monitor_node_t *p_monitor = NULL;
+	rtk_bt_coex_conn_t *p_conn = NULL;
 
 	DBG_BT_COEX("Deinit \r\n");
 	osif_timer_stop(&p_rtk_bt_coex_priv->monitor_timer);
@@ -1218,7 +1135,7 @@ void bt_coex_deinit(void)
 	if (!list_empty(&p_rtk_bt_coex_priv->monitor_list)) {
 		plist = p_rtk_bt_coex_priv->monitor_list.next;
 		while (plist != &p_rtk_bt_coex_priv->monitor_list) {
-			p_monitor = (struct rtk_bt_coex_monitor_node_t *)plist;
+			p_monitor = (rtk_bt_coex_monitor_node_t *)plist;
 			plist = plist->next;
 			list_del(&p_monitor->list);
 			osif_mem_free(p_monitor);
@@ -1230,20 +1147,9 @@ void bt_coex_deinit(void)
 	if (!list_empty(&p_rtk_bt_coex_priv->conn_list)) {
 		plist = p_rtk_bt_coex_priv->conn_list.next;
 		while (plist != &p_rtk_bt_coex_priv->conn_list) {
-			p_conn = (struct rtk_bt_coex_conn_t *)plist;
+			p_conn = (rtk_bt_coex_conn_t *)plist;
 			plist = plist->next;
 			list_del(&p_conn->list);
-			{
-				struct list_head *p_profile_list = NULL;
-				struct rtk_bt_coex_profile_info_t *p_profile = NULL;
-				p_profile_list = p_conn->profile_list.next;
-				while (p_profile_list != &p_conn->profile_list) {
-					p_profile = (struct rtk_bt_coex_profile_info_t *)p_profile_list;
-					p_profile_list = p_profile_list->next;
-					list_del(&p_profile->list);
-					osif_mem_free(p_profile);
-				}
-			}
 			osif_mem_free(p_conn);
 		}
 	}
@@ -1253,7 +1159,9 @@ void bt_coex_deinit(void)
 	osif_mem_free(p_rtk_bt_coex_priv);
 }
 
-#else /* defined(HCI_BT_COEX_ENABLE) && HCI_BT_COEX_ENABLE */
+#endif //defined(HCI_BT_COEX_SW_MAILBOX) && HCI_BT_COEX_SW_MAILBOX
+
+#else //defined(HCI_BT_COEX_ENABLE) && HCI_BT_COEX_ENABLE
 
 void bt_coex_init(void)
 {
@@ -1275,5 +1183,5 @@ void bt_coex_deinit(void)
 
 }
 
-#endif /* defined(HCI_BT_COEX_ENABLE) && HCI_BT_COEX_ENABLE */
+#endif //defined(HCI_BT_COEX_ENABLE) && HCI_BT_COEX_ENABLE
 

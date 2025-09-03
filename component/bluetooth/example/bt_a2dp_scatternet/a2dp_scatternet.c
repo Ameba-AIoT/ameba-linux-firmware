@@ -722,7 +722,7 @@ static rtk_bt_a2dp_media_codec_sbc_t codec_sbc = {
 /* ---------------------------------- a2dp(end) -----------------------------------*/
 
 /* ---------------------------------- Scatternet -----------------------------------*/
-#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
+#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
 static uint8_t ext_adv_data[] = {
 	// Flags
 	0x02,
@@ -753,7 +753,7 @@ static uint8_t ext_adv_data[] = {
 static rtk_bt_le_ext_adv_param_t ext_adv_param = {
 	.adv_event_prop = RTK_BT_LE_EXT_ADV_EXTENDED_ADV_CONN_UNDIRECTED,
 	.primary_adv_interval_min = 320,
-	.primary_adv_interval_max = 360,
+	.primary_adv_interval_max = 320,
 	.primary_adv_channel_map = RTK_BT_LE_ADV_CHNL_ALL,
 	.own_addr = {RTK_BT_LE_ADDR_TYPE_PUBLIC, {0}},
 	.peer_addr = {RTK_BT_LE_ADDR_TYPE_PUBLIC, {0}},//;{0x8A, 0xAA, 0xAA, 0x4C, 0xE0, 0x00},
@@ -818,6 +818,66 @@ static rtk_bt_le_security_param_t sec_param = {
 #define PRIVACY_USE_DIR_ADV_WHEN_BONDED    0
 static bool privacy_enable = false;
 static bool privacy_whitelist = true;
+static uint8_t privacy_irk[RTK_BT_LE_GAP_IRK_LEN] = "abcdef0123456789";
+#endif
+
+#if defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT
+#define BT_POWER_TEST_MODE         0
+#if defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE
+#include "rtk_bt_power_control.h"
+
+#define BT_POWER_TEST_WAKE_TIME    5    //Unit:s
+
+static void *bt_power_test_wake_timer_hdl = NULL;
+
+static void bt_power_test_wake_timeout_handler(void *arg)
+{
+	(void)arg;
+	rtk_bt_release_wakelock();
+}
+
+static void bt_power_test_suspend(void)
+{
+	BT_LOGA("[BT_PS] Enter bt_power_test_suspend\r\n");
+}
+
+static void bt_power_test_resume(void)
+{
+	BT_LOGA("[BT_PS] Enter bt_power_test_resume\r\n");
+
+	if (BT_POWER_TEST_WAKE_TIME != 0) {
+		osif_timer_restart(&bt_power_test_wake_timer_hdl, BT_POWER_TEST_WAKE_TIME * 1000);
+	} else {
+		rtk_bt_release_wakelock();
+	}
+}
+
+static void bt_power_test_init(void)
+{
+	if (BT_POWER_TEST_WAKE_TIME != 0) {
+		osif_timer_create(&bt_power_test_wake_timer_hdl, "bt_power_test_wake_timer", NULL, BT_POWER_TEST_WAKE_TIME * 1000, false,
+						  bt_power_test_wake_timeout_handler);
+		if (bt_power_test_wake_timer_hdl == NULL) {
+			BT_LOGE("[BT_PS] bt_power_test_wake_timer create failed!\r\n");
+			return;
+		}
+	}
+
+	rtk_bt_power_save_init((rtk_bt_ps_callback)bt_power_test_suspend, (rtk_bt_ps_callback)bt_power_test_resume);
+}
+
+static void bt_power_test_deinit(void)
+{
+	rtk_bt_power_save_deinit();
+
+	if (BT_POWER_TEST_WAKE_TIME != 0) {
+		if (bt_power_test_wake_timer_hdl) {
+			osif_timer_delete(&bt_power_test_wake_timer_hdl);
+			bt_power_test_wake_timer_hdl = NULL;
+		}
+	}
+}
+#endif
 #endif
 
 static void app_server_disconnect(uint16_t conn_handle)
@@ -907,7 +967,7 @@ static rtk_bt_evt_cb_ret_t scatternet_gap_app_callback(uint8_t evt_code, void *p
 	}
 #endif
 	default:
-		BT_LOGE("[APP] Unknown common gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unkown common gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -943,7 +1003,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 		break;
 	}
 
-#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
+#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
 	case RTK_BT_LE_GAP_EVT_EXT_ADV_IND: {
 		rtk_bt_le_ext_adv_ind_t *ext_adv_ind = (rtk_bt_le_ext_adv_ind_t *)param;
 		if (!ext_adv_ind->err) {
@@ -1007,24 +1067,24 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 	case RTK_BT_LE_GAP_EVT_SCAN_RES_IND: {
 		rtk_bt_le_scan_res_ind_t *scan_res_ind = (rtk_bt_le_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->adv_report.addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %d, len: %d \r\n",
+		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %i, len: %d \r\n",
 				le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi,
 				scan_res_ind->adv_report.len);
-		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%d,%d\r\n",
+		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%i,%d\r\n",
 					le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi,
 					scan_res_ind->adv_report.len);
 		break;
 	}
 
-#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
+#if defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT
 	case RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND: {
 		rtk_bt_le_ext_scan_res_ind_t *scan_res_ind = (rtk_bt_le_ext_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %d, PHY: 0x%x, TxPower: %d, Len: %d\r\n",
+		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %i, PHY: 0x%x, TxPower: %d, Len: %d\r\n",
 				le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 				(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
 				scan_res_ind->tx_power, scan_res_ind->len);
-		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%d,0x%x,%d,%d\r\n",
+		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%i,0x%x,%d,%d\r\n",
 					le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 					(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
 					scan_res_ind->tx_power, scan_res_ind->len);
@@ -1086,7 +1146,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 
 		if (RTK_BT_LE_ROLE_SLAVE == disconn_ind->role) {
 			/* gap action */
-#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
+#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
 			rtk_bt_le_gap_dev_state_t dev_state;
 			rtk_bt_le_adv_param_t adv_param = {0};
 			if (rtk_bt_le_gap_get_dev_state(&dev_state) == RTK_BT_OK &&
@@ -1119,7 +1179,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 						, adv_param.type,  adv_param.own_addr_type, adv_param.filter_policy);
 				BT_APP_PROCESS(rtk_bt_le_gap_start_adv(&adv_param));
 			}
-#endif /* RTK_BLE_5_0_USE_EXTENDED_ADV */
+#endif /* RTK_BLE_5_0_AE_ADV_SUPPORT */
 			/* gatts action */
 			app_server_disconnect(disconn_ind->conn_handle);
 		}
@@ -1390,7 +1450,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 #endif
 
 	default:
-		BT_LOGE("[APP] Unknown gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unkown gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -1594,42 +1654,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gattc_app_callback(uint8_t event, void
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
 static int16_t pcm_buffer[512] = {0};
 static uint16_t a2dp_demo_send_data_seq = 0;
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-static void app_a2dp_src_send_data(void)
-{
-	rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
-	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
 
-	if (src_a2dp_credits) {
-		if (!demo_usb_read_buffer((uint8_t *)pcm_buffer, (uint16_t)1024)) {
-			// BT_LOGA("[A2DP SRC Demo]: uart buffer read success \r\n");
-			penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, (int16_t *)pcm_buffer, (uint32_t)1024);
-			if (penc_codec_buffer_t) {
-				memset((void *)&data_send_t, 0, sizeof(rtk_bt_a2dp_stream_data_send_t));
-				memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
-				data_send_t.seq_num = a2dp_demo_send_data_seq++;
-				data_send_t.frame_buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
-				data_send_t.frame_num = (uint8_t)penc_codec_buffer_t->frame_num;
-				data_send_t.time_stamp += data_send_t.frame_num * sbc_codec_t.encoder_t.subbands * sbc_codec_t.encoder_t.blocks;
-				data_send_t.len = (uint16_t)(penc_codec_buffer_t->frame_num * penc_codec_buffer_t->frame_size);
-				data_send_t.flush = false;
-				if (rtk_bt_a2dp_data_send(&data_send_t)) {
-					BT_LOGE("[A2DP] data send fail \r\n");
-				} else {
-					src_a2dp_credits --;
-				}
-				rtk_bt_audio_free_encode_buffer(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, penc_codec_buffer_t);
-			} else {
-				BT_LOGE("[A2DP SRC Demo]: Encode fail \r\n");
-			}
-		} else {
-			// BT_LOGE("[A2DP SRC Demo]: uart buffer length is not enough \r\n");
-		}
-	} else {
-		// BT_LOGE("[A2DP] waiting src_a2dp_credits \r\n");
-	}
-}
-#else
 static void app_a2dp_src_send_data(void)
 {
 	rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
@@ -1664,7 +1689,6 @@ static void app_a2dp_src_send_data(void)
 		// BT_LOGE("[A2DP] waiting src_a2dp_credits \r\n");
 	}
 }
-#endif
 #else
 static uint32_t pcm_offset = 0;
 static uint16_t a2dp_demo_send_data_seq = 0;
@@ -2136,91 +2160,6 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		memcpy((void *)bd_addr, param, 6);
 		BT_LOGA("[AVRCP] Receive AVRCP connection from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_ELEMENT_ATTR_INFO: {
-		uint8_t temp_buff[50];
-		const char *attr[] = {"", "Title:", "Artist:", "Album:", "Track:",
-							  "TotalTrack:", "Genre:", "PlayingTime:"
-							 };
-		rtk_bt_avrcp_element_attr_info_t *p_attr_t = (rtk_bt_avrcp_element_attr_info_t *)param;
-
-		if (p_attr_t->state == 0) {
-			BT_LOGA("[AVRCP] Get element attr information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_attr_t->num_of_attr; i ++) {
-				if (p_attr_t->attr[i].length) {
-					memset((void *)temp_buff, 0, 50);
-					uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
-					snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
-					BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-					osif_mem_free(p_attr_t->attr[i].p_buf);
-				}
-			}
-		} else {
-			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-		}
-		if (p_attr_t->num_of_attr) {
-			osif_mem_free(p_attr_t->attr);
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_ATTRS_LIST_RSP: {
-		uint8_t temp_buff[10];
-		rtk_bt_avrcp_app_setting_attrs_list_t *p_list_t = (rtk_bt_avrcp_app_setting_attrs_list_t *)param;
-		const char *attr[] = {"", "EQ", "Repeat Mode", "Shuffle", "Scan"};
-
-		if (p_list_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings attrs information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
-				memset((void *)temp_buff, 0, 10);
-				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
-				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_VALUES_LIST_RSP: {
-		rtk_bt_avrcp_app_setting_values_list_t *p_values_t = (rtk_bt_avrcp_app_setting_values_list_t *)param;
-
-		if (p_values_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings values information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_values_t->bd_addr[5], p_values_t->bd_addr[4], p_values_t->bd_addr[3], p_values_t->bd_addr[2], p_values_t->bd_addr[1], p_values_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_values_t->num_of_value; i ++) {
-				BT_LOGA("[AVRCP] value 0x%02x \r\n", p_values_t->p_value[i]);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_APP_SETTING_GET_RSP: {
-		uint8_t temp_buff[20];
-		rtk_bt_avrcp_app_setting_get_rsp_t *p_rsp_t = (rtk_bt_avrcp_app_setting_get_rsp_t *)param;
-		const char *attr[] = {"", "EQ:", "Repeat Mode:", "Shuffle:", "Scan:"};
-
-		if (p_rsp_t->state == 0) {
-			BT_LOGA("[AVRCP] Get app settings response information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
-			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
-				memset((void *)temp_buff, 0, 20);
-				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
-				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-			}
-		}
-		break;
-	}
-
-	case RTK_BT_AVRCP_EVT_COVER_ART_DATA_IND: {
-		rtk_bt_avrcp_cover_art_data_ind_t *p_data_t = (rtk_bt_avrcp_cover_art_data_ind_t *)param;
-
-		if (p_data_t->data_end) {
-			BT_LOGA("[AVRCP] Get art cover successfully \r\n");
-		}
 		break;
 	}
 
@@ -2884,7 +2823,7 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 	bool adv_filter_whitelist = false;
 	char addr_str[30] = {0};
 	char dev_name[30] = {0};
-#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
+#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
 	uint8_t adv_handle;
 #else
 	rtk_bt_le_adv_param_t adv_param = {0};
@@ -2913,7 +2852,7 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
-		bt_app_conf.irk_auto_gen = true;
+		memcpy(bt_app_conf.irk, privacy_irk, RTK_BT_LE_GAP_IRK_LEN);
 #endif
 		bt_app_conf.user_def_service = false;
 		bt_app_conf.cccd_not_check = false;
@@ -2969,19 +2908,19 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 
 			BT_APP_PROCESS(rtk_bt_le_sm_set_security_param(&sec_param));
 
-#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
+#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
 			memcpy(&adv_param, &def_adv_param, sizeof(rtk_bt_le_adv_param_t));
 #endif
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
 			if (privacy_enable) {
 				BT_APP_PROCESS(rtk_bt_le_gap_privacy_init(privacy_whitelist));
-#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
+#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
 				/* If privacy on, default use RPA adv, even not bonded */
 				adv_param.own_addr_type = 2;
 #endif
 				BT_APP_PROCESS(rtk_bt_le_sm_get_bond_num(&bond_size));
 				if (bond_size != 0) {
-#if (defined(PRIVACY_USE_DIR_ADV_WHEN_BONDED) && PRIVACY_USE_DIR_ADV_WHEN_BONDED) && (!defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV)
+#if (defined(PRIVACY_USE_DIR_ADV_WHEN_BONDED) && PRIVACY_USE_DIR_ADV_WHEN_BONDED) && (!defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT)
 					rtk_bt_le_bond_info_t bond_info = {0};
 					uint8_t bond_num = 1;
 					rtk_bt_le_sm_get_bond_info(&bond_info, &bond_num);
@@ -3015,7 +2954,7 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 			BT_APP_PROCESS(gaps_client_add());
 			BT_APP_PROCESS(simple_ble_client_add());
 
-#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
+#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
 			if (adv_filter_whitelist) {
 				ext_adv_param.filter_policy = RTK_BT_LE_ADV_FILTER_ALLOW_SCAN_WLST_CON_WLST;
 			}
@@ -3030,18 +2969,16 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 			}
 			BT_APP_PROCESS(rtk_bt_le_gap_start_adv(&adv_param));
 #endif
+
+#if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
+			bt_power_test_init();
+#endif
 		}
 
 		/* bredr gap related */
 		{
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-			if (!demo_usb_init()) {
-				BT_LOGE("demo_usb_init failed\r\n");
-			}
-#else
 			demo_uart_init();
-#endif
 #endif
 			/* Initilize GAP part */
 			BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_GAP, br_gap_app_callback));
@@ -3120,7 +3057,9 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 			BT_LOGE("%s No need deinit! \r\n", __func__);
 			return -1;
 		}
-
+#if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
+		bt_power_test_deinit();
+#endif
 		/* auto reconnect deinit */
 		if (a2dp_demo_auto_reconnect) {
 			osif_timer_stop(&reconnect_timer);
@@ -3170,13 +3109,6 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_SDP));
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_AVRCP));
 		BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_BR_GP_A2DP));
-#if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-#if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_USB
-		if (!demo_usb_deinit()) {
-			BT_LOGE("demo_usb_deinit failed\r\n");
-		}
-#endif
-#endif
 		/* Disable BT */
 		BT_APP_PROCESS(rtk_bt_disable());
 		/* audio related resources release */

@@ -54,14 +54,6 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 	case BT_EVENT_SDP_ATTR_INFO: {
 		rtk_bt_a2dp_sdp_attr_info_t *p_info = NULL;
 		T_BT_SDP_ATTR_INFO *sdp_info = &param->sdp_attr_info.info;
-		if (sdp_info->srv_class_uuid_type == BT_SDP_UUID16) {
-			if ((a2dp_role == BT_A2DP_ROLE_SRC) && (UUID_AUDIO_SINK != sdp_info->srv_class_uuid_data.uuid_16)) {
-				break;
-			}
-			if ((a2dp_role == BT_A2DP_ROLE_SNK) && (UUID_AUDIO_SOURCE != sdp_info->srv_class_uuid_data.uuid_16)) {
-				break;
-			}
-		}
 		bt_a2dp_connect_req(param->sdp_attr_info.bd_addr, sdp_info->protocol_version, a2dp_remote_role);
 		{
 			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_SDP_ATTR_INFO, sizeof(rtk_bt_a2dp_sdp_attr_info_t));
@@ -658,10 +650,12 @@ uint16_t bt_stack_a2dp_init(uint8_t role)
 	return RTK_BT_OK;
 }
 
+extern void a2dp_deinit(void);
+
 void bt_stack_a2dp_deinit(void)
 {
 	BT_LOGA("[A2DP]app_a2dp_init\n");
-	bt_a2dp_deinit();
+	a2dp_deinit();
 }
 
 #endif

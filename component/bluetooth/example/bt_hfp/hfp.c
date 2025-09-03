@@ -543,7 +543,7 @@ static uint16_t rtk_bt_hfp_cvsd_parse_decoder_struct(rtk_bt_hfp_codec_t *phfp_co
 		BT_LOGE("[HFP] bt audio track add fail \r\n");
 		return 1;
 	}
-	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, 1, 8000, 0, 0x7f);
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, 1, 8000, 0);
 	if (!hfp_demo_audio_record_hdl) {
 		BT_LOGE("[HFP] bt audio record add fail \r\n");
 		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl);
@@ -621,7 +621,7 @@ static void app_hfp_ring_alert_start(void)
 		BT_LOGE("[HFP] Create alert timer fail \r\n");
 		return;
 	}
-	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)48000, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
+	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)44100, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
 	if (!alert_track_hdl) {
 		BT_LOGE("[HFP]alert track init fail \r\n");
 		osif_timer_delete(&alert_timer);

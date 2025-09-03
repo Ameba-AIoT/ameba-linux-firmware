@@ -12,13 +12,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include <inttypes.h>
+#include "ameba_audio_stream.h"
 
 #include "audio_hw_compat.h"
-#include "audio_hw_debug.h"
+#include <inttypes.h>
 
-#include "ameba_audio_stream.h"
+#include "audio_hw_debug.h"
 
 typedef struct _AudioIpInfo {
 	uint32_t idx;

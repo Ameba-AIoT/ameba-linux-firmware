@@ -1,8 +1,10 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/**
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
+  ******************************************************************************
+  */
 
 /* Includes ------------------------------------------------------------------ */
 
@@ -20,7 +22,7 @@
 #define CONFIG_USBD_CDC_ACM_HOTPLUG					0
 
 // USB speed
-#ifdef CONFIG_SUPPORT_USB_FS_ONLY
+#ifdef CONFIG_USB_FS
 #define CONFIG_USBD_CDC_ACM_SPEED					USB_SPEED_FULL
 #else
 #define CONFIG_USBD_CDC_ACM_SPEED					USB_SPEED_HIGH
@@ -39,7 +41,8 @@
 
 // Thread priorities
 #define CONFIG_CDC_ACM_INIT_THREAD_PRIORITY			5
-#define CONFIG_CDC_ACM_HOTPLUG_THREAD_PRIORITY		8
+#define CONFIG_CDC_ACM_ISR_THREAD_PRIORITY			7
+#define CONFIG_CDC_ACM_HOTPLUG_THREAD_PRIORITY		8 // Should be higher than CONFIG_CDC_ACM_ISR_THREAD_PRIORITY
 #define CONFIG_CDC_ACM_XFER_THREAD_PRIORITY			5
 
 /* Private types -------------------------------------------------------------*/
@@ -52,17 +55,17 @@ static int cdc_acm_cb_init(void);
 static int cdc_acm_cb_deinit(void);
 static int cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf);
 static int cdc_acm_cb_received(u8 *buf, u32 Len);
-static void cdc_acm_cb_status_changed(u8 old_status, u8 status);
+static void cdc_acm_cb_status_changed(u8 status);
 
 /* Private variables ---------------------------------------------------------*/
-static const char *const TAG = "ACM";
+static const char *TAG = "ACM";
 
 static usbd_cdc_acm_cb_t cdc_acm_cb = {
 	.init = cdc_acm_cb_init,
 	.deinit = cdc_acm_cb_deinit,
 	.setup = cdc_acm_cb_setup,
 	.received = cdc_acm_cb_received,
-	.status_changed = cdc_acm_cb_status_changed,
+	.status_changed = cdc_acm_cb_status_changed
 };
 
 static usbd_cdc_acm_line_coding_t cdc_acm_line_coding;
@@ -72,22 +75,11 @@ static u16 cdc_acm_ctrl_line_state;
 static usbd_config_t cdc_acm_cfg = {
 	.speed = CONFIG_USBD_CDC_ACM_SPEED,
 	.dma_enable   = 1U,
-	.isr_priority = INT_PRI_MIDDLE,
+	.isr_priority = CONFIG_CDC_ACM_ISR_THREAD_PRIORITY,
 	.intr_use_ptx_fifo  = 0U,
-#if defined(CONFIG_AMEBASMART)
 	.nptx_max_epmis_cnt = 1U,
 	.ext_intr_en        = USBD_EPMIS_INTR,
-	.nptx_max_err_cnt   = {0U, 0U, 0U, 2000U, },
-#elif defined (CONFIG_AMEBAGREEN2)
-	.rx_fifo_depth = 644U,
-	.ptx_fifo_depth = {16U, 256U, 32U, 16U, 16U, },
-#elif defined (CONFIG_AMEBASMARTPLUS)
-	.rx_fifo_depth = 898U,
-	.ptx_fifo_depth = {256U, 16U, 32U, 16U, 16U, },
-#elif defined (CONFIG_AMEBAL2)
-	.rx_fifo_depth = 661U,
-	.ptx_fifo_depth = {256U, 16U, 32U, 16U, },
-#endif
+	.nptx_max_err_cnt   = {0U, 0U, 0U, 2000U, }
 };
 
 #if CONFIG_USBD_CDC_ACM_ASYNC_XFER
@@ -163,7 +155,7 @@ static int cdc_acm_cb_received(u8 *buf, u32 len)
 			rtos_sema_give(cdc_acm_async_xfer_sema);
 		}
 	} else {
-		RTK_LOGS(TAG, RTK_LOG_WARN, "Busy, discard %dB\n", len);
+		RTK_LOGS(TAG, "[ACM] Busy, discard %dB\n", len);
 		ret = HAL_BUSY;
 	}
 
@@ -233,7 +225,7 @@ static int cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 		*/
 		cdc_acm_ctrl_line_state = req->wValue;
 		if (cdc_acm_ctrl_line_state & 0x01) {
-			RTK_LOGS(TAG, RTK_LOG_INFO, "VCOM port activate\n");
+			RTK_LOGS(TAG, "[ACM] VCOM port activate\n");
 #if CONFIG_CDC_ACM_NOTIFY
 			usbd_cdc_acm_notify_serial_state(CDC_ACM_CTRL_DSR | CDC_ACM_CTRL_DCD);
 #endif
@@ -251,19 +243,9 @@ static int cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 	return HAL_OK;
 }
 
-static void cdc_acm_cb_status_changed(u8 old_status, u8 status)
+static void cdc_acm_cb_status_changed(u8 status)
 {
-	/*
-	The scenario of state change is as follows:
-		Status 0 to 1: Indicates the initialization of the USB device from a cold boot, transitioning it
-		to an attached state.
-		Status 1 to 2: Represents transition from attached to detached state; for example, when the device
-		is hot-plugged out, the host suspends, or the system enters sleep mode.
-		Status 2 to 1: Represents transition from detached to attached state; for example, when the device
-		is hot-plugged in, performs a remote wakeup, or the host resumes.
-	*/
-	RTK_LOGS(TAG, RTK_LOG_INFO, "Status change: %d -> %d \n", old_status, status);
-
+	RTK_LOGS(TAG, "[ACM] Status change: %d\n", status);
 #if CONFIG_USBD_CDC_ACM_HOTPLUG
 	cdc_acm_attach_status = status;
 	rtos_sema_give(cdc_acm_attach_status_changed_sema);
@@ -278,15 +260,15 @@ static void cdc_acm_hotplug_thread(void *param)
 	UNUSED(param);
 
 	for (;;) {
-		if (rtos_sema_take(cdc_acm_attach_status_changed_sema, RTOS_SEMA_MAX_COUNT) == RTK_SUCCESS) {
+		if (rtos_sema_take(cdc_acm_attach_status_changed_sema, RTOS_SEMA_MAX_COUNT) == SUCCESS) {
 			if (cdc_acm_attach_status == USBD_ATTACH_STATUS_DETACHED) {
-				RTK_LOGS(TAG, RTK_LOG_INFO, "DETACHED\n");
+				RTK_LOGS(TAG, "[ACM] DETACHED\n");
 				usbd_cdc_acm_deinit();
 				ret = usbd_deinit();
 				if (ret != 0) {
 					break;
 				}
-				RTK_LOGS(TAG, RTK_LOG_INFO, "Free heap: 0x%x\n", rtos_mem_get_free_heap_size());
+				RTK_LOGS(TAG, "[ACM] Free heap: 0x%x\n", rtos_mem_get_free_heap_size());
 				ret = usbd_init(&cdc_acm_cfg);
 				if (ret != 0) {
 					break;
@@ -297,13 +279,13 @@ static void cdc_acm_hotplug_thread(void *param)
 					break;
 				}
 			} else if (cdc_acm_attach_status == USBD_ATTACH_STATUS_ATTACHED) {
-				RTK_LOGS(TAG, RTK_LOG_INFO, "ATTACHED\n");
+				RTK_LOGS(TAG, "[ACM] ATTACHED\n");
 			} else {
-				RTK_LOGS(TAG, RTK_LOG_INFO, "INIT\n");
+				RTK_LOGS(TAG, "[ACM] INIT\n");
 			}
 		}
 	}
-	RTK_LOGS(TAG, RTK_LOG_INFO, "Hotplug thread exit\n");
+	RTK_LOGS(TAG, "[ACM] Hotplug thread exit\n");
 	rtos_task_delete(NULL);
 }
 #endif // CONFIG_USBD_MSC_CHECK_USB_STATUS
@@ -318,11 +300,11 @@ static void cdc_acm_xfer_thread(void *param)
 	UNUSED(param);
 
 	for (;;) {
-		if (rtos_sema_take(cdc_acm_async_xfer_sema, RTOS_SEMA_MAX_COUNT) == RTK_SUCCESS) {
+		if (rtos_sema_take(cdc_acm_async_xfer_sema, RTOS_SEMA_MAX_COUNT) == SUCCESS) {
 			xfer_len = CONFIG_CDC_ACM_ASYNC_BUF_SIZE;
 			xfer_buf = cdc_acm_async_xfer_buf;
 			cdc_acm_async_xfer_busy = 1;
-			RTK_LOGS(TAG, RTK_LOG_INFO, "Start xfer(%dB) idx(%d)\n", CONFIG_CDC_ACM_ASYNC_BUF_SIZE, cdc_acm_xfer_idx);
+			RTK_LOGS(TAG, "[ACM] Start xfer(%dB) idx(%d)\n", CONFIG_CDC_ACM_ASYNC_BUF_SIZE, cdc_acm_xfer_idx);
 			while (xfer_len > 0) {
 				if (xfer_len > CONFIG_CDC_ACM_BULK_IN_XFER_SIZE) {
 					ret = usbd_cdc_acm_transmit(xfer_buf, CONFIG_CDC_ACM_BULK_IN_XFER_SIZE);
@@ -330,7 +312,7 @@ static void cdc_acm_xfer_thread(void *param)
 						xfer_len -= CONFIG_CDC_ACM_BULK_IN_XFER_SIZE;
 						xfer_buf += CONFIG_CDC_ACM_BULK_IN_XFER_SIZE;
 					} else { // HAL_BUSY
-						RTK_LOGS(TAG, RTK_LOG_INFO, "Xfer busy, retry[1]\n");
+						RTK_LOGS(TAG, "[ACM] Xfer busy, retry[1]\n");
 						rtos_time_delay_us(200);
 					}
 				} else {
@@ -339,10 +321,10 @@ static void cdc_acm_xfer_thread(void *param)
 						xfer_len = 0;
 						cdc_acm_async_xfer_busy = 0;
 						cdc_acm_xfer_idx++;
-						RTK_LOGS(TAG, RTK_LOG_INFO, "Xfer done\n");
+						RTK_LOGS(TAG, "[ACM] Xfer done\n");
 						break;
 					} else { // HAL_BUSY
-						RTK_LOGS(TAG, RTK_LOG_INFO, "Xfer busy, retry[2]\n");
+						RTK_LOGS(TAG, "[ACM] Xfer busy, retry[2]\n");
 						rtos_time_delay_us(200);
 					}
 				}
@@ -386,7 +368,7 @@ static void example_usbd_cdc_acm_thread(void *param)
 
 #if CONFIG_USBD_CDC_ACM_HOTPLUG
 	ret = rtos_task_create(&check_task, "cdc_acm_hotplug_thread", cdc_acm_hotplug_thread, NULL, 1024, CONFIG_CDC_ACM_HOTPLUG_THREAD_PRIORITY);
-	if (ret != RTK_SUCCESS) {
+	if (ret != SUCCESS) {
 		goto exit_create_check_task_fail;
 	}
 #endif
@@ -394,14 +376,14 @@ static void example_usbd_cdc_acm_thread(void *param)
 #if CONFIG_USBD_CDC_ACM_ASYNC_XFER
 	// The priority of transfer thread shall be lower than USB isr priority
 	ret = rtos_task_create(&xfer_task, "cdc_acm_xfer_thread", cdc_acm_xfer_thread, NULL, 1024, CONFIG_CDC_ACM_XFER_THREAD_PRIORITY);
-	if (ret != RTK_SUCCESS) {
+	if (ret != SUCCESS) {
 		goto exit_create_xfer_task_fail;
 	}
 #endif
 
 	rtos_time_delay_ms(100);
 
-	RTK_LOGS(TAG, RTK_LOG_INFO, "USBD CDC ACM demo start\n");
+	RTK_LOGS(TAG, "[ACM] USBD CDC ACM demo start\n");
 
 	rtos_task_delete(NULL);
 
@@ -423,7 +405,7 @@ exit_usbd_cdc_acm_init_fail:
 	usbd_deinit();
 
 exit_usbd_init_fail:
-	RTK_LOGS(TAG, RTK_LOG_INFO, "USBD CDC ACM demo stop\n");
+	RTK_LOGS(TAG, "[ACM] USBD CDC ACM demo stop\n");
 #if CONFIG_USBD_CDC_ACM_HOTPLUG
 	rtos_sema_delete(cdc_acm_attach_status_changed_sema);
 #endif
@@ -447,8 +429,8 @@ void example_usbd_cdc_acm(void)
 	rtos_task_t task;
 
 	ret = rtos_task_create(&task, "example_usbd_cdc_acm_thread", example_usbd_cdc_acm_thread, NULL, 1024U, CONFIG_CDC_ACM_INIT_THREAD_PRIORITY);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD CDC ACM thread fail\n");
+	if (ret != SUCCESS) {
+		RTK_LOGS(TAG, "[ACM] Create USBD CDC ACM thread fail\n");
 	}
 }
 

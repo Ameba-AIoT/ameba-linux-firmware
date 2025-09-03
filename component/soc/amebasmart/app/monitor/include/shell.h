@@ -10,16 +10,18 @@
 #ifndef _RTK_CONSOL_H_
 #define _RTK_CONSOL_H_
 
-#if (defined (CONFIG_AS_INIC_AP) || defined(CONFIG_SINGLE_CORE_WIFI))
-#define SHELL_TASK_FUNC_STACK_SIZE (4000 + 128)
-#elif defined (CONFIG_ARM_CORE_CM0)
-#define SHELL_TASK_FUNC_STACK_SIZE (560 + 128 + CONTEXT_SAVE_SIZE)	/* KM0 cost stack: max_size < 300 bytes, test by monitor cmd */
+#ifdef CONFIG_MP_INCLUDED
+#define SHELL_TASK_FUNC_STACK_SIZE (1024 * 4)
+#elif (defined (CONFIG_AS_INIC_AP) || defined(CONFIG_SINGLE_CORE_WIFI))
+#define SHELL_TASK_FUNC_STACK_SIZE (1024 * 4)
+#elif defined (ARM_CORE_CM0)
+#define SHELL_TASK_FUNC_STACK_SIZE (464 + 128 + CONTEXT_SAVE_SIZE)	/* KM0 cost stack: max_size < 300 bytes, test by monitor cmd */
 #else
 #define SHELL_TASK_FUNC_STACK_SIZE (588 + 128 + CONTEXT_SAVE_SIZE)
 #endif
 
 #ifdef CONFIG_LONGER_CMD
-#define UART_LOG_CMD_BUFLEN     2000
+#define UART_LOG_CMD_BUFLEN     4096
 #define MAX_ARGV                32
 #else
 //UART_LOG_CMD_BUFLEN: only 126 bytes could be used for keeping input
@@ -80,7 +82,7 @@ typedef struct {
 
 #define KB_SPACENO_TAB  1
 
-#define _ConsolePrint  DiagPrintfNano
+#define _ConsolePrint  DiagPrintf_minimal
 
 #define AMEBA_CONSOLE_PREFIX	"#"
 #define CONSOLE_AMEBA(...)     do {\

@@ -11,7 +11,6 @@
 #include <basic_types.h>
 #include "bt_debug.h"
 #include "hci_common.h"
-#include "hci_transport.h"
 #include "hci_uart.h"
 #include <bt_mp_api.h>
 #if defined(CONFIG_BT_ENABLE_FAST_MP) && CONFIG_BT_ENABLE_FAST_MP
@@ -206,7 +205,7 @@ uint8_t rtk_bt_mp_dtm_tx_test_v3(uint8_t tx_chann, uint8_t data_len, uint8_t pkt
 
 uint8_t rtk_bt_mp_dtm_tx_test_v4(uint8_t tx_chann, uint8_t data_len, uint8_t pkt_pl, uint8_t phy,
 								 uint8_t cte_len, uint8_t cte_type, uint8_t sw_pattern_len, uint8_t *p_antenna_ids,
-								 int8_t tx_power_level)
+								 uint8_t tx_power_level)
 {
 	if (tx_chann > 0x27) {
 		BT_MP_ARG_LOGE("tx_chann");

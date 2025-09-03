@@ -54,7 +54,7 @@ extern "C" {
  * Every call to ATOMIC_EXIT_CRITICAL() must be closely paired with
  * ATOMIC_ENTER_CRITICAL().
  *  */
-#if defined( portSET_INTERRUPT_MASK_FROM_ISR ) && ( configNUM_CORES == 1 )
+#if defined( portSET_INTERRUPT_MASK_FROM_ISR )
 
     /* Nested interrupt scheme is supported in this port. */
     #define ATOMIC_ENTER_CRITICAL()     \

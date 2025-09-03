@@ -18,7 +18,7 @@
 #define FTL_PRINT_LEVEL					FTL_LEVEL_ERROR
 #define FTL_PRINTF(LEVEL, pFormat, ...)     do {\
    if (LEVEL <= FTL_PRINT_LEVEL)\
-        RTK_LOGS(#LEVEL, RTK_LOG_ALWAYS, pFormat"\r\n", ##__VA_ARGS__);\
+        RTK_LOGS(#LEVEL, pFormat"\r\n", ##__VA_ARGS__);\
 }while(0)
 
 //#define DBG_EN 						1
@@ -496,13 +496,6 @@ L_retry:
 uint8_t ftl_page_garbage_collect(uint32_t page_thresh, uint32_t cell_thresh)
 {
 	uint8_t result = 0;
-	uint8_t sem_flag = FALSE;
-
-	if (NULL != ftl_sem) {
-		if (rtos_mutex_recursive_take(ftl_sem, RTOS_MAX_DELAY) == TRUE) {
-			sem_flag = TRUE;
-		}
-	}
 
 	if (g_doingGarbageCollection == 0) {
 		g_doingGarbageCollection = 1;
@@ -517,10 +510,6 @@ uint8_t ftl_page_garbage_collect(uint32_t page_thresh, uint32_t cell_thresh)
 		}
 
 		g_doingGarbageCollection = 0;
-	}
-
-	if (sem_flag) {
-		rtos_mutex_recursive_give(ftl_sem);
 	}
 
 	return result;
@@ -1023,7 +1012,7 @@ __WEAK uint32_t nor_ftl_save_to_storage(void *pdata_tmp, uint16_t offset, uint16
 	u32 ret;
 	if (ftl_mutex_lock == NULL) {
 		return FTL_WRITE_ERROR_NOT_INIT;
-	} else if (rtos_mutex_take(ftl_mutex_lock, 100) != RTK_SUCCESS) {
+	} else if (rtos_mutex_take(ftl_mutex_lock, 100) != SUCCESS) {
 		return ERROR_MUTEX_GET_TIMEOUT;
 	}
 
@@ -1069,7 +1058,6 @@ uint32_t ftl_load_from_storage_i(void *pdata_tmp, uint16_t offset, uint16_t size
 uint32_t ftl_write(uint16_t logical_addr, uint32_t w_data)
 {
 	uint32_t ret = FTL_WRITE_SUCCESS;
-	uint8_t sem_flag = FALSE;
 
 //#if defined (CONFIG_ARM_CORE_CA32)
 //	if (CPSR_M_IRQ == __get_mode()) {
@@ -1084,10 +1072,10 @@ uint32_t ftl_write(uint16_t logical_addr, uint32_t w_data)
 //	}
 //
 //#endif
-	if (NULL != ftl_sem) {
-		if (rtos_mutex_recursive_take(ftl_sem, RTOS_MAX_DELAY) == RTK_SUCCESS) {
-			sem_flag = TRUE;
-		}
+	if (ftl_write_lock == NULL) {
+		return FTL_WRITE_ERROR_NOT_INIT;
+	} else if (rtos_mutex_take(ftl_write_lock, 100) != SUCCESS) {
+		return ERROR_MUTEX_GET_TIMEOUT;
 	}
 
 	if (ftl_check_logical_addr(logical_addr)) {
@@ -1168,9 +1156,7 @@ L_retry:
 		}
 	}
 
-	if (sem_flag) {
-		rtos_mutex_recursive_give(ftl_sem);
-	}
+	rtos_mutex_give(ftl_write_lock);
 
 	FTL_PRINTF(FTL_LEVEL_WARN, "[ftl] w 0x%08x: 0x%08x (%d)\r\n", logical_addr, (unsigned int)w_data, (int)ret);
 
@@ -1182,7 +1168,7 @@ __WEAK uint32_t nor_ftl_load_from_storage(void *pdata_tmp, uint16_t offset, uint
 	u32 ret;
 	if (ftl_mutex_lock == NULL) {
 		return FTL_READ_ERROR_NOT_INIT;
-	} else if (rtos_mutex_take(ftl_mutex_lock, 100) != RTK_SUCCESS) {
+	} else if (rtos_mutex_take(ftl_mutex_lock, 100) != SUCCESS) {
 		return ERROR_MUTEX_GET_TIMEOUT;
 	}
 
@@ -1340,5 +1326,3 @@ uint32_t nor_ftl_init(uint32_t u32PageStartAddr, uint8_t pagenum)
 
 	return 0;
 }
-
-

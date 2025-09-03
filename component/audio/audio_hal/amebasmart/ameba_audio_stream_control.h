@@ -12,8 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef AMEBA_AUDIO_AUDIO_HAL_AMEBASMART_AMEBA_AUDIO_STREAM_CONTROL_H
-#define AMEBA_AUDIO_AUDIO_HAL_AMEBASMART_AMEBA_AUDIO_STREAM_CONTROL_H
+#ifndef AMEBA_COMPONENT_AUDIO_AUDIO_HAL_RTL8726E_AMEBA_AUDIO_STREAM_CONTROL_H
+#define AMEBA_COMPONENT_AUDIO_AUDIO_HAL_RTL8726E_AMEBA_AUDIO_STREAM_CONTROL_H
 
 #include "ameba_audio_stream.h"
 
@@ -21,25 +21,22 @@
 extern "C" {
 #endif
 
-typedef struct AudioAmplifier AudioAmplifier;
-
 // only for ameba soc codec's control. I2S will not use this.
 typedef struct _StreamControl {
-	int32_t              board_amp_pin;
-	bool                 amp_state;
-	bool                 tx_state;
-	uint32_t             playback_device;
-	uint32_t             capture_usage;
-	uint32_t             adc_use_status;
-	bool                 amic_ref_for_dmic;
-	uint32_t             volume_for_dacl;
-	uint32_t             volume_for_dacr;
-	uint32_t             volume_for_adc[MAX_AD_NUM];
-	uint32_t             mic_category_for_adc[MAX_AD_NUM];
-	uint32_t             gain_for_micbst[MAX_AMIC_NUM];
-	bool                 mute_for_adc[MAX_AD_NUM];
-	bool                 mute_for_mic_bst[MAX_AMIC_NUM];
-	AudioAmplifier      *amplifier;
+	int32_t   board_amp_pin;
+	bool      amp_state;
+	bool      tx_state;
+	uint32_t  playback_device;
+	uint32_t  capture_usage;
+	uint32_t  adc_use_status;
+	bool      amic_ref_for_dmic;
+	uint32_t  volume_for_dacl;
+	uint32_t  volume_for_dacr;
+	uint32_t  volume_for_adc[MAX_AD_NUM];
+	uint32_t  mic_category_for_adc[MAX_AD_NUM];
+	uint32_t  gain_for_micbst[MAX_AMIC_NUM];
+	bool      mute_for_adc[MAX_AD_NUM];
+	bool      mute_for_mic_bst[MAX_AMIC_NUM];
 } StreamControl;
 
 StreamControl *ameba_audio_get_ctl(void);

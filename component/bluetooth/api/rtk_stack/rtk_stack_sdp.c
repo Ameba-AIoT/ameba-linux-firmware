@@ -192,6 +192,8 @@ uint16_t bt_stack_sdp_init(void)
 	return RTK_BT_OK;
 }
 
+extern void sdp_deinit(void);
+
 void bt_stack_sdp_deinit(void)
 {
 	struct list_head *plist = NULL;
@@ -209,7 +211,7 @@ void bt_stack_sdp_deinit(void)
 		bt_sdp_record_delete((void *)precord->record);
 		osif_mem_free((void *)precord);
 	}
-	/* sdp deinit will be done by bt_mgr_deinit */
+	sdp_deinit();
 }
 
 #endif

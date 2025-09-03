@@ -15,15 +15,11 @@ u8 addr1[6] = {0xBC, 0x46, 0x99, 0x7B, 0x48, 0x74};
 u8 addr2[6] = {0x00, 0xE0, 0x4C, 0x00, 0x02, 0xF0};
 u8 addr3[6] = {0xBC, 0x46, 0x99, 0x7B, 0x48, 0x74};
 
-#define WIFI_RAW_CH 1
-#define WifiGetFrameSubType(pbuf)	(*(unsigned short *)(pbuf)) & (BIT(7) | BIT(6) | BIT(5) | BIT(4) | BIT(3) | BIT(2))
-
 void wifi_raw_tx(void *param)
 {
-	struct rtw_raw_frame_desc tx_raw_data_desc = {0};
-	UNUSED(param);
+	raw_data_desc_t tx_raw_data_desc;
 
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s start.\n", __func__);
+	printf("%s start.\n", __func__);
 
 	unsigned char tx_frame_buf[42] = {
 		0x40, 0x00, 												// Frame Control field
@@ -44,70 +40,67 @@ void wifi_raw_tx(void *param)
 	tx_raw_data_desc.wlan_idx = STA_WLAN_INDEX;
 	tx_raw_data_desc.buf = tx_frame_buf;
 	tx_raw_data_desc.buf_len = 42;
+	tx_raw_data_desc.flags = 0;
 
 	while (1) {
-		if (wifi_send_raw_frame(&tx_raw_data_desc) < 0) {
-			RTK_LOGS(NOTAG, RTK_LOG_ERROR, "%s failed!\n", __func__);
+		if (wifi_send_mgnt(&tx_raw_data_desc) < 0) {
+			printf("%s failed!\n", __func__);
 		}
 		rtos_time_delay_ms(100);
 	}
 
+exit:
 	rtos_task_delete(NULL);
 }
 
-static u8 promisc_callback(struct rtw_rx_pkt_info *pkt_info)
+void wifi_raw_rx_callback(char *buf, int buf_len, int flags, void *userdata)
 {
-	u8 *buf = pkt_info->buf;
-	u8 subtype;
-	u32 buf_len = pkt_info->len;
-	u32 i;
+	u8 stype;
+	int i;
 
-	subtype = WifiGetFrameSubType(buf);
+	stype = GetFrameSubType(buf);
 
-	if (subtype == RTW_PROBERSP) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "Probe Rsp frame:\n");
+	if (stype == WIFI_PROBERSP) {
+		printf("Probe Rsp frame:\n");
 		for (i = 0; i < buf_len; i++) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "%x ", buf[i]);
+			printf("%x ", buf[i]);
 		}
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\n");
-		return 1;
+		printf("\n\n");
 	}
-
-	return 0;
 }
+
 void wifi_raw_rx(void *param)
 {
-	UNUSED(param);
-	struct rtw_promisc_para promiscpara;
 
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s start.\n", __func__);
+	printf("%s start.\n", __func__);
 
-	memset(&promiscpara, 0, sizeof(struct rtw_promisc_para));
-	promiscpara.filter_mode = RTW_PROMISC_FILTER_ALL_PKT;
-	promiscpara.callback = promisc_callback;
-	wifi_promisc_enable(ENABLE, &promiscpara);
+	wifi_set_indicate_mgnt(WIFI_INDICATE_WILD);
+
+	wifi_reg_event_handler(WIFI_EVENT_RX_MGNT, wifi_raw_rx_callback, NULL);
 
 	while (1) {
 		rtos_time_delay_ms(10);
 	}
 
+exit:
 	rtos_task_delete(NULL);
 }
 
 
 void wifi_raw_task(void *param)
 {
-	UNUSED(param);
+	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
+		printf("Wait for WIFI connection ...\n");
+		rtos_time_delay_ms(1000);
+	}
 
-	wifi_set_channel(STA_WLAN_INDEX, WIFI_RAW_CH);
-
-	if (rtos_task_create(NULL, ((const char *)"wifi_raw_tx_task"), wifi_raw_tx, NULL, 1024 * 4, 4) != RTK_SUCCESS) {
-		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\n\r[%s] Create wifi raw tx task failed", __FUNCTION__);
+	if (rtos_task_create(NULL, ((const char *)"wifi_raw_tx_task"), wifi_raw_tx, NULL, 1024 * 4, 4) != SUCCESS) {
+		printf("\n\r[%s] Create wifi raw tx task failed", __FUNCTION__);
 		goto exit;
 	}
 
-	if (rtos_task_create(NULL, ((const char *)"wifi_raw_rx_task"), wifi_raw_rx, NULL, 1024 * 4, 4) != RTK_SUCCESS) {
-		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\n\r[%s] Create wifi raw rx task failed", __FUNCTION__);
+	if (rtos_task_create(NULL, ((const char *)"wifi_raw_rx_task"), wifi_raw_rx, NULL, 1024 * 4, 4) != SUCCESS) {
+		printf("\n\r[%s] Create wifi raw rx task failed", __FUNCTION__);
 		goto exit;
 	}
 
@@ -118,8 +111,8 @@ exit:
 
 void example_wifi_raw(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"wifi_raw_task"), wifi_raw_task, NULL, 1024 * 4, 1) != RTK_SUCCESS) {
-		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\n\r[%s] Create wifi raw task failed", __FUNCTION__);
+	if (rtos_task_create(NULL, ((const char *)"wifi_raw_task"), wifi_raw_task, NULL, 1024 * 4, 1) != SUCCESS) {
+		printf("\n\r[%s] Create wifi raw task failed", __FUNCTION__);
 	}
 }
 

@@ -57,7 +57,8 @@
  * removed some cruft
  */
 
-#include "lwip_netconf.h" //realtek add
+#include <stdio.h>
+#include "lwip/sockets.h"
 #include <assert.h>
 
 /* -------------------------------------------------------------------

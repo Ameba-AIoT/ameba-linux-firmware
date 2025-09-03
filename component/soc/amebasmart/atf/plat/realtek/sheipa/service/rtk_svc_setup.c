@@ -17,6 +17,7 @@
 #include <bsec_svc.h>
 #include <rtk_svc_setup.h>
 
+
 /* Setup smc Standard Services, set if need */
 static int32_t rtk_smc_setup(void)
 {
@@ -31,24 +32,22 @@ static int32_t rtk_smc_setup(void)
  * calls to SMC handler
  */
 static uintptr_t rtk_smc_handler(uint32_t smc_fid,
-								 u_register_t x1,
-								 u_register_t x2,
-								 u_register_t x3,
-								 u_register_t x4,
-								 void *cookie,
-								 void *handle,
-								 u_register_t flags)
+			     u_register_t x1,
+			     u_register_t x2,
+			     u_register_t x3,
+			     u_register_t x4,
+			     void *cookie,
+			     void *handle,
+			     u_register_t flags)
 {
 	int ret1 = 0;
 	int ret2 = 0;
+	int ret2_enabled = false;
 	switch (smc_fid) {
 
 	case RTK_SMC_TEST:
-		if (is_caller_secure(flags))
-			SMC_RET1(handle, SMC_UNK);
-
 		ret1 = rtk_secure_service(x1, x2, x3, &ret2);
-		SMC_RET2(handle, ret1, ret2);
+		ret2_enabled = true;
 		break;
 
 	default:
@@ -56,14 +55,20 @@ static uintptr_t rtk_smc_handler(uint32_t smc_fid,
 		SMC_RET1(handle, SMC_UNK);
 	}
 
+	if (ret2_enabled) {
+		SMC_RET2(handle, ret1, ret2);
+	}
+
 	SMC_RET1(handle, ret1);
+
 }
 
 /* Register Standard Service Calls as runtime service */
 DECLARE_RT_SVC(
-	rtk_svc,
-	OEN_SIP_START,
-	OEN_SIP_START,
-	SMC_TYPE_FAST,
-	rtk_smc_setup,
-	rtk_smc_handler);
+		rtk_svc,
+		OEN_SIP_START,
+		OEN_SIP_START,
+		SMC_TYPE_FAST,
+		rtk_smc_setup,
+		rtk_smc_handler
+);

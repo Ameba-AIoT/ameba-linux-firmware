@@ -5,7 +5,7 @@
  */
 
 #include "ameba_soc.h"
-static const char *const TAG = "SDIO";
+static const char *TAG = "SDIO";
 SDIOH_InitTypeDef sdioh_init_para;
 extern int (*sd_sema_take_fn)(u32);
 
@@ -107,7 +107,7 @@ u32 SDIOH_WaitDMADone(u32 timeout_us)
 
 		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, ENABLE);
 
-		if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != RTK_SUCCESS) {
+		if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != SUCCESS) {
 			SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
 			RTK_LOGE(TAG, " SD Get Semaphore Timeout\r\n");
 			return HAL_TIMEOUT;

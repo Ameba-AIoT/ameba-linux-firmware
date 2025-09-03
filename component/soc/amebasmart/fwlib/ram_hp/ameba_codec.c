@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *const TAG = "CODEC";
+static const char *TAG = "CODEC";
 /** @addtogroup Ameba_Periph_Driver
   * @{
   */
@@ -2300,33 +2300,6 @@ void AUDIO_CODEC_SetHPOMute(u32 channel, u32 type, u32 newstate)
 
 
 /**
-  * @brief  Get HPO single-end or differential mode.
-  * @param  channel: the value of dac path.
-  *          This parameter can be one of the following values:
-  *            @arg 0: CHN_L
-  *            @arg 1: CHN_R
-  * @retval the value of HPO mode.
-  *            @arg 0: DIFF
-  *            @arg 1: SINGLE
-*/
-u32 AUDIO_CODEC_GetHPOMode(u32 channel)
-{
-	assert_param(IS_CODEC_LOORHO_SEL(channel));
-	AUD_TypeDef *AUD = AUDIO_AUD_GetAddr();
-
-	u32 hpomode;
-
-	if (channel == CHN_L) {
-		hpomode = ((AUD->AUD_HPO_CTL) & AUD_BIT_HPO_SEL) >> 26;
-	} else {
-		hpomode = ((AUD->AUD_HPO_CTL) & AUD_BIT_HPO_SER) >> 27;
-	}
-
-	return hpomode;
-}
-
-
-/**
   * @brief  Enable and select or disalbe PDM clk.
   * @param  channel: the value of dac path.
   *          This parameter can be one of the following values:
@@ -2908,7 +2881,7 @@ void AUDIO_CODEC_SetADCEQBand(u32 ad_chn, u32 band_sel, u32 newstate)
 }
 
 /**
-  * @brief  Set EQ band as filter for ADC path
+  * @brief  set EQ band as filter for ADC path
   * @param  ad_chn: select adc channel
   *          This parameter can be one of the following values:
   *            @arg ADCHN1
@@ -3219,7 +3192,7 @@ void AUDIO_CODEC_SetDACEQBand(u32 da_chn, u32 band_sel, u32 newstate)
 
 
 /**
-  * @brief  Set EQ band as filter for DAC path
+  * @brief  set EQ band as filter for DAC path
   * @param  ad_chn: select adc channel
   *          This parameter can be one of the following values:
   *            @arg DAC_L
