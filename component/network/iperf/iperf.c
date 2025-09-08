@@ -1,9 +1,7 @@
-#include "os_wrapper.h"
-#include "diag.h"
-#include "lwip/sockets.h"
-#include "rtw_misc.h"
+#include "lwip_netconf.h"
 
-#include <lwipconf.h>
+#define IPERF_PRIORITY_OFFSET	4
+
 #if defined(CONFIG_AS_INIC_AP)
 #define BSD_STACK_SIZE		    1024
 #else
@@ -23,7 +21,7 @@
 //Max number of streaming
 #define MULTI_STREAM_NUM 10
 
-#define printf		DiagPrintf_minimal
+#define printf		DiagPrintfNano
 
 struct stream_id_t {
 	uint8_t id_used;
@@ -104,11 +102,11 @@ rtos_mutex_t g_tptest_mutex = NULL;
 #define tptest_res_log(...)       do { \
                                     if(NULL != g_tptest_log_mutex){\
                                         rtos_mutex_take(g_tptest_log_mutex, MUTEX_WAIT_TIMEOUT); \
-                                        DiagPrintf_minimal(__VA_ARGS__); \
+                                        DiagPrintfNano(__VA_ARGS__); \
                                         rtos_mutex_give(g_tptest_log_mutex); \
                                     }\
                                     else{\
-                                        DiagPrintf_minimal(__VA_ARGS__); \
+                                        DiagPrintfNano(__VA_ARGS__); \
                                     }\
                                 }while(0)
 
@@ -193,10 +191,10 @@ struct iperf_data_t *init_stream_data(uint8_t protocol, uint8_t role)
 	stream_data->protocol = protocol;
 	stream_data->port = DEFAULT_PORT;
 	stream_data->report_interval = DEFAULT_REPORT_INTERVAL;
-	stream_data->time = DEFAULT_TIME;
 
 	if (role == 'c') {
 		stream_data->buf_size = CLIENT_BUF_SIZE;
+		stream_data->time = DEFAULT_TIME;
 	} else if (role == 's') {
 		stream_data->buf_size = SERVER_BUF_SIZE;
 	}
@@ -251,34 +249,50 @@ void free_stream_data(struct iperf_data_t *stream_data)
 uint64_t km_parser(char *buf, int len)
 {
 	uint64_t ret = 0;
-	int keyword_num = 0;
+	int keyword_num = 0, num_len = 0;
 	char num_str[17] = "\0";
 	uint64_t num;
+	char unit = '\0';
 
 	if (len > 16) {
 		return ret;
 	}
 
 	while ((buf[keyword_num] != '\0') && (keyword_num < len)) {
-		if ((buf[keyword_num] == 'k') || (buf[keyword_num] == 'K')) {
-			strncpy(num_str, buf, keyword_num);
-			num = atol(num_str);
-			ret = num * KB;
-			break;
-		} else if ((buf[keyword_num] == 'm') || (buf[keyword_num] == 'M')) {
-			strncpy(num_str, buf, keyword_num);
-			num = atol(num_str);
-			ret = num * MB;
-			break;
+		if (buf[keyword_num] >= '0' && buf[keyword_num] <= '9') {
+		} else if ((unit == '\0') && (buf[keyword_num] == 'k' || buf[keyword_num] == 'K' ||
+									  buf[keyword_num] == 'm' || buf[keyword_num] == 'M')) {
+			unit = buf[keyword_num];
+		} else {
+			return 0;
 		}
 		keyword_num++;
-		if (keyword_num == len) {
-			strncpy(num_str, buf, keyword_num);
-			num = atol(num_str);
-			ret = num;
-			break;
-		}
 	}
+
+	num_len = (unit == '\0') ? keyword_num : keyword_num - 1;
+	strncpy(num_str, buf, num_len);
+	num_str[num_len] = '\0';
+
+	char *endptr;
+	num = strtoull(num_str, &endptr, 10);
+	if (*endptr != '\0' || endptr == num_str) {
+		return 0;
+	}
+
+	switch (unit) {
+	case 'k':
+	case 'K':
+		ret = num * KB;
+		break;
+	case 'm':
+	case 'M':
+		ret = num * MB;
+		break;
+	default:
+		ret = num;
+		break;
+	}
+
 	return ret;
 }
 
@@ -443,6 +457,7 @@ int tcp_server_func(struct iperf_data_t iperf_data)
 	int socket_connect = 0;
 	fd_set read_fds;
 	struct timeval select_timeout;
+	int frame_num = 0;
 
 	tcp_server_buffer = rtos_mem_malloc(iperf_data.buf_size);
 	if (!tcp_server_buffer) {
@@ -529,7 +544,7 @@ int tcp_server_func(struct iperf_data_t iperf_data)
 			tcp_client_data->is_sub_stream = SUBSTREAM_FLAG | iperf_data.stream_id;
 
 			if (rtos_task_create(&tcp_client_data->task, "iperf_test_handler", iperf_test_handler, (void *) tcp_client_data, BSD_STACK_SIZE * 4,
-								 1 + PRIORITIE_OFFSET) != SUCCESS) {
+								 1 + 4) != RTK_SUCCESS) {
 				tptest_res_log("\n\rTCP ERROR: Create TCP client task failed.\n\r");
 				rtos_mutex_take(g_tptest_mutex, MUTEX_WAIT_TIMEOUT);
 				free_stream_data(tcp_client_data);
@@ -557,6 +572,7 @@ int tcp_server_func(struct iperf_data_t iperf_data)
 		end_time = rtos_time_get_current_system_time_ms();
 		total_size += recv_size;
 		report_size += recv_size;
+		frame_num++;
 		if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
 			tptest_res_log("tcp_s: id[%d] Receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
 						   (int)((report_size * 8) / (end_time - report_start_time)));
@@ -565,13 +581,12 @@ int tcp_server_func(struct iperf_data_t iperf_data)
 		}
 	}
 
+exit1:
 	if (total_size != 0) {
-		tptest_res_log("tcp_s: [END] id[%d] Totally receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(total_size / KB),
-					   (int)(end_time - start_time),
-					   (int)((total_size * 8) / (end_time - start_time)));
+		tptest_res_log("tcp_s: [END] id[%d] Totally receive %d KBytes in %d ms, frame_num = %d, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(total_size / KB),
+					   (int)(end_time - start_time), frame_num, (int)((uint64_t)(total_size * 8) / (end_time - start_time)));
 	}
 
-exit1:
 	// close the connected socket after receiving from connected TCP client
 	close(iperf_data.client_fd);
 
@@ -590,13 +605,85 @@ exit3:
 	return 0;
 }
 
+
+SRAM_WLAN_CRITICAL_CODE_SECTION
+uint32_t send_udp_packets(struct iperf_data_t *iperf_data, struct iperf_udp_client_hdr *client_hdr, char *udp_client_buffer, struct sockaddr_in *ser_addr)
+{
+	int addrlen = sizeof(struct sockaddr_in);
+	uint32_t end_time, start_time, bandwidth_time, report_start_time;
+	u32_t now;
+	uint32_t id_cnt = 0;
+	uint64_t total_size = 0, bandwidth_size = 0, report_size = 0;
+
+	start_time = rtos_time_get_current_system_time_ms();
+	end_time = start_time;
+	bandwidth_time = start_time;
+	report_start_time = start_time;
+
+	while ((!g_stream_id[iperf_data->stream_id].terminate) &&
+		   ((iperf_data->total_size == 0 && (end_time - start_time <= 1000 * iperf_data->time)) ||
+			(iperf_data->total_size != 0 && total_size < iperf_data->total_size))) {
+
+		now = rtos_time_get_current_system_time_ms();
+		client_hdr->id = htonl(id_cnt);
+		client_hdr->tv_sec  = htonl(now / 1000);
+		client_hdr->tv_usec = htonl((now % 1000) * 1000);
+		memcpy(udp_client_buffer, client_hdr, sizeof(*client_hdr));
+
+		if (sendto(iperf_data->client_fd, udp_client_buffer, iperf_data->buf_size, 0, (struct sockaddr *)ser_addr, addrlen) < 0) {
+			if (iperf_data->total_size == 0) {
+				//Add delay to avoid consuming too much CPU when data link layer is busy
+				rtos_time_delay_ms(2);
+			} else {
+				//tptest_res_log("[ERROR] %s: UDP client send data error\n\r",__func__);
+			}
+		} else {
+			total_size += iperf_data->buf_size;
+			bandwidth_size += iperf_data->buf_size;
+			report_size += iperf_data->buf_size;
+			id_cnt++;
+		}
+		end_time = rtos_time_get_current_system_time_ms();
+
+		if ((bandwidth_size >= iperf_data->bandwidth) && ((end_time - bandwidth_time) < (1000 * 1))) {
+			rtos_time_delay_ms(1000 * 1 - (end_time - bandwidth_time));
+			end_time = rtos_time_get_current_system_time_ms();
+			bandwidth_time = end_time;
+			bandwidth_size = 0;
+		}
+
+		if ((iperf_data->report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data->report_interval))) {
+			tptest_res_log("udp_c: id[%d] Send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data->stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
+						   (int)((report_size * 8) / (end_time - report_start_time)));
+			report_start_time = end_time;
+			bandwidth_time = end_time;
+			report_size = 0;
+			bandwidth_size = 0;
+		}
+	}
+
+	if (g_stream_id[iperf_data->stream_id].terminate) {
+		tptest_res_log("UDP Client terminated\n\r");
+	}
+
+	if (iperf_data->is_sub_stream & SUBSTREAM_FLAG) {
+		//This stream is created by bidirectional parameter
+		tptest_res_log("udp_c: [END] id[%d] Bidirection Totally send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data->is_sub_stream & 0xff, (int)(total_size / KB),
+					   (int)(end_time - start_time),
+					   (int)((total_size * 8) / (end_time - start_time)));
+	} else {
+		tptest_res_log("udp_c: [END] id[%d] Totally send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data->stream_id, (int)(total_size / KB),
+					   (int)(end_time - start_time),
+					   (int)((total_size * 8) / (end_time - start_time)));
+	}
+	return id_cnt;
+}
+
 int udp_client_func(struct iperf_data_t iperf_data)
 {
 	struct sockaddr_in  ser_addr;
 	uint32_t			i = 0;
 	int                 addrlen = sizeof(struct sockaddr_in);
-	uint32_t            start_time, end_time, bandwidth_time, report_start_time;
-	uint64_t            total_size = 0, bandwidth_size = 0, report_size = 0;
 	struct iperf_udp_client_hdr client_hdr = {0};
 	u32_t now;
 	uint32_t id_cnt = 0;
@@ -647,101 +734,13 @@ int udp_client_func(struct iperf_data_t iperf_data)
 		client_hdr.mAmount = htonl(~(iperf_data.time * 100) + 1);
 		memcpy(udp_client_buffer, &client_hdr, sizeof(client_hdr));
 	}
-
 	if (iperf_data.total_size == 0) {
-		start_time = rtos_time_get_current_system_time_ms();
-		end_time = start_time;
-		bandwidth_time = start_time;
-		report_start_time = start_time;
 		client_hdr.mAmount = htonl(~(iperf_data.time * 100) + 1);
-		while (((end_time - start_time) <= (1000 * iperf_data.time)) && (!g_stream_id[iperf_data.stream_id].terminate)) {
-			now = rtos_time_get_current_system_time_ms();
-			client_hdr.id = htonl(id_cnt);
-			client_hdr.tv_sec  = htonl(now / 1000);
-			client_hdr.tv_usec = htonl((now % 1000) * 1000);
-			memcpy(udp_client_buffer, &client_hdr, sizeof(client_hdr));
-			if (sendto(iperf_data.client_fd, udp_client_buffer, iperf_data.buf_size, 0, (struct sockaddr *)&ser_addr, addrlen) < 0) {
-				//Add delay to avoid consuming too much CPU when data link layer is busy
-				rtos_time_delay_ms(2);
-			} else {
-				total_size += iperf_data.buf_size;
-				bandwidth_size += iperf_data.buf_size;
-				report_size += iperf_data.buf_size;
-				// increase id_cnt only send success
-				id_cnt++;
-			}
-			end_time = rtos_time_get_current_system_time_ms();
-			if ((bandwidth_size >= iperf_data.bandwidth) && ((end_time - bandwidth_time) < (1000 * 1))) {
-				rtos_time_delay_ms(1000 * 1 - (end_time - bandwidth_time));
-				end_time = rtos_time_get_current_system_time_ms();
-				bandwidth_time = end_time;
-				bandwidth_size = 0;
-			}
-
-			if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
-				tptest_res_log("udp_c: id[%d] Send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
-							   (int)((report_size * 8) / (end_time - report_start_time)));
-				report_start_time = end_time;
-				bandwidth_time = end_time;
-				report_size = 0;
-				bandwidth_size = 0;
-			}
-		}
 	} else {
-		start_time = rtos_time_get_current_system_time_ms();
-		end_time = start_time;
-		bandwidth_time = start_time;
-		report_start_time = start_time;
 		client_hdr.mAmount = htonl(iperf_data.total_size);
-		while ((total_size < iperf_data.total_size) && (!g_stream_id[iperf_data.stream_id].terminate)) {
-			now = rtos_time_get_current_system_time_ms();
-			client_hdr.id = htonl(id_cnt);
-			client_hdr.tv_sec  = htonl(now / 1000);
-			client_hdr.tv_usec = htonl((now % 1000) * 1000);
-			memcpy(udp_client_buffer, &client_hdr, sizeof(client_hdr));
-			if (sendto(iperf_data.client_fd, udp_client_buffer, iperf_data.buf_size, 0, (struct sockaddr *)&ser_addr, addrlen) < 0) {
-				//tptest_res_log("[ERROR] %s: UDP client send data error\n\r",__func__);
-			} else {
-				total_size += iperf_data.buf_size;
-				bandwidth_size += iperf_data.buf_size;
-				report_size += iperf_data.buf_size;
-				// increase id_cnt only send success
-				id_cnt++;
-			}
-			end_time = rtos_time_get_current_system_time_ms();
-			if ((bandwidth_size >= iperf_data.bandwidth) && ((end_time - bandwidth_time) < (1000 * 1))) {
-				rtos_time_delay_ms(1000 * 1 - (end_time - bandwidth_time));
-				end_time = rtos_time_get_current_system_time_ms();
-				bandwidth_time = end_time;
-				bandwidth_size = 0;
-			}
-
-			if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
-				tptest_res_log("udp_c: id[%d] Send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
-							   (int)((report_size * 8) / (end_time - report_start_time)));
-				report_start_time = end_time;
-				bandwidth_time = end_time;
-				report_size = 0;
-				bandwidth_size = 0;
-			}
-		}
 	}
 
-	if (g_stream_id[iperf_data.stream_id].terminate) {
-		tptest_res_log("UDP Client terminated\n\r");
-	}
-
-	if (iperf_data.is_sub_stream & SUBSTREAM_FLAG) {
-		//This stream is created by bidirectional parameter
-		tptest_res_log("udp_c: [END] id[%d] Bidirection Totally send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.is_sub_stream & 0xff, (int)(total_size / KB),
-					   (int)(end_time - start_time),
-					   (int)((total_size * 8) / (end_time - start_time)));
-	} else {
-		tptest_res_log("udp_c: [END] id[%d] Totally send %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(total_size / KB),
-					   (int)(end_time - start_time),
-					   (int)((total_size * 8) / (end_time - start_time)));
-	}
-
+	id_cnt = send_udp_packets(&iperf_data, &client_hdr, udp_client_buffer, &ser_addr);
 	// send a final terminating datagram
 	i = 0;
 	int rc;
@@ -807,23 +806,84 @@ exit2:
 	return 0;
 }
 
+SRAM_WLAN_CRITICAL_CODE_SECTION
+void recv_udp_packets(struct iperf_data_t *iperf_data, int first_packet_size, uint8_t boundary_type, uint32_t client_amount, char *udp_server_buffer)
+{
+	struct sockaddr_in client_addr;
+	int addrlen = sizeof(struct sockaddr_in);
+	int recv_size = 0;
+	int datagram_id;
+	int frame_num = 0;
+	uint64_t total_size = first_packet_size, report_size = first_packet_size;
+	uint32_t start_time, report_start_time, end_time;
+
+	start_time = rtos_time_get_current_system_time_ms();
+	report_start_time = start_time;
+	end_time = start_time;
+	while (!g_stream_id[iperf_data->stream_id].terminate &&
+		   ((boundary_type == 0) ||
+			((boundary_type == 1) && (total_size < client_amount)) || // size_boundary
+			((boundary_type == 2) && (end_time - start_time <= 1000 * client_amount)))) { // time_boundary
+
+		recv_size = recvfrom(iperf_data->server_fd, udp_server_buffer, iperf_data->buf_size, 0, (struct sockaddr *)&client_addr, (u32_t *)&addrlen);
+
+		if (recv_size < 0) {
+			if (boundary_type) {
+				tptest_res_log("\n\r[ERROR] %s: Receive data failed\n\r", __func__);
+			} else {
+				tptest_res_log("%s: Receive data timeout\n\r", __func__);
+			}
+			goto exit1;
+		} else if ((recv_size > 0) && (iperf_data->bidirection) && (!boundary_type)) {
+			sendto(iperf_data->server_fd, udp_server_buffer, recv_size, 0, (struct sockaddr *) &client_addr, (u32_t)addrlen);
+		}
+		// ack data to client
+		// Not send ack to prevent send fail due to limited skb, but it will have warning at iperf client
+		//sendto(server_fd,udp_server_buffer,ret,0,(struct sockaddr*)&client_addr,sizeof(client_addr));
+		datagram_id = ntohl(((struct iperf_udp_datagram *)udp_server_buffer)->id);
+		if (datagram_id < 0) {
+			sendto(iperf_data->server_fd, udp_server_buffer, 0, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
+			g_stream_id[iperf_data->stream_id].terminate = 1;
+		}
+
+		end_time = rtos_time_get_current_system_time_ms();
+		total_size += recv_size;
+		report_size += recv_size;
+		frame_num++;
+
+		if ((iperf_data->report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data->report_interval))) {
+			tptest_res_log("udp_s: id[%d] Receive %d KBytes in %d ms, %d Kbits/sec\n\r",
+						   iperf_data->stream_id, (int)(report_size / KB),
+						   (int)(end_time - report_start_time),
+						   (int)((report_size * 8) / (end_time - report_start_time)));
+			report_start_time = end_time;
+			report_size = 0;
+		}
+	}
+exit1:
+	if (total_size != 0) {
+		tptest_res_log("udp_s: [END] id[%d] Totally receive %d KBytes in %d ms, frame_num = %d, %d Kbits/sec\n\r",
+					   iperf_data->stream_id, (int)(total_size / KB),
+					   (int)(end_time - start_time), frame_num,
+					   (int)((uint64_t)(total_size * 8) / (end_time - start_time)));
+	}
+}
+
 int udp_server_func(struct iperf_data_t iperf_data)
 {
 	ip_mreq mreq;
 	struct sockaddr_in   ser_addr, client_addr;
 	int                  addrlen = sizeof(struct sockaddr_in);
 	int                  n = 1;
-	int 				 datagram_id;
-	uint32_t             start_time, report_start_time, end_time;
-	int                  recv_size = 0;
-	uint64_t             total_size = 0, report_size = 0;
+	int                  first_packet_size = 0;
 	struct iperf_udp_client_hdr client_hdr;
-	uint8_t time_boundary = 0, size_boundary = 0;
+	uint8_t boundary_type = 0;
 	char *udp_server_buffer = NULL;
-	struct iperf_data_t *udp_client_data = NULL;
 	int socket_connect = 0;
 	fd_set read_fds;
 	struct timeval select_timeout;
+	int recv_timeout = 1000;
+	struct timeval timeout;
 
 	udp_server_buffer = rtos_mem_malloc(iperf_data.buf_size);
 	if (!udp_server_buffer) {
@@ -875,7 +935,7 @@ int udp_server_func(struct iperf_data_t iperf_data)
 		if (select(iperf_data.server_fd + 1, &read_fds, NULL, NULL, &select_timeout)) {
 			if (FD_ISSET(iperf_data.server_fd, &read_fds)) {
 				//wait for first packet to start
-				recv_size = recvfrom(iperf_data.server_fd, udp_server_buffer, iperf_data.buf_size, 0, (struct sockaddr *) &client_addr, (u32_t *)&addrlen);
+				first_packet_size = recvfrom(iperf_data.server_fd, udp_server_buffer, iperf_data.buf_size, 0, (struct sockaddr *) &client_addr, (u32_t *)&addrlen);
 				socket_connect = 1;
 			}
 		}
@@ -884,164 +944,20 @@ int udp_server_func(struct iperf_data_t iperf_data)
 		goto exit1;
 	}
 
-	total_size += recv_size;
-	report_size += recv_size;
-	start_time = rtos_time_get_current_system_time_ms();
-	report_start_time = start_time;
-	end_time = start_time;
-	if (!iperf_data.bidirection) { //Server
-		//parser the amount of udp iperf setting
-		memcpy(&client_hdr, udp_server_buffer, sizeof(client_hdr));
-		if (client_hdr.mAmount != 0) {
-			client_hdr.mAmount = ntohl(client_hdr.mAmount);
-			if (client_hdr.mAmount > 0x7fffffff) {
-				client_hdr.mAmount = (~(client_hdr.mAmount) + 1) / 100;
-				time_boundary = 1;
-			} else {
-				size_boundary = 1;
-			}
-		} else {
-			//set receive timeout
-			int recv_timeout = 500;
+	timeout.tv_sec  = recv_timeout / 1000;
+	timeout.tv_usec = (recv_timeout % 1000) * 1000;
+	setsockopt(iperf_data.server_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
-#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	//lwip 2.0.2
-			struct timeval timeout;
-			timeout.tv_sec  = recv_timeout / 1000;
-			timeout.tv_usec = (recv_timeout % 1000) * 1000;
-			setsockopt(iperf_data.server_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-#else	//lwip 1.4.1
-			setsockopt(iperf_data.server_fd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
-#endif
-		}
-		if (ntohl(client_hdr.flags) == 0x80000001) { //bi-direction, create client to send packets back
-			rtos_mutex_take(g_tptest_mutex, MUTEX_WAIT_TIMEOUT);
-			udp_client_data = init_stream_data('u', 'c');
-			rtos_mutex_give(g_tptest_mutex);
-			if (udp_client_data == NULL) {
-				tptest_res_log("[ERROR] init_stream_data failed!\n\r");
-				goto exit1;
-			}
-			if (time_boundary) {
-				udp_client_data->time = client_hdr.mAmount;
-			} else if (size_boundary) {
-				udp_client_data->total_size = client_hdr.mAmount;
-			}
-			strncpy((char *)udp_client_data->server_ip, inet_ntoa(client_addr.sin_addr), (strlen(inet_ntoa(client_addr.sin_addr))));
-			udp_client_data->port = ntohl(client_hdr.mPort);
-			udp_client_data->bandwidth = ntohl(client_hdr.mWinband);
-			udp_client_data->buf_size = CLIENT_BUF_SIZE;
-			udp_client_data->tos_value = DEFAULT_UDP_TOS_VALUE;
-			udp_client_data->report_interval = DEFAULT_REPORT_INTERVAL;
-			udp_client_data->is_sub_stream = SUBSTREAM_FLAG | iperf_data.stream_id;
-			if (rtos_task_create(&udp_client_data->task, "iperf_test_handler", iperf_test_handler, (void *) udp_client_data, BSD_STACK_SIZE * 4,
-								 1 + PRIORITIE_OFFSET) != SUCCESS) {
-				tptest_res_log("\n\rUDP ERROR: Create UDP client task failed.\n\r");
-				rtos_mutex_take(g_tptest_mutex, MUTEX_WAIT_TIMEOUT);
-				free_stream_data(udp_client_data);
-				rtos_mutex_give(g_tptest_mutex);
-				goto exit1;
-			}
-		}
-	} else { //listener
-		if (iperf_data.total_size) {
-			client_hdr.mAmount = iperf_data.total_size;
-			size_boundary = 1;
-		} else if (iperf_data.time) {
-			client_hdr.mAmount = iperf_data.time;
-			time_boundary = 1;
-		}
+	if (iperf_data.total_size) {
+		client_hdr.mAmount = iperf_data.total_size;
+		boundary_type = 1; //size_boundary
+	} else if (iperf_data.time) {
+		client_hdr.mAmount = iperf_data.time;
+		boundary_type = 2; //time_boundary
 	}
+	recv_udp_packets(&iperf_data, first_packet_size, boundary_type, client_hdr.mAmount, udp_server_buffer);
 
-	if (time_boundary) {
-		while (((end_time - start_time) <= (1000 * client_hdr.mAmount))  && (!g_stream_id[iperf_data.stream_id].terminate)) {
-			recv_size = recvfrom(iperf_data.server_fd, udp_server_buffer, iperf_data.buf_size, 0, (struct sockaddr *) &client_addr, (u32_t *)&addrlen);
-			if (recv_size < 0) {
-				tptest_res_log("\n\r[ERROR] %s: Receive data failed\n\r", __func__);
-				goto exit1;
-			}
-
-			// ack data to client
-			// Not send ack to prevent send fail due to limited skb, but it will have warning at iperf client
-			//sendto(server_fd,udp_server_buffer,ret,0,(struct sockaddr*)&client_addr,sizeof(client_addr));
-			datagram_id = ntohl(((struct iperf_udp_datagram *) udp_server_buffer)->id);
-			if (datagram_id < 0) {
-				sendto(iperf_data.server_fd, udp_server_buffer, 0, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-				g_stream_id[iperf_data.stream_id].terminate = 1;
-			}
-
-			end_time = rtos_time_get_current_system_time_ms();
-			total_size += recv_size;
-			report_size += recv_size;
-			if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
-				tptest_res_log("udp_s: id[%d] Receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
-							   (int)((report_size * 8) / (end_time - report_start_time)));
-				report_start_time = end_time;
-				report_size = 0;
-			}
-		}
-	} else if (size_boundary) {
-		while ((total_size < client_hdr.mAmount) && (!g_stream_id[iperf_data.stream_id].terminate)) {
-			recv_size = recvfrom(iperf_data.server_fd, udp_server_buffer, iperf_data.buf_size, 0, (struct sockaddr *) &client_addr, (u32_t *)&addrlen);
-			if (recv_size < 0) {
-				tptest_res_log("\n\r[ERROR] %s: Receive data failed\n\r", __func__);
-				goto exit1;
-			}
-
-			// ack data to client
-			// Not send ack to prevent send fail due to limited skb, but it will have warning at iperf client
-			//sendto(server_fd,udp_server_buffer,ret,0,(struct sockaddr*)&client_addr,sizeof(client_addr));
-			datagram_id = ntohl(((struct iperf_udp_datagram *) udp_server_buffer)->id);
-			if (datagram_id < 0) {
-				sendto(iperf_data.server_fd, udp_server_buffer, 0, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-				g_stream_id[iperf_data.stream_id].terminate = 1;
-			}
-
-			end_time = rtos_time_get_current_system_time_ms();
-			total_size += recv_size;
-			report_size += recv_size;
-			if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
-				tptest_res_log("udp_s: id[%d] Receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
-							   (int)((report_size * 8) / (end_time - report_start_time)));
-				report_start_time = end_time;
-				report_size = 0;
-			}
-		}
-	} else {
-		while (!g_stream_id[iperf_data.stream_id].terminate) {
-			recv_size = recvfrom(iperf_data.server_fd, udp_server_buffer, iperf_data.buf_size, 0, (struct sockaddr *) &client_addr, (u32_t *)&addrlen);
-			if (recv_size < 0) {
-				tptest_res_log("%s: Receive data timeout\n\r", __func__);
-				goto exit1;
-			}
-
-			// ack data to client
-			// Not send ack to prevent send fail due to limited skb, but it will have warning at iperf client
-			//sendto(server_fd,udp_server_buffer,ret,0,(struct sockaddr*)&client_addr,sizeof(client_addr));
-			datagram_id = ntohl(((struct iperf_udp_datagram *) udp_server_buffer)->id);
-			if (datagram_id < 0) {
-				sendto(iperf_data.server_fd, udp_server_buffer, 0, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-				g_stream_id[iperf_data.stream_id].terminate = 1;
-			}
-
-			end_time = rtos_time_get_current_system_time_ms();
-			total_size += recv_size;
-			report_size += recv_size;
-			if ((iperf_data.report_interval != DEFAULT_REPORT_INTERVAL) && ((end_time - report_start_time) >= (1000 * iperf_data.report_interval))) {
-				tptest_res_log("udp_s: id[%d] Receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(report_size / KB), (int)(end_time - report_start_time),
-							   (int)((report_size * 8) / (end_time - report_start_time)));
-				report_start_time = end_time;
-				report_size = 0;
-			}
-		}
-	}
 exit1:
-	if (total_size != 0) {
-		tptest_res_log("udp_s: [END] id[%d] Totally receive %d KBytes in %d ms, %d Kbits/sec\n\r", iperf_data.stream_id, (int)(total_size / KB),
-					   (int)(end_time - start_time),
-					   (int)((uint64_t)(total_size * 8) / (end_time - start_time)));
-	}
-
-
 	// close the listening socket
 	close(iperf_data.server_fd);
 	if (g_stream_id[iperf_data.stream_id].terminate) {
@@ -1060,6 +976,7 @@ static void iperf_test_handler(void *param)
 {
 	/* To avoid gcc warnings */
 	struct iperf_data_t *stream_data = (struct iperf_data_t *) param;
+	int i = 0, deinit_iperf = 1;
 
 	rtos_time_delay_ms(100);
 	if (stream_data->protocol == 'u') {
@@ -1094,10 +1011,21 @@ static void iperf_test_handler(void *param)
 	tptest_res_log("Min available stack size of %s = %d * %d bytes\n\r", __FUNCTION__, uxTaskGetStackHighWaterMark(NULL), sizeof(portBASE_TYPE));
 #endif
 
+	//If all stream finish, deinit iperf
+	for (i = 0; i < MULTI_STREAM_NUM; i++) {
+		if (g_stream_id[i].id_used != 0) {
+			deinit_iperf = 0;
+			break;
+		}
+	}
+	if (deinit_iperf) {
+		iperf_deinit();
+	}
+
 	rtos_task_delete(NULL);
 }
 
-void cmd_iperf(int argc, char **argv)
+int cmd_iperf(int argc, char **argv)
 {
 	int argv_count = 2;
 	uint8_t stream_id;
@@ -1106,11 +1034,15 @@ void cmd_iperf(int argc, char **argv)
 	struct iperf_data_t *stream_data_list = NULL;
 	uint8_t protocol = 0;
 	int i = 0;
+	int error_no = 0;
+	char *endptr = NULL;
+	int temp = -1;
 
 	iperf_init();
 	rtos_mutex_take(g_tptest_mutex, MUTEX_WAIT_TIMEOUT);
 
 	if (argc < 2) {
+		error_no = 3;
 		goto exit;
 	}
 
@@ -1119,6 +1051,7 @@ void cmd_iperf(int argc, char **argv)
 	} else if (strncmp(argv[0], "udp", 3) == 0) {
 		protocol = 'u';
 	} else {
+		error_no = 3;
 		goto exit;
 	}
 
@@ -1129,15 +1062,21 @@ void cmd_iperf(int argc, char **argv)
 				stream_data = init_stream_data(protocol, 's');
 				if (stream_data == NULL) {
 					tptest_res_log("\n\r[ERROR] init_stream_data failed!\n\r");
+					error_no = 4;
 					goto exit;
 				}
 				argv_count++;
 			} else if (strcmp(argv[argv_count - 1], "stop") == 0) {
 				if (argc == 3) {
-					stream_id = atoi(argv[2]);
+					temp = strtol(argv[2], &endptr, 10);
+					if (*endptr != '\0' || endptr == argv[2] || temp < 0 || temp >= MULTI_STREAM_NUM) {
+						error_no = 3;
+						goto exit;
+					}
+					stream_id = (uint8_t)temp;
 					g_stream_id[stream_id].terminate = 1;
 					rtos_mutex_give(g_tptest_mutex);
-					return;
+					return error_no;
 				} else if (argc == 2) {
 					for (i = 0; i < MULTI_STREAM_NUM; i++) {
 						if (g_stream_id[i].id_used) {
@@ -1145,17 +1084,20 @@ void cmd_iperf(int argc, char **argv)
 						}
 					}
 					rtos_mutex_give(g_tptest_mutex);
-					return;
+					return error_no;
 				} else {
+					error_no = 3;
 					goto exit;
 				}
 			} else if (strcmp(argv[argv_count - 1], "-c") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
 				stream_data = init_stream_data(protocol, 'c');
 				if (stream_data == NULL) {
 					tptest_res_log("\n\r[ERROR] init_stream_data failed!\n\r");
+					error_no = 4;
 					goto exit;
 				}
 				strncpy((char *)stream_data->server_ip, argv[2], sizeof(stream_data->server_ip) - 1);
@@ -1170,66 +1112,100 @@ void cmd_iperf(int argc, char **argv)
 						stream_data_list = stream_data_list->next;
 					}
 					rtos_mutex_give(g_tptest_mutex);
-					return;
+					return error_no;
 				} else {
+					error_no = 3;
 					goto exit;
 				}
 			} else {
+				error_no = 3;
 				goto exit;
 			}
 		} else {
 			if ((strcmp(argv[argv_count - 1], "-b") == 0)) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
 				if (stream_data->role == 'c') {
 					stream_data->bandwidth = km_parser(argv[argv_count], strlen(argv[argv_count]));
+					if (stream_data->bandwidth == 0) {
+						error_no = 3;
+						goto exit;
+					}
 					stream_data->bandwidth = stream_data->bandwidth / 8; //bits to Bytes
 				} else {
+					error_no = 3;
 					goto exit;
 				}
 				argv_count += 2;
-			} else if ((strcmp(argv[argv_count - 1], "-d") == 0) && (stream_data->role == 'c')) {
+			} else if ((strcmp(argv[argv_count - 1], "-d") == 0)) {
 				stream_data->bidirection = 1;
 				argv_count += 1;
 			} else if (strcmp(argv[argv_count - 1], "-i") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
-				stream_data->report_interval = (uint32_t) atoi(argv[argv_count]);
+				temp = strtol(argv[argv_count], &endptr, 10);
+				if (*endptr != '\0' || endptr == argv[argv_count] || temp <= 0) {
+					error_no = 3;
+					goto exit;
+				}
+				stream_data->report_interval = (uint32_t)temp;
 				argv_count += 2;
 			} else if (strcmp(argv[argv_count - 1], "-l") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
-				stream_data->buf_size = atoi(argv[argv_count]);
+				temp = strtol(argv[argv_count], &endptr, 10);
+				if (*endptr != '\0' || endptr == argv[argv_count] || temp <= 0) {
+					error_no = 3;
+					goto exit;
+				}
+				stream_data->buf_size = (uint32_t)temp;
 				argv_count += 2;
 			} else if (strcmp(argv[argv_count - 1], "-n") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
 				stream_data->time = 0;
 				stream_data->total_size = km_parser(argv[argv_count], strlen(argv[argv_count]));
+				if (stream_data->total_size == 0) {
+					error_no = 3;
+					goto exit;
+				}
 				argv_count += 2;
 			} else if (strcmp(argv[argv_count - 1], "-p") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
-				stream_data->port = (uint16_t) atoi(argv[argv_count]);
+				temp = strtol(argv[argv_count], &endptr, 10);
+				if (*endptr != '\0' || endptr == argv[argv_count] || temp < 1 || temp > 65535) {
+					error_no = 3;
+					goto exit;
+				}
+				stream_data->port = (uint16_t)temp;
 				argv_count += 2;
 			}
-#if CONFIG_WLAN
+#ifdef CONFIG_WLAN
 			else if (strcmp(argv[argv_count - 1], "-S") == 0) { //for wmm test
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
 				if (stream_data->role == 'c') {
 					if (atoi(argv[argv_count]) >= 0 && atoi(argv[argv_count]) <= 255) {
 						stream_data->tos_value = (uint8_t) atoi(argv[argv_count]);
 					} else {
+						error_no = 3;
 						goto exit;
 					}
 				} else {
+					error_no = 3;
 					goto exit;
 				}
 				argv_count += 2;
@@ -1237,18 +1213,26 @@ void cmd_iperf(int argc, char **argv)
 #endif
 			else if (strcmp(argv[argv_count - 1], "-t") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
-				stream_data->time = atoi(argv[argv_count]);
+				temp = strtol(argv[argv_count], &endptr, 10);
+				if (*endptr != '\0' || endptr == argv[argv_count] || temp <= 0) {
+					error_no = 3;
+					goto exit;
+				}
+				stream_data->time = (uint32_t)temp;
 				argv_count += 2;
-			}  else if (strcmp(argv[argv_count - 1], "-B") == 0) {
+			} else if (strcmp(argv[argv_count - 1], "-B") == 0) {
 				if (argc < (argv_count + 1)) {
+					error_no = 3;
 					goto exit;
 				}
 				strncpy((char *)stream_data->mul_ip, argv[argv_count], sizeof(stream_data->mul_ip) - 1);
 				stream_data->mul_ip[sizeof(stream_data->mul_ip) - 1] = '\0';
 				argv_count += 2;
 			} else {
+				error_no = 3;
 				goto exit;
 			}
 		}
@@ -1256,7 +1240,7 @@ void cmd_iperf(int argc, char **argv)
 
 	if (stream_data->role == 's') {
 		if (rtos_task_create(&stream_data->task, "iperf_test_handler", iperf_test_handler, (void *) stream_data, BSD_STACK_SIZE * 4,
-							 2 + PRIORITIE_OFFSET) != SUCCESS) {
+							 2 + IPERF_PRIORITY_OFFSET) != RTK_SUCCESS) {
 			tptest_res_log("UDP ERROR: Create UDP server task failed.\n\r");
 			goto exit;
 		}
@@ -1267,18 +1251,14 @@ void cmd_iperf(int argc, char **argv)
 				tptest_res_log("[ERROR] init_stream_data failed!\n\r");
 				goto exit;
 			}
-			stream_data_s->bidirection = 1;
-			stream_data_s->port = stream_data->port;
-			stream_data_s->time = stream_data->time;
-			stream_data_s->total_size = stream_data->total_size;
 			if (rtos_task_create(&stream_data_s->task, "iperf_test_handler", iperf_test_handler, (void *) stream_data_s, BSD_STACK_SIZE * 4,
-								 2 + PRIORITIE_OFFSET) != SUCCESS) {
+								 2 + IPERF_PRIORITY_OFFSET) != RTK_SUCCESS) {
 				tptest_res_log("UDP ERROR: Create UDP server task failed.\n\r");
 				goto exit;
 			}
 		}
 		if (rtos_task_create(&stream_data->task, "iperf_test_handler", iperf_test_handler, (void *) stream_data, BSD_STACK_SIZE * 4,
-							 1 + PRIORITIE_OFFSET) != SUCCESS) {
+							 1 + IPERF_PRIORITY_OFFSET) != RTK_SUCCESS) {
 			tptest_res_log("UDP ERROR: Create UDP client task failed.\n\r");
 			if (stream_data_s != NULL) {
 				rtos_task_delete(stream_data_s->task);
@@ -1288,44 +1268,13 @@ void cmd_iperf(int argc, char **argv)
 	}
 
 	rtos_mutex_give(g_tptest_mutex);
-	return;
+	return error_no;
 
 exit:
 	free_stream_data(stream_data);
 	free_stream_data(stream_data_s);
 	rtos_mutex_give(g_tptest_mutex);
 
-	if ((strncmp(argv[0], "tcp", 3) == 0) || (strncmp(argv[0], "udp", 3) == 0)) {
-		printf("\n\r[AT+IPERF] Command format ERROR!\n");
-		printf("\n\r[AT+IPERF] Usage: AT+IPERF=[-s|-c,host|stop],[options]\n");
-		printf("\n\r   Client/Server:\n");
-		printf("  \r	  ?     		List all stream status\n");
-		printf("  \r     stop  #        terminate specific stream id or terminate all stream if no id specified\n");
-		printf("  \r     -i    #        seconds between periodic bandwidth reports\n");
-		printf("  \r     -l    #        length of buffer to read or write (default 1460 Bytes)\n");
-		printf("  \r     -p    #        server port to listen on/connect to (default 5001)\n");
-		printf("  \r     -u    #        use UDP protocol (default TCP)\n");
-		printf("\n\r   Server specific:\n");
-		printf("  \r     -s             run in server mode\n");
-		printf("  \r     -B             bind multicast address in udp server mode\n");
-		printf("\n\r   Client specific:\n");
-		printf("  \r     -b    #[KM]    for UDP, bandwidth to send at in bits/sec (default 1 Mbit/sec)\n");
-		printf("  \r     -c    <host>   run in client mode, connecting to <host>\n");
-		printf("  \r     -d             Do a bidirectional test simultaneously\n");
-		printf("  \r     -t    #        time in seconds to transmit for (default 10 secs)\n");
-		printf("  \r     -n    #[KM]    number of bytes to transmit (instead of -t)\n");
-#if CONFIG_WLAN
-		printf("  \r     -S    #        for UDP, set the IP 'type of service'\n");
-#endif
-		printf("\n\r   Example for TCP:\n");
-		printf("  \r	 AT+IPERF=-s,-p,5002\n");
-		printf("  \r	 AT+IPERF=-c,192.168.1.2,-t,100,-p,5002\n");
-		printf("\n\r   Example for UDP:\n");
-		printf("  \r     AT+IPERF=-s,-p,5002,-u\n");
-		printf("  \r     AT+IPERF=-c,192.168.1.2,-t,100,-p,5002,-u\n");
-	} else {
-		printf("\n\rAT+IPERF Command ERROR!\n");
-	}
-	return;
+	return error_no;
 }
 

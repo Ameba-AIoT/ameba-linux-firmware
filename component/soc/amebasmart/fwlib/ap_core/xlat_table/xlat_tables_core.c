@@ -28,12 +28,12 @@
 #include "xlat_tables_private.h"
 
 void *memmove(void *dst, const void *src, size_t len);
-void *memset(void *dst, int val, size_t count);
+void *_memset(void *dst, int val, size_t count);
 
 
 bool is_dcache_enabled(void);
 
-static const char *TAG = "#";
+static const char *const TAG = "#";
 
 /* Helper function that cleans the data cache only if it is enabled. */
 static inline __attribute__((unused)) void xlat_clean_dcache_range(uintptr_t addr, size_t size)
@@ -1213,7 +1213,7 @@ void xlat_setup_dynamic_ctx(xlat_ctx_t *ctx, unsigned long long pa_max,
 
 	ctx->mmap = mmap;
 	ctx->mmap_num = mmap_num;
-	memset(ctx->mmap, 0, sizeof(struct mmap_region) * mmap_num);
+	_memset(ctx->mmap, 0, sizeof(struct mmap_region) * mmap_num);
 
 	ctx->tables = (void *) tables;
 	ctx->tables_num = tables_num;

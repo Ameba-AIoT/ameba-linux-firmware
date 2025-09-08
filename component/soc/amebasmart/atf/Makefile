@@ -4,25 +4,55 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
-include .config
-include ../../../../amebasmart_gcc_project/menuconfig/.config_ap
-include Formosa.mk
-
-ASDK_VER = 10.3.1
-TOOLCHAINDIR	= /opt/rtk-toolchain
-
-
-COMPILEOS = $(shell uname -o)
-LINUX_OS = GNU/Linux
-PROJECT_DIR = ../../../../amebasmart_gcc_project/project_ap
-
-ifeq ($(COMPILEOS),$(LINUX_OS))
-CROSS_COMPILE = $(TOOLCHAINDIR)/asdk-$(ASDK_VER)/linux/newlib/bin/arm-none-eabi-
-else
-CROSS_COMPILE = $(TOOLCHAINDIR)/asdk-$(ASDK_VER)/mingw32/newlib/bin/arm-none-eabi-
+ifndef CROSS_COMPILE
+$(error error: CROSS_COMPILE is not defined. Please specify it by running 'make CROSS_COMPILE=<prefix>')
 endif
 
-OSTYPE = $(shell echo $(COMPILEOS) | tr A-Z a-z)
+ifndef PROJECT_DIR
+$(error error: PROJECT_DIR is not defined. Please specify it by running 'make PROJECT_DIR=xxx')
+endif
+# PROJECT_DIR = ../../../../amebasmartplus_gcc_project/project_ap
+
+# specify the build base directory
+ifndef BUILD_BASE
+$(error error: BUILD_BASE is not defined. Please specify it by running 'make BUILD_BASE=xxx')
+endif
+
+# specify the menuconfig directory for .config_ca32 and platform_autoconf.h
+AUTOCONFIG_H_DIR:= ${BUILD_BASE}/../menuconfig/project_ap
+
+include .config
+# find the build/project_ap/.config_ca32
+include $(BUILD_BASE)/project_ap/.config_ca32
+include Formosa.mk
+
+# ifeq (${ASDK_VER},)
+# 	ASDK_VER = 10.3.1
+# 	TOOLCHAINVER = 4291
+# endif
+
+# ifeq (${TOOLCHAIN_DIR},)
+# 	ifeq ($(OS),Windows_NT)
+# 		TOOLCHAINDIR = C:\\rtk-toolchain
+# 	else
+# 		TOOLCHAINDIR = /opt/rtk-toolchain
+# 	endif
+# else
+# 	TOOLCHAINDIR = $(TOOLCHAIN_DIR)
+# endif
+
+
+# COMPILEOS = $(shell uname -o)
+# LINUX_OS = GNU/Linux
+
+# ifeq ($(COMPILEOS),$(LINUX_OS))
+# CROSS_COMPILE = $(TOOLCHAINDIR)/asdk-${ASDK_VER}-${TOOLCHAINVER}/linux/newlib/bin/arm-none-eabi-
+# else
+# CROSS_COMPILE = $(TOOLCHAINDIR)/asdk${ASDK_VER}-${TOOLCHAINVER}/mingw32/newlib/bin/arm-none-eabi-
+# endif
+
+
+# OSTYPE = $(shell echo $(COMPILEOS) | tr A-Z a-z)
 
 #
 # Trusted Firmware Version
@@ -520,8 +550,8 @@ include common/backtrace/backtrace.mk
 
 include ${MAKE_HELPERS_DIRECTORY}plat_helpers.mk
 
-BUILD_BASE		:=	${PROJECT_DIR}/asdk/build
-BUILD_PLAT		:=	$(BUILD_BASE)/atf
+# BUILD_BASE		:=	${PROJECT_DIR}/asdk/build
+BUILD_PLAT		:=	$(BUILD_BASE)/project_ap/asdk/make/atf
 #${BUILD_BASE}/${PLAT}/${BUILD_TYPE}
 
 ifneq ($(ARCH),mips)
@@ -1121,7 +1151,6 @@ all: msg_start
 msg_start:
 	@echo "Building ${PLAT}"
 
-
 ifeq (${ERROR_DEPRECATED},0)
 # Check if deprecated declarations and cpp warnings should be treated as error or not.
 ifneq ($(findstring clang,$(notdir $(CC))),)
@@ -1327,7 +1356,9 @@ fwu_fip: ${BUILD_PLAT}/${FWU_FIP_NAME}
 
 .PHONY: ${FIPTOOL}
 ${FIPTOOL}:
+ifneq ($(OS),Windows_NT)
 	${Q}${MAKE} CPPFLAGS="-DVERSION='\"${VERSION_STRING}\"'" --no-print-directory -C ${FIPTOOLPATH}
+endif
 
 sptool: ${SPTOOL}
 .PHONY: ${SPTOOL}
@@ -1362,13 +1393,13 @@ cscope:
 
 image: fiptool fip
 ifeq ($(CONFIG_MP_INCLUDED),y)
-	@cp ${BUILD_PLAT}/${FIP_NAME} ${BUILD_PLAT}/../../image_mp
-	@cp ${BUILD_PLAT}/bl1*.bin ${BUILD_PLAT}/../../image_mp
+	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${PROJECT_DIR}/asdk/image_mp)
+	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${PROJECT_DIR}/asdk/image_mp)
 else
-	@cp ${BUILD_PLAT}/${FIP_NAME} ${BUILD_PLAT}/../../image
-	@cp ${BUILD_PLAT}/bl1*.bin ${BUILD_PLAT}/../../image
+	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${PROJECT_DIR}/asdk/image)
+	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${PROJECT_DIR}/asdk/image)
 endif
-	@#$(call boot/atf/image)
+#	@#$(call boot/atf/image)
 
 help:
 	@echo "usage: ${MAKE} [PLAT=<platform>] [OPTIONS] [TARGET]"

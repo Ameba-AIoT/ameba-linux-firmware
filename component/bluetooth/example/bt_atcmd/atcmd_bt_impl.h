@@ -24,88 +24,13 @@ typedef struct {
 	uint16_t argc_max;
 } cmd_table_t;
 
-typedef struct cmd_help_tbl {
-	const char *name;
-	const char *descriptor;
-	struct cmd_help_tbl *sub_tbl;
-} cmd_help_table_t;
-
 int atcmd_bt_excute(int argc, char *argv[], const cmd_table_t *cmd_table, const char *tag);
 
 /* bt example cmd implementation */
-int atcmd_bt_demo(int argc, char *argv[]);
+int atcmd_bt_example(int argc, char *argv[]);
 
-int atcmd_bt_audio_mp_test(int argc, char *argv[]);
-
-int atcmd_bt_central(int argc, char *argv[]);
-
-int atcmd_bt_peripheral(int argc, char *argv[]);
-
-int atcmd_bt_scatternet(int argc, char *argv[]);
-
-int atcmd_bt_throughput(int argc, char *argv[]);
-
-int atcmd_bt_mesh_provisioner(int argc, char *argv[]);
-
-int atcmd_bt_mesh_device(int argc, char *argv[]);
-
-int atcmd_bt_mesh_provisioner_scatternet(int argc, char *argv[]);
-
-int atcmd_bt_mesh_device_scatternet(int argc, char *argv[]);
-
-int atcmd_bt_mesh_provisioner_test(int argc, char *argv[]);
-
-int atcmd_bt_mesh_device_test(int argc, char *argv[]);
-
-int atcmd_bt_a2dp(int argc, char *argv[]);
-
-int atcmd_bt_a2dp_scatternet(int argc, char *argv[]);
-
-int atcmd_bt_a2dp_provisioner_scatternet(int argc, char *argv[]);
-
-int atcmd_bt_a2dp_pbp(int argc, char *argv[]);
-
-int atcmd_bt_a2dp_tmap(int argc, char *argv[]);
-
-int atcmd_bt_spp(int argc, char *argv[]);
-
-int atcmd_bt_hid(int argc, char *argv[]);
-
-int atcmd_bt_hfp(int argc, char *argv[]);
-
-int atcmd_bt_a2dp_hfp(int argc, char *argv[]);
-
-int atcmd_ble_iso(int argc, char *argv[]);
-
-int atcmd_bt_bap(int argc, char *argv[]);
-
-int atcmd_bt_cap(int argc, char *argv[]);
-
-int atcmd_bt_pbp(int argc, char *argv[]);
-
-int atcmd_bt_tmap(int argc, char *argv[]);
-
-int atcmd_bt_gmap(int argc, char *argv[]);
-
-int atcmd_bt_config(int argc, char *argv[]);
-
-int atcmd_bt_pts(int argc, char *argv[]);
-
-/* bt vendor cmd implementation */
-int atcmd_bt_tx_power_gain(int argc, char *argv[]);
-
-int atcmd_bt_hci_debug_enable(int argc, char *argv[]);
-
-int atcmd_bt_sleep_mode(int argc, char *argv[]);
-
-/*int atcmd_bt_ant(int argc, char *argv[]);*/
-
-int atcmd_bt_set_tx_power(int argc, char *argv[]);
-
-int atcmd_bt_sof_eof_ind(int argc, char *argv[]);
-
-/* device cmd impl */
-int atcmd_bt_device(int argc, char *argv[]);
+/* bt vendor cmd impl */
+int atcmd_bt_vendor(int argc, char *argv[]);
 
 /* le gap cmd impl */
 int atcmd_bt_le_gap(int argc, char *argv[]);
@@ -121,6 +46,9 @@ int atcmd_bt_mesh_generic_onoff(int argc, char *argv[]);
 
 /* mesh datatrans model cmd impl */
 int atcmd_bt_mesh_datatrans_model(int argc, char *argv[]);
+
+/* mesh device firmware update relate models cmd impl */
+int atcmd_bt_mesh_device_firmware_update(int argc, char *argv[]);
 
 /* mesh remote prov client model cmd impl */
 int atcmd_bt_mesh_remote_prov_client_model(int argc, char *argv[]);
@@ -179,6 +107,15 @@ int atcmd_bt_mesh_health(int argc, char *argv[]);
 /* mesh performence test cmd impl */
 int atcmd_bt_mesh_performence_test(int argc, char *argv[]);
 
+/* mesh directed forwarding cmd impl */
+int atcmd_bt_mesh_df(int argc, char *argv[]);
+
+/* mesh directed forwarding cmd impl */
+int atcmd_bt_mesh_sbr(int argc, char *argv[]);
+
+/* mesh private beacon cmd impl */
+int atcmd_bt_mesh_prb(int argc, char *argv[]);
+
 /* br gap cmd impl */
 int atcmd_bt_br_gap(int argc, char *argv[]);
 
@@ -203,6 +140,9 @@ int atcmd_bt_avrcp_cmd(int argc, char *argv[]);
 /* spp cmd impl */
 int atcmd_bt_spp_cmd(int argc, char *argv[]);
 
+/* rfc cmd impl */
+int atcmd_bt_rfc_cmd(int argc, char *argv[]);
+
 /* hid cmd impl */
 int atcmd_bt_hid_cmd(int argc, char *argv[]);
 
@@ -221,23 +161,20 @@ int atcmd_bt_iso_cmd(int argc, char *argv[]);
 /* le audio cap */
 int atcmd_bt_cap_cmd(int argc, char *argv[]);
 
-/* le audio pbp */
-int atcmd_bt_pbp_cmd(int argc, char *argv[]);
-
 /* le audio tmap */
 int atcmd_bt_tmap_cmd(int argc, char *argv[]);
 
 /* le audio gmap */
 int atcmd_bt_gmap_cmd(int argc, char *argv[]);
 
-/* pts cmd impl */
-int atcmd_bt_pts_cmd(int argc, char *argv[]);
-
-/* transfer module demo impl */
-int atcmd_bt_transfer_module(int argc, char *argv[]);
-
 /* transfer module cmd impl */
 int atcmd_bt_transfer_module_cmd(int argc, char *argv[]);
+
+/* ble wifimate configurator cmd impl */
+int atcmd_bt_wifimate_configurator_cmd(int argc, char *argv[]);
+
+/* l2 bt verification cmd impl */
+int atcmd_bt_sdn_verify_cmd(int argc, char *argv[]);
 
 #ifdef __cplusplus
 }

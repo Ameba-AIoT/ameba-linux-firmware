@@ -104,7 +104,13 @@ T_APP_RESULT bt_stack_gattc_common_callback(uint16_t conn_handle, T_GATT_CLIENT_
 			p_write_ind->char_type = (rtk_bt_gattc_char_type_t)p_result->char_type;
 			p_write_ind->srv_instance_id = p_result->srv_instance_id;
 			memcpy(&p_write_ind->char_uuid, &p_result->char_uuid, sizeof(rtk_bt_gattc_uuid_t));
-			p_write_ind->type = (rtk_bt_gattc_write_type_t)p_result->type;
+			if (p_result->type == GATT_WRITE_TYPE_REQ) {
+				p_write_ind->type = RTK_BT_GATT_CHAR_WRITE_REQ;
+			} else if (p_result->type == GATT_WRITE_TYPE_CMD) {
+				p_write_ind->type = RTK_BT_GATT_CHAR_WRITE_NO_RSP;
+			} else if (p_result->type == GATT_WRITE_TYPE_SIGNED_CMD) {
+				p_write_ind->type = RTK_BT_GATT_CHAR_WRITE_NO_RSP_SIGNED;
+			}
 			p_write_ind->handle = p_result->handle;
 			p_write_ind->err_code = p_result->cause;
 			if (p_write_ind->err_code) {
@@ -398,6 +404,12 @@ static uint16_t bt_stack_gattc_write(void *param)
 	T_GAP_CAUSE cause;
 	rtk_bt_gattc_write_param_t *p_write_param = (rtk_bt_gattc_write_param_t *)param;
 	T_GATT_WRITE_TYPE write_type = 0;
+	uint16_t credits = 0;
+
+	le_get_gap_param(GAP_PARAM_LE_REMAIN_CREDITS, &credits);
+	if (!credits) {
+		return RTK_BT_ERR_NO_CREDITS;
+	}
 
 	if (p_write_param->type == RTK_BT_GATT_CHAR_WRITE_REQ) {
 		write_type = GATT_WRITE_TYPE_REQ;
@@ -801,7 +813,7 @@ static uint16_t bt_stack_gattc_send_discover(rtk_bt_gattc_req_t *disc_req)
 		}
 		break;
 	case RTK_BT_GATT_DISCOVER_PRIMARY_BY_UUID: {
-		rtk_bt_uuid_type_t uuid_type = p_disc_param->disc_primary_by_uuid.uuid_type;
+		rtk_bt_uuid_type_t uuid_type = (rtk_bt_uuid_type_t)p_disc_param->disc_primary_by_uuid.uuid_type;
 		uint8_t *uuid = p_disc_param->disc_primary_by_uuid.uuid;
 		switch (uuid_type) {
 		case BT_UUID_TYPE_16:
@@ -842,7 +854,7 @@ static uint16_t bt_stack_gattc_send_discover(rtk_bt_gattc_req_t *disc_req)
 	case RTK_BT_GATT_DISCOVER_CHARACTERISTIC_BY_UUID: {
 		uint16_t start_handle = p_disc_param->disc_char_by_uuid.start_handle;
 		uint16_t end_handle = p_disc_param->disc_char_by_uuid.end_handle;
-		rtk_bt_uuid_type_t uuid_type = p_disc_param->disc_char_by_uuid.uuid_type;
+		rtk_bt_uuid_type_t uuid_type = (rtk_bt_uuid_type_t)p_disc_param->disc_char_by_uuid.uuid_type;
 		uint8_t *uuid = p_disc_param->disc_char_by_uuid.uuid;
 		switch (uuid_type) {
 		case BT_UUID_TYPE_16:
@@ -1287,7 +1299,7 @@ static void bt_stack_gattc_discover_state_cb(uint8_t conn_id,
 	rtk_bt_gattc_read_ind_t *p_read_ind = NULL;
 	rtk_bt_gatt_queue_t *p_queue = &gattc_priv->request_queue[conn_id];
 	rtk_bt_gattc_req_t *p_req = NULL;
-	uint8_t status = RTK_BT_STATUS_DONE;
+	rtk_bt_status_t status = RTK_BT_STATUS_DONE;
 	uint16_t err_code = 0;
 	uint16_t conn_handle = le_get_conn_handle(conn_id);
 
@@ -1569,7 +1581,7 @@ static void bt_stack_gattc_write_result_cb(uint8_t conn_id, T_GATT_WRITE_TYPE ty
 	rtk_bt_gatt_queue_t *p_queue = NULL;
 	rtk_bt_evt_t *p_evt = NULL;
 	rtk_bt_gattc_write_ind_t *p_write_ind = NULL;
-	rtk_bt_gattc_req_type_t req_type = 0;
+	rtk_bt_gattc_req_type_t req_type = (rtk_bt_gattc_req_type_t) 0;
 	uint16_t conn_handle = le_get_conn_handle(conn_id);
 
 	if (type == GATT_WRITE_TYPE_REQ) {
@@ -1684,7 +1696,7 @@ static T_APP_RESULT bt_stack_gattc_cccd_notify_indicate_cb(uint8_t conn_id, bool
 	uint16_t conn_handle = le_get_conn_handle(conn_id);
 
 	if (false == bt_stack_gattc_cccd_record_get_profile_id(conn_id, handle, &profile_id)) {
-		return APP_RESULT_REJECT;
+		profile_id = 0;  /* If this character's cccd hasn't been enabled by any client, just send event to default gcs_client(profile_id=0) callback */
 	}
 
 	p_evt = rtk_bt_event_create(RTK_BT_LE_GP_GATTC,
@@ -1762,7 +1774,7 @@ static uint16_t bt_stack_gattc_read(void *param)
 static uint16_t bt_stack_gattc_write(void *param)
 {
 	rtk_bt_gattc_write_param_t *p_write_param = (rtk_bt_gattc_write_param_t *)param;
-	rtk_bt_gattc_req_type_t type = 0;
+	rtk_bt_gattc_req_type_t type = (rtk_bt_gattc_req_type_t) 0;
 	rtk_bt_gattc_req_t *req = NULL;
 
 	if (p_write_param->type == RTK_BT_GATT_CHAR_WRITE_REQ) {

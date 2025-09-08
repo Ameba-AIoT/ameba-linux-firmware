@@ -9,6 +9,7 @@
 #include <rtk_bt_def.h>
 #include <rtk_bt_common.h>
 #include <rtk_stack_config.h>
+#include <rtk_bt_le_gap.h>
 #include <rtk_bt_att_defs.h>
 #include <rtk_bt_gatts.h>
 #include <rtk_bt_gattc.h>
@@ -26,7 +27,8 @@
 #include <rtk_bt_le_iso.h>
 #endif
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
-#include <rtk_bt_le_audio.h>
+#include <rtk_bt_bap.h>
+#include <rtk_bt_cap.h>
 #include <ble_audio.h>
 #endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
@@ -107,9 +109,12 @@ static void bt_stack_api_taskentry(void *ctx)
 						}
 					}
 				}
-			} else if (EVENT_GROUP_FRAMEWORK == EVENT_GROUP(event)) {
+			}
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
+			else if (EVENT_GROUP_FRAMEWORK == EVENT_GROUP(event)) {
 				rtk_stack_framework_event_handler(event);
 			}
+#endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
 			else if (EVENT_MESH == event) {
 				mesh_inner_msg_handle(event);
@@ -160,7 +165,7 @@ static bool bt_stack_framework_init(void)
 #endif
 
 #if defined(RTK_BLE_MGR_LIB) && RTK_BLE_MGR_LIB
-#if (defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT) && \
+#if (defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV) && \
     (defined(F_BT_LE_5_0_AE_ADV_SUPPORT) && F_BT_LE_5_0_AE_ADV_SUPPORT) && \
     (defined(RTK_BLE_MGR_LIB_EADV) && RTK_BLE_MGR_LIB_EADV)
 	param.ble_ext_adv.enable = true;
@@ -222,11 +227,14 @@ static uint16_t bt_stack_init(void *app_config)
 		default_conf.mtu_size = papp_conf->mtu_size;
 		default_conf.master_init_mtu_req = papp_conf->master_init_mtu_req;
 		default_conf.slave_init_mtu_req = papp_conf->slave_init_mtu_req;
+#if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
 		default_conf.prefer_all_phy = papp_conf->prefer_all_phy;
 		default_conf.prefer_tx_phy = papp_conf->prefer_tx_phy;
 		default_conf.prefer_rx_phy = papp_conf->prefer_rx_phy;
+#endif
 		default_conf.max_tx_octets = papp_conf->max_tx_octets;
 		default_conf.max_tx_time = papp_conf->max_tx_time;
+		default_conf.key_convert_le_to_bredr = papp_conf->key_convert_le_to_bredr;
 #if defined(RTK_BLE_SET_TX_QUEUE_NUM) && RTK_BLE_SET_TX_QUEUE_NUM
 		if (papp_conf->max_stack_tx_pending_num != 0) {
 			default_conf.max_stack_tx_pending_num = papp_conf->max_stack_tx_pending_num;
@@ -235,21 +243,26 @@ static uint16_t bt_stack_init(void *app_config)
 		}
 #endif
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
+		default_conf.irk_auto_gen = papp_conf->irk_auto_gen;
 		memcpy(default_conf.irk, papp_conf->irk, RTK_BT_LE_GAP_IRK_LEN);
 #endif
 	} else {
 		default_conf.mtu_size = 180;
 		default_conf.master_init_mtu_req = true;
 		default_conf.slave_init_mtu_req = false;
-		default_conf.prefer_all_phy = 0;
-		default_conf.prefer_tx_phy = 1 | 1 << 1 | 1 << 2;
-		default_conf.prefer_rx_phy = 1 | 1 << 1 | 1 << 2;
+#if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
+		default_conf.prefer_all_phy = RTK_BT_LE_PHYS_PREFER_ALL;
+		default_conf.prefer_tx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
+		default_conf.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
+#endif
 		default_conf.max_tx_octets = 0x40;
 		default_conf.max_tx_time = 0x200;
+		default_conf.key_convert_le_to_bredr = false;
 #if defined(RTK_BLE_SET_TX_QUEUE_NUM) && RTK_BLE_SET_TX_QUEUE_NUM
 		default_conf.max_stack_tx_pending_num = RTK_BT_GATT_DEFAULT_CREDITS;
 #endif
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
+		default_conf.irk_auto_gen = true;
 		memset(default_conf.irk, 0, RTK_BT_LE_GAP_IRK_LEN);
 #endif
 	}
@@ -265,7 +278,7 @@ static uint16_t bt_stack_init(void *app_config)
 	gap_config_max_le_paired_device(RTK_BLE_GAP_MAX_LINKS);
 	gap_config_max_mtu_size(default_conf.mtu_size);
 	gap_config_deinit_flow(2);
-#if (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT)
+#if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 	gap_config_ccc_bits_count(GAP_MAX_CCC_BITS_CNT, GAP_MAX_CCC_BITS_CNT);
 #else
 	if (papp_conf && true == papp_conf->cccd_not_save) {
@@ -275,6 +288,17 @@ static uint16_t bt_stack_init(void *app_config)
 #if defined(RTK_BLE_SET_TX_QUEUE_NUM) && RTK_BLE_SET_TX_QUEUE_NUM
 	if (false == gap_config_credits_num(default_conf.max_stack_tx_pending_num)) {
 		BT_LOGE("%s: gap_config_credits_num fail(%d)\r\n", __func__, default_conf.max_stack_tx_pending_num);
+	}
+#endif
+
+#if defined(F_BT_SC_LINK_CONVERT_SUPPORT) && F_BT_SC_LINK_CONVERT_SUPPORT
+	uint8_t flag = GAP_SC_KEY_CONVERT_LE_TO_BREDR_FLAG;
+	T_GAP_CAUSE cause = 0;
+	if (default_conf.key_convert_le_to_bredr) {
+		cause = gap_set_param(GAP_PARAM_BOND_LINK_KEY_CONVERT, sizeof(flag), &flag);
+		if (cause) {
+			BT_LOGE("%s, set GAP_PARAM_BOND_LINK_KEY_CONVERT failed, err: 0x%x\r\n", __func__, cause);
+		}
 	}
 #endif
 
@@ -316,10 +340,12 @@ static uint16_t bt_stack_init(void *app_config)
 		goto failed;
 	}
 
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	//BR/EDR GAP initialization
 	if (RTK_BT_FAIL == bt_stack_br_gap_init(api_task_evt_msg_q)) {
 		goto failed;
 	}
+#endif
 
 	return 0;
 
@@ -352,10 +378,12 @@ static uint16_t bt_stack_deinit(void)
 
 	le_get_gap_param(GAP_PARAM_DEV_STATE, &state);
 	if (state.gap_init_state == GAP_INIT_STATE_STACK_READY) {
-		bt_stack_le_gap_deinit();
 		bte_deinit();
+		bt_stack_le_gap_deinit();
 	}
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	ret = bt_stack_br_gap_deinit();
+#endif
 
 	return ret;
 }
@@ -382,6 +410,7 @@ static uint16_t bt_stack_profile_init(void *app_conf)
 		app_profile_support = papp_conf->app_profile_support;
 	}
 
+#if defined(RTK_BLE_GATTS_SUPPORT) && RTK_BLE_GATTS_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_GATTS) {
 		BT_LOGD("GATTS Profile init  \r\n");
 		ret = bt_stack_gatts_init(app_conf);
@@ -389,12 +418,15 @@ static uint16_t bt_stack_profile_init(void *app_conf)
 			return ret;
 		}
 	}
+#endif
+#if defined(RTK_BLE_GATTC_SUPPORT) && RTK_BLE_GATTC_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_GATTC) {
 		ret = bt_stack_gattc_init(app_conf);
 		if (ret) {
 			return ret;
 		}
 	}
+#endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_MESH) {
 		ret = bt_stack_mesh_init(papp_conf);
@@ -403,48 +435,80 @@ static uint16_t bt_stack_profile_init(void *app_conf)
 		}
 	}
 #endif
-	if (app_profile_support & RTK_BT_PROFILE_AVRCP) {
-		ret = bt_stack_avrcp_init(papp_conf->a2dp_role);
-		if (ret) {
-			return ret;
-		}
-	}
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
+#if defined(RTK_BT_PROFILE_A2DP_SUPPORT) && RTK_BT_PROFILE_A2DP_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_A2DP) {
 		ret = bt_stack_a2dp_init(papp_conf->a2dp_role);
 		if (ret) {
 			return ret;
 		}
 	}
-	if (app_profile_support & RTK_BT_PROFILE_SPP) {
-		ret = bt_stack_spp_init(papp_conf->spp_role);
+#endif
+#if defined(RTK_BT_PROFILE_AVRCP_SUPPORT) && RTK_BT_PROFILE_AVRCP_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_AVRCP) {
+		ret = bt_stack_avrcp_init(papp_conf->a2dp_role);
 		if (ret) {
 			return ret;
 		}
 	}
-	if (app_profile_support & RTK_BT_PROFILE_HID) {
-		ret = bt_stack_hid_init(papp_conf->hid_role);
-		if (ret) {
-			return ret;
-		}
-	}
-	if (app_profile_support & RTK_BT_PROFILE_SDP) {
-		ret = bt_stack_sdp_init();
-		if (ret) {
-			return ret;
-		}
-	}
+#endif
+#if defined(RTK_BT_PROFILE_HFP_SUPPORT) && RTK_BT_PROFILE_HFP_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_HFP) {
 		ret = bt_stack_hfp_init(papp_conf->hfp_role);
 		if (ret) {
 			return ret;
 		}
 	}
+#endif
+#if defined(RTK_BT_PROFILE_PBAP_SUPPORT) && RTK_BT_PROFILE_PBAP_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_PBAP) {
 		ret = bt_stack_pbap_init(papp_conf->hfp_role);
 		if (ret) {
 			return ret;
 		}
 	}
+#endif
+#if defined(RTK_BT_PROFILE_SPP_SUPPORT) && RTK_BT_PROFILE_SPP_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_SPP) {
+		ret = bt_stack_spp_init(papp_conf->spp_role);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+#if defined(RTK_BT_PROFILE_RFC_SUPPORT) && RTK_BT_PROFILE_RFC_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_RFC) {
+		ret = bt_stack_rfc_init(papp_conf->server_chann);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+#if defined(RTK_BT_PROFILE_HID_SUPPORT) && RTK_BT_PROFILE_HID_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_HID) {
+		ret = bt_stack_hid_init(papp_conf->hid_role);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+#if defined(RTK_BT_PROFILE_SDP_SUPPORT) && RTK_BT_PROFILE_SDP_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_SDP) {
+		ret = bt_stack_sdp_init();
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+#endif
+#if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_LE_ISO) {
+		ret = bt_stack_le_iso_init((void *)&papp_conf->le_iso_app_conf);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 	if (app_profile_support & RTK_BT_PROFILE_LEAUDIO) {
 		ret = bt_stack_le_audio_init(papp_conf, api_task_io_msg_q, api_task_evt_msg_q);
@@ -452,6 +516,34 @@ static uint16_t bt_stack_profile_init(void *app_conf)
 			return ret;
 		}
 	}
+	if (app_profile_support & RTK_BT_PROFILE_BAP) {
+		ret = bt_stack_bap_init((void *)&papp_conf->le_audio_app_conf);
+		if (ret) {
+			return ret;
+		}
+	}
+	if (app_profile_support & RTK_BT_PROFILE_CAP) {
+		ret = bt_stack_cap_init((void *)&papp_conf->le_audio_app_conf);
+		if (ret) {
+			return ret;
+		}
+	}
+#if defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_TMAP) {
+		ret = bt_stack_tmap_init((void *)&papp_conf->le_audio_app_conf);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
+	if (app_profile_support & RTK_BT_PROFILE_GMAP) {
+		ret = bt_stack_gmap_init((void *)&papp_conf->le_audio_app_conf);
+		if (ret) {
+			return ret;
+		}
+	}
+#endif
 #endif
 	bt_stack_app_profile_conf = app_profile_support;
 
@@ -461,42 +553,89 @@ static uint16_t bt_stack_profile_init(void *app_conf)
 static uint16_t bt_stack_profile_deinit(void)
 {
 	uint32_t profile_conf = bt_stack_app_profile_conf;
+#if defined(RTK_BLE_GATTS_SUPPORT) && RTK_BLE_GATTS_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_GATTS) {
 		bt_stack_gatts_deinit();
 	}
+#endif
+#if defined(RTK_BLE_GATTC_SUPPORT) && RTK_BLE_GATTC_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_GATTC) {
 		bt_stack_gattc_deinit();
 	}
+#endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_MESH) {
 		bt_stack_mesh_deinit();
 	}
 #endif
-	if (profile_conf & RTK_BT_PROFILE_AVRCP) {
-		bt_stack_avrcp_deinit();
-	}
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
+#if defined(RTK_BT_PROFILE_A2DP_SUPPORT) && RTK_BT_PROFILE_A2DP_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_A2DP) {
 		bt_stack_a2dp_deinit();
 	}
-	if (profile_conf & RTK_BT_PROFILE_SPP) {
-		bt_stack_spp_deinit();
+#endif
+#if defined(RTK_BT_PROFILE_AVRCP_SUPPORT) && RTK_BT_PROFILE_AVRCP_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_AVRCP) {
+		bt_stack_avrcp_deinit();
 	}
-	if (profile_conf & RTK_BT_PROFILE_HID) {
-		bt_stack_hid_deinit();
-	}
+#endif
+#if defined(RTK_BT_PROFILE_HFP_SUPPORT) && RTK_BT_PROFILE_HFP_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_HFP) {
 		bt_stack_hfp_deinit();
 	}
+#endif
+#if defined(RTK_BT_PROFILE_PBAP_SUPPORT) && RTK_BT_PROFILE_PBAP_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_PBAP) {
 		bt_stack_pbap_deinit();
 	}
+#endif
+#if defined(RTK_BT_PROFILE_SPP_SUPPORT) && RTK_BT_PROFILE_SPP_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_SPP) {
+		bt_stack_spp_deinit();
+	}
+#endif
+#if defined(RTK_BT_PROFILE_RFC_SUPPORT) && RTK_BT_PROFILE_RFC_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_RFC) {
+		bt_stack_rfc_deinit();
+	}
+#endif
+#if defined(RTK_BT_PROFILE_HID_SUPPORT) && RTK_BT_PROFILE_HID_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_HID) {
+		bt_stack_hid_deinit();
+	}
+#endif
+#if defined(RTK_BT_PROFILE_SDP_SUPPORT) && RTK_BT_PROFILE_SDP_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_SDP) {
 		bt_stack_sdp_deinit();
 	}
+#endif
+#endif
+#if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_LE_ISO) {
+		bt_stack_le_iso_deinit();
+	}
+#endif
+#if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 	if (profile_conf & RTK_BT_PROFILE_LEAUDIO) {
 		bt_stack_le_audio_deinit();
 	}
-
+	if (profile_conf & RTK_BT_PROFILE_BAP) {
+		bt_stack_bap_deinit();
+	}
+	if (profile_conf & RTK_BT_PROFILE_CAP) {
+		bt_stack_cap_deinit();
+	}
+#if defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_TMAP) {
+		bt_stack_tmap_deinit();
+	}
+#endif
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
+	if (profile_conf & RTK_BT_PROFILE_GMAP) {
+		bt_stack_gmap_deinit();
+	}
+#endif
+#endif
 	bt_stack_app_profile_conf = 0;
 
 	return 0;
@@ -593,18 +732,24 @@ uint16_t bt_stack_act_handler(rtk_bt_cmd_t *p_cmd)
 	uint16_t ret = 0;
 	BT_LOGD("bt_stack_act_handler: group = %d, act = %d \r\n", p_cmd->group, p_cmd->act);
 	switch (p_cmd->group) {
+#if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
 	case RTK_BT_LE_GP_GAP:
 		BT_LOGD("RTK_BT_LE_GP_GAP group \r\n");
 		bt_stack_le_gap_act_handle(p_cmd);
 		break;
+#endif
+#if defined(RTK_BLE_GATTS_SUPPORT) && RTK_BLE_GATTS_SUPPORT
 	case RTK_BT_LE_GP_GATTS:
 		BT_LOGD("RTK_BT_LE_GP_GATTS group \r\n");
 		bt_stack_gatts_act_handle(p_cmd);
 		break;
+#endif
+#if defined(RTK_BLE_GATTC_SUPPORT) && RTK_BLE_GATTC_SUPPORT
 	case RTK_BT_LE_GP_GATTC:
 		BT_LOGD("RTK_BT_LE_GP_GATTC group \r\n");
 		bt_stack_gattc_act_handle(p_cmd);
 		break;
+#endif
 #if defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT
 	case RTK_BT_LE_GP_MESH_STACK:
 		BT_LOGD("RTK_BT_LE_GP_MESH_STACK group");
@@ -723,6 +868,24 @@ uint16_t bt_stack_act_handler(rtk_bt_cmd_t *p_cmd)
 		bt_mesh_sensor_client_model_act_handle(p_cmd);
 		break;
 #endif
+#if defined(BT_MESH_ENABLE_DIRECTED_FORWARDING_CLIENT_MODEL) && BT_MESH_ENABLE_DIRECTED_FORWARDING_CLIENT_MODEL
+	case RTK_BT_LE_GP_MESH_DIRECTED_FORWARDING_CLIENT_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_DIRECTED_FORWARDING_CLIENT_MODEL group");
+		bt_mesh_directed_forwarding_client_model_act_handle(p_cmd);
+		break;
+#endif
+#if defined(BT_MESH_ENABLE_SUBNET_BRIDGE_CLIENT_MODEL) && BT_MESH_ENABLE_SUBNET_BRIDGE_CLIENT_MODEL
+	case RTK_BT_LE_GP_MESH_SUBNET_BRIDGE_CLIENT_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_SUBNET_BRIDGE_CLIENT_MODEL group");
+		bt_mesh_subnet_bridge_client_model_act_handle(p_cmd);
+		break;
+#endif
+#if defined(BT_MESH_ENABLE_PRIVATE_BEACON_CLIENT_MODEL) && BT_MESH_ENABLE_PRIVATE_BEACON_CLIENT_MODEL
+	case RTK_BT_LE_GP_MESH_PRIVATE_BEACON_CLIENT_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_PRIVATE_BEACON_CLIENT_MODEL group");
+		bt_mesh_private_beacon_client_model_act_handle(p_cmd);
+		break;
+#endif
 	case RTK_BT_LE_GP_MESH_HEALTH_CLIENT_MODEL:
 		BT_LOGD("RTK_BT_LE_GP_MESH_HEALTH_CLIENT_MODEL group");
 		bt_mesh_health_client_model_act_handle(p_cmd);
@@ -782,47 +945,107 @@ uint16_t bt_stack_act_handler(rtk_bt_cmd_t *p_cmd)
 		bt_mesh_datatrans_model_act_handle(p_cmd);
 		break;
 #endif
+#if defined(BT_MESH_ENABLE_DIRECTED_FORWARDING) && BT_MESH_ENABLE_DIRECTED_FORWARDING
+	case RTK_BT_LE_GP_MESH_DIRECTED_FORWARDING_COMMON:
+		BT_LOGD("RTK_BT_LE_GP_MESH_DIRECTED_FORWARDING_COMMON group");
+		bt_mesh_directed_forwarding_common_act_handle(p_cmd);
+		break;
+#endif
+#if defined(BT_MESH_ENABLE_DFU_INITIATOR_ROLE) && BT_MESH_ENABLE_DFU_INITIATOR_ROLE
+	case RTK_BT_LE_GP_MESH_DFU_INITIATOR_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_DFU_INITIATOR_MODEL group");
+		bt_mesh_dfu_initiator_act_handle(p_cmd);
+		break;
+#endif
+#if defined(BT_MESH_ENABLE_DFU_STANDALONE_UPDATER_ROLE) && BT_MESH_ENABLE_DFU_STANDALONE_UPDATER_ROLE
+	case RTK_BT_LE_GP_MESH_DFU_STANDALONE_UPDATER_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_DFU_STANDALONE_UPDATER_MODEL group");
+		bt_mesh_dfu_standalone_updater_act_handle(p_cmd);
+		break;
+#endif
 #endif  // RTK_BLE_MESH_SUPPORT
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	case RTK_BT_BR_GP_GAP:
 		BT_LOGD("RTK_BT_BR_GP_GAP group \r\n");
 		bt_stack_br_gap_act_handle(p_cmd);
 		break;
-	case RTK_BT_BR_GP_AVRCP:
-		BT_LOGD("RTK_BT_BR_GP_AVRCP group \r\n");
-		bt_stack_avrcp_act_handle(p_cmd);
-		break;
+#if defined(RTK_BT_PROFILE_A2DP_SUPPORT) && RTK_BT_PROFILE_A2DP_SUPPORT
 	case RTK_BT_BR_GP_A2DP:
 		BT_LOGD("RTK_BT_BR_GP_A2DP group \r\n");
 		bt_stack_a2dp_act_handle(p_cmd);
 		break;
-	case RTK_BT_BR_GP_SPP:
-		BT_LOGD("RTK_BT_BR_GP_SPP group \r\n");
-		bt_stack_spp_act_handle(p_cmd);
+#endif
+#if defined(RTK_BT_PROFILE_AVRCP_SUPPORT) && RTK_BT_PROFILE_AVRCP_SUPPORT
+	case RTK_BT_BR_GP_AVRCP:
+		BT_LOGD("RTK_BT_BR_GP_AVRCP group \r\n");
+		bt_stack_avrcp_act_handle(p_cmd);
 		break;
-	case RTK_BT_BR_GP_HID:
-		BT_LOGD("RTK_BT_BR_GP_HID group \r\n");
-		bt_stack_hid_act_handle(p_cmd);
-		break;
+#endif
+#if defined(RTK_BT_PROFILE_HFP_SUPPORT) && RTK_BT_PROFILE_HFP_SUPPORT
 	case RTK_BT_BR_GP_HFP:
 		BT_LOGD("RTK_BT_BR_GP_HFP group \r\n");
 		bt_stack_hfp_act_handle(p_cmd);
 		break;
+#endif
+#if defined(RTK_BT_PROFILE_PBAP_SUPPORT) && RTK_BT_PROFILE_PBAP_SUPPORT
 	case RTK_BT_BR_GP_PBAP:
 		BT_LOGD("RTK_BT_BR_GP_PBAP group \r\n");
 		bt_stack_pbap_act_handle(p_cmd);
 		break;
+#endif
+#if defined(RTK_BT_PROFILE_SPP_SUPPORT) && RTK_BT_PROFILE_SPP_SUPPORT
+	case RTK_BT_BR_GP_SPP:
+		BT_LOGD("RTK_BT_BR_GP_SPP group \r\n");
+		bt_stack_spp_act_handle(p_cmd);
+		break;
+#endif
+#if defined(RTK_BT_PROFILE_RFC_SUPPORT) && RTK_BT_PROFILE_RFC_SUPPORT
+	case RTK_BT_BR_GP_RFC:
+		BT_LOGD("RTK_BT_BR_GP_RFC group \r\n");
+		bt_stack_rfc_act_handle(p_cmd);
+		break;
+#endif
+#if defined(RTK_BT_PROFILE_HID_SUPPORT) && RTK_BT_PROFILE_HID_SUPPORT
+	case RTK_BT_BR_GP_HID:
+		BT_LOGD("RTK_BT_BR_GP_HID group \r\n");
+		bt_stack_hid_act_handle(p_cmd);
+		break;
+#endif
+#if defined(RTK_BT_PROFILE_SDP_SUPPORT) && RTK_BT_PROFILE_SDP_SUPPORT
 	case RTK_BT_BR_GP_SDP:
 		BT_LOGD("RTK_BT_BR_GP_SDP group \r\n");
 		bt_stack_sdp_act_handle(p_cmd);
 		break;
+#endif
+#endif
+#if defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT
 	case RTK_BT_LE_GP_ISO:
 		BT_LOGD("RTK_BT_LE_GP_ISO group \r\n");
 		bt_stack_le_iso_act_handle(p_cmd);
 		break;
-	case RTK_BT_LE_GP_AUDIO:
-		BT_LOGD("RTK_BT_LE_GP_AUDIO group \r\n");
-		bt_stack_le_audio_act_handle(p_cmd);
+#endif
+#if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
+	case RTK_BT_LE_GP_BAP:
+		BT_LOGD("RTK_BT_LE_GP_BAP group \r\n");
+		bt_stack_bap_act_handle(p_cmd);
 		break;
+	case RTK_BT_LE_GP_CAP:
+		BT_LOGD("RTK_BT_LE_GP_CAP group \r\n");
+		bt_stack_cap_act_handle(p_cmd);
+		break;
+#if defined(RTK_BLE_AUDIO_TMAP_SUPPORT) && RTK_BLE_AUDIO_TMAP_SUPPORT
+	case RTK_BT_LE_GP_TMAP:
+		BT_LOGD("RTK_BT_LE_GP_TMAP group \r\n");
+		bt_stack_tmap_act_handle(p_cmd);
+		break;
+#endif
+#if defined(RTK_BLE_AUDIO_GMAP_SUPPORT) && RTK_BLE_AUDIO_GMAP_SUPPORT
+	case RTK_BT_LE_GP_GMAP:
+		BT_LOGD("RTK_BT_LE_GP_GMAP group \r\n");
+		bt_stack_gmap_act_handle(p_cmd);
+		break;
+#endif
+#endif
 	case RTK_BT_COMMON_GP_GAP:
 		BT_LOGD("RTK_BT_COMMON_GP_GAP group \r\n");
 		bt_stack_gap_act_handle(p_cmd);
@@ -878,24 +1101,35 @@ uint16_t bt_stack_enable(void *app_conf)
 	//step 2 initialize GAP and other common config
 	ret = bt_stack_init(app_conf);
 	if (ret) {
-		return ret;
+		goto stack_fail;
 	}
 	//step3 initialize profile
 	ret = bt_stack_profile_init(app_conf);
 	if (ret) {
-		return ret;
+		goto profile_fail;
 	}
 	//step 4 stack enable
 	if (false == bt_stack_startup(app_conf)) {
-		return RTK_BT_FAIL;
+		ret = RTK_BT_FAIL;
+		goto startup_fail;
 	}
 
 	bt_stack_le_gap_wait_ready();
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
 	bt_stack_br_gap_wait_ready();
+#endif
 
 	bt_stack_post_config();
 
 	return 0;
+
+startup_fail:
+	bt_stack_profile_deinit();
+profile_fail:
+	bt_stack_deinit();
+stack_fail:
+	bt_stack_api_deinit();
+	return ret;
 }
 
 uint16_t bt_stack_disable(void)

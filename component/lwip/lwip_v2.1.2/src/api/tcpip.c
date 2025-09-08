@@ -236,6 +236,7 @@ tcpip_thread_poll_one(void)
  * @param inp the network interface on which the packet was received
  * @param input_fn input function to call
  */
+SRAM_WLAN_CRITICAL_CODE_SECTION
 err_t
 tcpip_inpkt(struct pbuf *p, struct netif *inp, netif_input_fn input_fn)
 {
@@ -279,6 +280,7 @@ tcpip_inpkt(struct pbuf *p, struct netif *inp, netif_input_fn input_fn)
  *          NETIF_FLAG_ETHERNET flags)
  * @param inp the network interface on which the packet was received
  */
+SRAM_WLAN_CRITICAL_CODE_SECTION
 err_t
 tcpip_input(struct pbuf *p, struct netif *inp)
 {
@@ -603,9 +605,6 @@ tcpip_callbackmsg_trycallback_fromisr(struct tcpip_callback_msg *msg)
  * @param initfunc a function to call when tcpip_thread is running and finished initializing
  * @param arg argument to pass to initfunc
  */
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
- rtos_task_t tcpip_thread_export;
-#endif
 void
 tcpip_init(tcpip_init_done_fn initfunc, void *arg)
 {
@@ -622,11 +621,7 @@ tcpip_init(tcpip_init_done_fn initfunc, void *arg)
   }
 #endif /* LWIP_TCPIP_CORE_LOCKING */
 //Realtek add
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-  tcpip_thread_export = sys_thread_new(TCPIP_THREAD_NAME, tcpip_thread, NULL, TCPIP_THREAD_STACKSIZE, TCPIP_THREAD_PRIO);
-#else
   sys_thread_new(TCPIP_THREAD_NAME, tcpip_thread, NULL, TCPIP_THREAD_STACKSIZE, TCPIP_THREAD_PRIO);
-#endif
 //Realtek add end
 }
 

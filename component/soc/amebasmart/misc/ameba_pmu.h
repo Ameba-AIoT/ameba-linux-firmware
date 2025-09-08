@@ -43,21 +43,13 @@ typedef struct {
 	void				*wakeup_param_ptr;
 } PSM_DD_HOOK_INFO;
 
-
-/**
-  * @brief  init system active timer for PMU.
-  * @param  none.
-  * @retval status value:
-  *          - 0: _FAIL
-  *          - 1: _SUCCESS
-  * @note can just used in late resume or later, can not used in wakeup_hook_fun.
-  */
 uint32_t pmu_yield_os_check(void);
 uint32_t pmu_exec_sleep_hook_funs(void);
 void pmu_exec_wakeup_hook_funs(uint32_t nDeviceIdMax);
 uint32_t pmu_set_sleep_type(uint32_t type);
 uint32_t pmu_get_sleep_type(void);
 void pmu_set_max_sleep_time(uint32_t timer_ms);
+void pmu_set_sleep_time_range(uint32_t min_time, uint32_t max_time);
 #ifndef CONFIG_BUILD_ROM
 void pmu_deepsleep_cmd(uint32_t NewStatus);
 #endif
@@ -82,7 +74,7 @@ void pmu_release_wakelock(uint32_t nDeviceId);
 uint32_t pmu_get_wakelock_status(void);
 uint32_t pmu_get_deepwakelock_status(void);
 
-#ifdef ARM_CORE_CA32
+#ifdef CONFIG_ARM_CORE_CA32
 void pmu_set_secondary_cpu_state(uint32_t CoreID, uint32_t NewStatus);
 uint32_t pmu_get_secondary_cpu_state(uint32_t CoreID);
 int pmu_secondary_cpu_state_is_running(uint32_t CoreID);

@@ -25,9 +25,7 @@
  * file for complete information.
  */
 #include <errno.h>
-#include "platform_stdlib.h"
-#include "basic_types.h"
-#include "lwip/netdb.h" //realtek add
+#include "lwip_netconf.h" //realtek add
 #include "iperf.h"
 #include "iperf_api.h"
 #include "diag.h"
@@ -42,7 +40,7 @@ iperf_err(struct iperf_test *test, const char *format, ...)
 	//char str[1000];
 
 	va_start(argp, format);
-	DiagVSprintf(NULL, format, argp);
+	DiagVprintf(format, argp);
 #if 0
 	vsnprintf(str, sizeof(str), format, argp);
 	if (test != NULL && test->json_output && test->json_top != NULL) {
@@ -128,24 +126,6 @@ iperf_strerror(int int_errno)
 	case IEINTERVAL:
 		DiagSnPrintf(errstr, len, "invalid report interval (min = %d/10, max = %d/10 seconds)", MIN_INTERVAL * 10, MAX_INTERVAL * 10);
 		break;
-	case IEBIND:
-		DiagSnPrintf(errstr, len, "--bind must be specified to use --cport");
-		break;
-	case IEUDPBLOCKSIZE:
-		DiagSnPrintf(errstr, len, "block size invalid (minimum = %d bytes, maximum = %d bytes)", MIN_UDP_BLOCKSIZE, MAX_UDP_BLOCKSIZE);
-		break;
-	case IEBADTOS:
-		DiagSnPrintf(errstr, len, "bad TOS value (must be between 0 and 255 inclusive)");
-		break;
-	case IESETCLIENTAUTH:
-		DiagSnPrintf(errstr, len, "you must specify username (max 20 chars), password (max 20 chars) and a path to a valid public rsa client to be used");
-		break;
-	case IESETSERVERAUTH:
-		DiagSnPrintf(errstr, len, "you must specify path to a valid private rsa server to be used and a user credential file");
-		break;
-	case IEBADFORMAT:
-		DiagSnPrintf(errstr, len, "bad format specifier (valid formats are in the set [kmgtKMGT])");
-		break;
 	case IEMSS:
 		DiagSnPrintf(errstr, len, "TCP MSS too large (maximum = %d bytes)", MAX_MSS);
 		break;
@@ -174,6 +154,30 @@ iperf_strerror(int int_errno)
 		break;
 	case IENOSCTP:
 		DiagSnPrintf(errstr, len, "no SCTP support available");
+		break;
+	case IEBIND:
+		DiagSnPrintf(errstr, len, "--bind must be specified to use --cport");
+		break;
+	case IEUDPBLOCKSIZE:
+		DiagSnPrintf(errstr, len, "block size invalid (minimum = %d bytes, maximum = %d bytes)", MIN_UDP_BLOCKSIZE, MAX_UDP_BLOCKSIZE);
+		break;
+	case IEBADTOS:
+		DiagSnPrintf(errstr, len, "bad TOS value (must be between 0 and 255 inclusive)");
+		break;
+	case IESETCLIENTAUTH:
+		DiagSnPrintf(errstr, len, "you must specify username (max 20 chars), password (max 20 chars) and a path to a valid public rsa client to be used");
+		break;
+	case IESETSERVERAUTH:
+		DiagSnPrintf(errstr, len, "you must specify path to a valid private rsa server to be used and a user credential file");
+		break;
+	case IEBADFORMAT:
+		DiagSnPrintf(errstr, len, "bad format specifier (valid formats are in the set [kmgtKMGT])");
+		break;
+	case IEPORT:
+		DiagSnPrintf(errstr, len, "invalid port range (valid range is 1~65535)");
+		break;
+	case IEPARAMFORMAT:
+		DiagSnPrintf(errstr, len, "bad parameter format");
 		break;
 	case IENEWTEST:
 		DiagSnPrintf(errstr, len, "unable to create a new test");

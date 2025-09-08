@@ -67,6 +67,27 @@ int atcmd_bt_central(int argc, char *argv[])
 	return 0;
 }
 
+int hogp_gamepad_main(uint8_t enable);
+int atcmd_bt_hogp_gamepad(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
+		BT_LOGE("Error: wrong value (%d) for HOGP example!\r\n", op);
+		return -1;
+	}
+
+	if (hogp_gamepad_main(op)) {
+		BT_LOGE("Error: HOGP example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("HOGP example %s OK!\r\n", action[op]);
+	return 0;
+}
+
 int ble_peripheral_main(uint8_t enable);
 int atcmd_bt_peripheral(int argc, char *argv[])
 {
@@ -135,6 +156,48 @@ int atcmd_bt_throughput(int argc, char *argv[])
 	} else {
 		BT_LOGE("Input wrong parameters!!!\r\n");
 	}
+	return 0;
+}
+
+int ble_ota_central_main(uint8_t enable);
+int atcmd_bt_ota_central(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
+		BT_LOGE("Error: wrong value (%d) for ble ota central example!\r\n", op);
+		return -1;
+	}
+
+	if (ble_ota_central_main(op)) {
+		BT_LOGE("Error: ble ota central example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("ble ota central example %s OK!\r\n", action[op]);
+	return 0;
+}
+
+int ble_ota_peripheral_main(uint8_t enable);
+int atcmd_bt_ota_peripheral(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
+		BT_LOGE("Error: wrong value (%d) for ble ota peripheral example!\r\n", op);
+		return -1;
+	}
+
+	if (ble_ota_peripheral_main(op)) {
+		BT_LOGE("Error: ble ota peripheral example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("ble ota peripheral example %s OK!\r\n", action[op]);
 	return 0;
 }
 
@@ -390,49 +453,56 @@ int atcmd_bt_a2dp_pbp(int argc, char *argv[])
 	return 0;
 }
 
-int bt_a2dp_sink_tmap_main(uint8_t role, uint8_t enable);
-int bt_tmap_a2dp_source_main(uint8_t role, uint8_t enable);
+int bt_a2dp_hfp_pbp_main(uint8_t enable);
+int atcmd_bt_a2dp_hfp_pbp(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op = 0;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)(str_to_int(argv[0]))) > 2) {
+		BT_LOGE("Error: wrong value (%d) for a2dp hfp pbp example!\r\n", op);
+		return -1;
+	}
+
+	if (bt_a2dp_hfp_pbp_main(op)) {
+		BT_LOGE("Error: a2dp hfp pbp example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("a2dp hfp pbp example %s OK!\r\n", action[op]);
+	return 0;
+}
+
+int bt_a2dp_sink_tmap_main(uint8_t enable, uint8_t role);
 int atcmd_bt_a2dp_tmap(int argc, char *argv[])
 {
 	(void)argc;
 	uint8_t role = 0;
 	uint8_t op = 0;
 	char *action[] = {"disable", "enable"};
-
 	if (strcmp(argv[0], "ums") == 0) {
 		role = 0x04;
 		BT_LOGA("Set a2dp sink ums role\r\n");
 	} else if (strcmp(argv[0], "bms") == 0) {
 		role = 0x10;
 		BT_LOGA("Set a2dp sink bms role\r\n");
-	} else if (strcmp(argv[0], "umr") == 0) {
-		role = 0x08;
-		BT_LOGA("Set tmap umr a2dp source role\r\n");
-	} else if (strcmp(argv[0], "bmr") == 0) {
-		role = 0x20;
-		BT_LOGA("Set tmap bmr a2dp source role\r\n");
 	} else {
 		BT_LOGE("Invalid role set\r\n");
 		return -1;
 	}
 
 	if ((op = (uint8_t)(str_to_int(argv[1]))) > 2) {
-		BT_LOGE("Error: wrong value (%d) for a2dp tmap example!\r\n", op);
+		BT_LOGE("Error: wrong value (%d) for a2dp sink tmap example!\r\n", op);
 		return -1;
 	}
 
 	if (role == 0x04 || role == 0x10) {
-		if (bt_a2dp_sink_tmap_main(role, op)) {
+		if (bt_a2dp_sink_tmap_main(op, role)) {
 			BT_LOGE("Error: a2dp sink tmap example %s failed!\r\n", action[op]);
 			return -1;
 		}
 		BT_LOGA("a2dp sink tmap example %s OK!\r\n", action[op]);
-	} else if (role == 0x08 || role == 0x20) {
-		if (bt_tmap_a2dp_source_main(role, op)) {
-			BT_LOGE("Error: tmap a2dp source example %s failed!\r\n", action[op]);
-			return -1;
-		}
-		BT_LOGA("tmap a2dp source example %s OK!\r\n", action[op]);
 	}
 
 	return 0;
@@ -531,6 +601,26 @@ int atcmd_bt_spp(int argc, char *argv[])
 	return 0;
 }
 
+int bt_rfc_main(uint8_t enable);
+int atcmd_bt_rfc(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 2) {
+		BT_LOGE("Error: wrong value (%d) for spp!\r\n", op);
+		return -1;
+	}
+	if (bt_rfc_main(op)) {
+		BT_LOGE("Error: rfc example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("rfc example %s OK!\r\n", action[op]);
+	return 0;
+}
+
 int bt_hid_main(uint8_t role, uint8_t enable);
 int atcmd_bt_hid(int argc, char *argv[])
 {
@@ -613,81 +703,23 @@ int atcmd_ble_iso(int argc, char **argv)
 	return 0;
 }
 
-int bt_bap_main(uint8_t role, uint8_t enable);
-int atcmd_bt_bap(int argc, char *argv[])
+int bt_generic_le_audio_demo_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
+int atcmd_bt_generic_le_audio_demo(int argc, char *argv[])
 {
 	(void)argc;
 	uint8_t role;
 	uint8_t op;
+	uint32_t channel = 0;
 	char *action[] = {"disable", "enable"};
 
-	if (strcmp(argv[0], "broadcast") == 0) {
-		if (strcmp(argv[1], "source") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_BRO_SOUR */
-			role = 0x01;
-			BT_LOGA("Set bap broadcast source\r\n");
-		} else if (strcmp(argv[1], "sink") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_BRO_SINK */
-			role = 0x02;
-			BT_LOGA("Set bap broadcast sink\r\n");
-		} else if (strcmp(argv[1], "assistant") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_BRO_ASSI */
-			role = 0x04;
-			BT_LOGA("Set bap broadcast assistant\r\n");
-		} else if (strcmp(argv[1], "delegate") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_SCAN_DELE */
-			role = 0x08;
-			BT_LOGA("Set bap scan delegate\r\n");
-		} else {
-			BT_LOGE("Invalid broadcast role set\r\n");
-			return -1;
-		}
-	} else if (strcmp(argv[0], "unicast") == 0) {
-		if (strcmp(argv[1], "client") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_UNI_CLI */
-			role = 0x20;
-			BT_LOGA("Set bap unicast client\r\n");
-		} else if (strcmp(argv[1], "server") == 0) {
-			/* RTK_BT_LE_AUDIO_BAP_ROLE_UNI_SER */
-			role = 0x10;
-			BT_LOGA("Set bap unicast server\r\n");
-		} else {
-			BT_LOGE("Invalid unicast role set\r\n");
-			return -1;
-		}
-	} else {
-		BT_LOGE("Invalid bap broadcast / unicast set\r\n");
-		return -1;
-	}
-	if ((op = (uint8_t)str_to_int(argv[2])) > 2) {
-		BT_LOGE("Error: wrong value (%d) for bap example!\r\n", op);
-		return -1;
-	}
-	if (bt_bap_main(role, op)) {
-		BT_LOGE("Error: bap example %s failed!\r\n", action[op]);
-		return -1;
-	}
-
-	BT_LOGA("bap example %s OK!\r\n", action[op]);
-	return 0;
-}
-
-int bt_cap_main(uint8_t role, uint8_t enable);
-int atcmd_bt_cap(int argc, char *argv[])
-{
-	(void)argc;
-	uint8_t role;
-	uint8_t op;
-	char *action[] = {"disable", "enable"};
-
-	if (strcmp(argv[0], "initiator") == 0) {
-		/* RTK_BT_LE_AUDIO_CAP_ROLE_INITIATOR */
-		role = 0x01;
-		BT_LOGA("Set cap initiator\r\n");
-	} else if (strcmp(argv[0], "acceptor") == 0) {
+	if (strcmp(argv[0], "acceptor") == 0) {
 		/* RTK_BT_LE_AUDIO_CAP_ROLE_ACCEPTOR */
-		role = 0x02;
+		role = 0x01;
 		BT_LOGA("Set cap acceptor\r\n");
+	} else if (strcmp(argv[0], "initiator") == 0) {
+		/* RTK_BT_LE_AUDIO_CAP_ROLE_INITIATOR */
+		role = 0x02;
+		BT_LOGA("Set cap initiator\r\n");
 	} else if (strcmp(argv[0], "commander") == 0) {
 		/* RTK_BT_LE_AUDIO_CAP_ROLE_COMMANDER */
 		role = 0x04;
@@ -700,7 +732,25 @@ int atcmd_bt_cap(int argc, char *argv[])
 		BT_LOGE("Error: wrong value (%d) for cap example!\r\n", op);
 		return -1;
 	}
-	if (bt_cap_main(role, op)) {
+	if (argc == 3) {
+		if (strcmp(argv[2], "left") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL */
+			channel = 0x01;
+			BT_LOGA("Set channel left \r\n");
+		} else if (strcmp(argv[2], "right") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x02;
+			BT_LOGA("Set channel right \r\n");
+		} else if (strcmp(argv[2], "stereo") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL | RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x03;
+			BT_LOGA("Set channel stereo \r\n");
+		} else {
+			BT_LOGE("Error: cap example only support left, right and stereo channel!\r\n");
+			return -1;
+		}
+	}
+	if (bt_generic_le_audio_demo_main(role, op, channel)) {
 		BT_LOGE("Error: cap example %s failed!\r\n", action[op]);
 		return -1;
 	}
@@ -709,12 +759,13 @@ int atcmd_bt_cap(int argc, char *argv[])
 	return 0;
 }
 
-int bt_pbp_main(uint8_t role, uint8_t enable);
+int bt_pbp_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
 int atcmd_bt_pbp(int argc, char *argv[])
 {
 	(void)argc;
 	uint8_t role;
 	uint8_t op;
+	uint32_t channel = 0;
 	char *action[] = {"disable", "enable"};
 
 	if (strcmp(argv[0], "source") == 0) {
@@ -737,7 +788,27 @@ int atcmd_bt_pbp(int argc, char *argv[])
 		BT_LOGE("Error: wrong value (%d) for pbp example!\r\n", op);
 		return -1;
 	}
-	if (bt_pbp_main(role, op)) {
+
+	if (argc == 3) {
+		if (strcmp(argv[2], "left") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL */
+			channel = 0x01;
+			BT_LOGA("Set channel left \r\n");
+		} else if (strcmp(argv[2], "right") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x02;
+			BT_LOGA("Set channel right \r\n");
+		} else if (strcmp(argv[2], "stereo") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL | RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x03;
+			BT_LOGA("Set channel stereo \r\n");
+		} else {
+			BT_LOGE("Error: PBP example only support left, right or stereo channel!\r\n");
+			return -1;
+		}
+	}
+
+	if (bt_pbp_main(role, op, channel)) {
 		BT_LOGE("Error: pbp example %s failed!\r\n", action[op]);
 		return -1;
 	}
@@ -746,12 +817,13 @@ int atcmd_bt_pbp(int argc, char *argv[])
 	return 0;
 }
 
-int bt_tmap_main(uint8_t role, uint8_t enable);
+int bt_tmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
 int atcmd_bt_tmap(int argc, char *argv[])
 {
 	(void)argc;
 	uint8_t role;
 	uint8_t op;
+	uint32_t channel = 0;
 	char *action[] = {"disable", "enable"};
 
 	if (strcmp(argv[0], "cg") == 0) {
@@ -786,7 +858,25 @@ int atcmd_bt_tmap(int argc, char *argv[])
 		BT_LOGE("Error: wrong value (%d) for tmap example!\r\n", op);
 		return -1;
 	}
-	if (bt_tmap_main(role, op)) {
+	if (argc == 3) {
+		if (strcmp(argv[2], "left") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL */
+			channel = 0x01;
+			BT_LOGA("Set channel left \r\n");
+		} else if (strcmp(argv[2], "right") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x02;
+			BT_LOGA("Set channel right \r\n");
+		} else if (strcmp(argv[2], "stereo") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL | RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x03;
+			BT_LOGA("Set channel stereo \r\n");
+		} else {
+			BT_LOGE("Error: cap example only support left, right and stereo channel!\r\n");
+			return -1;
+		}
+	}
+	if (bt_tmap_main(role, op, channel)) {
 		BT_LOGE("Error: tmap example %s failed!\r\n", action[op]);
 		return -1;
 	}
@@ -795,12 +885,12 @@ int atcmd_bt_tmap(int argc, char *argv[])
 	return 0;
 }
 
-int bt_gmap_main(uint8_t role, uint8_t enable);
+int bt_gmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
 int atcmd_bt_gmap(int argc, char *argv[])
 {
-	(void)argc;
 	uint8_t role;
 	uint8_t op;
+	uint32_t channel = 0;
 	char *action[] = {"disable", "enable"};
 
 	if (strcmp(argv[0], "ugg") == 0) {
@@ -827,7 +917,25 @@ int atcmd_bt_gmap(int argc, char *argv[])
 		BT_LOGE("Error: wrong value (%d) for gmap example!\r\n", op);
 		return -1;
 	}
-	if (bt_gmap_main(role, op)) {
+	if (argc == 3) {
+		if (strcmp(argv[2], "left") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL */
+			channel = 0x01;
+			BT_LOGA("Set channel left \r\n");
+		} else if (strcmp(argv[2], "right") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x02;
+			BT_LOGA("Set channel right \r\n");
+		} else if (strcmp(argv[2], "stereo") == 0) {
+			/* RTK_BT_LE_AUDIO_LOCATION_FL | RTK_BT_LE_AUDIO_LOCATION_FR */
+			channel = 0x03;
+			BT_LOGA("Set channel stereo \r\n");
+		} else {
+			BT_LOGE("Error: cap example only support left, right and stereo channel!\r\n");
+			return -1;
+		}
+	}
+	if (bt_gmap_main(role, op, channel)) {
 		BT_LOGE("Error: gmap example %s failed!\r\n", action[op]);
 		return -1;
 	}
@@ -836,27 +944,7 @@ int atcmd_bt_gmap(int argc, char *argv[])
 	return 0;
 }
 
-int bt_config_main(uint8_t enable);
-int atcmd_bt_config(int argc, char *argv[])
-{
-	(void)argc;
-	uint8_t op;
-	char *action[] = {"disable", "enable"};
-
-	if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
-		BT_LOGE("Error: wrong value (%d) for bt config!\r\n", op);
-		return -1;
-	}
-
-	if (bt_config_main(op)) {
-		BT_LOGE("Error: bt config example %s failed!\r\n", action[op]);
-		return -1;
-	}
-
-	BT_LOGA("bt config example %s OK!\r\n", action[op]);
-	return 0;
-}
-
+int atcmd_bt_pts_cmd(int argc, char *argv[]);
 int bt_pts_main(uint8_t enable);
 int atcmd_bt_pts(int argc, char *argv[])
 {
@@ -887,12 +975,12 @@ int atcmd_bt_transfer_module(int argc, char *argv[])
 		uint8_t op = (uint8_t)str_to_int(argv[0]);
 		if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
 			BT_LOGE("Error: wrong parameter (%d) for transfer module example!\r\n", op);
-			return -1;
+			return BT_AT_ERR_PARAM_INVALID;
 		}
 
 		if (ble_transfer_module_main(op)) {
 			BT_LOGE("Error: transfer module example %s failed!\r\n", (op == 1) ? "enable" : "disable");
-			return -1;
+			return BT_AT_FAIL;
 		}
 
 		BT_LOGA("transfer module example %s OK!\r\n", (op == 1) ? "enable" : "disable");
@@ -900,4 +988,171 @@ int atcmd_bt_transfer_module(int argc, char *argv[])
 		ret = atcmd_bt_transfer_module_cmd(argc, argv);
 	}
 	return ret;
+}
+
+int ble_wifimate_device_main(uint8_t enable, uint16_t timeout);
+int atcmd_bt_wifimate_device(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	char *action[] = {"disable", "enable"};
+	uint16_t timeout = 60;
+
+	if (argc < 1 || argc > 2) {
+		BT_LOGE("Error: wrong parameter number\r\n");
+		return BT_AT_ERR_PARAM_INVALID;
+	}
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
+		BT_LOGE("Error: wrong value (%d) for ble wifimate device example!\r\n", op);
+		return BT_AT_ERR_PARAM_INVALID;
+	}
+
+	if (argc > 1) {
+		timeout = (uint16_t)str_to_int(argv[1]);
+		BT_LOGA("Ble wifimate timeout=%d\r\n", timeout);
+	}
+
+	if (ble_wifimate_device_main(op, timeout)) {
+		BT_LOGE("Error: ble wifimate device example %s failed!\r\n", action[op]);
+		return BT_AT_FAIL;
+	}
+
+	BT_LOGA("Ble wifimate device example %s OK!\r\n", action[op]);
+	return 0;
+}
+
+int ble_wifimate_configurator_main(uint8_t enable);
+int atcmd_bt_wifimate_configurator(int argc, char *argv[])
+{
+	int ret = 0;
+	if ((strcmp("0", argv[0]) == 0) || (strcmp("1", argv[0]) == 0)) {
+		uint8_t op = (uint8_t)str_to_int(argv[0]);
+		if ((op = (uint8_t)str_to_int(argv[0])) > 1) {
+			BT_LOGE("Error: wrong parameter (%d) for ble wifimate configurator example!\r\n", op);
+			return BT_AT_ERR_PARAM_INVALID;
+		}
+
+		if (ble_wifimate_configurator_main(op)) {
+			BT_LOGE("Error: ble wifimate configurator example %s failed!\r\n", (op == 1) ? "enable" : "disable");
+			return BT_AT_FAIL;
+		}
+
+		BT_LOGA("ble wifimate configurator example %s OK!\r\n", (op == 1) ? "enable" : "disable");
+	} else {
+		ret = atcmd_bt_wifimate_configurator_cmd(argc, argv);
+	}
+	return ret;
+}
+
+static const cmd_table_t example_table[] = {
+#if defined(CONFIG_BT_AUDIO_MP_TEST) && CONFIG_BT_AUDIO_MP_TEST
+	{"bt_audio_mp_test", atcmd_bt_audio_mp_test,    2, 2},
+#endif
+#if defined(CONFIG_BT_PERIPHERAL) && CONFIG_BT_PERIPHERAL
+	{"peripheral",       atcmd_bt_peripheral,       2, 2},
+#endif
+#if defined(CONFIG_BT_HOGP) && CONFIG_BT_HOGP
+	{"hogp",       atcmd_bt_hogp_gamepad,           2, 2},
+#endif
+#if defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL
+	{"central",          atcmd_bt_central,          2, 2},
+#endif
+#if defined(CONFIG_BT_SCATTERNET) && CONFIG_BT_SCATTERNET
+	{"scatternet",       atcmd_bt_scatternet,       2, 2},
+#endif
+#if defined(CONFIG_BT_THROUGHPUT) && CONFIG_BT_THROUGHPUT
+	{"throughput",       atcmd_bt_throughput,       2, 13},
+#endif
+#if defined(CONFIG_BT_OTA_CENTRAL) && CONFIG_BT_OTA_CENTRAL
+	{"ota_central",      atcmd_bt_ota_central,      2, 2},
+#endif
+#if defined(CONFIG_BT_OTA_PERIPHERAL) && CONFIG_BT_OTA_PERIPHERAL
+	{"ota_peripheral",   atcmd_bt_ota_peripheral,   2, 2},
+#endif
+#if defined(CONFIG_BT_MESH_PROVISIONER) && CONFIG_BT_MESH_PROVISIONER
+	{"provisioner",      atcmd_bt_mesh_provisioner, 2, 2},
+#endif
+#if defined(CONFIG_BT_MESH_DEVICE) && CONFIG_BT_MESH_DEVICE
+	{"device",           atcmd_bt_mesh_device,      2, 2},
+#endif
+#if defined(CONFIG_BT_MESH_PROVISIONER_SCATTERNET) && CONFIG_BT_MESH_PROVISIONER_SCATTERNET
+	{"provisioner_scatternet", atcmd_bt_mesh_provisioner_scatternet, 2, 2},
+#endif
+#if defined(CONFIG_BT_MESH_DEVICE_SCATTERNET) && CONFIG_BT_MESH_DEVICE_SCATTERNET
+	{"device_scatternet", atcmd_bt_mesh_device_scatternet, 2, 2},
+#endif
+#if defined(CONFIG_BT_MESH_PROVISIONER_TEST) && CONFIG_BT_MESH_PROVISIONER_TEST
+	{"provisioner_test", atcmd_bt_mesh_provisioner_test, 2, 9},
+#endif
+#if defined(CONFIG_BT_MESH_DEVICE_TEST) && CONFIG_BT_MESH_DEVICE_TEST
+	{"device_test", atcmd_bt_mesh_device_test, 2, 2},
+#endif
+#if defined(CONFIG_BT_ISO_TEST) && CONFIG_BT_ISO_TEST
+	{"iso",              atcmd_ble_iso,             4, 4},
+#endif
+#if defined(CONFIG_BT_A2DP) && CONFIG_BT_A2DP
+	{"a2dp",             atcmd_bt_a2dp,             3, 3},
+#endif
+#if defined(CONFIG_BT_A2DP_SCATTERNET) && CONFIG_BT_A2DP_SCATTERNET
+	{"a2dp_scatternet",  atcmd_bt_a2dp_scatternet,  3, 3},
+#endif
+#if defined(CONFIG_BT_A2DP_PROVISIONER_SCATTERNET) && CONFIG_BT_A2DP_PROVISIONER_SCATTERNET
+	{"a2dp_provisioner_scatternet",  atcmd_bt_a2dp_provisioner_scatternet,  3, 3},
+#endif
+#if defined(CONFIG_BT_A2DP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_LE_AUDIO_PBP
+	{"a2dp_pbp",         atcmd_bt_a2dp_pbp,         2, 2},
+#endif
+#if defined(CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP
+	{"a2dp_hfp_pbp",     atcmd_bt_a2dp_hfp_pbp,     2, 2},
+#endif
+#if defined(CONFIG_BT_A2DP_LE_AUDIO_TMAP) && CONFIG_BT_A2DP_LE_AUDIO_TMAP
+	{"a2dp_tmap",        atcmd_bt_a2dp_tmap,        3, 3},
+#endif
+#if defined(CONFIG_BT_SPP) && CONFIG_BT_SPP
+	{"spp",              atcmd_bt_spp,              3, 6},
+#endif
+#if defined(CONFIG_BT_RFC) && CONFIG_BT_RFC
+	{"rfc",              atcmd_bt_rfc,              2, 3},
+#endif
+#if defined(CONFIG_BT_HID) && CONFIG_BT_HID
+	{"hid",              atcmd_bt_hid,              2, 3},
+#endif
+#if defined(CONFIG_BT_HFP) && CONFIG_BT_HFP
+	{"hfp",              atcmd_bt_hfp,              3, 3},
+#endif
+#if defined(CONFIG_BT_A2DP_HFP) && CONFIG_BT_A2DP_HFP
+	{"a2dp_hfp",         atcmd_bt_a2dp_hfp,         3, 3},
+#endif
+#if defined(CONFIG_BT_LE_AUDIO_GENERIC_DEMO) && CONFIG_BT_LE_AUDIO_GENERIC_DEMO
+	{"generic_le_audio_demo", atcmd_bt_generic_le_audio_demo, 3, 4},
+#endif
+#if defined(CONFIG_BT_PBP) && CONFIG_BT_PBP
+	{"pbp",              atcmd_bt_pbp,              3, 4},
+#endif
+#if defined(CONFIG_BT_TMAP) && CONFIG_BT_TMAP
+	{"tmap",             atcmd_bt_tmap,             3, 4},
+#endif
+#if defined(CONFIG_BT_GMAP) && CONFIG_BT_GMAP
+	{"gmap",             atcmd_bt_gmap,             3, 4},
+#endif
+#if defined(CONFIG_BT_PTS) && CONFIG_BT_PTS
+	{"pts",              atcmd_bt_pts,              2, 4},
+#endif
+	// {"demo",             atcmd_bt_demo,             1, 1},
+#if defined(CONFIG_BT_TRANSFER_MODULE) && CONFIG_BT_TRANSFER_MODULE
+	{"transfer_module",  atcmd_bt_transfer_module,  2, 6},
+#endif
+#if defined(CONFIG_BT_WIFIMATE_DEVICE) && CONFIG_BT_WIFIMATE_DEVICE
+	{"ble_wifimate_device", atcmd_bt_wifimate_device, 2, 3},
+#endif
+#if defined(CONFIG_BT_WIFIMATE_CONFIGURATOR) && CONFIG_BT_WIFIMATE_CONFIGURATOR
+	{"ble_wifimate_configurator", atcmd_bt_wifimate_configurator, 2, 6},
+#endif
+	{NULL,},
+};
+
+int atcmd_bt_example(int argc, char *argv[])
+{
+	return atcmd_bt_excute(argc, argv, example_table, "[AT+BTDEMO]");
 }

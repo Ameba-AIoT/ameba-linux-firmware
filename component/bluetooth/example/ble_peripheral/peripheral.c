@@ -34,7 +34,7 @@
 
 #define RTK_BT_DEV_NAME "RTK_BT_PERIPHERAL"
 
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 static uint8_t ext_adv_data[] = {
 	// Flags
 	0x02,
@@ -65,7 +65,7 @@ static uint8_t ext_adv_data[] = {
 static rtk_bt_le_ext_adv_param_t ext_adv_param = {
 	.adv_event_prop = RTK_BT_LE_EXT_ADV_EXTENDED_ADV_CONN_UNDIRECTED,
 	.primary_adv_interval_min = 320,
-	.primary_adv_interval_max = 320,
+	.primary_adv_interval_max = 360,
 	.primary_adv_channel_map = RTK_BT_LE_ADV_CHNL_ALL,
 	.own_addr = {RTK_BT_LE_ADDR_TYPE_PUBLIC, {0}},
 	.peer_addr = {RTK_BT_LE_ADDR_TYPE_PUBLIC, {0}},//;{0x8A, 0xAA, 0xAA, 0x4C, 0xE0, 0x00},
@@ -121,23 +121,12 @@ static rtk_bt_le_security_param_t sec_param = {
 #define PRIVACY_USE_DIR_ADV_WHEN_BONDED    0
 static bool privacy_enable = false;
 static bool privacy_whitelist = true;
-static uint8_t privacy_irk[RTK_BT_LE_GAP_IRK_LEN] = "abcdef0123456789";
 #endif
 
 #if defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT
-#define BT_POWER_TEST_MODE         0
+#define BT_POWER_TEST_MODE         0    //If set to 1, WAKE_SRC_BT_WAKE_HOST should be set to wakeup AP core in ameba_sleepcfg.c
 #if defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE
 #include "rtk_bt_power_control.h"
-
-#define BT_POWER_TEST_WAKE_TIME    5    //Unit:s
-
-static void *bt_power_test_wake_timer_hdl = NULL;
-
-static void bt_power_test_wake_timeout_handler(void *arg)
-{
-	(void)arg;
-	rtk_bt_release_wakelock();
-}
 
 static void bt_power_test_suspend(void)
 {
@@ -148,37 +137,18 @@ static void bt_power_test_resume(void)
 {
 	BT_LOGA("[BT_PS] Enter bt_power_test_resume\r\n");
 
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		osif_timer_restart(&bt_power_test_wake_timer_hdl, BT_POWER_TEST_WAKE_TIME * 1000);
-	} else {
-		rtk_bt_release_wakelock();
-	}
+	/* Our demo releases BT wake lock here, it can be released anywhere as application's request */
+	rtk_bt_release_wakelock();
 }
 
 static void bt_power_test_init(void)
 {
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		osif_timer_create(&bt_power_test_wake_timer_hdl, "bt_power_test_wake_timer", NULL, BT_POWER_TEST_WAKE_TIME * 1000, false,
-						  bt_power_test_wake_timeout_handler);
-		if (bt_power_test_wake_timer_hdl == NULL) {
-			BT_LOGE("[BT_PS] bt_power_test_wake_timer create failed!\r\n");
-			return;
-		}
-	}
-
 	rtk_bt_power_save_init((rtk_bt_ps_callback)bt_power_test_suspend, (rtk_bt_ps_callback)bt_power_test_resume);
 }
 
 static void bt_power_test_deinit(void)
 {
 	rtk_bt_power_save_deinit();
-
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		if (bt_power_test_wake_timer_hdl) {
-			osif_timer_delete(&bt_power_test_wake_timer_hdl);
-			bt_power_test_wake_timer_hdl = NULL;
-		}
-	}
 }
 #endif
 #endif
@@ -276,7 +246,7 @@ static rtk_bt_evt_cb_ret_t peripheral_gap_app_callback(uint8_t evt_code, void *p
 	}
 #endif
 	default:
-		BT_LOGE("[APP] Unkown common gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unknown common gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -294,14 +264,6 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 		rtk_bt_le_adv_start_ind_t *adv_start_ind = (rtk_bt_le_adv_start_ind_t *)param;
 		if (!adv_start_ind->err) {
 			BT_LOGA("[APP] ADV started: adv_type %d  \r\n", adv_start_ind->adv_type);
-#if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
-			// if (privacy_enable) {
-			//  uint8_t local_rpa[6] = {0};
-			//  rtk_bt_le_gap_read_local_resolv_addr(RTK_BT_LE_IDENT_ADDR_PUBLIC, NULL, local_rpa);
-			//  rtk_bt_addr_val_to_str(local_rpa, le_addr, sizeof(le_addr));
-			//  BT_LOGA("[APP] ADV use local RPA address: %s \r\n", le_addr);
-			// }
-#endif
 		} else {
 			BT_LOGE("[APP] ADV start failed, err 0x%x \r\n", adv_start_ind->err);
 		}
@@ -320,7 +282,7 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 		break;
 	}
 
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 	case RTK_BT_LE_GAP_EVT_EXT_ADV_IND: {
 		rtk_bt_le_ext_adv_ind_t *ext_adv_ind = (rtk_bt_le_ext_adv_ind_t *)param;
 		if (!ext_adv_ind->err) {
@@ -385,9 +347,9 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 	case RTK_BT_LE_GAP_EVT_SCAN_RES_IND: {
 		rtk_bt_le_scan_res_ind_t *scan_res_ind = (rtk_bt_le_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->adv_report.addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %i\r\n",
+		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %d\r\n",
 				le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi);
-		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%i,%d\r\n",
+		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%d,%d\r\n",
 					le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi,
 					scan_res_ind->adv_report.len);
 		break;
@@ -429,7 +391,7 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 		BT_AT_PRINT("+BLEGAP:disconn,0x%x,%d,%s,%s\r\n",
 					disconn_ind->reason, disconn_ind->conn_handle, role, le_addr);
 
-#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
+#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
 		rtk_bt_le_gap_dev_state_t dev_state;
 		rtk_bt_le_adv_param_t adv_param = {0};
 		if (rtk_bt_le_gap_get_dev_state(&dev_state) == RTK_BT_OK &&
@@ -462,7 +424,7 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 					, adv_param.type,  adv_param.own_addr_type, adv_param.filter_policy);
 			BT_APP_PROCESS(rtk_bt_le_gap_start_adv(&adv_param));
 		}
-#endif /* RTK_BLE_5_0_AE_ADV_SUPPORT */
+#endif /* RTK_BLE_5_0_USE_EXTENDED_ADV */
 		/* gatts action */
 		app_server_disconnect(disconn_ind->conn_handle);
 		break;
@@ -803,7 +765,7 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gap_app_callback(uint8_t evt_code, voi
 #endif /* RTK_BLE_COC_SUPPORT */
 
 	default:
-		BT_LOGE("[APP] Unkown gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unknown gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -862,14 +824,17 @@ static rtk_bt_evt_cb_ret_t ble_peripheral_gatts_app_callback(uint8_t event, void
 			BT_LOGE("[APP] GATTS mtu exchange fail \r\n");
 		}
 		return RTK_BT_EVT_CB_OK;
-	}
-
-	if (RTK_BT_GATTS_EVT_CLIENT_SUPPORTED_FEATURES == event) {
+	} else if (RTK_BT_GATTS_EVT_CLIENT_SUPPORTED_FEATURES == event) {
 		rtk_bt_gatts_client_supported_features_ind_t *p_ind = (rtk_bt_gatts_client_supported_features_ind_t *)data;
 		if (p_ind->features & RTK_BT_GATTS_CLIENT_SUPPORTED_FEATURES_EATT_BEARER_BIT) {
 			BT_LOGA("[APP] Client Supported features is writed: conn_handle %d, features 0x%02x. Remote client supports EATT.\r\n",
 					p_ind->conn_handle, p_ind->features);
 		}
+		return RTK_BT_EVT_CB_OK;
+	} else if (RTK_BT_GATTS_EVT_SERVICE_CHANGED_CCCD_IND == event) {
+		rtk_bt_gatts_service_changed_cccd_ind_t *srv_change = (rtk_bt_gatts_service_changed_cccd_ind_t *)data;
+		BT_LOGA("[APP] Service Changed cccd is updated, conn_handle: %d, cccd_enable: %d\r\n",
+				srv_change->conn_handle, srv_change->cccd_enable);
 		return RTK_BT_EVT_CB_OK;
 	}
 
@@ -919,7 +884,7 @@ int ble_peripheral_main(uint8_t enable)
 	bool adv_filter_whitelist = false;
 	char addr_str[30] = {0};
 	char name[30] = {0};
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 	uint8_t adv_handle;
 #else
 	rtk_bt_le_adv_param_t adv_param = {0};
@@ -934,13 +899,13 @@ int ble_peripheral_main(uint8_t enable)
 		bt_app_conf.mtu_size = 180;
 		bt_app_conf.master_init_mtu_req = true;
 		bt_app_conf.slave_init_mtu_req = false;
-		bt_app_conf.prefer_all_phy = 0;
-		bt_app_conf.prefer_tx_phy = 1 | 1 << 1 | 1 << 2;
-		bt_app_conf.prefer_rx_phy = 1 | 1 << 1 | 1 << 2;
+		bt_app_conf.prefer_all_phy = RTK_BT_LE_PHYS_PREFER_ALL;
+		bt_app_conf.prefer_tx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
+		bt_app_conf.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
-		memcpy(bt_app_conf.irk, privacy_irk, RTK_BT_LE_GAP_IRK_LEN);
+		bt_app_conf.irk_auto_gen = true;
 #endif
 		bt_app_conf.user_def_service = false;
 		bt_app_conf.cccd_not_check = false;
@@ -959,19 +924,19 @@ int ble_peripheral_main(uint8_t enable)
 
 		BT_APP_PROCESS(rtk_bt_le_sm_set_security_param(&sec_param));
 
-#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
+#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
 		memcpy(&adv_param, &def_adv_param, sizeof(rtk_bt_le_adv_param_t));
 #endif
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
 		if (privacy_enable) {
 			BT_APP_PROCESS(rtk_bt_le_gap_privacy_init(privacy_whitelist));
-#if !defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT
+#if !defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV
 			/* If privacy on, default use RPA adv, even not bonded */
 			adv_param.own_addr_type = 2;
 #endif
 			BT_APP_PROCESS(rtk_bt_le_sm_get_bond_num(&bond_size));
 			if (bond_size != 0) {
-#if (defined(PRIVACY_USE_DIR_ADV_WHEN_BONDED) && PRIVACY_USE_DIR_ADV_WHEN_BONDED) && (!defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT) /* use dir adv when bonded*/
+#if (defined(PRIVACY_USE_DIR_ADV_WHEN_BONDED) && PRIVACY_USE_DIR_ADV_WHEN_BONDED) && (!defined(RTK_BLE_5_0_USE_EXTENDED_ADV) || !RTK_BLE_5_0_USE_EXTENDED_ADV) /* use dir adv when bonded*/
 				rtk_bt_le_bond_info_t bond_info = {0};
 				uint8_t bond_num = 1;
 				rtk_bt_le_sm_get_bond_info(&bond_info, &bond_num);
@@ -999,7 +964,7 @@ int ble_peripheral_main(uint8_t enable)
 		BT_APP_PROCESS(cte_srv_add());
 #endif
 
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 		if (adv_filter_whitelist) {
 			ext_adv_param.filter_policy = RTK_BT_LE_ADV_FILTER_ALLOW_SCAN_WLST_CON_WLST;
 		}
@@ -1022,13 +987,11 @@ int ble_peripheral_main(uint8_t enable)
 #if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
 		bt_power_test_deinit();
 #endif
-		app_server_deinit();
-
-		/* no need to unreg callback here, it is done in rtk_bt_disable */
-		// BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_LE_GP_GATTS));
 
 		/* Disable BT */
 		BT_APP_PROCESS(rtk_bt_disable());
+
+		app_server_deinit();
 	}
 
 	return 0;

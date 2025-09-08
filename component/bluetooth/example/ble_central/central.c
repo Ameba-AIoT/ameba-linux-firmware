@@ -27,19 +27,9 @@
 
 
 #if defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT
-#define BT_POWER_TEST_MODE         0
+#define BT_POWER_TEST_MODE         0    //If set to 1, WAKE_SRC_BT_WAKE_HOST should be set to wakeup AP core in ameba_sleepcfg.c
 #if defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE
 #include "rtk_bt_power_control.h"
-
-#define BT_POWER_TEST_WAKE_TIME    5    //Unit:s
-
-static void *bt_power_test_wake_timer_hdl = NULL;
-
-static void bt_power_test_wake_timeout_handler(void *arg)
-{
-	(void)arg;
-	rtk_bt_release_wakelock();
-}
 
 static void bt_power_test_suspend(void)
 {
@@ -50,37 +40,18 @@ static void bt_power_test_resume(void)
 {
 	BT_LOGA("[BT_PS] Enter bt_power_test_resume\r\n");
 
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		osif_timer_restart(&bt_power_test_wake_timer_hdl, BT_POWER_TEST_WAKE_TIME * 1000);
-	} else {
-		rtk_bt_release_wakelock();
-	}
+	/* Our demo releases BT wake lock here, it can be released anywhere as application's request */
+	rtk_bt_release_wakelock();
 }
 
 static void bt_power_test_init(void)
 {
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		osif_timer_create(&bt_power_test_wake_timer_hdl, "bt_power_test_wake_timer", NULL, BT_POWER_TEST_WAKE_TIME * 1000, false,
-						  bt_power_test_wake_timeout_handler);
-		if (bt_power_test_wake_timer_hdl == NULL) {
-			BT_LOGE("[BT_PS] bt_power_test_wake_timer create failed!\r\n");
-			return;
-		}
-	}
-
 	rtk_bt_power_save_init((rtk_bt_ps_callback)bt_power_test_suspend, (rtk_bt_ps_callback)bt_power_test_resume);
 }
 
 static void bt_power_test_deinit(void)
 {
 	rtk_bt_power_save_deinit();
-
-	if (BT_POWER_TEST_WAKE_TIME != 0) {
-		if (bt_power_test_wake_timer_hdl) {
-			osif_timer_delete(&bt_power_test_wake_timer_hdl);
-			bt_power_test_wake_timer_hdl = NULL;
-		}
-	}
 }
 #endif
 #endif
@@ -156,7 +127,7 @@ static rtk_bt_evt_cb_ret_t central_gap_app_callback(uint8_t evt_code, void *para
 	}
 #endif
 	default:
-		BT_LOGE("[APP] Unkown common gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unknown common gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -184,24 +155,24 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 	case RTK_BT_LE_GAP_EVT_SCAN_RES_IND: {
 		rtk_bt_le_scan_res_ind_t *scan_res_ind = (rtk_bt_le_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->adv_report.addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %i, len: %d \r\n",
+		BT_LOGA("[APP] Scan info, [Device]: %s, AD evt type: %d, RSSI: %d, len: %d \r\n",
 				le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi,
 				scan_res_ind->adv_report.len);
-		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%i,%d\r\n",
+		BT_AT_PRINT("+BLEGAP:scan,info,%s,%d,%d,%d\r\n",
 					le_addr, scan_res_ind->adv_report.evt_type, scan_res_ind->adv_report.rssi,
 					scan_res_ind->adv_report.len);
 		break;
 	}
 
-#if defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 	case RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND: {
 		rtk_bt_le_ext_scan_res_ind_t *scan_res_ind = (rtk_bt_le_ext_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %i, PHY: 0x%x, TxPower: %d, Len: %d\r\n",
+		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %d, PHY: 0x%x, TxPower: %d, Len: %d\r\n",
 				le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 				(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
 				scan_res_ind->tx_power, scan_res_ind->len);
-		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%i,0x%x,%d,%d\r\n",
+		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%d,0x%x,%d,%d\r\n",
 					le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 					(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
 					scan_res_ind->tx_power, scan_res_ind->len);
@@ -653,7 +624,7 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 #endif /* RTK_BLE_COC_SUPPORT */
 
 	default:
-		BT_LOGE("[APP] Unkown gap cb evt type: %d\r\n", evt_code);
+		BT_LOGE("[APP] Unknown gap cb evt type: %d\r\n", evt_code);
 		break;
 	}
 
@@ -785,7 +756,6 @@ static rtk_bt_le_security_param_t sec_param = {
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
 static bool privacy_enable = false;
 static bool privacy_whitelist = true;
-static uint8_t privacy_irk[RTK_BT_LE_GAP_IRK_LEN] = "0123456789abcdef";
 #endif
 
 int ble_central_main(uint8_t enable)
@@ -800,13 +770,13 @@ int ble_central_main(uint8_t enable)
 		bt_app_conf.mtu_size = 180;
 		bt_app_conf.master_init_mtu_req = true;
 		bt_app_conf.slave_init_mtu_req = false;
-		bt_app_conf.prefer_all_phy = 0;
-		bt_app_conf.prefer_tx_phy = 1 | 1 << 1 | 1 << 2;
-		bt_app_conf.prefer_rx_phy = 1 | 1 << 1 | 1 << 2;
+		bt_app_conf.prefer_all_phy = RTK_BT_LE_PHYS_PREFER_ALL;
+		bt_app_conf.prefer_tx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
+		bt_app_conf.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
-		memcpy(bt_app_conf.irk, privacy_irk, RTK_BT_LE_GAP_IRK_LEN);
+		bt_app_conf.irk_auto_gen = true;
 #endif
 		bt_app_conf.user_def_service = false;
 		bt_app_conf.cccd_not_check = false;
@@ -847,6 +817,10 @@ int ble_central_main(uint8_t enable)
 #if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
 		bt_power_test_deinit();
 #endif
+
+		/* Disable BT */
+		BT_APP_PROCESS(rtk_bt_disable());
+
 		BT_APP_PROCESS(general_client_delete());
 		BT_APP_PROCESS(bas_client_delete());
 		BT_APP_PROCESS(gaps_client_delete());
@@ -854,13 +828,6 @@ int ble_central_main(uint8_t enable)
 #if defined(RTK_BLE_5_1_CTE_SUPPORT) && RTK_BLE_5_1_CTE_SUPPORT
 		BT_APP_PROCESS(cte_client_delete());
 #endif
-
-		/* no need to unreg callback here, it is done in rtk_bt_disable */
-		// BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_LE_GP_GAP));
-		// BT_APP_PROCESS(rtk_bt_evt_unregister_callback(RTK_BT_LE_GP_GATTC));
-
-		/* Disable BT */
-		BT_APP_PROCESS(rtk_bt_disable());
 	}
 
 	return 0;

@@ -5,10 +5,11 @@
  */
 
 #include "ameba_soc.h"
+#include <math.h>
 
 ADC_CalParaTypeDef CalParaNorm;
 ADC_CalParaTypeDef CalParaVBat;
-u8 vref_init_done = _FALSE;
+u8 vref_init_done = FALSE;
 
 /** @addtogroup Ameba_Periph_Driver
   * @{
@@ -40,7 +41,7 @@ void ADC_StructInit(ADC_InitTypeDef *ADC_InitStruct)
 	ADC_InitStruct->ADC_CvlistLen = ADC_CH_NUM - 1;
 	ADC_InitStruct->ADC_ChanInType = 0;
 	ADC_InitStruct->ADC_SpecialCh = 0xFF;
-	ADC_InitStruct->ADC_ChIDEn = DISABLE;
+	ADC_InitStruct->ADC_ChIDEn = ENABLE;
 
 	for (i = 0; i < ADC_InitStruct->ADC_CvlistLen + 1; i++) {
 		ADC_InitStruct->ADC_Cvlist[i] = i;
@@ -88,7 +89,7 @@ void ADC_Init(ADC_InitTypeDef *ADC_InitStruct)
 		}
 		CAPTOUCH_DEV->CT_ANA_ADC_REG0X_LPAD = value;
 
-		vref_init_done = _TRUE;
+		vref_init_done = TRUE;
 	}
 
 	adc->ADC_INTR_CTRL = 0;
@@ -615,8 +616,8 @@ void ADC_TimerTrigCntCmd(u8 Tim_Idx, u32 Tim_Cnt, u32 NewState)
   * @param CalPara: Pointer to ADC calibration parameter structure.
   * @param IsVBatChan: Calibration parameter belongs to vbat channel or normal channel.
   *   This parameter can be one of the following values:
-  *        @arg _TRUE: Calibration parameter belongs to vbat channel.
-  *        @arg _FALSE: Calibration parameter belongs to normal channel.
+  *        @arg TRUE: Calibration parameter belongs to vbat channel.
+  *        @arg FALSE: Calibration parameter belongs to normal channel.
   * @retval None.
   */
 void ADC_InitCalPara(ADC_CalParaTypeDef *CalPara, u8 IsVBatChan)
@@ -671,7 +672,7 @@ void ADC_InitCalPara(ADC_CalParaTypeDef *CalPara, u8 IsVBatChan)
 	CalPara->cal_a = ka;
 	CalPara->cal_b = kb;
 	CalPara->cal_c = kc;
-	CalPara->init_done = _TRUE;
+	CalPara->init_done = TRUE;
 }
 
 /**
@@ -687,7 +688,7 @@ s32 ADC_GetVoltage(u32 chan_data)
 	s32 ch_vol;
 
 	if (!CalParaNorm.init_done) {
-		ADC_InitCalPara(&CalParaNorm, _FALSE);
+		ADC_InitCalPara(&CalParaNorm, FALSE);
 	}
 
 	ka = CalParaNorm.cal_a;
@@ -712,7 +713,7 @@ s32 ADC_GetVBATVoltage(u32 vbat_data)
 	s32 ch_vol;
 
 	if (!CalParaVBat.init_done) {
-		ADC_InitCalPara(&CalParaVBat, _TRUE);
+		ADC_InitCalPara(&CalParaVBat, TRUE);
 	}
 
 	ka = CalParaVBat.cal_a;
@@ -737,6 +738,60 @@ u32 ADC_GetInterR(void)
 	OTP_Read8(INTER_R_ADDR, &r_offset);
 
 	return ((u32)r_offset + 400);
+}
+
+/**
+  * @brief Get normal or vbat sample value according to voltage in mV.
+  * @param VolMV: ADC Voltage in mV, which can be 0-1800.
+  * @param IsVBatChan: Calibration parameter belongs to vbat channel or normal channel.
+  *   This parameter can be one of the following values:
+  *        @arg TRUE: Calibration parameter belongs to vbat channel.
+  *        @arg FALSE: Calibration parameter belongs to normal channel.
+  * @return ADC conversion data.
+  */
+u32 ADC_GetSampleValue(s32 VolMV, u8 IsVBatChan)
+{
+	ADC_CalParaTypeDef CalPara;
+	s64 ka, kb;
+	s32 kc;
+	s64 discriminant;
+	s64 result;
+
+	if (IsVBatChan == TRUE) {
+		if (!CalParaVBat.init_done) {
+			ADC_InitCalPara(&CalParaVBat, TRUE);
+		}
+		CalPara = CalParaVBat;
+	} else {
+		if (!CalParaNorm.init_done) {
+			ADC_InitCalPara(&CalParaNorm, FALSE);
+		}
+		CalPara = CalParaNorm;
+	}
+
+	ka = CalPara.cal_a;
+	kb = CalPara.cal_b;
+	kc = CalPara.cal_c;
+
+	/* calibrated para A may be 0 */
+	if (ka == 0) {
+		return ((VolMV << 15) - (kc << 9)) / kb;
+	}
+
+	discriminant = kb * kb + 64 * ka * VolMV - ka * kc;
+	if (discriminant >= 0) {
+		result = (sqrt((float)discriminant) - kb) * 1024 / ka;
+
+		if (result < 0) {
+			return 0;
+		} else if (result > 0xFFF) {
+			return 0xFFF;
+		} else {
+			return (u32)result;
+		}
+	} else {
+		assert_param(0);
+	}
 }
 
 /**

@@ -6,14 +6,15 @@
  *  This module is a confidential and proprietary property of RealTek and
  *  possession or use of this module requires written permission of RealTek.
  */
-#include "integer.h"
 #include "vfs.h"
 #include "vfs_fatfs.h"
 #include "os_wrapper.h"
 #include "ameba.h"
 #include "ameba_sd.h"
 
+#ifndef SD_BLOCK_SIZE
 #define SD_BLOCK_SIZE	512
+#endif
 
 static rtos_mutex_t sd_mutex = NULL;
 static int init_status = 0;
@@ -116,26 +117,6 @@ DSTATUS SD_disk_deinitialize(void)
 	res = SD_DeInit();
 	sd_unlock();
 	return interpret_sd_status(res);
-}
-
-int sd_lowlevle_init(void)
-{
-	int ret = 0;
-	sd_lock();
-	ret = SD_Init(&sd_config);
-	init_status = 1;//The card is not init
-	sd_unlock();
-	return ret;
-}
-
-int sd_lowlevle_deinit(void)
-{
-	int ret = 0;
-	sd_lock();
-	ret = SD_DeInit();
-	init_status = 0;//The card is not init
-	sd_unlock();
-	return ret;
 }
 
 /* Read sector(s) --------------------------------------------*/
