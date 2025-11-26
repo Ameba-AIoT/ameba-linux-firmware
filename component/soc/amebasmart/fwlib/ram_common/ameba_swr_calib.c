@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *const TAG = "SWR";
+static const char *TAG = "SWR";
 /**
 * @brif  swr calibation times.
 */

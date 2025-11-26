@@ -17,14 +17,25 @@
 #if !defined(MQTTFreeRTOS_H)
 #define MQTTFreeRTOS_H
 
-#include "ameba_soc.h"
-#include "lwip_netconf.h"
+
+#include "lwipconf.h"
+#include "os_wrapper.h"
+#include "ameba.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #define MQTT_OVER_SSL (1)
 #if (MQTT_OVER_SSL)
+#include "mbedtls/config.h"
 #include "mbedtls/platform.h"
-#include "mbedtls/ssl.h"
 #include "mbedtls/net_sockets.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/error.h"
+#include "mbedtls/debug.h"
+#include "mbedtls/version.h"
+#if (MBEDTLS_VERSION_NUMBER >= 0x03000000)
+#include "mbedtls/psa_util.h"
+#endif
 #endif
 
 enum {
@@ -43,8 +54,8 @@ enum {
 	}while(0)
 
 typedef struct Timer {
-	uint32_t ms_to_wait;
-	rtos_time_out_t xTimeOut;
+	uint32_t xTicksToWait;
+	TimeOut_t xTimeOut;
 } Timer;
 
 typedef struct Network Network;

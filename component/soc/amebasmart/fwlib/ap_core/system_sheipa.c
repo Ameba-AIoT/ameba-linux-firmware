@@ -28,8 +28,7 @@ uint64_t vGetGenericTimerFreq(void)
 	if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
 		return 12500000;
 	} else {
-		/* Systick clock source is APB clock, which is half of AHB clock */
-		return PLL_GetHBUSClk() / 2;
+		return 50000000;
 	}
 }
 
@@ -216,7 +215,7 @@ void vRegisterIRQHandler(uint32_t ulID, ISRCallback_t pxHandler, void *pvContext
 }
 /*-----------------------------------------------------------*/
 
-void vApplicationFPUSafeIRQHandler(void)
+void vApplicationIRQHandler(void)
 {
 	uint32_t ulInterruptStat, ulInterruptID;
 	UBaseType_t ulCoreID = 0;

@@ -23,10 +23,6 @@
 #include <rtk_simple_ble_client.h>
 #include <rtk_cte_client.h>
 
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-#include <atcmd_bt_cmd_sync.h>
-#endif
-
 static int atcmd_bt_gattc_exchange_mtu(int argc, char **argv)
 {
 	(void)argc;
@@ -75,7 +71,7 @@ static int atcmd_bt_gattc_discover(int argc, char **argv)
 	BT_LOGA("GATT Client based on common API\r\n");
 	if (argc < 2) {
 		BT_LOGE("%s, wrong args num: %d\r\n", __func__, argc);
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 	}
 
 	disc_param.conn_handle = str_to_int(argv[0]);
@@ -99,7 +95,7 @@ static int atcmd_bt_gattc_discover(int argc, char **argv)
 			hexnum_str_to_array(argv[2], (uint8_t *)disc_param.disc_primary_by_uuid.uuid, 16);
 		} else {
 			BT_LOGE("GATTC Discover failed, wrong uuid!\r\n");
-			return BT_AT_ERR_PARAM_INVALID;
+			return -1;
 		}
 		break;
 	case 2:
@@ -130,7 +126,7 @@ static int atcmd_bt_gattc_discover(int argc, char **argv)
 			hexnum_str_to_array(argv[4], (uint8_t *)disc_param.disc_char_by_uuid.uuid, 16);
 		} else {
 			BT_LOGE("GATTC Discover failed, wrong uuid!\r\n");
-			return BT_AT_ERR_PARAM_INVALID;
+			return -1;
 		}
 		break;
 	case 5:
@@ -142,41 +138,24 @@ static int atcmd_bt_gattc_discover(int argc, char **argv)
 		break;
 	default:
 		BT_LOGE("GATTC Discover failed, wrong type: %d!\r\n", disc_param.type);
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 		break;
 	}
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_init(BT_AT_SYNC_CMD_TYPE_BLE_GATTC_DISC, BT_AT_SYNC_OP_TYPE_NONE, disc_param.conn_handle);
-	if (ret != BT_AT_OK) {
-		return ret;
-	}
-#endif
 
 	ret = rtk_bt_gattc_discover(&disc_param);
 	if (RTK_BT_OK != ret) {
 		BT_LOGE("GATTC Discover failed! err: 0x%x\r\n", ret);
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-		bt_at_sync_deinit();
-#endif
-		return bt_at_rtk_err_to_at_err(ret);
+		return -1;
 	} else {
 		BT_LOGA("GATTC Discovering ...\r\n");
 	}
 
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_sem_take();
-	if (ret == BT_AT_OK) {
-		ret = bt_at_sync_get_result();
-	}
-	bt_at_sync_deinit();
-#endif
 
-	return ret;
+	return 0;
 
 WRONG_ARG_NUM:
 	BT_LOGE("GATTC Discover failed: type (%d) with wrong args number!\r\n", disc_param.type);
-	return BT_AT_ERR_PARAM_INVALID;
+	return -1;
 #endif
 }
 
@@ -218,22 +197,19 @@ static int atcmd_bt_gattc_read(int argc, char **argv)
 			hexnum_str_to_array(argv[4], (uint8_t *)read_param.by_uuid.uuid, 16);
 		} else {
 			BT_LOGE("GATTC Read failed, wrong uuid!\r\n");
-			return BT_AT_ERR_PARAM_INVALID;
+			return -1;
 		}
 #endif
 		break;
 #if !defined(RTK_BLE_MGR_LIB) || !RTK_BLE_MGR_LIB
 	case 2:
 		BT_LOGE("GATTC Read_multiple not supported temporarily!\r\n");
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 	case 3:
 		if (argc < 4) {
 			goto WRONG_ARG_NUM;
 		}
 		handle_count = str_to_int(argv[2]);
-		if ((uint32_t)argc < (handle_count + 3u)) {
-			goto WRONG_ARG_NUM;
-		}
 		for (uint32_t i = 0; i < handle_count; i++) {
 			handles_arr[i] = str_to_int(argv[3 + i]);
 		}
@@ -244,40 +220,22 @@ static int atcmd_bt_gattc_read(int argc, char **argv)
 #endif
 	default:
 		BT_LOGE("GATTC Read failed, wrong type: %d!\r\n", read_param.type);
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 		break;
 	}
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_init(BT_AT_SYNC_CMD_TYPE_BLE_GATTC_READ, BT_AT_SYNC_OP_TYPE_NONE, read_param.conn_handle);
-	if (ret != BT_AT_OK) {
-		return ret;
-	}
-#endif
 
 	ret = rtk_bt_gattc_read(&read_param);
 	if (RTK_BT_OK != ret) {
 		BT_LOGE("GATTC Read failed! err:0x%x\r\n", ret);
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-		bt_at_sync_deinit();
-#endif
-		return bt_at_rtk_err_to_at_err(ret);
+		return -1;
 	}
 
 	BT_LOGA("GATTC Reading ...\r\n");
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_sem_take();
-	if (ret == BT_AT_OK) {
-		ret = bt_at_sync_get_result();
-	}
-	bt_at_sync_deinit();
-#endif
-	return ret;
+	return 0;
 
 WRONG_ARG_NUM:
 	BT_LOGE("GATTC Read failed: type (%d) with wrong args number!\r\n", read_param.type);
-	return BT_AT_ERR_PARAM_INVALID;
+	return -1;
 }
 
 static int atcmd_bt_gattc_write(int argc, char **argv)
@@ -298,15 +256,8 @@ static int atcmd_bt_gattc_write(int argc, char **argv)
 	write_param.data = (void *)osif_mem_alloc(RAM_TYPE_DATA_ON, write_param.length);
 	if (!write_param.data) {
 		BT_LOGE("GATTC Write failed: cant alloc memory\r\n");
-		return BT_AT_ERR_PARAM_INVALID;
+		return -1;
 	}
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_init(BT_AT_SYNC_CMD_TYPE_BLE_GATTC_WRITE, BT_AT_SYNC_OP_TYPE_NONE, write_param.conn_handle);
-	if (ret != BT_AT_OK) {
-		return ret;
-	}
-#endif
 
 	hexdata_str_to_array(argv[4], (uint8_t *)write_param.data, write_param.length);
 
@@ -314,27 +265,16 @@ static int atcmd_bt_gattc_write(int argc, char **argv)
 	if (RTK_BT_OK != ret) {
 		osif_mem_free((void *)write_param.data);
 		BT_LOGE("GATTC Write failed! err: 0x%x\r\n", ret);
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-		bt_at_sync_deinit();
-#endif
-		return bt_at_rtk_err_to_at_err(ret);
+		return -1;
 	}
 
 	osif_mem_free((void *)write_param.data);
 	BT_LOGA("GATTC Writing ...\r\n");
-
-#if defined(BT_AT_SYNC) && BT_AT_SYNC
-	ret = bt_at_sync_sem_take();
-	if (ret == BT_AT_OK) {
-		ret = bt_at_sync_get_result();
-	}
-	bt_at_sync_deinit();
-#endif
-	return ret;
+	return 0;
 
 WRONG_ARG_LEN:
 	BT_LOGE("GATTC Write failed: wrong args length!\r\n");
-	return BT_AT_ERR_PARAM_INVALID;
+	return -1;
 }
 
 static int atcmd_bt_gattc_enable_cccd(int argc, char **argv)
@@ -407,7 +347,8 @@ static int atcmd_bt_gattc_disable_cccd(int argc, char **argv)
 }
 
 
-#if (defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL) || (defined(CONFIG_BT_SCATTERNET) && CONFIG_BT_SCATTERNET)
+#if (defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL) || \
+    (defined(CONFIG_BT_SCATTERNET) && CONFIG_BT_SCATTERNET)
 /**************************** GATTC client loop send related *****************************/
 struct gattc_tx_loop_param {
 	uint16_t conn_handle;
@@ -723,7 +664,7 @@ static int atcmd_cte_client_write_charac(int argc, char **argv)
 }
 #endif/* RTK_BLE_5_1_CTE_SUPPORT  */
 
-#endif
+#endif /* CONFIG_BT_CENTRAL || CONFIG_BT_SCATTERNET */
 
 static const cmd_table_t gattc_cmd_table[] = {
 	{"exch_mtu", atcmd_bt_gattc_exchange_mtu, 2, 2},
@@ -732,7 +673,8 @@ static const cmd_table_t gattc_cmd_table[] = {
 	{"write",   atcmd_bt_gattc_write,        6, 6},
 	{"en_cccd",    atcmd_bt_gattc_enable_cccd,    5, 5},
 	{"dis_cccd",    atcmd_bt_gattc_disable_cccd,    5, 5},
-#if (defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL) || (defined(CONFIG_BT_SCATTERNET) && CONFIG_BT_SCATTERNET)
+#if (defined(CONFIG_BT_CENTRAL) && CONFIG_BT_CENTRAL) || \
+    (defined(CONFIG_BT_SCATTERNET) && CONFIG_BT_SCATTERNET)
 	{"loop_send",  atcmd_bt_gattc_loop_send,      2, 5},
 	/* bas client related */
 #if !defined(RTK_BLE_MGR_LIB) || !RTK_BLE_MGR_LIB
@@ -760,7 +702,7 @@ static const cmd_table_t gattc_cmd_table[] = {
 #endif
 	{"cte_write",       atcmd_cte_client_write_charac, 5, 5},
 #endif
-#endif
+#endif /* CONFIG_BT_CENTRAL || CONFIG_BT_SCATTERNET */
 
 	{NULL,},
 };

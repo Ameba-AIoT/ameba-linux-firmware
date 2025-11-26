@@ -12,25 +12,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "ameba_audio_stream_control.h"
 
+#include "audio_hw_compat.h"
 #include <inttypes.h>
-#include <stdlib.h>
 
+#include "platform_stdlib.h"
 #include "basic_types.h"
-
-#include "ameba.h"
-
-#include "amp/audio_amplifier.h"
-
+#include "ameba_sport.h"
+#include "ameba_audio.h"
 #include "ameba_audio_types.h"
 #include "ameba_audio_hw_usrcfg.h"
 #include "ameba_audio_stream_utils.h"
-
-#include "audio_hw_compat.h"
 #include "audio_hw_debug.h"
 #include "audio_hw_osal_errnos.h"
 
-#include "ameba_audio_stream_control.h"
+#include "hardware/audio/audio_hw_types.h"
 
 #define DEVICE_SPEAKER 1
 #define MAX_DAC_VOLUME 141
@@ -52,17 +49,11 @@ StreamControl *ameba_audio_get_ctl(void)
 
 	if (AudioHALAtomicCompareAddSwap(&g_control_create, &expected_value, &new_value)) {
 		if (g_control_instance == NULL) {
-			g_control_instance = (StreamControl *)rtos_mem_zmalloc(sizeof(StreamControl));
+			g_control_instance = (StreamControl *)calloc(1, sizeof(StreamControl));
 			if (!g_control_instance) {
-				HAL_AUDIO_ERROR("alloc control fail");
-				goto err_finish;
+				HAL_AUDIO_ERROR("calloc control fail");
+				return NULL;
 			}
-
-			g_control_instance->amplifier = CreateAudioAmplifier(AUDIO_HW_AMPLIFIER_TYPE);
-			if (!g_control_instance->amplifier) {
-				goto err_create_amplifier;
-			}
-
 			g_control_instance->board_amp_pin = AUDIO_HW_AMPLIFIER_PIN;
 			g_control_instance->amp_state = true;
 			g_control_instance->tx_state = false;
@@ -106,22 +97,10 @@ StreamControl *ameba_audio_get_ctl(void)
 			g_control_instance->mute_for_mic_bst[3] = false;
 			g_control_instance->mute_for_mic_bst[4] = false;
 
-			AmpPinConfig amp_info;
-			amp_info.pinmux = AUDIO_HW_AMPLIFIER_PIN;
-			amp_info.enable_time = AUDIO_HW_AMPLIFIER_ENABLE_TIME;
-			amp_info.disable_time = AUDIO_HW_AMPLIFIER_DISABLE_TIME;
-			g_control_instance->amplifier->SetSDPinmux(g_control_instance->amplifier, &amp_info);
 		}
 	}
 
 	return g_control_instance;
-
-err_create_amplifier:
-	rtos_mem_free(g_control_instance);
-	g_control_instance = NULL;
-
-err_finish:
-	return NULL;
 }
 
 void ameba_audio_destroy_ctl()
@@ -131,9 +110,7 @@ void ameba_audio_destroy_ctl()
 
 	if (AudioHALAtomicCompareAddSwap(&g_control_create, &expected_value, &new_value)) {
 		if (g_control_instance != NULL) {
-			DestoryAudioAmplifier(g_control_instance->amplifier);
-			rtos_mem_free(g_control_instance);
-			g_control_instance = NULL;
+			free(g_control_instance);
 		}
 	}
 }
@@ -239,11 +216,6 @@ int32_t ameba_audio_ctl_set_amp_pin(StreamControl *control, uint32_t pin)
 	if (control->board_amp_pin != (int32_t)pin) {
 		HAL_AUDIO_INFO("set amp pin from %" PRId32 " to %" PRIu32 "", control->board_amp_pin, pin);
 		control->board_amp_pin = pin;
-		AmpPinConfig amp_info;
-		amp_info.pinmux = pin;
-		amp_info.enable_time = AUDIO_HW_AMPLIFIER_ENABLE_TIME;
-		amp_info.disable_time = AUDIO_HW_AMPLIFIER_DISABLE_TIME;
-		control->amplifier->SetSDPinmux(control->amplifier, &amp_info);
 	}
 
 	return HAL_OSAL_OK;
@@ -269,7 +241,20 @@ int32_t ameba_audio_ctl_set_amp_state(StreamControl *control, bool state)
 		return HAL_OSAL_ERR_INVALID_OPERATION;
 	}
 
-	control->amplifier->SetEnable(control->amplifier, AMP_CTRL_GPIO, state);
+	GPIO_InitTypeDef gpio_initstruct_temp;
+	gpio_initstruct_temp.GPIO_Pin = control->board_amp_pin;
+	gpio_initstruct_temp.GPIO_Mode = GPIO_Mode_OUT;
+	GPIO_Init(&gpio_initstruct_temp);
+
+	if (state == true) {
+		HAL_AUDIO_INFO("enable amp:%ld", control->board_amp_pin);
+		GPIO_WriteBit(control->board_amp_pin, 1);
+		rtos_time_delay_ms(AUDIO_HW_AMPLIFIER_ENABLE_TIME);
+	} else {
+		HAL_AUDIO_INFO("disable amp:%ld", control->board_amp_pin);
+		GPIO_WriteBit(control->board_amp_pin, 0);
+		rtos_time_delay_ms(AUDIO_HW_AMPLIFIER_DISABLE_TIME);
+	}
 
 	control->amp_state = state;
 	return HAL_OSAL_OK;
@@ -532,9 +517,9 @@ float ameba_audio_ctl_pll_clock_tune(StreamControl *control, uint32_t rate, floa
 	}
 
 	if (rate % 8000 == 0) {
-		tuned_ppm = PLL_I2S_98P304M_ClkTune(NULL, ppm, action);
+		tuned_ppm = PLL_I2S_98P304M_ClkTune(ppm, action);
 	} else {
-		tuned_ppm = PLL_I2S_45P158M_ClkTune(NULL, ppm, action);
+		tuned_ppm = PLL_I2S_45P158M_ClkTune(ppm, action);
 	}
 
 	return tuned_ppm;

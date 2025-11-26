@@ -60,9 +60,7 @@ typedef enum
     LE_COC_SECURITY_AUTHEN_ENCRYT,     /**< Security authenticated encryption */
     LE_COC_SECURITY_UNAUTHEN_DATA_SIGN,/**< Security unauthenticated data signed */
     LE_COC_SECURITY_AUTHEN_DATA_SIGN,  /**< Security authenticated data signed */
-    LE_COC_SECURITY_AUTHOR,            /**< Security authorized */
-    LE_COC_SECURITY_SC_UNAUTHEN,       /**< Security unauthenticated LE secure connection */
-    LE_COC_SECURITY_SC_AUTHEN          /**< Security LE secure connection */
+    LE_COC_SECURITY_AUTHOR             /**< Security authorized */
 } T_LE_COC_SECURITY_MODE;
 
 typedef struct
@@ -204,7 +202,7 @@ void        le_coc_register_app_cb(P_FUN_LE_COC_APP_CB app_callback);
  * @param[in]   param    Parameter type: @ref T_LE_COC_PARAM_TYPE.
  * @param[in]   len      Parameter length.
  * @param[in]   p_value  Parameter value.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval GAP_CAUSE_INVALID_PARAM Operation failure, invalid parameter.
  *
@@ -224,7 +222,7 @@ T_GAP_CAUSE le_coc_set_param(T_LE_COC_PARAM_TYPE param, uint8_t len, void *p_val
  * @param[in]       param    Parameter type: @ref T_LE_COC_CHANN_PARAM_TYPE.
  * @param[in, out]  p_value  Parameter value.
  * @param[in]       cid      Channel cid.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval GAP_CAUSE_INVALID_PARAM Operation failure, invalid parameter.
  *
@@ -243,7 +241,7 @@ T_GAP_CAUSE le_coc_get_chann_param(T_LE_COC_CHANN_PARAM_TYPE param, void *p_valu
  *
  * @param[in]   conn_id   Connection id.
  * @param[in]   le_psm    LE PSM.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval Others Operation failure, invalid parameter.
  *
@@ -290,7 +288,7 @@ T_GAP_CAUSE le_coc_create(uint8_t conn_id, uint16_t le_psm);
  * @brief       Disconnect LE Connection Oriented Channel.
  *
  * @param[in]   cid   CID.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval Others Operation failure, invalid parameter.
  *
@@ -333,7 +331,7 @@ T_GAP_CAUSE le_coc_disc(uint16_t cid);
  * @param[in]   cid       CID.
  * @param[in]   p_data    The pointer for data will be sent.
  * @param[in]   data_len  Data length.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval Others Operation failure, invalid parameter.
  *
@@ -377,7 +375,7 @@ T_GAP_CAUSE le_coc_send_data(uint16_t cid, uint8_t *p_data, uint16_t data_len);
  * @param[in]   action   The action for LE PSM.
  * \arg    1     Register PSM.
  * \arg    0     Deregister PSM.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval Others Operation failure, invalid parameter.
  *
@@ -421,7 +419,7 @@ T_GAP_CAUSE le_coc_reg_psm(uint16_t le_psm, uint8_t action);
  * \arg    false    Release secure entry.
  * @param[in]   mode      COC security mode: @ref T_LE_COC_SECURITY_MODE.
  * @param[in]   key_size  Secure key size.
- * @return GAP Operation result.
+ * @return @return GAP Operation result.
  * @retval GAP_CAUSE_SUCCESS  GAP operation success.
  * @retval Others Operation failure, invalid parameter.
  *

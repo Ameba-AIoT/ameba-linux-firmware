@@ -106,11 +106,6 @@
 /** The IP header ID of the next outgoing IP packet */
 static u16_t ip_id;
 
-#if defined(IP_NAT) && (IP_NAT == 1)
-extern err_t ip_nat_transfer(struct pbuf *p, struct netif *src, struct netif *target);
-extern err_t ip_nat_enqueue(struct pbuf *p, struct netif *inp);
-#endif
-
 #if LWIP_MULTICAST_TX_OPTIONS
 /** The default netif used for multicast */
 static struct netif *ip4_default_multicast_netif;
@@ -449,7 +444,6 @@ ip4_input_accept(struct netif *netif)
  * @return ERR_OK if the packet was processed (could return ERR_* if it wasn't
  *         processed, but currently always returns ERR_OK)
  */
-SRAM_WLAN_CRITICAL_CODE_SECTION
 err_t
 ip4_input(struct pbuf *p, struct netif *inp)
 {
@@ -879,7 +873,6 @@ ip4_output_if_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
  * Same as ip_output_if_opt() but 'src' address is not replaced by netif address
  * when it is 'any'.
  */
-SRAM_WLAN_CRITICAL_CODE_SECTION
 err_t
 ip4_output_if_opt_src(struct pbuf *p, const ip4_addr_t *src, const ip4_addr_t *dest,
                       u8_t ttl, u8_t tos, u8_t proto, struct netif *netif, void *ip_options,

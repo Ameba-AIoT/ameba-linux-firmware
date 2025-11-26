@@ -55,8 +55,8 @@ int ff_cre_syncobj(  /* 1:Function succeeded, 0:Could not create the sync object
 )
 {
 	/* Win32 */
-	// *sobj = CreateMutex(NULL, FALSE, NULL);
-	// return (int)(*sobj != INVALID_HANDLE_VALUE);
+	*sobj = CreateMutex(NULL, FALSE, NULL);
+	return (int)(*sobj != INVALID_HANDLE_VALUE);
 
 	/* uITRON */
 //	T_CSEM csem = {TA_TPRI,1,1};
@@ -69,9 +69,8 @@ int ff_cre_syncobj(  /* 1:Function succeeded, 0:Could not create the sync object
 //	return (int)(err == OS_NO_ERR);
 
 	/* FreeRTOS */
-	(void) vol;
-	rtos_sema_create(sobj, 1, 1);
-	return (int)(*sobj != NULL);
+//	*sobj = xSemaphoreCreateMutex();
+//	return (int)(*sobj != NULL);
 
 	/* CMSIS-RTOS */
 //	*sobj = osMutexCreate(&Mutex[vol]);
@@ -92,7 +91,7 @@ int ff_del_syncobj(  /* 1:Function succeeded, 0:Could not delete due to an error
 )
 {
 	/* Win32 */
-	// return (int)CloseHandle(sobj);
+	return (int)CloseHandle(sobj);
 
 	/* uITRON */
 //	return (int)(del_sem(sobj) == E_OK);
@@ -103,8 +102,8 @@ int ff_del_syncobj(  /* 1:Function succeeded, 0:Could not delete due to an error
 //	return (int)(err == OS_NO_ERR);
 
 	/* FreeRTOS */
-	rtos_sema_delete(sobj);
-	return 1;
+//  rtos_sema_delete(sobj);
+//	return 1;
 
 	/* CMSIS-RTOS */
 //	return (int)(osMutexDelete(sobj) == osOK);
@@ -123,7 +122,7 @@ int ff_req_grant(  /* 1:Got a grant to access the volume, 0:Could not get a gran
 )
 {
 	/* Win32 */
-	// return (int)(WaitForSingleObject(sobj, FF_FS_TIMEOUT) == WAIT_OBJECT_0);
+	return (int)(WaitForSingleObject(sobj, FF_FS_TIMEOUT) == WAIT_OBJECT_0);
 
 	/* uITRON */
 //	return (int)(wai_sem(sobj) == E_OK);
@@ -133,16 +132,8 @@ int ff_req_grant(  /* 1:Got a grant to access the volume, 0:Could not get a gran
 //	OSMutexPend(sobj, FF_FS_TIMEOUT, &err));
 //	return (int)(err == OS_NO_ERR);
 
-	if (rtos_sched_get_state() == RTOS_SCHED_NOT_STARTED) {
-		return 1;
-	}
-
 	/* FreeRTOS */
-	if (rtos_sema_take(sobj, FF_FS_TIMEOUT) == 0) {
-		return 1;
-	} else {
-		return 0;
-	}
+//	return (int)(rtos_sema_take(sobj, FF_FS_TIMEOUT) == SUCCESS);
 
 	/* CMSIS-RTOS */
 //	return (int)(osMutexWait(sobj, FF_FS_TIMEOUT) == osOK);
@@ -160,19 +151,16 @@ void ff_rel_grant(
 )
 {
 	/* Win32 */
-	// ReleaseMutex(sobj);
+	ReleaseMutex(sobj);
 
 	/* uITRON */
 //	sig_sem(sobj);
 
 	/* uC/OS-II */
 //	OSMutexPost(sobj);
-	if (rtos_sched_get_state() == RTOS_SCHED_NOT_STARTED) {
-		return;
-	}
 
 	/* FreeRTOS */
-	rtos_sema_give(sobj);
+//	rtos_sema_give(sobj);
 
 	/* CMSIS-RTOS */
 //	osMutexRelease(sobj);

@@ -8,13 +8,13 @@
  */
 
 #include "ameba_soc.h"
-#include "ameba_secure_boot.h"
+#include "amebahp_secure_boot.h"
 #include "bootloader_hp.h"
 #include "boot_ota_hp.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
 
-static const char *const TAG = "BOOT";
+static const char *TAG = "BOOT";
 typedef struct {
 	u32 NVICbackup_HP[6];
 	u32 SCBVTORbackup_HP;
@@ -23,16 +23,27 @@ typedef struct {
 
 CPU_S_BackUp_TypeDef PMC_S_BK;
 
-#define CHECK_AND_PRINT_FLAG(flagValue, bit, name) \
-    do { \
-        if ((flagValue) & (bit)) { \
-            RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s ", (name)); \
-        } \
-    } while (0)
+#if defined ( __ICCARM__ )
+#pragma section=".ram.bss"
+#pragma section=".rom.bss"
+#pragma section=".ram.start.table"
+#pragma section=".ram_image1.bss"
+#pragma section=".ram_image2.entry"
+
+BOOT_RAM_RODATA_SECTION u8 *__image2_entry_func__ = 0;
+BOOT_RAM_RODATA_SECTION u8 *__image1_bss_start__ = 0;
+BOOT_RAM_RODATA_SECTION u8 *__image1_bss_end__ = 0;
+#endif
 
 BOOT_RAM_TEXT_SECTION
 PRAM_START_FUNCTION BOOT_SectionInit(void)
 {
+#if defined ( __ICCARM__ )
+	// only need __bss_start__, __bss_end__
+	__image2_entry_func__		= (u8 *)__section_begin(".ram_image2.entry");
+	__image1_bss_start__		= (u8 *)__section_begin(".ram_image1.bss");
+	__image1_bss_end__			= (u8 *)__section_end(".ram_image1.bss");
+#endif
 	return (PRAM_START_FUNCTION)__image2_entry_func__;
 }
 
@@ -207,7 +218,7 @@ void BOOT_GRstConfig(void)
 	/* step 3: release por */
 	Val = HAL_READ16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR);
 	Val |= TempVal;
-	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR, Val);
+	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR, TempVal);
 }
 
 
@@ -377,7 +388,7 @@ u32 BOOT_LoadImages(void)
 		BOOT_OTA_AP_Linux(CertImgIndex);
 	}
 #endif
-	return TRUE;
+	return _TRUE;
 }
 
 /**
@@ -389,47 +400,16 @@ u32 BOOT_LoadImages(void)
 BOOT_RAM_TEXT_SECTION
 void BOOT_ReasonSet(void)
 {
-	u32 REG_AON_BOOT_REASON_HW_MASK = 0x00ffffff;
-	u32 temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW);
-
-	/* keep lower 24bit, high 8 bit reserved for DMA */
-	temp &= REG_AON_BOOT_REASON_HW_MASK;
+	u16 temp = HAL_READ16(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW);
 
 	/*Clear the wake up reason*/
-	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW, temp);
+	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW, temp);
 
 	/*Backup it to system register,So the software can read from the register*/
-	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_REASON_SW, temp);
+	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_REASON_SW, temp);
 
-	RTK_LOGI(TAG, "KM4 BOOT REASON %x: ", temp);
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET_VD33_POS, "GDET_VD33_POS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET_VD33_NEG, "GDET_VD33_NEG");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET2_VD18_POS, "GDET2_VD18_POS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET2_VD18_NEG, "GDET2_VD18_NEG");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET1_VD18_POS, "GDET1_VD18_POS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET1_VD18_NEG, "GDET1_VD18_NEG");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET_VD09_POS, "GDET_VD09_POS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_GDET_VD09_NEG, "GDET_VD09_NEG");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_AP_WARM2PERI, "AP_WARM2PERI");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_KM4_WARM2PERI, "KM4_WARM2PERI");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_KM0_WARM2PERI, "KM0_WARM2PERI");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG4, "WDG4");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG3, "WDG3");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG2, "WDG2");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG1, "WDG1");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_IWDG, "IWDG");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_APSYS, "APSYS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_NPSYS, "NPSYS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_LPSYS, "LPSYS");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_DSLP, "DSLP");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_BOR_ACC, "BOR_ACC");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_BOR, "BOR");
-	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_THM, "THM");
-	if (temp == 0) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "Initial Power on\n");
-	} else {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n");
-	}
+	RTK_LOGI(TAG, "KM4 BOOT REASON: %lx \n", temp);
+
 }
 
 BOOT_RAM_TEXT_SECTION
@@ -490,10 +470,6 @@ void BOOT_SOC_ClkSet(void)
 	HBusDiv =  SocClk_Info->NPPLL_CLK / 100 - 1;
 	/*HPeri target clk 200M*/
 	HPeriDiV = SocClk_Info->NPPLL_CLK / 200 - 1;
-
-	if ((SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA)) {
-		return ;
-	}
 
 	/*configure core power according user setting*/
 	if (SocClk_Info->Vol_Type == VOL_10) {
@@ -563,9 +539,6 @@ void BOOT_SOC_ClkSet(void)
 	RTK_LOGI(TAG, "NP Freq %lu MHz\n", NPCLK);
 	RTK_LOGI(TAG, "AP Freq %lu MHz\n", APCLK);
 	RTK_LOGI(TAG, "LP Freq %lu MHz\n", LPCLK / MHZ_TICK_CNT);
-
-	/* Note that if no anti-rollback and warm reset continuously, clear BOOT_CNT to avoid boot from older bootloader */
-	BKUP_Write(BKUP_REG0, BKUP_Read(BKUP_REG0) & ~BOOT_CNT_MASK);
 }
 
 // 0x1 for core 0, 0x3 for core 0/1
@@ -737,9 +710,6 @@ u32 BOOT_Share_Memory_Patch(void)
 	Rtemp = HAL_READ32(HP_SRAM_EXT_BASE + 0x100000, 0x0);
 	sum += Rtemp;
 
-	/* read wifi_share_mem_rsvd to fix hw bug */
-	sum += HAL_READ32(HP_SRAM_EXT_BASE + 0x100000 + 40 * 1024, 0x4);
-
 	/* switch share mem control back */
 	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HPLAT_CTRL);
 	Rtemp &= ~(HSYS_BIT_SHARE_WL_MEM | HSYS_BIT_SHARE_BT_MEM);
@@ -796,7 +766,7 @@ void BOOT_Image1(void)
 	BOOT_ReasonSet();
 
 	if (BOOT_Reason() == 0) {
-		_memset(RRAM, 0, sizeof(RRAM_TypeDef));
+		memset(RRAM, 0, sizeof(RRAM_TypeDef));
 	}
 
 
@@ -908,17 +878,18 @@ void BOOT_Image1(void)
 	BOOT_Share_Memory_Patch();
 
 	ret = BOOT_LoadImages();
-	if (ret == FALSE) {
+	if (ret == _FALSE) {
 		goto INVALID_IMG2;
 	}
 
-	/* Config Non-Security World Registers and clean Dcache */
-	BOOT_RAM_TZCfg();
+	BOOT_Enable_KM0();
 
 	/*switch shell control to KM0, disable loguart interrupt to avoid loguart irq not assigned in non-secure world */
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 	InterruptDis(UART_LOG_IRQ);
-	BOOT_Enable_KM0();
+
+	/* Config Non-Security World Registers */
+	BOOT_RAM_TZCfg();
 
 	/* AP Power-on, AP start run */
 	if (Boot_AP_Enbale) {

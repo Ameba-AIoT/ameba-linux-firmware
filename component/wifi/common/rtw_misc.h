@@ -52,7 +52,7 @@ struct task_struct {
 };
 
 // ------------------------------------------------------------------
-#define HALT()				do { rtos_critical_enter(RTOS_CRITICAL_WIFI); for(;;);} while(0)
+#define HALT()				do { rtos_critical_enter(); for(;;);} while(0)
 #undef ASSERT
 #define ASSERT(x)			do { \
 						if((x) == 0){\
@@ -63,7 +63,7 @@ struct task_struct {
 //#define container_of(p,t,n) (t*)((p)-&(((t*)0)->n))
 #if !defined(container_of)
 #define container_of(ptr, type, member) \
-			((type *)(void*)((char *)(ptr)-(size_t)(&((type *)0)->member)))
+			((type *)(void*)((char *)(ptr)-(SIZE_T)(&((type *)0)->member)))
 #endif
 
 #ifdef __cplusplus
@@ -71,7 +71,7 @@ extern "C" {
 #endif
 
 #ifndef FIELD_OFFSET
-#define FIELD_OFFSET(s,field)	((size_t)&((s*)(0))->field)
+#define FIELD_OFFSET(s,field)	((SSIZE_T)&((s*)(0))->field)
 #endif
 #define rtw_min(a, b) ((a > b) ? b : a)
 

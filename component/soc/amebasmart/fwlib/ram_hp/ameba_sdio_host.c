@@ -5,7 +5,7 @@
  */
 
 #include "ameba_soc.h"
-static const char *const TAG = "SDIO";
+static const char *TAG = "SDIO";
 SDIOH_InitTypeDef sdioh_init_para;
 extern int (*sd_sema_take_fn)(u32);
 
@@ -102,13 +102,12 @@ u32 SDIOH_WaitDMADone(u32 timeout_us)
 {
 	SDIOH_TypeDef *psdioh = SDIOH_BASE;
 
-#if defined(SDIO) &&(SDIO == SD)
 	/*If scheduling has already started, wait for sema to obtain the DMA done signal.*/
 	if ((CPU_InInterrupt() == 0) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (sd_sema_take_fn != NULL)) {
 
 		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, ENABLE);
 
-		if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != RTK_SUCCESS) {
+		if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != SUCCESS) {
 			SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
 			RTK_LOGE(TAG, " SD Get Semaphore Timeout\r\n");
 			return HAL_TIMEOUT;
@@ -116,7 +115,6 @@ u32 SDIOH_WaitDMADone(u32 timeout_us)
 
 		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
 	}
-#endif
 
 	/*If scheduling has already started, poll transfer status; otherwise, poll transfer and DMA_ Xfree status.*/
 	do {

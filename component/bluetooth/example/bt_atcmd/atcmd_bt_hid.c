@@ -19,23 +19,6 @@
 #include <atcmd_bt_impl.h>
 #include <rtk_bt_br_gap.h>
 
-static int atcmd_bt_hid_connect(int argc, char **argv)
-{
-	(void)argc;
-	char addr_str[30] = {0};
-	uint8_t bd_addr[RTK_BD_ADDR_LEN] = {0};
-
-	hexdata_str_to_bd_addr(argv[0], bd_addr, RTK_BD_ADDR_LEN);
-	if (rtk_bt_hid_connect(bd_addr)) {
-		BT_LOGE("HID connect fail\r\n");
-		return -1;
-	}
-	rtk_bt_br_addr_to_str(bd_addr, addr_str, sizeof(addr_str));
-	BT_LOGA("HID connecting to device %s ...\r\n", addr_str);
-
-	return 0;
-}
-
 static int atcmd_bt_hid_disconnect(int argc, char **argv)
 {
 	(void)argc;
@@ -79,7 +62,6 @@ static int atcmd_bt_hid_data_send(int argc, char **argv)
 	hexdata_str_to_bd_addr(argv[0], data_t.bd_addr, RTK_BD_ADDR_LEN);
 	for (uint8_t i = 0; i < (argc - 1); i ++) {
 		data_t.data[i] = (uint8_t)str_to_int(argv[i + 1]);
-		data_t.len ++;
 	}
 	if (rtk_bt_hid_input_data_send(data_t.bd_addr, data_t.data, data_t.len)) {
 		BT_LOGE("HID data send fail\r\n");
@@ -91,6 +73,7 @@ static int atcmd_bt_hid_data_send(int argc, char **argv)
 	return 0;
 }
 
+#if defined(CONFIG_BT_HID) && CONFIG_BT_HID
 uint16_t rtk_bt_hid_mouse_control(rtk_bt_hid_mouse_report_t *pmouse_t);
 static int atcmd_bt_hid_mouse(int argc, char **argv)
 {
@@ -142,14 +125,16 @@ static int atcmd_bt_hid_gamepad(int argc, char **argv)
 
 	return 0;
 }
+#endif
 
 static const cmd_table_t hid_cmd_table[] = {
-	{"conn",                atcmd_bt_hid_connect,                2, 2},
 	{"disconn",             atcmd_bt_hid_disconnect,             2, 2},
 	{"get_report_rsp",      atcmd_bt_hid_get_report_rsp,         2, 2},
 	{"data_send",           atcmd_bt_hid_data_send,              2, 22},
+#if defined(CONFIG_BT_HID) && CONFIG_BT_HID
 	{"mouse",               atcmd_bt_hid_mouse,                  7, 7},
 	{"gamepad",             atcmd_bt_hid_gamepad,                12, 12},
+#endif
 	{NULL,},
 };
 

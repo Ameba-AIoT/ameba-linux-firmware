@@ -1,9 +1,16 @@
-#include "lwip_netconf.h"
+#include "os_wrapper.h"
+#include "basic_types.h"
+#include "rtw_misc.h"
 
-#define printf	DiagPrintfNano
+#include <lwipconf.h>
+#include <lwip_netconf.h>
+#include "platform_stdlib.h"
+#include "basic_types.h"
+
+#define printf	DiagPrintf_minimal
 
 #define PING_IP		"192.168.159.1"
-#define PING_TO		3000
+#define PING_TO		1000
 #define PING_ID		0xABCD
 #undef BUF_SIZE
 #define BUF_SIZE	10000
@@ -60,8 +67,8 @@ void ping_test(void *param)
 	ping_total_time = 0;
 	ping_received_count = 0;
 
-	if (data_size < 0 || data_size > BUF_SIZE) {
-		printf("\n\r[ERROR] %s: data size error, effective range from 0 to %d\n", __func__, BUF_SIZE);
+	if (data_size > BUF_SIZE) {
+		printf("\n\r[ERROR] %s: data size error, can't exceed %d\n", __func__, BUF_SIZE);
 		goto Exit;
 	}
 
@@ -91,12 +98,14 @@ void ping_test(void *param)
 			printf("create socket failed\r\n");
 		}
 		pint_timeout = PING_TO;
-
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	// lwip 1.5.0
 		struct timeval timeout;
 		timeout.tv_sec = pint_timeout / 1000;
 		timeout.tv_usec = pint_timeout % 1000 * 1000;
 		setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-
+#else	// lwip 1.4.1
+		setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &pint_timeout, sizeof(pint_timeout));
+#endif
 		to_addr.sin_len = sizeof(to_addr);
 		to_addr.sin_family = AF_INET;
 		if (inet_aton(host, &to_addr.sin_addr) == 0) {
@@ -160,10 +169,14 @@ void ping_test(void *param)
 				}
 				pint_timeout -= (int)((reply_time - ping_time));
 				if (pint_timeout > 0) {
+#if defined(LWIP_SO_SNDRCVTIMEO_NONSTANDARD) && (LWIP_SO_SNDRCVTIMEO_NONSTANDARD == 0)	// lwip 1.5.0
 					struct timeval timeout;
 					timeout.tv_sec = pint_timeout / 1000;
 					timeout.tv_usec = pint_timeout % 1000 * 1000;
 					setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+#else	// lwip 1.4.1
+					setsockopt(ping_socket, SOL_SOCKET, SO_RCVTIMEO, &pint_timeout, sizeof(pint_timeout));
+#endif
 					continue;
 				}
 			}
@@ -227,19 +240,16 @@ int get_ping_report(int *ping_lost)
 	return 0;
 }
 
-int cmd_ping(int argc, char **argv)
+void cmd_ping(int argc, char **argv)
 {
-	int error_no = 0;
 	int argv_count = 2;
 	int argv_count_len = 0;
 	char *host;
-	char *endptr = NULL;
 
 	g_ping_terminate = 0;
 	ping_interface = 255;
 
 	if (argc < 2) {
-		error_no = 2;
 		goto Exit;
 	}
 
@@ -250,15 +260,14 @@ int cmd_ping(int argc, char **argv)
 				if (argc == 2) {
 					g_ping_terminate = 1;
 					//rtos_time_delay_ms(100);
-					return error_no;
+					return;
 				} else {
-					error_no = 2;
 					goto Exit;
 				}
 			} else {
 				if (g_ping_task) {
 					printf("\n\rPing: Ping task is already running.\n");
-					return error_no;
+					return;
 				} else {
 					//ping cmd default value
 					infinite_loop = 0;
@@ -280,40 +289,23 @@ int cmd_ping(int argc, char **argv)
 				argv_count++;
 			} else if (strcmp(argv[argv_count - 1], "-n") == 0) {
 				if (argc < (argv_count + 1)) {
-					error_no = 2;
 					goto Exit;
 				}
-				ping_count = (int)strtol(argv[argv_count], &endptr, 10);
-				if (*endptr != '\0' || endptr == argv[argv_count] || ping_count <= 0) {
-					error_no = 2;
-					goto Exit;
-				}
+				ping_count = (int) atoi(argv[argv_count]);
 				argv_count += 2;
 			} else if (strcmp(argv[argv_count - 1], "-l") == 0) {
 				if (argc < (argv_count + 1)) {
-					error_no = 2;
 					goto Exit;
 				}
-				data_size = (int)strtol(argv[argv_count], &endptr, 10);
-				if (*endptr != '\0' || endptr == argv[argv_count] || data_size < 0 || data_size > BUF_SIZE) {
-					printf("\n\r[ERROR] data size error, effective range from 0 to %d\n", BUF_SIZE);
-					error_no = 2;
-					goto Exit;
-				}
+				data_size = (int) atoi(argv[argv_count]);
 				argv_count += 2;
 			} else if (strcmp(argv[argv_count - 1], "if") == 0) {
 				if (argc < (argv_count + 1)) {
-					error_no = 2;
 					goto Exit;
 				}
-				ping_interface = (int)strtol(argv[argv_count], &endptr, 10);
-				if (*endptr != '\0' || endptr == argv[argv_count] || (ping_interface != 0 && ping_interface != 1)) {
-					error_no = 2;
-					goto Exit;
-				}
+				ping_interface = (int) atoi(argv[argv_count]);
 				argv_count += 2;
 			} else {
-				error_no = 2;
 				goto Exit;
 			}
 		}
@@ -321,13 +313,23 @@ int cmd_ping(int argc, char **argv)
 
 	if (g_ping_task == NULL) {
 		if (rtos_task_create(&g_ping_task, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4,
-							 1 + 4) != RTK_SUCCESS) {
+							 1 + PRIORITIE_OFFSET) != SUCCESS) {
 			printf("\n\r Ping ERROR: Create ping task failed.");
 		}
 	}
 
+	return;
+
 Exit:
-	return error_no;
+	printf("\n\r[AT+PING] Usage: AT+PING=[host],[options]\n");
+	printf("\n\r       stop      Terminate ping \n");
+	printf("  \r     -t    #   Ping the specified host until stopped\n");
+	printf("  \r     -n   #   Number of echo requests to send (default 4 times)\n");
+	printf("  \r     -l    #   Send buffer size (default 32 bytes)\n");
+	printf("  \r     if   #   only for concurrent mode, set '0' or '1' \n");
+	printf("\n\r   Example:\n");
+	printf("  \r     AT+PING=192.168.1.2,-n,100,-l,5000\n");
+	return;
 }
 
 void do_ping_test(char *ip, int size, int count, int interval)
@@ -361,7 +363,7 @@ void do_ping_test(char *ip, int size, int count, int interval)
 		ping_count = count;
 	}
 
-	if (rtos_task_create(NULL, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, (char const *)((const signed char *)"ping_test"), ping_test, host, STACKSIZE * 4, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create failed", __FUNCTION__);
 	}
 }

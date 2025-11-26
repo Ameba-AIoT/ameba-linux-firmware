@@ -6,10 +6,11 @@
 
 #include "ameba_soc.h"
 
-static const char *const TAG = "LPCAP";
+static const char *TAG = "LPCAP";
 u32 ap_sleep_timeout = 0xffffffff;
 u8 ap_sleep_type;
 u32 ap_pll_backup;
+u32 APDslpEn;
 // 0x1 for core 0, 0x3 for core 0/1
 #define CORE_NUM 0x1
 void ap_power_on_ctrl(void)
@@ -101,11 +102,11 @@ void ap_power_gate(void)
 	CA32_TypeDef *ca32 = CA32_BASE;
 
 	if ((HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HP_FEN) & HSYS_BIT_FEN_AP) == 0) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "AP PG Already\n");
+		RTK_LOGI(TAG, "AP PG Already\n");
 		return;
 	}
 
-	/* check core0 WFE state */
+	/* check core0 WFI state */
 	while (1) {
 		if (ca32->CA32_C0_CPU_STATUS & CA32_STANDBYWFE_CORE0) {
 			break;
@@ -114,8 +115,11 @@ void ap_power_gate(void)
 
 	ap_power_off_ctrl();
 	pmu_release_wakelock(PMU_AP_RUN);
+	if (APDslpEn) {
+		pmu_release_deepwakelock(PMU_AP_RUN);
+	}
 
-	RTK_LOGD(TAG, "APPG\n");
+	RTK_LOGI(TAG, "CA7PG-\n");
 }
 
 void ap_power_on(void)
@@ -125,10 +129,11 @@ void ap_power_on(void)
 		return;
 	}
 	pmu_acquire_wakelock(PMU_AP_RUN);
+	pmu_acquire_deepwakelock(PMU_AP_RUN);
 
 	ap_power_on_ctrl();
 
-	RTK_LOGD(TAG, "APPW\n");
+	RTK_LOGI(TAG, "CA7PW-\n");
 }
 
 void ap_clk_gate_ctrl(void)
@@ -186,22 +191,26 @@ void ap_clock_gate(void)
 	/* since CA7 will be blocked even if interrupt happens, so still do clock gate here*/
 	ap_clk_gate_ctrl();
 	pmu_release_wakelock(PMU_AP_RUN);
+	if (APDslpEn) {
+		pmu_release_deepwakelock(PMU_AP_RUN);
+	}
 
-	RTK_LOGD(TAG, "APCG\n");
+	RTK_LOGI(TAG, "CA7CG-\n");
 
 }
 
 void ap_clock_on(void)
 {
 	if (HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HP_CKE) & HSYS_BIT_CKE_AP) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "AP CW Already\n");
+		RTK_LOGI(TAG, "AP CW Already\n");
 		return;
 	}
 	pmu_acquire_wakelock(PMU_AP_RUN);
+	pmu_acquire_deepwakelock(PMU_AP_RUN);
 
 	ap_clk_wake_ctrl();
 
-	RTK_LOGD(TAG, "APCW\n");
+	RTK_LOGI(TAG, "CA7CW-\n");
 }
 
 
@@ -210,16 +219,16 @@ void ap_resume(void)
 	int cnt = 0;
 	/* check km4 state, km4 need be active when CA7 run*/
 	if (!np_status_on()) {
+		RTK_LOGI(TAG, "wake km4\n");
 		InterruptDis(NP_WAKE_IRQ);
 		np_resume();
 	}
 
 	if (HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HP_CKE) & HSYS_BIT_CKE_AP) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "already clk on\n");
+		RTK_LOGI(TAG, "already clk on\n");
 		return;
 	}
 	pmu_acquire_wakelock(PMU_AP_RUN);
-	pmu_acquire_deepwakelock(PMU_OS);
 
 	/* check km4 state, km4 should be active before CA7 run*/
 	while (1) {
@@ -240,55 +249,43 @@ void ap_resume(void)
 		ap_power_on();
 	}
 }
-u32 ap_aontimer_wake_int_hdl(void *Data)
-{
-	UNUSED(Data);
-	AONTimer_ClearINT();
-	return TRUE;
-}
 
-void ap_wakeup_timer_init(uint32_t sleep_ms)
-{
-	RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
-	SOCPS_SetAPWakeEvent_MSK0(WAKE_SRC_AON_TIM, ENABLE);
-	AONTimer_INT(ENABLE);
-	AONTimer_Setting(sleep_ms);
-	InterruptRegister(ap_aontimer_wake_int_hdl, AON_TIM_IRQ, (u32)PMC_BASE, INT_PRI3);
-	InterruptEn(AON_TIM_IRQ, INT_PRI3);
-}
 
-int ap_suspend(SLEEP_ParamDef *psleep_param)
+
+u32 ap_suspend(u32 type)
 {
-	int ret = RTK_SUCCESS;
+	UNUSED(type);
+
+	u32 ret = _SUCCESS;
+	SLEEP_ParamDef *sleep_param;
+	u32 duration = 0;
 
 	if (!np_status_on()) {
-		RTK_LOGS(NOTAG, RTK_LOG_INFO, "NP is not on\n");
-		return RTK_SUCCESS;
+		RTK_LOGI(TAG, "NP is not on\n");
+		return 0;
 	}
 
-	if (psleep_param != NULL) {
-		if (psleep_param->sleep_time) {
-			ap_wakeup_timer_init(psleep_param->sleep_time);
-		}
+	sleep_param = (SLEEP_ParamDef *)ipc_get_message(IPC_AP_TO_LP, IPC_A2L_TICKLESS_INDICATION);
+
+	if (sleep_param != NULL) {
+		duration = sleep_param->sleep_time;
+	}
+
+	if (duration > 0) {
 		/* used for resume delay */
-		ap_sleep_timeout = rtos_time_get_current_system_time_ms() + psleep_param->sleep_time;
-
-		if (psleep_param->sleep_type == SLEEP_CG) {
-			ap_clock_gate();
-		} else {
-			ap_power_gate();
-		}
-
-		HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW,
-				   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) & (~ LSYS_BIT_AP_RUNNING));
-
-		/*clean ap wake pending interrupt*/
-		NVIC_ClearPendingIRQ(AP_WAKE_IRQ);
-		InterruptEn(AP_WAKE_IRQ, 5);
-
-	} else {
-		ret = RTK_FAIL;
+		ap_sleep_timeout = rtos_time_get_current_system_time_ms() + duration;
 	}
+
+
+	if (type == SLEEP_CG) {
+		ap_clock_gate();
+	} else {
+		ap_power_gate();
+	}
+
+	/*clean ap wake pending interrupt*/
+	NVIC_ClearPendingIRQ(AP_WAKE_IRQ);
+	InterruptEn(AP_WAKE_IRQ, 5);
 
 	return ret;
 }
@@ -309,15 +306,26 @@ void ap_tickless_ipc_int(UNUSED_WARN_DIS void *Data, UNUSED_WARN_DIS u32 IrqStat
 
 	ap_sleep_type = psleep_param->sleep_type;
 	if (psleep_param->dlps_enable) {
-		pmu_release_deepwakelock(PMU_OS);
+		APDslpEn = TRUE;
+	} else {
+		APDslpEn = FALSE;
 	}
 
-	if ((psleep_param->sleep_type == SLEEP_PG) || (psleep_param->sleep_type == SLEEP_CG)) {
-		if (RTK_SUCCESS == ap_suspend(psleep_param)) {
+	switch (psleep_param->sleep_type) {
+	case SLEEP_PG:
+		if (_SUCCESS == ap_suspend(SLEEP_PG)) {
 			pmu_set_sysactive_time(2);
-			pmu_set_sleep_type(psleep_param->sleep_type);
+			pmu_set_sleep_type(SLEEP_PG);
 		}
-	} else {
+		break;
+	case SLEEP_CG:
+		if (_SUCCESS == ap_suspend(SLEEP_CG)) {
+			pmu_set_sysactive_time(2);
+			pmu_set_sleep_type(SLEEP_CG);
+		}
+		break;
+
+	default:
 		RTK_LOGW(TAG, "unknow sleep type\n");
 	}
 }

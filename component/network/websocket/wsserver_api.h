@@ -1,9 +1,11 @@
 #ifndef _WS_SERVER_API_H_
 #define _WS_SERVER_API_H_
 
+#include "platform_autoconf.h"
+#include "platform_stdlib.h"
+#include "basic_types.h"
 #include "os_wrapper.h"
-#include "wifi_api.h"
-
+#include "rtw_misc.h"
 /********************Define the secure level***************************/
 #define WS_SERVER_SECURE_NONE        0   /*!< Running with WS server */
 #define WS_SERVER_SECURE_TLS         1   /*!< Running with WSS server */
@@ -21,22 +23,22 @@ extern uint8_t ws_server_debug;
 #define ws_server_log(...) \
 	do { \
 		if(ws_server_debug) { \
-			rtos_critical_enter(RTOS_CRITICAL_NETWORK); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r[WS_SERVER] "); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, __VA_ARGS__); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r"); \
-			rtos_critical_exit(RTOS_CRITICAL_NETWORK); \
+			rtos_critical_enter(); \
+			RTK_LOGS(NOTAG, "\n\r[WS_SERVER] "); \
+			RTK_LOGS(NOTAG, __VA_ARGS__); \
+			RTK_LOGS(NOTAG, "\n\r"); \
+			rtos_critical_exit(); \
 		} \
 	} while(0)
 
 #define ws_server_log_verbose(...) \
 	do { \
 		if(ws_server_debug == WS_SERVER_DEBUG_VERBOSE) { \
-			rtos_critical_enter(RTOS_CRITICAL_NETWORK); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r[WS_SERVER] "); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, __VA_ARGS__); \
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r"); \
-			rtos_critical_exit(RTOS_CRITICAL_NETWORK); \
+			rtos_critical_enter(); \
+			RTK_LOGS(NOTAG, "\n\r[WS_SERVER] "); \
+			RTK_LOGS(NOTAG, __VA_ARGS__); \
+			RTK_LOGS(NOTAG, "\n\r"); \
+			rtos_critical_exit(); \
 		} \
 	} while(0)
 
@@ -49,11 +51,11 @@ extern uint8_t ws_server_debug;
   */
 
 typedef enum {
-	WSS_CLOSED = 0,		/*!< Client Connection closed */
-	WSS_CONNECTING,	/*!< Client is connecting */
-	WSS_CONNECTED1,	/*!< Client is connected */
-	WSS_CONNECTED2,	/*!< Connected and server sent ping to client */
-	WSS_CLOSING,	/*!< Client will be closed */
+	CLOSED = 0,		/*!< Client Connection closed */
+	CONNECTING,	/*!< Client is connecting */
+	CONNECTED1,	/*!< Client is connected */
+	CONNECTED2,	/*!< Connected and server sent ping to client */
+	CLOSING,	/*!< Client will be closed */
 } ws_conn_state;
 
 
@@ -95,7 +97,6 @@ typedef struct _ws_conn {
 	uint8_t *receivedData;			/*!< Pointer to decoded receiving data which received from client */
 	ws_conn_state state;		/*!< Connection state */
 	struct task_struct task;        /*!< Connection task context */
-	int close_reason;			/*!< Connection close reason */
 } ws_conn;
 
 /**
@@ -109,26 +110,6 @@ enum opcode_type {
 	PING = 9,
 	PONG = 0xa,
 };
-
-/**
-  * @brief  The list of connection close reason
-  */
-#define WSS_CREATE_CONNECTION_FAIL	1 		/*!< Create connection fail*/
-#define WSS_CONNECTION_INIT_FAIL	2 		/*!< Connection init fail*/
-#define WSS_RECEIVE_CLIENT_CLOSE	3 		/*!< Receive close from client*/
-#define WSS_SERVER_SEND_CLOSE	4 			/*!< Server send close to client*/
-#define WSS_HANDSHAKE_FAIL	5 				/*!< Server handshake with client fail*/
-#define WSS_HANDSHAKE_SELECT_TIMEOUT	6 	/*!< Select timeout when handshake*/
-#define WSS_HANDSHAKE_FD_ISSET_FAIL	7 		/*!< FD is not set when handshake*/
-#define WSS_TLS_HANDSHAKE_FAIL	8 			/*!< Server handshake with client fail when use tls*/
-#define WSS_SET_NONBLOCK_FAIL	9 			/*!< Set nonblock fail*/
-#define WSS_READ_DATA_FAIL	10 				/*!< Server read data fail*/
-#define WSS_SEND_DATA_FAIL	11 				/*!< Server send data fail*/
-#define WSS_SET_SOCKET_OPTION_FAIL	12 		/*!< Set socket option fail*/
-#define WSS_NOT_GET_PONG	13 				/*!< Get pong timeout */
-#define WSS_IDLE_TIMEOUT	14 				/*!< Idle timeout*/
-#define WSS_SEND_PONG_FAILED	15			/*!< Server send PONG failed*/
-
 /***************************************************************************/
 
 /******************Functions of the websocekt server************************/
@@ -136,7 +117,7 @@ enum opcode_type {
 /**
  * @brief     This function is used to start an WS or WSS server.
  * @param[in] port: service port
- * @param[in] max_conn: max client connections allowed, maximum value will be limited by MEMP_NUM_NETCONN in lwipopts.h
+ * @param[in] max_conn: max client connections allowed
  * @param[in] stack_bytes: thread stack size in bytes
  * @param[in] secure: security mode for WS or WSS. Must be WS_SERVER_SECURE_NONE, WS_SERVER_SECURE_TLS, WS_SERVER_SECURE_TLS_VERIFY.
  * @return		0 : if successful
@@ -277,50 +258,5 @@ void ws_server_sendClose(ws_conn *conn);
  */
 void ws_server_conn_remove(ws_conn *conn);
 /***************************************************************************/
-
-/**
- * @brief     This function is used to setup the poll timeout of the websocket client connection.
- * @param[in] timeout_sec: timeout in seconds
- * @return    None
- * @note      The default value is 1s.
- */
-void ws_server_setup_poll_timeout(uint32_t timeout_sec);
-
-/**
- * @brief	  This function is the callback function when a client connected.
- * @param[in] callback: function that indicate the connect event.
- * @return	  None
- */
-void ws_server_dispatch_connect(void (*callback)(ws_conn *)) ;
-
-/**
- * @brief	  This function is the callback function when a client disconnected.
- * @param[in] callback: function that indicate the disconnect event.
- * @return	  None
- */
-void ws_server_dispatch_disconnect(void (*callback)(ws_conn *)) ;
-
-/**
- * @brief	  This function is the callback function when the server stop completely.
- * @param[in] callback: function that indicate the stop event.
- * @return	  None
- */
-void ws_server_dispatch_stop(void (*callback)(void)) ;
-
-/**
- * @brief	  This function is used to set close reason of the websocket client connection.
- * @param[in] ws_conn: the websocket connection
- * @param[in] reason: the close reason
- * @return    0 : if successful
- * @return    -1 : if error occurred
- */
-void ws_server_set_close_reason(ws_conn *conn, int reason) ;
-
-/**
- * @brief	  This function is used to get close reason of the websocket client connection.
- * @param[in] ws_conn: the websocket connection
- * @return    reason : if successful
- */
-int ws_server_get_close_reason(ws_conn *conn) ;
 
 #endif /* _WS_SERVER_API_H_ */

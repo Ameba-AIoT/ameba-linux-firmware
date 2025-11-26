@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 #include <stdarg.h>
-static const char *const TAG = "IPC";
+static const char *TAG = "IPC";
 #define LINUX_IPC_OTP_PHY_READ8		   	0
 #define LINUX_IPC_OTP_PHY_WRITE8		1
 #define LINUX_IPC_OTP_LOGI_READ_MAP		2
@@ -55,12 +55,12 @@ void linux_ipc_otp_instruction(void *Data, u32 IrqStatus, u32 ChanNum)
 	case LINUX_IPC_OTP_PHY_READ8:
 		DCache_Invalidate((u32)recv_req->param_buf, OPT_REQ_MSG_PARAM_NUM);
 		for (i = 0 ; i < (int)recv_req->len; i++) {
-			if (OTP_Read8((recv_req->addr + i), (u8 *)&recv_req->param_buf[i]) != RTK_SUCCESS) {
+			if (OTP_Read8((recv_req->addr + i), (u8 *)&recv_req->param_buf[i]) != SUCCESS) {
 				otp_data[0] = -1;
 				break;
 			} else {
 				otp_data[1] = i + 1;
-				otp_data[0] = RTK_SUCCESS;
+				otp_data[0] = SUCCESS;
 			}
 		}
 		DCache_CleanInvalidate((u32)recv_req->param_buf, OPT_REQ_MSG_PARAM_NUM);

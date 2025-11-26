@@ -79,10 +79,6 @@ PACK_STRUCT_END
 
 #endif
 
-#if defined(IP_NAT) && (IP_NAT == 1)
-extern void ip_nat_initialize(void);
-#endif
-
 /* Compile-time sanity checks for configuration errors.
  * These can be done independently of LWIP_DEBUG, without penalty.
  */

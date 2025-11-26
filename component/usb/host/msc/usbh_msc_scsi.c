@@ -1,8 +1,17 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+/**
+  ******************************************************************************
+  * @file    usbh_msc_scsi.c
+  * @author  Realsil WLAN5 Team
+  * @brief   This file provides the functionalities of the USB MSC Class
+  ******************************************************************************
+  * @attention
+  *
+  * This module is a confidential and proprietary property of RealTek and
+  * possession or use of this module requires written permission of RealTek.
+  *
+  * Copyright(c) 2020, Realtek Semiconductor Corporation. All rights reserved.
+  ******************************************************************************
+  */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -261,8 +270,8 @@ int usbh_scsi_write(usbh_msc_host_t *msc, u8 lun, u32 address, u8 *pbuf, u32 len
 
 
 		/*Transfer length */
-		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]);
-		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]);
+		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]) ;
+		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]) ;
 
 
 		msc->hbot.state = BOT_SEND_CBW;
@@ -315,8 +324,8 @@ int usbh_scsi_read(usbh_msc_host_t *msc, u8 lun, u32 address, u8 *pbuf, u32 leng
 
 
 		/*Transfer length */
-		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]);
-		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]);
+		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]) ;
+		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]) ;
 
 
 		msc->hbot.state = BOT_SEND_CBW;

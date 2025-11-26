@@ -32,119 +32,6 @@ typedef enum {
 } rtk_bt_avrcp_play_status_t;
 
 /**
- * @typedef   rtk_bt_avrcp_element_attr_t
- * @brief     element attr information
- */
-typedef enum {
-	RTK_BT_AVRCP_ELEM_ATTR_TITLE = 0x01,
-	RTK_BT_AVRCP_ELEM_ATTR_ARTIST = 0x02,
-	RTK_BT_AVRCP_ELEM_ATTR_ALBUM = 0x03,
-	RTK_BT_AVRCP_ELEM_ATTR_TRACK = 0x04,
-	RTK_BT_AVRCP_ELEM_ATTR_TOTAL_TRACK = 0x05,
-	RTK_BT_AVRCP_ELEM_ATTR_GENRE = 0x06,
-	RTK_BT_AVRCP_ELEM_ATTR_PLAYING_TIME = 0x07,
-	RTK_BT_AVRCP_ELEM_ATTR_DEFAULT_COVER_ART = 0x08,
-} rtk_bt_avrcp_element_attr_t;
-
-/**
- * @typedef   rtk_bt_avrcp_player_app_setting_attr_t
- * @brief     player application setting attribute id
- */
-typedef enum {
-	RTK_BT_PLAYER_EQ = 0x01,
-	RTK_BT_PLAYER_REPEAT_MODE = 0x02,
-	RTK_BT_PLAYER_SHUFFLE = 0x03,
-	RTK_BT_PLAYER_SCAN = 0x04,
-} rtk_bt_avrcp_player_app_setting_attr_t;
-
-/**
- * @typedef   rtk_bt_avrcp_player_eq_t
- * @brief     Equalizer setting index
- */
-typedef enum {
-	RTK_BT_PLAYER_EQ_OFF = 0x01,
-	RTK_BT_PLAYER_EQ_ON = 0x02,
-} rtk_bt_avrcp_player_eq_t;
-
-/**
- * @typedef   rtk_bt_avrcp_player_repeat_mode_t
- * @brief     repeat mode setting index
- */
-typedef enum {
-	RTK_BT_PLAYER_REPEAT_MODE_OFF = 0x01,
-	RTK_BT_PLAYER_SINGLE_TRACK_REPEAT = 0x02,
-	RTK_BT_PLAYER_ALL_TRACK_REPEAT = 0x03,
-	RTK_BT_PLAYER_GROUP_REPEAT = 0x04,
-} rtk_bt_avrcp_player_repeat_mode_t;
-
-/**
- * @typedef   rtk_bt_avrcp_player_shuffle_mode_t
- * @brief     shuffle setting index
- */
-typedef enum {
-	RTK_BT_PLAYER_SHUFFLE_OFF = 0x01,
-	RTK_BT_PLAYER_ALL_TRACK_SHUFFLE = 0x02,
-	RTK_BT_PLAYER_GROUP_SHUFFLE = 0x03,
-} rtk_bt_avrcp_player_shuffle_mode_t;
-
-/**
- * @typedef   rtk_bt_avrcp_player_scan_t
- * @brief     scan setting index
- */
-typedef enum {
-	RTK_BT_PLAYER_SCAN_OFF = 0x01,
-	RTK_BT_PLAYER_ALL_TRACK_SCAN = 0x02,
-	RTK_BT_PLAYER_GROUP_SCAN = 0x03,
-} rtk_bt_avrcp_player_scan_t;
-
-/**
- * @struct    rtk_bt_avrcp_play_status_change_req_t
- * @brief     Bluetooth AVRCP change play status request struct.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	rtk_bt_avrcp_play_status_t status;
-} rtk_bt_avrcp_play_status_change_req_t;
-
-/**
- * @struct    rtk_bt_avrcp_play_status_change_reg_rsp_t
- * @brief     Bluetooth AVRCP change play status change register response struct.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	rtk_bt_avrcp_play_status_t status;
-} rtk_bt_avrcp_play_status_change_reg_rsp_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_values_t
- * @brief     Bluetooth AVRCP application setting values struct.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t attr_id;
-} rtk_bt_avrcp_app_setting_values_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_value_get_t
- * @brief     Bluetooth AVRCP application set value struct.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t attr_num;
-	uint8_t *attr_list;
-} rtk_bt_avrcp_app_setting_value_get_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_value_set_t
- * @brief     Bluetooth AVRCP application set value struct.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t attr_id; // ref rtk_bt_avrcp_player_app_setting_attr_t
-	uint8_t setting; // ref rtk_bt_avrcp_player_eq_t / rtk_bt_avrcp_player_repeat_mode_t / rtk_bt_avrcp_player_shuffle_mode_t / rtk_bt_avrcp_player_scan_t
-} rtk_bt_avrcp_app_setting_value_set_t;
-
-/**
  * @struct    rtk_bt_avrcp_absolute_volume_set_t
  * @brief     Bluetooth AVRCP absolute volume set.
  */
@@ -163,83 +50,6 @@ typedef struct {
 } rtk_bt_avrcp_volume_change_req_t;
 
 /**
- * @struct    rtk_bt_avrcp_get_element_attr_req_t
- * @brief     Bluetooth AVRCP get element attr request.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t num;
-	uint8_t *p_attr;
-} rtk_bt_avrcp_get_element_attr_req_t;
-
-typedef struct {
-	uint32_t attribute_id;
-	uint16_t character_set_id;
-	uint16_t length;
-	uint8_t *p_buf;
-} rtk_bt_avrcp_element_attr;
-
-/**
- * @struct    rtk_bt_avrcp_get_element_attr_req_t
- * @brief     Bluetooth AVRCP get element attr request.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t state;
-	uint8_t num_of_attr;
-	rtk_bt_avrcp_element_attr *attr;
-} rtk_bt_avrcp_element_attr_info_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_attrs_list_t
- * @brief     Bluetooth AVRCP app setting attributes list.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t state;
-	uint8_t num_of_attr;
-	uint8_t *p_attr_id;
-} rtk_bt_avrcp_app_setting_attrs_list_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_values_list_t
- * @brief     Bluetooth AVRCP app setting values list.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t state;
-	uint8_t num_of_value;
-	uint8_t *p_value;
-} rtk_bt_avrcp_app_setting_values_list_t;
-
-typedef struct {
-	uint8_t attr;
-	uint8_t value;
-} rtk_bt_avrcp_app_setting_t;
-
-/**
- * @struct    rtk_bt_avrcp_app_setting_get_rsp_t
- * @brief     Bluetooth AVRCP app setting get response.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t state;
-	uint8_t num_of_attr;
-	rtk_bt_avrcp_app_setting_t *p_app_setting;
-} rtk_bt_avrcp_app_setting_get_rsp_t;
-
-/**
- * @struct    rtk_bt_avrcp_cover_art_data_ind_t
- * @brief     Bluetooth AVRCP cover art data indication.
- */
-typedef struct {
-	uint8_t bd_addr[6];
-	uint8_t *p_data;
-	uint16_t data_len;
-	bool data_end;
-} rtk_bt_avrcp_cover_art_data_ind_t;
-
-/**
  * @struct    rtk_bt_avrcp_volume_t
  * @brief     Bluetooth AVRCP volume status.
  */
@@ -254,15 +64,6 @@ typedef struct {
 typedef struct {
 	uint8_t avrcp_play_status;                      /*!< indicate play status */
 } rtk_bt_avrcp_sub_event_t;
-
-/**
- * @struct    rtk_bt_avrcp_track_changed_t
- * @brief     Bluetooth AVRCP track changed.
- */
-typedef struct {
-	uint8_t  bd_addr[6];                             /*!< address */
-	uint64_t track_id;                               /*!< play track id */
-} rtk_bt_avrcp_track_changed_t;
 
 /**
  * @struct    rtk_bt_avrcp_digital_interface_command_t
@@ -296,19 +97,6 @@ typedef struct {
 	uint8_t bd_addr[6];                             /*!< address */
 } rtk_bt_avrcp_disconn_cmpl_t;
 
-
-/**
- * @struct    rtk_bt_avrcp_get_play_status_rsp_t
- * @brief     avrcp play status response struct.
- */
-typedef struct {
-	uint8_t  bd_addr[6];
-	uint8_t  state;
-	uint8_t  play_status;                     /*!< rtk_bt_avrcp_play_status_t */
-	uint32_t length_ms;
-	uint32_t position_ms;
-} rtk_bt_avrcp_get_play_status_rsp_t;
-
 /* ------------------------------ Functions Declaration ------------------------------ */
 /**
  * @defgroup  bt_avrcp BT AVRCP APIs
@@ -334,26 +122,6 @@ uint16_t rtk_bt_avrcp_connect(uint8_t *bd_addr);
  *            - Others: Error code
  */
 uint16_t rtk_bt_avrcp_disconnect(uint8_t *bd_addr);
-
-/**
- * @brief     send avrcp play status change request.
- * @param[in] bd_addr: bt address
- * @param[in] play_status: play status. ref rtk_bt_avrcp_play_status_t
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_play_status_change_req(uint8_t *bt_addr, uint8_t play_status);
-
-/**
- * @brief     send avrcp play status change register response.
- * @param[in] bd_addr: bt address
- * @param[in] play_status: play status. ref rtk_bt_avrcp_play_status_t
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_play_status_change_reg_rsp(uint8_t *bd_addr, uint8_t play_status);
 
 /**
  * @brief     send avrcp play request.
@@ -455,76 +223,6 @@ uint16_t rtk_bt_avrcp_absolute_volume_set(uint8_t *bd_addr, uint8_t volume);
  *            - Others: Error code
  */
 uint16_t rtk_bt_avrcp_volume_change_req(uint8_t *bd_addr, uint8_t volume);
-
-/**
- * @brief     send element attr get request.
- * @param[in] bd_addr: bt address
- * @param[in] num: attributes number
- * @param[in] p_attr: attr pointer
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_get_element_attr(uint8_t *bd_addr, uint8_t num, uint8_t *p_attr);
-
-/**
- * @brief     request remote bt device to list app setting attributes.
- * @param[in] bd_addr: bt address
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_app_setting_attrs_list(uint8_t *bd_addr);
-
-/**
- * @brief     request remote bt device to list values for attrubute id.
- * @param[in] bd_addr: bt address
- * @param[in] attr_id: attribute id
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_app_setting_values_list(uint8_t *bd_addr, uint8_t attr_id);
-
-/**
- * @brief     send app setting set req.
- * @param[in] bd_addr: bt address
- * @param[in] attr_num: attributes number
- * @param[in] attr_list: attributes id list ref rtk_bt_avrcp_player_app_setting_attr_t
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_app_setting_value_get(uint8_t *bd_addr, uint8_t attr_num, uint8_t *attr_list);
-
-/**
- * @brief     send app setting set req.
- * @param[in] bd_addr: bt address
- * @param[in] attr_id: attributes id ref rtk_bt_avrcp_player_app_setting_attr_t
- * @param[in] setting: setting value ref rtk_bt_avrcp_player_eq_t / rtk_bt_avrcp_player_repeat_mode_t / rtk_bt_avrcp_player_shuffle_mode_t / rtk_bt_avrcp_player_scan_t
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_app_setting_value_set(uint8_t *bd_addr, uint8_t attr_id, uint8_t setting);
-
-/**
- * @brief     send avrcp get play status req.
- * @param[in] bd_addr: bt address
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_get_play_status_req(uint8_t *bd_addr);
-
-/**
- * @brief     send cover art connect.
- * @param[in] bd_addr: bt address
- * @return
- *            - 0  : Succeed
- *            - Others: Error code
- */
-uint16_t rtk_bt_avrcp_cover_art_connect(uint8_t *bd_addr);
 
 /**
  * @}

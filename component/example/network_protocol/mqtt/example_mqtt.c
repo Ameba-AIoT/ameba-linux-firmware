@@ -1,8 +1,14 @@
-#include "lwip_netconf.h"
+/* Standard includes. */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* FreeRTOS includes. */
+
 #include "MQTTClient.h"
-
+#include "wifi_conf.h"
+#include "lwip_netconf.h"
 #define MQTT_SELECT_TIMEOUT 1
-
 static void messageArrived(MessageData *data, void *discard)
 {
 	(void)discard;
@@ -31,8 +37,9 @@ void prvMQTTEchoTask(void *pvParameters)
 	MQTTClientInit(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
 
 	mqtt_printf(MQTT_INFO, "Wait Wi-Fi to be connected.");
-	// Delay to check successful WiFi connection and obtain of an IP address
-	LwIP_Check_Connectivity();
+	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
+		rtos_time_delay_ms(2000);
+	}
 	mqtt_printf(MQTT_INFO, "Wi-Fi connected.");
 
 	mqtt_printf(MQTT_INFO, "Connect Network \"%s\"", address);
@@ -128,8 +135,10 @@ static void prvMQTTTask(void *pvParameters)
 	MQTTClientInit(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
 
 	while (1) {
-		// Delay to check successful WiFi connection and obtain of an IP address
-		LwIP_Check_Connectivity();
+		while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
+			mqtt_printf(MQTT_INFO, "Wait Wi-Fi to be connected.");
+			rtos_time_delay_ms(2000);
+		}
 
 		fd_set read_fds;
 		fd_set except_fds;
@@ -160,9 +169,9 @@ static void prvMQTTTask(void *pvParameters)
 }
 #endif
 
-void vStartMQTTTasks(uint16_t usTaskStackSize, uint32_t uxTaskPriority)
+void vStartMQTTTasks(uint16_t usTaskStackSize, UBaseType_t uxTaskPriority)
 {
-	uint32_t x = 0L;
+	BaseType_t x = 0L;
 	printf("\nExample: Mqtt \n");
 #if defined(MQTT_TASK)
 	rtos_task_create(NULL, "MQTTTask", prvMQTTTask, (void *)x, usTaskStackSize * 4, uxTaskPriority);

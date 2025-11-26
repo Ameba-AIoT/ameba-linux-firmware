@@ -6,13 +6,31 @@
 
 #include "ameba_soc.h"
 #include "ameba_system.h"
+#include "FreeRTOS.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
 
+#if defined ( __ICCARM__ )
+#pragma section=".ram_image2.bss"
+#pragma section="NOCACHE_DATA"
 
-extern void newlib_locks_init(void);
+SECTION(".data") u8 *__bss_start__ = 0;
+SECTION(".data") u8 *__bss_end__ = 0;
+SECTION(".data") u8 *__ram_nocache_start__ = 0;
+SECTION(".data") u8 *__ram_nocache_end__ = 0;
+#endif
+
 extern int main(void);
 extern void SOCPS_WakeFromPG(void);
+void app_section_init(void)
+{
+#if defined ( __ICCARM__ )
+	__bss_start__               = (u8 *)__section_begin(".ram_image2.bss");
+	__bss_end__                 = (u8 *)__section_end(".ram_image2.bss");
+	__ram_nocache_start__       = (u8 *)__section_begin("NOCACHE_DATA");
+	__ram_nocache_end__         = (u8 *)__section_end("NOCACHE_DATA");
+#endif
+}
 
 //set all KM0 rom & ram no-cachable, just flash cachable
 //KM0 have 4 mpu entrys
@@ -76,6 +94,8 @@ void app_start_autoicg(void)
 // The Main App entry point
 void app_start(void)
 {
+
+	app_section_init();
 	_memset((void *) __bss_start__, 0, (__bss_end__ - __bss_start__));
 	/* 1. Redirect hardfault for debug, and register function pointer to print task information when a crash occurs */
 	Fault_Hanlder_Redirect(vTaskCrashCallback);
@@ -90,7 +110,6 @@ void app_start(void)
 	SYSTIMER_Init(); /* 0.2ms */
 
 	//app_start_autoicg();
-	newlib_locks_init();
 
 	/* 5. MPU init*/
 	mpu_init();
@@ -98,7 +117,7 @@ void app_start(void)
 	app_mpu_nocache_init();
 	/* Force SP align to 8bytes */
 	__asm(
-		"ldr r1, =#0xFFFFFFF8\n"
+		"ldr r1, =#0xFFFFFF80\n"
 		"mov r0, sp \n"
 		"and r0, r0, r1\n"
 		"mov sp, r0\n"

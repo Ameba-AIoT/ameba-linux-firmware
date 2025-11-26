@@ -30,7 +30,7 @@
 #endif
 
 #include "platform_stdlib.h"
-
+#include "basic_types.h"
 #include "iperf.h"
 #include "units.h"
 
@@ -111,7 +111,7 @@ units_thread(void *param)
 
 void example_units(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"units_thread"), units_thread, NULL, 524 * 4, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"units_thread"), units_thread, NULL, 524 * 4, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create(units_thread) failed", __FUNCTION__);
 	}
 	return;

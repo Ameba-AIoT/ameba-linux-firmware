@@ -5,6 +5,5 @@
 #include "basic_types.h"
 
 u32 example_track_test(u16 argc, u8 *argv[]);
-u32 example_track_control_test(u16 argc, u8 *argv[]);
 
 #endif

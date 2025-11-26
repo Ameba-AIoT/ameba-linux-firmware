@@ -7,16 +7,22 @@
 #ifndef ATCMD_SERVICE_H
 #define ATCMD_SERVICE_H
 
+#include "platform_autoconf.h"
+#include "dlist.h"
 /*
  * Include user defined options first. Anything not defined in these files
  * will be set to standard values. Override anything you dont like!
  */
-#include "dlist.h"
-#include "ameba_soc.h"
+#include "basic_types.h"
+#include "diag.h"
 #include "os_wrapper.h"
 
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
-#include "ringbuffer.h"
+#include "atcmd_sys.h"
+#include "atcmd_lwip.h"
+#if defined(CONFIG_BT) && CONFIG_BT
+#if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
+#include "atcmd_bt_mp.h"
+#endif
 #endif
 
 #define ATC_INDEX_NUM 32
@@ -37,92 +43,27 @@ void atcmd_service_add_table(log_item_t *tbl, int len);
 int parse_param(char *buf, char **argv);
 int parse_param_advance(char *buf, char **argv);
 
-int atcmd_tt_mode_start(u32 len);
-int atcmd_tt_mode_get(u8 *buf, u32 len);
-void atcmd_tt_mode_end(void);
-
-int at_printf_data(char *data, u32 len);
-void at_printf_lock(void);
-void at_printf_unlock(void);
-
-#define MAX_TT_BUF_LEN 1024 * 10
-#define MAX_TT_HEAP_SIZE 1024 * 80
-#define TT_MODE_HIGH_WATERMARK 0.7
-#define TT_MODE_LOW_WATERMARK 0.2
-#define ATCMD_HOST_CONTROL_INIT_STR "ATCMD READY\r\n"
-#define ATCMD_OK_END_STR 		"\r\nOK\r\n"
-#define ATCMD_ERROR_END_STR 	"\r\nERROR: %d\r\n"
-#define ATCMD_ENTER_TT_MODE_STR	">>>\r\n"
-#define ATCMD_EXIT_TT_MODE_STR	"<<<\r\n"
-#define ATCMD_TT_MODE_HIGH_WATERMARK_STR	"[$][TT]:High Watermark\r\n"
-#define ATCMD_TT_MODE_LOW_WATERMARK_STR	"[$][TT]:Low Watermark\r\n"
-#define ATCMD_DOWNSTREAM_TEST_START_STR "Downstream Test Start\r\n"
-#define ATCMD_DOWNSTREAM_TEST_END_STR "Downstream Test End\r\n"
-#define SMALL_BUF               512
-#define MAX_BUF_LEN             20000
-
-#ifdef CONFIG_ATCMD_HOST_CONTROL
-extern char g_host_control_mode;
-extern char g_tt_mode;
-extern char g_tt_mode_check_watermark;
-extern char g_tt_mode_indicate_high_watermark;
-extern char g_tt_mode_indicate_low_watermark;
-extern RingBuffer *atcmd_tt_mode_rx_ring_buf;
-extern rtos_sema_t atcmd_tt_mode_sema;
-extern volatile char g_tt_mode_stop_flag;
-extern volatile u8 g_tt_mode_stop_char_cnt;
-extern rtos_timer_t xTimers_TT_Mode;
-#endif
-
-extern char pin_name[5];
-#define PIN_VAL_TO_NAME_STR(val) \
-	({ \
-		if (val < 0x20) { \
-			snprintf(pin_name, 5, "%s%d", "PA", val); \
-		} else if (val < 0x40) { \
-			snprintf(pin_name, 5, "%s%d", "PB", val - 0x20); \
-		} else if (val < 0x60) { \
-			snprintf(pin_name, 5, "%s%d", "PC", val - 0x40); \
-		} \
-		pin_name;\
-	})
-
-typedef enum {
-	CLIENT_CA = 0,
-	CLIENT_CERT,
-	CLIENT_KEY,
-	SERVER_CA,
-	SERVER_CERT,
-	SERVER_KEY,
-} CERT_TYPE;
-
-enum {
-	AT_HOST_CONTROL_UART = 1,
-	AT_HOST_CONTROL_SPI,
-	AT_HOST_CONTROL_SDIO,
-};
-
-int atcmd_get_ssl_certificate(char *buffer, CERT_TYPE cert_type, int index);
-int atcmd_get_ssl_certificate_size(CERT_TYPE cert_type, int index);
+#define C_NUM_AT_CMD			4 //"ATxx", 4 characters
+#define C_NUM_AT_CMD_DLT		1 //"=", 1 charater
+#define STR_END_OF_ATCMD_RET	"\r\n\n# " //each AT command response will end with this string
+#define STR_END_OF_ATDATA_RET	"\r\n\n> " //data transparent transmission indicator
+#define SMALL_BUF               128
+#define BIG_BUF                 1024
 
 /* TODO */
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
+#ifdef CONFIG_ATCMD_IO_UART
 typedef void (*at_write)(char *buf, int len);
 extern uint16_t atcmd_switch;
 extern char global_buf[SMALL_BUF];
 extern at_write out_buffer;
 int at_printf(const char *fmt, ...);
-int at_printf_indicate(const char *fmt, ...);
 #else
-#define at_printf(fmt, args...)    RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, fmt, ##args)
-#define at_printf_indicate(fmt, args...) \
-		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "[$]");\
-		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, fmt, ##args)
+#define at_printf(fmt, args...)    RTK_LOGS(NOTAG, fmt, ##args)
 #endif
 
 #ifdef CONFIG_MP_INCLUDED
 #ifdef CONFIG_AS_INIC_AP
-extern void whc_ipc_host_api_mp_command(char *token, unsigned int cmd_len, int show_msg);
+extern void inic_mp_command(char *token, unsigned int cmd_len, int show_msg);
 #else
 extern int wext_private_command(char *cmd, int show_msg, char *user_buf);
 #endif

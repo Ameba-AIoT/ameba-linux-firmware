@@ -5,8 +5,8 @@
  */
 
 #include "osif.h"
-#include "hci_if_rtk.h"
-#include "hci_transport.h"
+#include "hci/hci_if_rtk.h"
+#include "hci/hci_transport.h"
 #include "hci_uart.h"
 #include "hci_platform.h"
 #include "bt_debug.h"
@@ -19,57 +19,142 @@
 #define HCI_IF_TASK_SIZE    (2*1024)
 #define HCI_IF_TASK_PRIO    (5)
 
-
-#define HCI_IF_TASK_CLOSED 0
-#define HCI_IF_TASK_RUNNING 1
-#define HCI_IF_TASK_CLOSING 2
+#define FLAG_BUF_FROM_STACK (1<<0)
+#define FLAG_HCI_TASK_EXIT (1<<1)
 
 struct tx_packet_t {
 	struct list_head list;
 	uint8_t *buf;
 	uint32_t len;
+	uint8_t flag;
 };
 
 static struct {
 	HCI_IF_CALLBACK cb;
-	uint8_t state;
+	bool task_running;
+	uint32_t task_msg_num;
 	struct list_head tx_list;
 	void *tx_ind_sem;
 	void *tx_list_mtx;
 	void *task_hdl;
+	void *internal_cmd;
+	uint32_t internal_cmd_cnt;
 } hci_if_rtk;
 
-static void rtk_stack_recv(struct hci_rx_packet_t *pkt)
+static uint8_t _rx_offset(uint8_t type)
 {
-	uint8_t *buf, offset = H4_HDR_LEN;
+	uint8_t offset = H4_HDR_LEN;
 
-	if (!pkt || !hci_if_rtk.cb) {
-		return;
-	}
-
-	if (pkt->type == HCI_ACL || pkt->type == HCI_ISO) {
+	if (type == HCI_ACL || type == HCI_ISO) {
 		offset += HCI_H4_RX_ACL_PKT_BUF_OFFSET;
-	} else if (pkt->type == HCI_SCO) {
+	} else if (type == HCI_SCO) {
 		offset += HCI_H4_RX_SCO_PKT_BUF_OFFSET;
 	}
 
-	buf = (uint8_t *)osif_mem_aligned_alloc(RAM_TYPE_DATA_ON, pkt->len + offset, 4);
+	return offset;
+}
 
-	memset(buf, 0, offset);
-	buf[0] = pkt->type;
-	memcpy(buf + offset, pkt->buf, pkt->len);
+static uint16_t new_packet_buflen = 0;
+static uint8_t *new_packet_buf = NULL;
+
+static uint8_t *rtk_stack_get_buf(uint8_t type, void *hdr, uint16_t len, uint32_t timeout)
+{
+	(void)timeout;
+	(void)hdr;
+	uint8_t *buf = NULL;
+	uint8_t offset = _rx_offset(type);
+
+	new_packet_buflen = len + offset;
+
+	buf = (uint8_t *)osif_mem_aligned_alloc(RAM_TYPE_DATA_ON, new_packet_buflen, 4);
+	memset(buf, 0, new_packet_buflen);
+	buf[0] = type;
+
+	new_packet_buf = buf;
+
+	return buf + offset;
+}
+
+static void rtk_stack_cancel(void)
+{
+	osif_mem_aligned_free(new_packet_buf);
+	new_packet_buf = NULL;
+}
+
+static void rtk_stack_recv(void)
+{
+	uint16_t opcode, opcode_i;
+	uint8_t *buf = new_packet_buf;
+
+	if (!buf || !hci_if_rtk.cb) {
+		return;
+	}
+
+	/* Hci event format: type, evt, len, ncmd, opcode_l, opcode_h */
+	if (hci_if_rtk.internal_cmd_cnt) {
+		if (*buf == HCI_EVT && *(buf + 1) == BT_HCI_EVT_CMD_COMPLETE) {
+			LE_TO_UINT16(opcode, buf + 4);
+			osif_msg_peek(hci_if_rtk.internal_cmd, &opcode_i, BT_TIMEOUT_NONE);
+			if (opcode == opcode_i) { /* event for internal hci command, no need send to stack */
+				osif_msg_recv(hci_if_rtk.internal_cmd, &opcode_i, BT_TIMEOUT_NONE);
+				osif_msg_queue_peek(hci_if_rtk.internal_cmd, &hci_if_rtk.internal_cmd_cnt);
+				osif_mem_aligned_free(buf);
+				new_packet_buf = NULL;
+				return;
+			}
+		}
+	}
 
 	/* If indicate OK, stack will call hci_if_confirm when process of the packet is completed. */
-	if (!hci_if_rtk.cb(HCI_IF_EVT_DATA_IND, true, buf, pkt->len + offset)) {
+	if (!hci_if_rtk.cb(HCI_IF_EVT_DATA_IND, true, buf, new_packet_buflen)) {
 		osif_mem_aligned_free(buf);
+		new_packet_buf = NULL;
 	}
 }
 
 static struct hci_transport_cb rtk_stack_cb = {
+	.get_buf = rtk_stack_get_buf,
 	.recv = rtk_stack_recv,
+	.cancel = rtk_stack_cancel,
 };
 
-static void _hci_if_send(uint8_t *buf, uint32_t len)
+static void _hci_if_open_indicate(void)
+{
+	if (hci_if_rtk.cb) {
+		hci_if_rtk.cb(HCI_IF_EVT_OPENED, true, NULL, 0);
+	}
+	BT_LOGA("Start upper stack\r\n");
+}
+
+
+static bool _hci_if_open(void)
+{
+	if (!hci_controller_enable()) {
+		return false;
+	}
+
+	if (!hci_is_mp_mode()) {
+		/* HCI Transport Bridge to RTK Stack */
+		hci_transport_register(&rtk_stack_cb);
+	}
+
+	_hci_if_open_indicate();
+
+	return true;
+}
+
+static bool _hci_if_close(void)
+{
+	hci_controller_disable();
+
+	if (hci_if_rtk.cb) {
+		hci_if_rtk.cb(HCI_IF_EVT_CLOSED, true, NULL, 0);
+	}
+
+	return true;
+}
+
+static void _hci_if_send(uint8_t *buf, uint32_t len, bool from_stack)
 {
 	uint16_t offset = H4_HDR_LEN;
 	if (HCI_ACL == buf[0] || HCI_ISO == buf[0]) {
@@ -77,26 +162,38 @@ static void _hci_if_send(uint8_t *buf, uint32_t len)
 	}
 
 	hci_transport_send(buf[0], buf + offset, len - offset, true);
-	if (hci_if_rtk.cb) {
-		hci_if_rtk.cb(HCI_IF_EVT_DATA_XMIT, true, buf, len);
+	if (from_stack) {
+		if (hci_if_rtk.cb) {
+			hci_if_rtk.cb(HCI_IF_EVT_DATA_XMIT, true, buf, len);
+		}
 	}
 }
 
-static bool _tx_list_add(uint8_t *buf, uint32_t len)
+static bool _tx_list_add(uint8_t *buf, uint32_t len, uint8_t flag)
 {
 	bool ret = false;
+	uint32_t flags;
 	struct tx_packet_t *pkt = NULL;
 
-	/* buf == NULL is exit flag */
-	if (hci_if_rtk.state != HCI_IF_TASK_RUNNING && buf) {
+	flags = osif_lock();
+	hci_if_rtk.task_msg_num++;
+	osif_unlock(flags);
+
+	if (!hci_if_rtk.task_running && flag != FLAG_HCI_TASK_EXIT) {
 		goto end;
 	}
 
-	pkt = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct tx_packet_t));
+	if (flag) {
+		pkt = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct tx_packet_t));
+	} else {
+		pkt = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct tx_packet_t) + len);
+	}
 
 	if (!pkt) {
-		if (hci_if_rtk.cb) {
-			hci_if_rtk.cb(HCI_IF_EVT_DATA_XMIT, false, buf, len);
+		if (flag & FLAG_BUF_FROM_STACK) {
+			if (hci_if_rtk.cb) {
+				hci_if_rtk.cb(HCI_IF_EVT_DATA_XMIT, false, buf, len);
+			}
 		}
 		BT_LOGE("pkt alloc fail!\r\n");
 		goto end;
@@ -104,6 +201,18 @@ static bool _tx_list_add(uint8_t *buf, uint32_t len)
 
 	pkt->buf = buf;
 	pkt->len = len;
+	pkt->flag = flag;
+
+	if (!(flag & FLAG_BUF_FROM_STACK) && buf) { /* internal hci tx */
+		uint16_t opcode;
+		pkt->buf = (uint8_t *)pkt + sizeof(struct tx_packet_t);
+		memcpy(pkt->buf, buf, len);
+		if (*buf == HCI_CMD) {
+			LE_TO_UINT16(opcode, buf + 1);
+			osif_msg_send(hci_if_rtk.internal_cmd, &opcode, BT_TIMEOUT_NONE);
+			osif_msg_queue_peek(hci_if_rtk.internal_cmd, &hci_if_rtk.internal_cmd_cnt);
+		}
+	}
 
 	osif_mutex_take(hci_if_rtk.tx_list_mtx, BT_TIMEOUT_FOREVER);
 	list_add_tail(&pkt->list, &hci_if_rtk.tx_list);
@@ -113,12 +222,19 @@ static bool _tx_list_add(uint8_t *buf, uint32_t len)
 	ret = true;
 
 end:
+	flags = osif_lock();
+	hci_if_rtk.task_msg_num--;
+	osif_unlock(flags);
 	return ret;
 }
 
 static void hci_if_task(void *context)
 {
 	(void)context;
+
+	if (!_hci_if_open()) {
+		return;
+	}
 
 	while (true) {
 		osif_sem_take(hci_if_rtk.tx_ind_sem, BT_TIMEOUT_FOREVER);
@@ -136,17 +252,18 @@ static void hci_if_task(void *context)
 				break;
 			}
 
-			if (!pkt->buf) {
+			if (pkt->flag & FLAG_HCI_TASK_EXIT) {
+				osif_mem_free(pkt);
+				_hci_if_close();
 				goto out;
 			}
 
-			_hci_if_send(pkt->buf, pkt->len);
+			_hci_if_send(pkt->buf, pkt->len, pkt->flag & FLAG_BUF_FROM_STACK);
 			osif_mem_free(pkt);
 		}
 	}
 
 out:
-	hci_if_rtk.state = HCI_IF_TASK_CLOSED;
 	osif_task_delete(NULL);
 }
 
@@ -154,16 +271,8 @@ bool hci_if_open(HCI_IF_CALLBACK callback)
 {
 	if (hci_controller_is_enabled()) {
 		BT_LOGD("Hci Driver Already Open!\r\n");
-		goto end;
-	}
-
-	if (!hci_controller_enable()) {
-		return false;
-	}
-
-	if (!hci_is_mp_mode()) {
-		/* HCI Transport Bridge to RTK Stack */
-		hci_transport_register(&rtk_stack_cb);
+		_hci_if_open_indicate();
+		return true;
 	}
 
 	memset(&hci_if_rtk, 0, sizeof(hci_if_rtk));
@@ -171,17 +280,10 @@ bool hci_if_open(HCI_IF_CALLBACK callback)
 	INIT_LIST_HEAD(&hci_if_rtk.tx_list);
 	osif_sem_create(&hci_if_rtk.tx_ind_sem, 0, 1);
 	osif_mutex_create(&hci_if_rtk.tx_list_mtx);
+	osif_msg_queue_create(&hci_if_rtk.internal_cmd, 10, sizeof(uint16_t));
 	osif_task_create(&hci_if_rtk.task_hdl, "hci_if_task", hci_if_task,
 					 0, HCI_IF_TASK_SIZE, HCI_IF_TASK_PRIO);
-	hci_if_rtk.state = HCI_IF_TASK_RUNNING;
-
-end:
-	/* Upperstack will call hci_if_write immediately after this OPEN cb.
-	 * Therefore, please make sure hci_if_write is ready here. */
-	if (hci_if_rtk.cb) {
-		hci_if_rtk.cb(HCI_IF_EVT_OPENED, true, NULL, 0);
-	}
-	BT_LOGA("Start upper stack\r\n");
+	hci_if_rtk.task_running = true;
 	return true;
 }
 
@@ -191,23 +293,22 @@ bool hci_if_close(void)
 		return true;
 	}
 
-	hci_if_rtk.state = HCI_IF_TASK_CLOSING;
+	hci_if_rtk.task_running = false;
 
-	_tx_list_add(NULL, 0);
-
-	while (hci_if_rtk.state != HCI_IF_TASK_CLOSED) {
+	/* Waiting _tx_list_add() on other tasks interrupted by deinit task to complete */
+	while (hci_if_rtk.task_msg_num) {
 		osif_delay(5);
 	}
 
-	hci_controller_disable();
+	_tx_list_add(NULL, 0, FLAG_HCI_TASK_EXIT);
+
+	while (hci_controller_is_enabled()) {
+		osif_delay(5);
+	}
 
 	osif_sem_delete(hci_if_rtk.tx_ind_sem);
 	osif_mutex_delete(hci_if_rtk.tx_list_mtx);
-
-	if (hci_if_rtk.cb) {
-		hci_if_rtk.cb(HCI_IF_EVT_CLOSED, true, NULL, 0);
-	}
-
+	osif_msg_queue_delete(hci_if_rtk.internal_cmd);
 	return true;
 }
 
@@ -222,10 +323,16 @@ void hci_if_deinit(void)
 	hci_controller_free();
 }
 
+/* Internal tx use, do not indicate to stack when tx done */
+bool hci_if_write_internal(uint8_t *buf, uint32_t len)
+{
+	return _tx_list_add(buf, len, 0);
+}
+
 /* Stack tx use, indicate to stack when tx done */
 bool hci_if_write(uint8_t *buf, uint32_t len)
 {
-	return _tx_list_add(buf, len);
+	return _tx_list_add(buf, len, FLAG_BUF_FROM_STACK);
 }
 
 bool hci_if_confirm(uint8_t *buf)

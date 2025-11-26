@@ -240,9 +240,8 @@ _LONG_CALL_ u32 XTAL_ClkGet(void);
 _LONG_CALL_ void PLL_I2S_Div(int Sportx, u32 div);
 _LONG_CALL_ void PLL_I2S_98P304M(u32 NewState);
 _LONG_CALL_ void PLL_I2S_45P158M(u32 NewState);
-_LONG_CALL_ float PLL_I2S_98P304M_ClkTune(u32 pll_sel, float ppm, u32 action);
-_LONG_CALL_ float PLL_I2S_45P158M_ClkTune(u32 pll_sel, float ppm, u32 action);
-_LONG_CALL_ u32 PLL_NP_ClkGet(void);
+_LONG_CALL_ float PLL_I2S_98P304M_ClkTune(float ppm, u32 action);
+_LONG_CALL_ float PLL_I2S_45P158M_ClkTune(float ppm, u32 action);
 _LONG_CALL_ void PLL_NP_ClkSet(u32 PllClk);
 _LONG_CALL_ void PLL_NP(u32 NewState);
 _LONG_CALL_ void PLL_AP_ClkSet(u32 PllClk);
@@ -257,7 +256,6 @@ _LONG_CALL_ void PLL_AP_ClkTune(u32 Option);
   * @{
   */
 _LONG_CALL_ void HBUS_ClkSet(u32 Source);
-_LONG_CALL_ u32 PLL_GetHBUSClk(void);
 /**
   * @}
   */

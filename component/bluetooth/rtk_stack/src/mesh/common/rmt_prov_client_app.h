@@ -24,15 +24,11 @@ BEGIN_DECLS
  */
 
 /**
- * @defgroup RMT_PROV_CLIENT_APP_FUNCTIONS Exported Functions
- * @{
- */
-/**
  * @brief initialize remote provision client model
  */
 void rmt_prov_client_init(void);
 /** @} */
-/** @} */
+
 
 END_DECLS
 

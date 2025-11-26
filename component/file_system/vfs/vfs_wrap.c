@@ -253,6 +253,7 @@ int __wrap_remove(const char *filename)
 	}
 
 	int ret = 0;
+	char name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(filename, &prefix_len, &user_id);
@@ -266,12 +267,6 @@ int __wrap_remove(const char *filename)
 		return -1;
 	}
 
-	char *name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -279,13 +274,12 @@ int __wrap_remove(const char *filename)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(name, PATH_MAX, "%s%s", temp, filename + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s%s", temp, filename + prefix_len);
 	} else {
-		DiagSnPrintf(name, PATH_MAX, "%s", filename + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s", filename + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->remove(name);
-	rtos_mem_free(name);
 	return ret;
 }
 
@@ -297,6 +291,8 @@ int __wrap_rename(const char *oldname, const char *newname)
 	}
 
 	int ret = 0;
+	char old_name[1024] = {0};
+	char new_name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(oldname, &prefix_len, &user_id);
@@ -310,20 +306,6 @@ int __wrap_rename(const char *oldname, const char *newname)
 		return -1;
 	}
 
-	char *old_name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	char *new_name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (old_name == NULL || new_name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		if (old_name) {
-			rtos_mem_free(old_name);
-		}
-
-		if (new_name) {
-			rtos_mem_free(new_name);
-		}
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -331,16 +313,14 @@ int __wrap_rename(const char *oldname, const char *newname)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(old_name, PATH_MAX, "%s%s", temp, oldname + prefix_len);
-		DiagSnPrintf(new_name, PATH_MAX, "%s%s", temp, newname + prefix_len);
+		DiagSnPrintf(old_name, sizeof(old_name), "%s%s", temp, oldname + prefix_len);
+		DiagSnPrintf(new_name, sizeof(new_name), "%s%s", temp, newname + prefix_len);
 	} else {
-		DiagSnPrintf(old_name, PATH_MAX, "%s", oldname + prefix_len);
-		DiagSnPrintf(new_name, PATH_MAX, "%s", newname + prefix_len);
+		DiagSnPrintf(old_name, sizeof(old_name), "%s", oldname + prefix_len);
+		DiagSnPrintf(new_name, sizeof(new_name), "%s", newname + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->rename(old_name, new_name);
-	rtos_mem_free(new_name);
-	rtos_mem_free(old_name);
 	return ret;
 }
 
@@ -377,11 +357,11 @@ long int __wrap_ftell(FILE *stream)
 	return ret;
 }
 
-int __wrap_ftruncate(int stream, off_t length)
+long int __wrap_ftruncate(FILE *stream, off_t length)
 {
 	int ret = 0;
 	vfs_file *finfo = (vfs_file *)stream;
-	if (is_stdio((FILE *)stream)) {
+	if (is_stdio(stream)) {
 		return -1;
 	}
 
@@ -449,11 +429,7 @@ DIR *__wrap_opendir(const char *name)
 		DiagSnPrintf(finfo->name, sizeof(finfo->name), "%s", name + prefix_len);
 	}
 
-	int ret = vfs.drv[vfs_id]->opendir(finfo->name, finfo);
-	if (ret != 0) {
-		free(finfo);
-		finfo = NULL;
-	}
+	vfs.drv[vfs_id]->opendir(finfo->name, finfo);
 	return (DIR *)finfo;
 }
 
@@ -493,6 +469,7 @@ int __wrap_rmdir(const char *path)
 	}
 
 	int ret = 0;
+	char name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(path, &prefix_len, &user_id);
@@ -506,12 +483,6 @@ int __wrap_rmdir(const char *path)
 		return -1;
 	}
 
-	char *name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -519,13 +490,12 @@ int __wrap_rmdir(const char *path)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(name, PATH_MAX, "%s%s", temp, path + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s%s", temp, path + prefix_len);
 	} else {
-		DiagSnPrintf(name, PATH_MAX, "%s", path + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s", path + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->rmdir(name);
-	rtos_mem_free(name);
 	return ret;
 }
 
@@ -538,6 +508,7 @@ int __wrap_mkdir(const char *pathname, mode_t mode)
 
 	(void) mode;
 	int ret = 0;
+	char name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(pathname, &prefix_len, &user_id);
@@ -551,12 +522,6 @@ int __wrap_mkdir(const char *pathname, mode_t mode)
 		return -1;
 	}
 
-	char *name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -564,13 +529,12 @@ int __wrap_mkdir(const char *pathname, mode_t mode)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(name, PATH_MAX, "%s%s", temp, pathname + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s%s", temp, pathname + prefix_len);
 	} else {
-		DiagSnPrintf(name, PATH_MAX, "%s", pathname + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s", pathname + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->mkdir(name);
-	rtos_mem_free(name);
 	return ret;
 }
 
@@ -582,6 +546,7 @@ int __wrap_access(const char *pathname, int mode)
 	}
 
 	int ret = 0;
+	char name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(pathname, &prefix_len, &user_id);
@@ -589,13 +554,6 @@ int __wrap_access(const char *pathname, int mode)
 		VFS_DBG(VFS_ERROR, "It can't find the file system");
 		return -1;
 	}
-
-	char *name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -603,13 +561,12 @@ int __wrap_access(const char *pathname, int mode)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(name, PATH_MAX, "%s%s", temp, pathname + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s%s", temp, pathname + prefix_len);
 	} else {
-		DiagSnPrintf(name, PATH_MAX, "%s", pathname + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s", pathname + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->access(name, mode);
-	rtos_mem_free(name);
 	return ret;
 }
 
@@ -621,6 +578,7 @@ int __wrap_stat(const char *path, struct stat *buf)
 	}
 
 	int ret = 0;
+	char name[1024] = {0};
 	int prefix_len = 0;
 	int user_id = 0;
 	int vfs_id = find_vfs_number(path, &prefix_len, &user_id);
@@ -628,13 +586,6 @@ int __wrap_stat(const char *path, struct stat *buf)
 		VFS_DBG(VFS_ERROR, "It can't find the file system");
 		return -1;
 	}
-
-	char *name = (char *)rtos_mem_zmalloc(PATH_MAX);
-	if (name == NULL) {
-		VFS_DBG(VFS_ERROR, "Malloc failed");
-		return -1;
-	}
-
 	if (vfs.drv[vfs_id]->vfs_type == VFS_FATFS) {
 		int drv_id = 0;
 		drv_id = vfs.drv[vfs_id]->get_interface(vfs.user[user_id].vfs_interface_type);
@@ -642,12 +593,11 @@ int __wrap_stat(const char *path, struct stat *buf)
 		temp[0] = drv_id + '0';
 		temp[1] = ':';
 		temp[2] = '/';
-		DiagSnPrintf(name, PATH_MAX, "%s%s", temp, path + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s%s", temp, path + prefix_len);
 	} else {
-		DiagSnPrintf(name, PATH_MAX, "%s", path + prefix_len);
+		DiagSnPrintf(name, sizeof(name), "%s", path + prefix_len);
 	}
 
 	ret = vfs.drv[vfs_id]->stat(name, buf);
-	rtos_mem_free(name);
 	return ret;
 }

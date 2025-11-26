@@ -13,12 +13,11 @@
  * limitations under the License.
  */
 
-#ifndef AMEBA_AUDIO_AUDIO_HAL_AMEBASMART_AUDIO_HW_OSAL_ERRNOS_H
-#define AMEBA_AUDIO_AUDIO_HAL_AMEBASMART_AUDIO_HW_OSAL_ERRNOS_H
-
-#include <errno.h>
+#ifndef AMEBA_COMPONENT_AUDIO_HAL_SRC_INCLUDE_HAL_OSAL_ERRNOS_H
+#define AMEBA_COMPONENT_AUDIO_HAL_SRC_INCLUDE_HAL_OSAL_ERRNOS_H
 
 #include "audio_hw_compat.h"
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,4 +51,4 @@ enum {
 }
 #endif
 
-#endif // AMEBA_AUDIO_AUDIO_HAL_AMEBASMART_AUDIO_HW_OSAL_ERRNOS_H
+#endif // AMEBA_COMPONENT_AUDIO_HAL_SRC_INCLUDE_HAL_OSAL_ERRNOS_H

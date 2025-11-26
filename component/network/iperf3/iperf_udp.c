@@ -31,7 +31,9 @@
 #endif
 #include <sys/time.h>
 
-#include "lwip_netconf.h" //realtek add
+#include "lwipconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
 
 #include "iperf.h"
 #include "iperf_api.h"
@@ -39,7 +41,7 @@
 #include "iperf_udp.h"
 #include "timer.h"
 #include "net.h"
-#include "cJSON.h"
+#include <cJSON.h>
 #include "portable_endian.h"
 
 /* iperf_udp_recv

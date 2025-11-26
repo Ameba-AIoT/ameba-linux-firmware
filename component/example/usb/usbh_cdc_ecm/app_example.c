@@ -1,9 +1,8 @@
-/*
- * Copyright (c) 2024 Realtek Semiconductor Corp.
- *
- * SPDX-License-Identifier: Apache-2.0
- */
-
+/******************************************************************************
+*
+* Copyright(c) 2007 - 2023 Realtek Corporation. All rights reserved.
+*
+******************************************************************************/
 #include "example_usbh_cdc_ecm.h"
 
 void app_example(void)

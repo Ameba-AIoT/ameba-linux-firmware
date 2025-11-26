@@ -10,7 +10,6 @@
 #include <bt_utils.h>
 #include <rtk_bt_vendor.h>
 #include <rtk_bt_le_gap.h>
-#include <rtk_bt_device.h>
 #include <osif.h>
 #include <bt_api_config.h>
 #include <atcmd_bt_impl.h>
@@ -68,62 +67,6 @@ static uint32_t cmd_string2uint32(char *p)
 	return (result);
 }
 
-rtk_bt_app_conf_t app_conf = {
-	.app_profile_support = RTK_BT_PROFILE_GATTS,
-	.mtu_size = 180,
-#if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
-	.prefer_all_phy = RTK_BT_LE_PHYS_PREFER_ALL,
-	.prefer_tx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED,
-	.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED,
-#endif
-	.max_tx_octets = 0x40,
-	.max_tx_time = 0x200,
-};
-
-int atcmd_bt_enable(int argc, char *argv[])
-{
-	(void)argc;
-	int en = str_to_int(argv[0]);
-	if (1 == en) {
-		if (RTK_BT_FAIL == rtk_bt_enable(&app_conf)) {
-			BT_LOGE("BT enable failed!\r\n");
-			return -1;
-		}
-
-		BT_LOGA("BT enable OK!\r\n");
-	} else if (0 == en) {
-		if (RTK_BT_FAIL == rtk_bt_disable()) {
-			BT_LOGE("BT disable failed!\r\n");
-			return -1;
-		}
-
-		BT_LOGA("BT disable OK!\r\n");
-	} else {
-		BT_LOGE("BT input wrong args!\r\n");
-		return -1;
-	}
-
-	return 0;
-}
-
-int atcmd_bt_power(int argc, char *argv[])
-{
-	(void)argc;
-	int en = str_to_int(argv[0]);
-	if (1 == en) {
-		rtk_bt_controller_power_on();
-		BT_LOGA("BT power on OK!\r\n");
-	} else if (0 == en) {
-		rtk_bt_controller_power_off();
-		BT_LOGA("BT power off OK!\r\n");
-	} else {
-		BT_LOGE("BT input wrong args!\r\n");
-		return -1;
-	}
-
-	return 0;
-}
-
 int atcmd_bt_tx_power_gain(int argc, char *argv[])
 {
 	uint32_t index = 0;
@@ -149,7 +92,7 @@ int atcmd_bt_tx_power_gain(int argc, char *argv[])
 
 	rtk_bt_set_bt_tx_power_gain_index(index);
 
-	BT_LOGA("Set tx power gain 0x%08x OK!\r\n", index);
+	BT_LOGA("Set tx power gain 0x%lx OK!\r\n", index);
 
 	return 0;
 }
@@ -166,90 +109,36 @@ int atcmd_bt_hci_debug_enable(int argc, char *argv[])
 	return 0;
 }
 
-int atcmd_bt_debug_port(int argc, char *argv[])
+int atcmd_bt_sleep_mode(int argc, char *argv[])
 {
-	uint8_t bt_sel = 0;  // 0: bt vendor; 1: bt on
-	uint8_t type = 0;
-	uint32_t bt_bdg_mask = 0;
-	uint8_t original = 0;
-	uint8_t mapping = 0;
+	(void)argc;
 
-	uint8_t bt_dbg_port = 0;
-	char *pad = NULL;
+	unsigned int mode = (unsigned int)str_to_int(argv[0]);
 
-	if (argc < 3 && argc > 5) {
-		BT_LOGE("Set bt debug port fail, wrong parameter number!\r\n");
-		return 0;
-	}
+	BT_LOGA("Set BT sleep mode to 0x%x.\r\n", mode);
 
-	if (strcmp("enable", argv[0]) == 0) {
-		if (strcmp("bt_vendor", argv[1]) == 0) {
-			bt_sel = 0;
-		} else if (strcmp("bt_on", argv[1]) == 0) {
-			bt_sel = 1;
-		}
+	rtk_bt_sleep_mode(mode);
 
-		type = (uint8_t)str_to_int(argv[2]);
-		if (type > 1) {
-			BT_LOGE("Set bt debug port enable fail, wrong type!\r\n");
-			return 0;
-		}
-
-		if (type == 0) {
-			if (argc != 4) {
-				BT_LOGE("Set bt debug port enable fail, wrong parameter number!\r\n");
-				return 0;
-			}
-			bt_bdg_mask = (uint32_t)str_to_int(argv[3]);
-			rtk_bt_debug_port_mask_enable(bt_sel, bt_bdg_mask);
-		} else if (type == 1) {
-			bt_dbg_port = (uint8_t)str_to_int(argv[3]);
-			if (argc > 4) {
-				pad = argv[4];
-			}
-			rtk_bt_debug_port_pad_enable(bt_sel, bt_dbg_port, pad);
-		}
-	} else if (strcmp("shift", argv[0]) == 0) {
-		if (argc != 3) {
-			BT_LOGE("Set bt debug port shift fail, wrong parameter number!\r\n");
-			return 0;
-		}
-
-		original = (uint8_t)str_to_int(argv[1]);
-		mapping = (uint8_t)str_to_int(argv[2]);
-		if (original > 31 || mapping > 7) {
-			BT_LOGE("Set bt debug port shift fail, wrong original or mapping!\r\n");
-			return 0;
-		}
-		rtk_bt_debug_port_shift(original, mapping);
-	} else {
-		BT_LOGE("Set bt debug port fail, wrong parameter argv [%s]!\r\n", argv[0]);
-		return 0;
-	}
-
-	BT_LOGA("BT debug port set OK!\r\n");
 	return 0;
 }
 
-int atcmd_bt_gpio(int argc, char *argv[])
+/*int atcmd_bt_ant(int argc, char *argv[])
 {
-	uint8_t bt_gpio = 0;
-	char *pad = NULL;
+    (void)argc;
 
-	if (argc != 1 && argc != 2) {
-		BT_LOGE("Set bt gpio fail, wrong parameter number!\r\n");
-		return 0;
-	}
+    uint8_t ant = atoi(argv[0]);
 
-	bt_gpio = (uint8_t)str_to_int(argv[0]);
-	if (argc == 2) {
-		pad = argv[1];
-	}
-	rtk_bt_gpio_enable(bt_gpio, pad);
+    if (ant > 1) {
+        BT_LOGE("Invalid BT ant!\r\n");
+        return 0;
+    }
 
-	BT_LOGA("BT GPIO set OK!\r\n");
-	return 0;
-}
+    BT_LOGA("Set BT ant to %s.\r\n", ant ? "ANT_S1" : "ANT_S0");
+
+    rtk_bt_set_bt_antenna(ant);
+
+    return 0;
+}*/
 
 int atcmd_bt_set_tx_power(int argc, char *argv[])
 {
@@ -285,47 +174,49 @@ int atcmd_bt_set_tx_power(int argc, char *argv[])
 		return 0;
 	}
 
-	if (rtk_bt_set_tx_power(&tx_power)) {
-		BT_LOGE("Set tx power 0x%x fail!\r\n", tx_power.tx_gain);
+	if (!rtk_bt_set_tx_power(&tx_power)) {
+		BT_LOGA("Set tx power 0x%x OK!\r\n", tx_power.tx_gain);
 	}
 	return 0;
 }
 
-#if defined(CONFIG_BT_INIC) && CONFIG_BT_INIC
-#include "hci_if_inic.h"
+#if defined(RTK_BLE_TX_SOF_EOF_INDICATION) && RTK_BLE_TX_SOF_EOF_INDICATION
+void rtk_bt_le_tx_sof_eof_callback(uint8_t flag)
+{
+	if (flag == RTK_BT_LE_TX_SOF) {
+		BT_LOGA("%s SOF,time=%d\r\n", __func__, (int)osif_sys_time_get());
+	} else if (flag == RTK_BT_LE_TX_EOF) {
+		BT_LOGA("%s EOF,time=%d\r\n", __func__, (int)osif_sys_time_get());
+	} else {
+		BT_LOGE("%s ERROR\r\n", __func__);
+	}
+}
 
-int atcmd_bt_remote_wakeup(int argc, char **argv)
+int atcmd_bt_sof_eof_ind(int argc, char *argv[])
+{
+	uint16_t conn_handle = 0;
+	uint8_t enable = 0;
+
+	if (argc != 2) {
+		BT_LOGE("atcmd_bt_sof_eof_ind fail, wrong parameter number!\r\n");
+		return 0;
+	}
+
+	conn_handle = (uint16_t)str_to_int(argv[0]);
+	enable = (uint8_t)str_to_int(argv[1]);
+
+	BT_LOGA("Set conn_handle(0x%x) sof and eof to %x.\r\n", conn_handle, enable);
+
+	rtk_bt_le_sof_eof_ind(conn_handle, enable, (void *)rtk_bt_le_tx_sof_eof_callback);
+
+	return 0;
+}
+#else
+int atcmd_bt_sof_eof_ind(int argc, char *argv[])
 {
 	(void)argc;
 	(void)argv;
-	uint16_t opcode = 0xfe01;
-	uint8_t status = 0;
-	uint8_t evt[6] = {0x0e, 0x04, 0x03, 0x00, 0x00, 0x00};
-	evt[3] = opcode & 0xFF;
-	evt[4] = (opcode >> 8) & 0xFF;
-	evt[5] = status;
-
-	bt_inic_send_to_host(0x04, evt, sizeof(evt));
-	BT_LOGA("Remote wakeup test");
+	BT_LOGE("BT SOF and EOF indication is not supported on this platform!\r\n");
 	return 0;
 }
 #endif
-
-static const cmd_table_t vendor_table[] = {
-	{"bt_enable",        atcmd_bt_enable,           2, 2},
-	{"bt_power",         atcmd_bt_power,            2, 2},
-	{"tx_power_gain",    atcmd_bt_tx_power_gain,    2, 5},
-	{"hci_debug_enable", atcmd_bt_hci_debug_enable, 1, 1},
-	{"bt_debug_port",    atcmd_bt_debug_port,       4, 6},
-	{"bt_gpio",          atcmd_bt_gpio,             2, 3},
-	{"tx_power",         atcmd_bt_set_tx_power,     4, 5},
-#if defined(CONFIG_BT_INIC) && CONFIG_BT_INIC
-	{"remote_wakeup",    atcmd_bt_remote_wakeup,    1, 1},
-#endif
-	{NULL,},
-};
-
-int atcmd_bt_vendor(int argc, char *argv[])
-{
-	return atcmd_bt_excute(argc, argv, vendor_table, "[AT+BTVENDOR]");
-}

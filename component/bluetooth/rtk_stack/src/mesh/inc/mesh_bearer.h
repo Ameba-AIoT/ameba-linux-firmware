@@ -17,7 +17,6 @@
 
 /* Add Includes here */
 #include "platform_types.h"
-#include "mesh_access.h"
 
 BEGIN_DECLS
 
@@ -48,22 +47,20 @@ BEGIN_DECLS
 /** mesh bearer type */
 typedef enum
 {
+    BEARER_TYPE_LOOPBACK,
     BEARER_TYPE_ADV,
     BEARER_TYPE_GATT,
-    BEARER_TYPE_OTHER,
-    BEARER_TYPE_LOOPBACK,
+    BEARER_TYPE_OTHER
 } bearer_type_t;
 
-enum
+typedef enum
 {
-    BEARER_FIELD_UNASSIGNED = 0,
-    BEARER_FIELD_ADV = BIT0,
-    BEARER_FIELD_GATT = BIT1,
-    BEARER_FIELD_OTHER = BIT14,
-    BEARER_FIELD_LOOPBACK = BIT15,
-    BEARER_FIELD_ALL = 0xFFFF,
-} _SHORT_ENUM_;
-typedef uint16_t bearer_field_t;
+    BEARER_FIELD_LOOPBACK = BIT0,
+    BEARER_FIELD_ADV = BIT1,
+    BEARER_FIELD_GATT = BIT2,
+    BEARER_FIELD_OTHER = BIT3,
+    BEARER_FIELD_ALL = BIT0 | BIT1 | BIT2 | BIT3
+} bearer_field_t;
 
 typedef enum
 {
@@ -154,14 +151,6 @@ bool bearer_adv_get(void);
   * @return none
   */
 void bearer_adv_set(bool on_off);
-
-/**
- * @brief check bearer support or not
- * @param[in] bearer: bearer field
- * @return true
- * @return false
- */
-bool bearer_support_check(bearer_field_t bearer);
 
 /**
   * @brief send to the bearer layer

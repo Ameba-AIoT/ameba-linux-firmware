@@ -9,10 +9,6 @@
 #define _PACKED4_            __attribute__ ((packed))
 #endif
 
-#ifndef _SHORT_ENUM_
-#define _SHORT_ENUM_        __attribute__ ((packed))
-#endif
-
 #define ACCESS_OPCODE_SIZE(opcode)              ((opcode) >= 0xc00000 ? 3 : ((opcode) >= 0x8000 ? 2 : 1))
 
 #define RTK_BT_MESH_EVT_MEM_OP_MAX_SIZE    0xffffffff
@@ -30,34 +26,8 @@
 #define BT_MESH_CONFIG_TRANS_RETRANS_COUNTS      4
 #define BT_MESH_CONFIG_MSG_TTL                   5
 
-#define BT_MESH_ENABLE_DIRECTED_FORWARDING                             1
-#define BT_MESH_ENABLE_SUBNET_BRIDGE                                   1
-#define BT_MESH_ENABLE_PRIVATE_BEACON                                  1
-#define BT_MESH_ENABLE_EPA_PROVISION                                   1
-
-// Mesh DF default configuration paramters
-#if defined(BT_MESH_ENABLE_DIRECTED_FORWARDING) && BT_MESH_ENABLE_DIRECTED_FORWARDING
-#define BT_MESH_CONFIG_DF_ACCESS_NET_TRANS_COUNTS          6
-#define BT_MESH_CONFIG_DF_ACCESS_NET_TRANS_STEPS           0
-#define BT_MESH_CONFIG_DF_ACCESS_RELAY_RETRANS_COUNTS      2
-#define BT_MESH_CONFIG_DF_ACCESS_RELAY_RETRANS_STEPS       0
-#define BT_MESH_CONFIG_DF_CTL_NET_TRANS_COUNTS             6
-#define BT_MESH_CONFIG_DF_CTL_NET_TRANS_STEPS              0
-#define BT_MESH_CONFIG_DF_CTL_RELAY_RETRANS_COUNTS         2
-#define BT_MESH_CONFIG_DF_CTL_RELAY_RETRANS_STEPS          0
-#endif
-
 // Mesh models enable configuration
 #if defined(RTK_BLE_MESH_PROVISIONER_SUPPORT) && RTK_BLE_MESH_PROVISIONER_SUPPORT
-#if defined(BT_MESH_ENABLE_DIRECTED_FORWARDING) && BT_MESH_ENABLE_DIRECTED_FORWARDING
-#define BT_MESH_ENABLE_DIRECTED_FORWARDING_CLIENT_MODEL                1
-#endif
-#if defined(BT_MESH_ENABLE_SUBNET_BRIDGE) && BT_MESH_ENABLE_SUBNET_BRIDGE
-#define BT_MESH_ENABLE_SUBNET_BRIDGE_CLIENT_MODEL                      1
-#endif
-#if defined(BT_MESH_ENABLE_PRIVATE_BEACON) && BT_MESH_ENABLE_PRIVATE_BEACON
-#define BT_MESH_ENABLE_PRIVATE_BEACON_CLIENT_MODEL                     1
-#endif
 #define BT_MESH_ENABLE_REMOTE_PROVISIONING_CLIENT_MODEL                1
 #define BT_MESH_ENABLE_GENERIC_ON_OFF_CLIENT_MODEL                     1
 #define BT_MESH_ENABLE_GENERIC_LEVEL_CLIENT_MODEL                      1
@@ -76,8 +46,6 @@
 #define BT_MESH_ENABLE_LIGHT_HSL_CLIENT_MODEL                          1
 #define BT_MESH_ENABLE_LIGHT_XYL_CLIENT_MODEL                          1
 #define BT_MESH_ENABLE_LIGHT_LC_CLIENT_MODEL                           1
-#define BT_MESH_ENABLE_DFU_INITIATOR_ROLE                              0  // initiator and standalone updater can not enable at same time
-#define BT_MESH_ENABLE_DFU_STANDALONE_UPDATER_ROLE                     1  // initiator and standalone updater can not enable at same time
 #endif
 
 #if defined(RTK_BLE_MESH_DEVICE_SUPPORT) && RTK_BLE_MESH_DEVICE_SUPPORT
@@ -116,8 +84,6 @@
 #define BT_MESH_ENABLE_LIGHT_XYL_SETUP_SERVER_MODEL                    1
 #define BT_MESH_ENABLE_LIGHT_LC_SERVER_MODEL                           1
 #define BT_MESH_ENABLE_LIGHT_LC_SETUP_SERVER_MODEL                     1
-#define BT_MESH_ENABLE_DFU_DISTRIBUTOR_ROLE                            0  // distributor and target can not enable at same time
-#define BT_MESH_ENABLE_DFU_TARGET_ROLE                                 1  // distributor and target can not enable at same time
 #endif
 
 #define BT_MESH_ENABLE_DATATRANS_MODEL                                 1
@@ -125,9 +91,6 @@
 
 // Mesh provisioning capability releate setting for device
 #define PROV_SUPPORT_STATIC_OOB           0  // Whether support static oob for provisining
-#if defined(BT_MESH_ENABLE_EPA_PROVISION) && BT_MESH_ENABLE_EPA_PROVISION
-#define PROV_SUPPORT_OOB_AUTH_ONLY        0
-#endif
 #define PROV_SUPPORT_OUTPUT_OOB_ACTION    RTK_BT_MESH_PROV_CAP_OUTPUT_OOB_ACTION_NOT_ENABLE    // @ref rtk_bt_mesh_stack_prov_cap_output_oob_action_t
 #define PROV_SUPPORT_OUTPUT_OOB_SIZE      0    // The bytes store random number for mesh stack
 #define PROV_SUPPORT_INPUT_OOB_ACTION     RTK_BT_MESH_PROV_CAP_INPUT_OOB_ACTION_NOT_ENABLE    // @ref rtk_bt_mesh_stack_prov_cap_input_oob_action_t
@@ -246,32 +209,7 @@ typedef enum {
  */
 typedef enum {
 	RTK_BT_MESH_IO_MSG_SUBTYPE_ADV,
-	RTK_BT_MESH_IO_MSG_SUBTYPE_BLOB_CLIENT_CHUNK_TRANSFER,
-	RTK_BT_MESH_IO_MSG_SUBTYPE_BLOB_CLIENT_PROCEDURE,
-	RTK_BT_MESH_IO_MSG_SUBTYPE_BLOB_CLIENT_RETRY,
-	RTK_BT_MESH_IO_MSG_SUBTYPE_DFU_DIST_APP_TIMEOUT_MSG,
-	RTK_BT_MESH_IO_MSG_SUBTYPE_DFU_INIT_APP_TIMEOUT_MSG,
 } rtk_bt_mesh_msg_subtype;
-
-/**
- * @typedef rtk_bt_mesh_addr_range_t
- * @brief mesh addr range type
- */
-
-typedef struct {
-	union {
-		struct {
-			uint16_t range_start : 15;
-			uint16_t len_present : 1;
-		};
-		struct {
-			uint16_t len_present_access : 1;
-			uint16_t range_start_access : 15;
-		};
-		uint16_t addr;
-	};
-	uint8_t range_len;
-} _PACKED4_ rtk_bt_mesh_addr_range_t;
 
 /**
  * @defgroup  ble_mesh_api_group BT LE Mesh APIs

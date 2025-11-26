@@ -2,19 +2,18 @@
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
 
-static const char *const TAG = "FAULT";
+static const char *TAG = "FAULT";
 
-#ifdef CONFIG_ARM_CORE_CM4
+#ifdef ARM_CORE_CM4
 /* Redefine secure fault handler and replace old INT_SecureFault in rom code. */
 void HANDLER_SecureFault(void)
 {
 	__ASM volatile(
-		"MRS 		R0, MSP_NS				\n\t"
-		"MRS 		R1, PSP_NS				\n\t"
+		"MRS 		R0, MSP					\n\t"
+		"MRS 		R1, PSP					\n\t"
 		"MOV 		R2, LR					\n\t"
-		"MRS 		R3, MSP_NS				\n\t"
-		"STMDB 		R3!, {R4-R11}			\n\t" //Note: [MSPLIM_NS, MSP_NS] may overflow, MSP_NS is not update.
 		"MOV 		R3, #4					\n\t"
+		"PUSH 		{R4-R11}				\n\t"
 		"B			Fault_Handler		    \n\t"
 	);
 }
@@ -113,7 +112,7 @@ void Fault_Handler(uint32_t mstack[], uint32_t pstack[], uint32_t lr_value, uint
 	}
 
 	regs[REG_EXCR] = lr_value;
-	/* put r4-r11 to mstack before
+	/* MSP stack
 	High addr -> |  xxx  | <--- &extra_regs[0] is mstack;
 	  ^          |  R11  | <--- extra_regs[-1]
 	  |	         |  R10  |
@@ -156,16 +155,6 @@ void HANDLER_HardFault(void)
 		"MOV 		R2, LR					\n\t" /* Third parameter is LR current value */
 		"MOV 		R3, #0					\n\t"
 		"PUSH 		{R4-R7}					\n\t"
-		"MOV		R6, #16					\n\t"
-		"ADD		R4, R0, R6				\n\t" /* Skip R4-R7, and point to top of mstack*/
-		"MOV 		R5, R8					\n\t"
-		"STR        R5, [R4, #0]			\n\t"
-		"MOV 		R5, R9					\n\t"
-		"STR        R5, [R4, #4]			\n\t"
-		"MOV 		R5, R10					\n\t"
-		"STR        R5, [R4, #8]			\n\t"
-		"MOV 		R5, R11					\n\t"
-		"STR        R5, [R4, #12]			\n\t"
 		"B			Fault_Handler			\n\t"
 	);
 }
@@ -201,20 +190,16 @@ void Fault_Handler(uint32_t mstack[], uint32_t pstack[], uint32_t lr_value, uint
 	/* MSP stack
 	High addr -> |  xxx  | <--- &extra_regs[0] is mstack;
 	  ^          |  R7   | <--- extra_regs[-1]
+	  |	         |  R6   |
 	  |	         |  ...  |
-	  |	         |  R4   |
-	  |	         |  R8   |
-	  |	         |  ...  |
-	Low addr  -> |  R11  | <--- extra_regs[-8]*/
+	Low addr  -> |  R4   | <--- extra_regs[-4]*/
 
 	//point to R7, R8 ~ R11 were not saved.
 	extra_regs--;
 	for (int i = REG_R4; i <= REG_R7; i++) {
 		regs[i] = extra_regs[-REG_R7 + i];
 	}
-	for (int i = REG_R8; i <= REG_R11; i++) {
-		regs[i] = extra_regs[-i];
-	}
+
 	cstack = is_psp ? pstack : mstack;
 
 	for (int i = REG_R0; i < REG_END; i++) {
@@ -238,14 +223,19 @@ void Fault_Handler(uint32_t mstack[], uint32_t pstack[], uint32_t lr_value, uint
 
 void Fault_Hanlder_Redirect(crash_on_task crash_on_task_func)
 {
-	crash_task_info = crash_on_task_func;
-#ifdef CONFIG_ARM_CORE_CM4
+#ifdef ARM_CORE_CM4
+#ifdef IMAGE2_BUILD
 	NewVectorTable[3] = (HAL_VECTOR_FUN)HANDLER_HardFault;
 	NewVectorTable[4] = (HAL_VECTOR_FUN)HANDLER_MemFault;
 	NewVectorTable[5] = (HAL_VECTOR_FUN)HANDLER_BusFault;
 	NewVectorTable[6] = (HAL_VECTOR_FUN)HANDLER_UsageFault;
+	crash_task_info = crash_on_task_func;
+#else
+	(void)crash_on_task_func;
 	NewVectorTable[7] = (HAL_VECTOR_FUN)HANDLER_SecureFault;
+#endif
 #else
 	NewVectorTable[3] = (HAL_VECTOR_FUN)HANDLER_HardFault;
+	crash_task_info = crash_on_task_func;
 #endif
 }

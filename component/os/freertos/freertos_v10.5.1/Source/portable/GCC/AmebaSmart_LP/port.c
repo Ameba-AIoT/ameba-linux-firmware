@@ -801,11 +801,6 @@ void vPortExitCritical(void)   /* PRIVILEGED_FUNCTION */
 }
 /*-----------------------------------------------------------*/
 
-uint32_t xPortGetCriticalState(void)
-{
-	return ulCriticalNesting;
-}
-
 void SysTick_Handler(void)   /* PRIVILEGED_FUNCTION */
 {
 	uint32_t ulPreviousMask;
@@ -1270,10 +1265,27 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 	parameters have been corrupted, depending on the severity of the stack
 	overflow.  When this is the case pxCurrentTCB can be inspected in the
 	debugger to find the offending task. */
-	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\n\r[%s] STACK OVERFLOW - TaskName(%s)\n\r", __FUNCTION__, pcTaskName);
+	RTK_LOGS(NOTAG, "\n\r[%s] STACK OVERFLOW - TaskName(%s)\n\r", __FUNCTION__, pcTaskName);
 	for (;;);
 }
 
+void vApplicationMallocFailedHook(void)
+{
+	char *pcCurrentTask = "NoTsk";
+	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+		pcCurrentTask = pcTaskGetName(NULL);
+	}
+	RTK_LOGS(NOTAG, "Malloc failed. Core:[%s], Task:[%s], [free heap size: %d]\r\n", "KM0", pcCurrentTask, xPortGetFreeHeapSize());
+	taskDISABLE_INTERRUPTS();
+	for (;;);
+}
+
+void vAssertCalled(const char *pcFile, uint32_t ulLine)
+{
+	printf("ASSERT!  Line %d of file %s\r\n", (int)ulLine, pcFile);
+	taskENTER_CRITICAL();
+	for (;;);
+}
 /*-----------------------------------------------------------*/
 
 #if( configSUPPORT_STATIC_ALLOCATION == 1 )
@@ -1387,21 +1399,15 @@ void pmu_post_sleep_processing(uint32_t *tick_before_sleep)
 	/* ms =x*1000/32768 = (x *1000) >>15 */
 	ms_passed = (uint32_t)((((uint64_t)tick_passed) * 1000) >> 15);
 
-	/* update xTickCount and mark to trigger task list update in xTaskResumeAll */
-	vTaskCompTick(ms_passed);
+	vTaskStepTick(ms_passed); /*  update kernel tick */
 
-	/* update sleepwakelock_timeout if sysactive_timeout_temp not 0 */
 	sysactive_timeout_flag = 0;
-	pmu_set_sysactive_time(0);
+
+#ifndef CONFIG_CLINTWOOD
+	pmu_set_sysactive_time(2);
+#endif
 
 	RTK_LOGD(NOTAG, "sleeped:[%d] ms\n", ms_passed);
 
 }
 
-/*-----------------------------------------------------------*/
-
-void vPortCleanUpTCB(uint32_t * pxTCB)
-{
-	UNUSED(pxTCB);
-}
-/*-----------------------------------------------------------*/

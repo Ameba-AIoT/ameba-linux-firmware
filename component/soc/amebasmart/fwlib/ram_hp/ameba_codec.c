@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *const TAG = "CODEC";
+static const char *TAG = "CODEC";
 /** @addtogroup Ameba_Periph_Driver
   * @{
   */
@@ -494,66 +494,6 @@ void AUDIO_CODEC_SetLDOMode(u32 powermode)
 	}
 }
 
-static u32 AUDIO_CODEC_GetAdFifoEnBitForCh(u32 ad_chn)
-{
-	u32 en_bit = 0;
-	switch (ad_chn)
-	{
-	case ADCHN1:
-		en_bit = AUD_BIT_AD_0_FIFO_EN;
-		break;
-	case ADCHN2:
-		en_bit = AUD_BIT_AD_1_FIFO_EN;
-		break;
-	case ADCHN3:
-		en_bit = AUD_BIT_AD_2_FIFO_EN;
-		break;
-	case ADCHN4:
-		en_bit = AUD_BIT_AD_3_FIFO_EN;
-		break;
-	case ADCHN5:
-		en_bit = AUD_BIT_AD_4_FIFO_EN;
-		break;
-	case ADCHN6:
-		en_bit = AUD_BIT_AD_5_FIFO_EN;
-		break;
-	case ADCHN7:
-		en_bit = AUD_BIT_AD_6_FIFO_EN;
-		break;
-	case ADCHN8:
-		en_bit = AUD_BIT_AD_7_FIFO_EN;
-		break;
-	default:
-		break;
-	}
-
-	return en_bit;
-}
-
-/**
-  * @brief  Enable per AD and AD fifo channel clock by mask.
-  * @param  ad_chn_mask: ad channel mask.
-  * The correspondence between bits and channels is as follows:
-  * bit7   bit6   bit5   bit4   bit3   bit2   bit1   bit0
-  *   |     |      |      |      |      |      |      |
-  * ADCHN8 ADCHN7 ADCHN6 ADCHN5 ADCHN4 ADCHN3 ADCHN2 ADCHN1
-  * @return  None
-  */
-void AUDIO_CODEC_EnableADCFifoForMask(u32 ad_chn_mask)
-{
-	AUDIO_TypeDef *audio_base = AUDIO_CODEC_GetAddr();
-
-	u32 or_tmp = 0;
-
-	for (u32 i = ADCHN1; i < (ADCHN8 + 1); i++) {
-		if ((ad_chn_mask >> (i - 1)) & 1) {
-			or_tmp |= AUDIO_CODEC_GetAdFifoEnBitForCh(i);
-		}
-	}
-
-	audio_base->CODEC_CLOCK_CONTROL_1 |= or_tmp;
-}
-
 /**
   * @brief  Enable or disable per AD and AD fifo channel clock.
   * @param  ad_chn: select ad channel.
@@ -645,67 +585,6 @@ void AUDIO_CODEC_EnableADCFifo(u32 ad_chn, u32 newstate)
 	}
 }
 
-static u32 AUDIO_CODEC_GetAdEnBitForCh(u32 ad_chn)
-{
-	u32 en_bit = 0;
-	switch (ad_chn)
-	{
-	case ADCHN1:
-		en_bit = AUD_BIT_AD_0_EN;
-		break;
-	case ADCHN2:
-		en_bit = AUD_BIT_AD_1_EN;
-		break;
-	case ADCHN3:
-		en_bit = AUD_BIT_AD_2_EN;
-		break;
-	case ADCHN4:
-		en_bit = AUD_BIT_AD_3_EN;
-		break;
-	case ADCHN5:
-		en_bit = AUD_BIT_AD_4_EN;
-		break;
-	case ADCHN6:
-		en_bit = AUD_BIT_AD_5_EN;
-		break;
-	case ADCHN7:
-		en_bit = AUD_BIT_AD_6_EN;
-		break;
-	case ADCHN8:
-		en_bit = AUD_BIT_AD_7_EN;
-		break;
-	default:
-		break;
-	}
-
-	return en_bit;
-}
-
-/**
-  * @brief  Enable per AD and AD fifo channel clock by mask.
-  * @param  ad_chn_mask: ad channel mask.
-  * The correspondence between bits and channels is as follows:
-  * bit7   bit6   bit5   bit4   bit3   bit2   bit1   bit0
-  *   |     |      |      |      |      |      |      |
-  * ADCHN8 ADCHN7 ADCHN6 ADCHN5 ADCHN4 ADCHN3 ADCHN2 ADCHN1
-  *
-  * @return  None
-  */
-void AUDIO_CODEC_EnableADCForMask(u32 ad_chn_mask)
-{
-	AUDIO_TypeDef *audio_base = AUDIO_CODEC_GetAddr();
-
-	u32 or_tmp = 0;
-
-	for (u32 i = ADCHN1; i < (ADCHN8 + 1); i++) {
-		if ((ad_chn_mask >> (i - 1)) & 1) {
-			or_tmp |= AUDIO_CODEC_GetAdEnBitForCh(i);
-		}
-	}
-
-	audio_base->CODEC_CLOCK_CONTROL_1 |= or_tmp;
-
-}
 
 /**
   * @brief  Enable or disable per AD and AD fifo channel clock.
@@ -1348,29 +1227,30 @@ void AUDIO_CODEC_SetMicBstPowerMode(u32 amic_num, u32 powermode)
 	}
 }
 
+
 /**
   * @brief Audio Codec micbias pcut power on or power down.
-  * @param  micbias_num: select micbias channel
+  * @param  amic_num: select amic channel
   *			 This parameter can be one of the following values:
-  *			   @arg MICBIAS1
-  *			   @arg MICBIAS2
-  *			   @arg MICBIAS3
-  *			   @arg MICBIAS4
-  *			   @arg MICBIAS5
+  *			   @arg AMIC1
+  *			   @arg AMIC2
+  *			   @arg AMIC3
+  *			   @arg AMIC4
+  *			   @arg AMIC5
   * @param	micbias_mode: micbias power on or power down
   * 		 This parameter can be one of the following values:
   * 		   @arg POWER_ON:
   * 		   @arg POWER_DOWN:
   * @return  None
   */
-void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
+void AUDIO_CODEC_SetMicBiasPCUTMode(u32 amic_num, u32 pcut_mode)
 {
-	assert_param(IS_CODEC_MICBIAS_SEL(micbias_num));
+	assert_param(IS_CODEC_AMIC_SEL(amic_num));
 	assert_param(IS_CODEC_POWER_SEL(pcut_mode));
 	AUD_TypeDef *AUD = AUDIO_AUD_GetAddr();
 
-	switch (micbias_num) {
-	case MICBIAS1:
+	switch (amic_num) {
+	case AMIC1:
 		if (pcut_mode == POWER_ON) {
 			AUD->AUD_MICBIAS_CTL0 &= ~AUD_BIT_MICBIAS1_PCUT1_EN;
 		} else {
@@ -1379,7 +1259,7 @@ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
 		}
 		break;
 
-	case MICBIAS2:
+	case AMIC2:
 		if (pcut_mode == POWER_ON) {
 			AUD->AUD_MICBIAS_CTL0 &= ~AUD_BIT_MICBIAS1_PCUT2_EN;
 		} else {
@@ -1388,7 +1268,7 @@ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
 		}
 		break;
 
-	case MICBIAS3:
+	case AMIC3:
 		if (pcut_mode == POWER_ON) {
 			AUD->AUD_MICBIAS_CTL0 &= ~AUD_BIT_MICBIAS1_PCUT3_EN;
 		} else {
@@ -1397,7 +1277,7 @@ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
 		}
 		break;
 
-	case MICBIAS4:
+	case AMIC4:
 		if (pcut_mode == POWER_ON) {
 			AUD->AUD_MICBIAS_CTL0 &= ~AUD_BIT_MICBIAS1_PCUT4_EN;
 		} else {
@@ -1405,7 +1285,7 @@ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
 			AUD->AUD_MICBIAS_CTL0 |= AUD_BIT_MICBIAS1_PCUT4_EN;
 		}
 		break;
-	case MICBIAS5:
+	case AMIC5:
 		if (pcut_mode == POWER_ON) {
 			AUD->AUD_MICBIAS_CTL0 &= ~AUD_BIT_MICBIAS1_PCUT5_EN;
 		} else {
@@ -1415,6 +1295,7 @@ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode)
 		break;
 	}
 }
+
 
 /**
   * @brief  Set per micbst mute or unmute.
@@ -2419,33 +2300,6 @@ void AUDIO_CODEC_SetHPOMute(u32 channel, u32 type, u32 newstate)
 
 
 /**
-  * @brief  Get HPO single-end or differential mode.
-  * @param  channel: the value of dac path.
-  *          This parameter can be one of the following values:
-  *            @arg 0: CHN_L
-  *            @arg 1: CHN_R
-  * @retval the value of HPO mode.
-  *            @arg 0: DIFF
-  *            @arg 1: SINGLE
-*/
-u32 AUDIO_CODEC_GetHPOMode(u32 channel)
-{
-	assert_param(IS_CODEC_LOORHO_SEL(channel));
-	AUD_TypeDef *AUD = AUDIO_AUD_GetAddr();
-
-	u32 hpomode;
-
-	if (channel == CHN_L) {
-		hpomode = ((AUD->AUD_HPO_CTL) & AUD_BIT_HPO_SEL) >> 26;
-	} else {
-		hpomode = ((AUD->AUD_HPO_CTL) & AUD_BIT_HPO_SER) >> 27;
-	}
-
-	return hpomode;
-}
-
-
-/**
   * @brief  Enable and select or disalbe PDM clk.
   * @param  channel: the value of dac path.
   *          This parameter can be one of the following values:
@@ -3027,7 +2881,7 @@ void AUDIO_CODEC_SetADCEQBand(u32 ad_chn, u32 band_sel, u32 newstate)
 }
 
 /**
-  * @brief  Set EQ band as filter for ADC path
+  * @brief  set EQ band as filter for ADC path
   * @param  ad_chn: select adc channel
   *          This parameter can be one of the following values:
   *            @arg ADCHN1
@@ -3338,7 +3192,7 @@ void AUDIO_CODEC_SetDACEQBand(u32 da_chn, u32 band_sel, u32 newstate)
 
 
 /**
-  * @brief  Set EQ band as filter for DAC path
+  * @brief  set EQ band as filter for DAC path
   * @param  ad_chn: select adc channel
   *          This parameter can be one of the following values:
   *            @arg DAC_L
@@ -3482,8 +3336,8 @@ void AUDIO_CODEC_Record(u32 i2s_sel, u32 type, I2S_InitTypeDef *I2S_InitStruct)
 			AUDIO_CODEC_SetADCANASrc(ADCHN2, AMIC2);
 			AUDIO_CODEC_SetMicBstPowerMode(AMIC1, NORMALPOWER);
 			AUDIO_CODEC_SetMicBstPowerMode(AMIC2, NORMALPOWER);
-			AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS1, POWER_ON);
-			AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS2, POWER_ON);
+			AUDIO_CODEC_SetMicBiasPCUTMode(AMIC1, POWER_ON);
+			AUDIO_CODEC_SetMicBiasPCUTMode(AMIC2, POWER_ON);
 			AUDIO_CODEC_SetMicBstChnMute(AMIC1, MICIN, UNMUTE);
 			AUDIO_CODEC_SetMicBstChnMute(AMIC2, MICIN, UNMUTE);
 			AUDIO_CODEC_SetMicBstInputMode(AMIC1, DIFF);
@@ -3504,8 +3358,8 @@ void AUDIO_CODEC_Record(u32 i2s_sel, u32 type, I2S_InitTypeDef *I2S_InitStruct)
 			AUDIO_CODEC_SetADCANASrc(ADCHN4, AMIC4);
 			AUDIO_CODEC_SetMicBstPowerMode(AMIC3, NORMALPOWER);
 			AUDIO_CODEC_SetMicBstPowerMode(AMIC4, NORMALPOWER);
-			AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS3, POWER_ON);
-			AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS4, POWER_ON);
+			AUDIO_CODEC_SetMicBiasPCUTMode(AMIC3, POWER_ON);
+			AUDIO_CODEC_SetMicBiasPCUTMode(AMIC4, POWER_ON);
 			AUDIO_CODEC_SetMicBstChnMute(AMIC3, MICIN, UNMUTE);
 			AUDIO_CODEC_SetMicBstChnMute(AMIC4, MICIN, UNMUTE);
 			AUDIO_CODEC_SetMicBstInputMode(AMIC3, DIFF);
@@ -3522,7 +3376,7 @@ void AUDIO_CODEC_Record(u32 i2s_sel, u32 type, I2S_InitTypeDef *I2S_InitStruct)
 			AUDIO_CODEC_SetADCANAFilter(ADC5, ENABLE);
 			AUDIO_CODEC_SetADCANASrc(ADCHN5, AMIC5);
 			AUDIO_CODEC_SetMicBstPowerMode(AMIC5, NORMALPOWER);
-			AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS5, POWER_ON);
+			AUDIO_CODEC_SetMicBiasPCUTMode(AMIC5, POWER_ON);
 			AUDIO_CODEC_SetMicBstChnMute(AMIC5, MICIN, UNMUTE);
 			AUDIO_CODEC_SetMicBstInputMode(AMIC5, DIFF);
 			AUDIO_CODEC_SetMicBstGain(AMIC5, MICBST_GAIN_0DB);

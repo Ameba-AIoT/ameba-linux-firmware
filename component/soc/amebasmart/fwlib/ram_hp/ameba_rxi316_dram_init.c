@@ -7,7 +7,7 @@
 #include "ameba_soc.h"
 #include "ameba_ddr_param_defs.h"
 
-static const char *const TAG = "DDR";
+static const char *TAG = "DDR";
 #define FRQC_TEST             0
 
 //////////////////////////////////////////////////

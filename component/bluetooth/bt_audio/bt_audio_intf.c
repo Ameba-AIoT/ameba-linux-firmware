@@ -237,7 +237,6 @@ static void bt_audio_parsing_recv_stream(uint32_t type, rtk_bt_audio_track_t *tr
 	uint8_t codec_header_flag = 0;
 	uint32_t pcm_data_size;
 	uint16_t err = RTK_BT_AUDIO_FAIL;
-	uint16_t ret = RTK_BT_AUDIO_OK;
 
 	/* judge whether already initialized */
 	if (!bt_audio_init_flag) {
@@ -306,15 +305,13 @@ static void bt_audio_parsing_recv_stream(uint32_t type, rtk_bt_audio_track_t *tr
 						(int)param.bits);
 			} else {
 				if (track->pcm_data_cb) {
-					ret = track->pcm_data_cb(pdecode_frame_buffer->pbuffer, pcm_data_size, (void *)entity, (void *)track);
+					track->pcm_data_cb(pdecode_frame_buffer->pbuffer, pcm_data_size, (void *)entity, (void *)track);
 				}
-				if (ret == RTK_BT_AUDIO_OK) {
-					if (track->audio_track_hdl) {
-						if (!track->audio_sync_flag) {
-							do_audio_track_write(track, (uint8_t *)pdecode_frame_buffer->pbuffer, (uint16_t)pcm_data_size);
-						} else {
-							do_audio_sync_flow(track, i, ts_us, (uint8_t **)&pdecode_frame_buffer->pbuffer, &pcm_data_size);
-						}
+				if (track->audio_track_hdl) {
+					if (!track->audio_sync_flag) {
+						do_audio_track_write(track, (uint8_t *)pdecode_frame_buffer->pbuffer, (uint16_t)pcm_data_size);
+					} else {
+						do_audio_sync_flow(track, i, ts_us, (uint8_t **)&pdecode_frame_buffer->pbuffer, &pcm_data_size);
 					}
 				}
 			}
@@ -492,36 +489,38 @@ static uint16_t bt_audio_app_data_handle_deinit(void)
 static uint16_t bt_audio_codec_init(rtk_bt_audio_codec_conf_t *paudio_codec_conf, PAUDIO_CODEC_ENTITY pentity)
 {
 	uint16_t err = RTK_BT_AUDIO_FAIL;
+	uint32_t codec_index = 0;
 
 	if (!paudio_codec_conf || !pentity) {
 		BT_LOGE("[BT_AUDIO] audio configuration or entity is empty \r\n");
 		return err;
 	}
+	codec_index = paudio_codec_conf->codec_index;
 
 #if defined(CONFIG_BT_AUDIO_CODEC_SBC) && CONFIG_BT_AUDIO_CODEC_SBC
 	/* sbc codec */
-	if (RTK_BT_AUDIO_CODEC_SBC == paudio_codec_conf->codec_index) {
+	if (RTK_BT_AUDIO_CODEC_SBC == codec_index) {
 		BT_LOGE("[BT_AUDIO] sbc codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_SBC, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
 #if defined(CONFIG_BT_AUDIO_CODEC_AAC) && CONFIG_BT_AUDIO_CODEC_AAC
 	/* aac codec */
-	if (RTK_BT_AUDIO_CODEC_AAC == paudio_codec_conf->codec_index) {
+	if (RTK_BT_AUDIO_CODEC_AAC == codec_index) {
 		BT_LOGE("[BT_AUDIO] aac codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_AAC, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
 #if defined(CONFIG_BT_AUDIO_CODEC_LC3) && CONFIG_BT_AUDIO_CODEC_LC3
 	/* lc3 codec */
-	if (RTK_BT_AUDIO_CODEC_LC3 == paudio_codec_conf->codec_index) {
+	if (RTK_BT_AUDIO_CODEC_LC3 == codec_index) {
 		BT_LOGE("[BT_AUDIO] lc3 codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_LC3, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
 #if defined(CONFIG_BT_AUDIO_CODEC_CVSD) && CONFIG_BT_AUDIO_CODEC_CVSD
 	/* cvsd codec */
-	if (RTK_BT_AUDIO_CODEC_CVSD == paudio_codec_conf->codec_index) {
+	if (RTK_BT_AUDIO_CODEC_CVSD == codec_index) {
 		BT_LOGE("[BT_AUDIO] cvsd codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_CVSD, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
@@ -853,7 +852,7 @@ rtk_bt_audio_track_t *rtk_bt_audio_track_add(uint32_t type, float left_volume, f
 		memset((void *)ptrack, 0, sizeof(rtk_bt_audio_track_t));
 		INIT_LIST_HEAD(&ptrack->list);
 	}
-	BT_LOGA("[BT AUDIO] audio track init audio channels %d, rate %d, format %d, left_volume %.2f, right_volume %.2f ! \r\n",
+	BT_LOGE("[BT AUDIO] audio track init audio channels %d, rate %d, format %d, left_volume %.2f, right_volume %.2f ! \r\n",
 			(int)channels,
 			(int)rate,
 			(int)format,
@@ -930,7 +929,7 @@ rtk_bt_audio_track_t *rtk_bt_audio_track_add(uint32_t type, float left_volume, f
 	return ptrack;
 }
 
-rtk_bt_audio_record_t *rtk_bt_audio_record_add(uint32_t type, uint32_t channels, uint32_t rate, uint32_t buffer_bytes, uint32_t volume)
+rtk_bt_audio_record_t *rtk_bt_audio_record_add(uint32_t type, uint32_t channels, uint32_t rate, uint32_t buffer_bytes)
 {
 	struct bt_audio_intf_priv *priv = NULL;
 	rtk_bt_audio_record_t *precord = NULL;
@@ -970,7 +969,7 @@ rtk_bt_audio_record_t *rtk_bt_audio_record_add(uint32_t type, uint32_t channels,
 		memset((void *)precord, 0, sizeof(rtk_bt_audio_record_t));
 		INIT_LIST_HEAD(&precord->list);
 	}
-	BT_LOGA("[BT AUDIO] audio record init channels %d, rate %d , buffer_bytes %d! \r\n", (int)channels, (int)rate, (uint32_t)buffer_bytes);
+	BT_LOGE("[BT AUDIO] audio record init channels %d, rate %d , buffer_bytes %d! \r\n", (int)channels, (int)rate, (uint32_t)buffer_bytes);
 	precord->audio_record_hdl = rtk_bt_audio_record_init((uint32_t)channels, (uint32_t)rate, (uint32_t)buffer_bytes);
 	if (!precord->audio_record_hdl) {
 		BT_LOGE("[BT AUDIO] rtk_bt_audio_record_init fail \r\n");
@@ -991,17 +990,9 @@ rtk_bt_audio_record_t *rtk_bt_audio_record_add(uint32_t type, uint32_t channels,
 		priv->curr_record_num ++;
 		osif_mutex_give(bt_audio_intf_priv_mutex);
 	}
-	if (channels == 3) { // for noise cancel
-		rtk_bt_audio_record_set_parameters(precord->audio_record_hdl, "cap_mode=no_afe_pure_data");
-		rtk_bt_audio_record_set_channel_mic_category(0, RTK_BT_AUDIO_DMIC1);
-		rtk_bt_audio_record_set_channel_mic_category(1, RTK_BT_AUDIO_DMIC2);
-		rtk_bt_audio_record_set_channel_mic_category(2, RTK_BT_AUDIO_AMIC5);
-		rtk_bt_audio_record_set_mic_bst_gain(RTK_BT_AUDIO_AMIC5, RTK_BT_AUDIO_MICBST_GAIN_0DB);
-	} else {
-		rtk_bt_audio_record_set_parameters(precord->audio_record_hdl, "ch0_sel_amic=1");
-		rtk_bt_audio_record_set_mic_bst_gain(RTK_BT_AUDIO_AMIC1, RTK_BT_AUDIO_MICBST_GAIN_40DB);
-	}
-	rtk_bt_audio_record_set_capture_volume(channels, volume);
+	rtk_bt_audio_record_set_parameters(precord->audio_record_hdl, "ch0_sel_amic=1");
+	rtk_bt_audio_record_set_capture_volume(channels, 0x2f);
+	rtk_bt_audio_record_set_mic_bst_gain(RTK_BT_AUDIO_AMIC1, RTK_BT_AUDIO_MICBST_GAIN_40DB);
 
 	return precord;
 }

@@ -21,15 +21,14 @@ extern "C" {
  * \defgroup    TMAP_Client_Exported_Types Telephony and Media Audio Client Exported Types
  *
  * \ingroup LEA_USE_CASE_TMAP_Client
- * @{
+ * \{
  */
 
 /**
  * tmas_client.h
  *
- * \brief  TMAS client discover service result.
- *
- * The message data for @ref LE_AUDIO_MSG_TMAS_CLIENT_DIS_DONE.
+ * \brief  TMAS Client Discover Service Result.
+ *         The message data for LE_AUDIO_MSG_TMAS_CLIENT_DIS_DONE.
  *
  * \ingroup TMAP_Client_Exported_Types
  */
@@ -43,9 +42,8 @@ typedef struct
 /**
  * tmas_client.h
  *
- * \brief  TMAS client read TMAP Role result.
- *
- * The message data for @ref LE_AUDIO_MSG_TMAS_CLIENT_READ_ROLE_RESULT.
+ * \brief  TMAS Client Read TMAP Role Result.
+ *         The message data for LE_AUDIO_MSG_TMAS_CLIENT_READ_ROLE_RESULT.
  *
  * \ingroup TMAP_Client_Exported_Types
  */
@@ -57,29 +55,28 @@ typedef struct
 } T_TMAS_CLIENT_READ_ROLE_RESULT;
 /**
  * End of TMAP_Client_Exported_Types
- * @}
+ * \}
  */
 
 /**
  * \defgroup    TMAP_Client_Exported_Functions Telephony and Media Audio Client Exported Functions
  *
  * \ingroup LEA_USE_CASE_TMAP_Client
- * @{
+ * \{
  */
 
 /**
  * tmas_client.h
  *
- * \brief  TMAS client read TMAP Role.
- *
- * If the read procedure is completed, the Application will
- * receive @ref LE_AUDIO_MSG_TMAS_CLIENT_READ_ROLE_RESULT.
+ * \brief  TMAS client read TMAP role.
+ *         If the read procedure is completed, the Application will
+ *         receive LE_AUDIO_MSG_TMAS_CLIENT_READ_ROLE_RESULT.
  *
  * \param[in]  conn_handle      Connection handle.
  *
- * \return         The result of TMAS client read TMAP Role.
- * \retval true    TMAS client read TMAP Role request is successful.
- * \retval false   TMAS client read TMAP Role request failed.
+ * \return         The result of TMAS client read TMAP role.
+ * \retval true    TMAS client read TMAP role request success.
+ * \retval false   TMAS client read TMAP role request failed.
  *
  * \ingroup TMAP_Client_Exported_Functions
  */
@@ -90,16 +87,16 @@ bool tmas_read_role(uint16_t conn_handle);
  *
  * \brief  Initialize TMAS client.
  *
- * \return         The result of initializing TMAS client.
- * \retval true    Initializing TMAS client is successful.
- * \retval false   Initializing TMAS client failed.
+ * \return         The result of initialize TMAS client.
+ * \retval true    Initialize TMAS client success.
+ * \retval false   Initialize TMAS client failed.
  *
  * \ingroup TMAP_Client_Exported_Functions
  */
 bool tmas_client_init(void);
 /**
  * End of TMAP_Client_Exported_Functions
- * @}
+ * \}
  */
 
 #ifdef  __cplusplus

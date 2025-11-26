@@ -15,7 +15,6 @@
 
 #define MAX_URL_SIZE 1024
 static char g_url[MAX_URL_SIZE];
-float g_volume = 1.0;
 
 enum PlayingStatus {
 	IDLE,
@@ -173,12 +172,6 @@ int player_test(const char *url)
 
 	RTPlayer_SetCallback(g_player, callback);
 
-	Parcel *request = Parcel_Create();
-	Parcel_WriteInt32(request, 1112);
-	Parcel_WriteFloat(request, g_volume);
-	RTPlayer_Invoke(g_player, request, NULL);
-	Parcel_Destroy(request);
-
 	StartPlay(g_player, url);
 
 	free(callback);
@@ -221,11 +214,7 @@ void example_player_test_args_handle(char  *argv[])
 					snprintf(g_url, MAX_URL_SIZE, "%s", *argv);
 				}
 			}
-		} else if (strcmp((const char *)*argv, "-v") == 0) {
-			argv++;
-			g_volume = atof((const char *)*argv);
 		}
-
 		if (*argv) {
 			argv++;
 		}
@@ -234,7 +223,7 @@ void example_player_test_args_handle(char  *argv[])
 
 	printf("player test start......\n");
 
-	if (rtos_task_create(NULL, ((const char *)"example_player_thread"), example_player_thread, NULL, 8 * 1024, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_player_thread"), example_player_thread, NULL, 8 * 1024, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create(example_player_thread) failed", __FUNCTION__);
 	}
 
@@ -247,8 +236,8 @@ void example_player_test_args_handle(char  *argv[])
 u32 example_player_test(u16 argc, u8 *argv[])
 {
 	(void) argc;
-	example_player_test_args_handle((char **)argv);
-	return TRUE;
+	example_player_test_args_handle((char**)argv);
+	return _TRUE;
 }
 #else
 
@@ -269,7 +258,7 @@ void example_player_thread(void *param)
 
 void example_player(void)
 {
-	if (rtos_task_create(NULL, ((const char *)"example_player_thread"), example_player_thread, NULL, 8 * 1024, 1) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_player_thread"), example_player_thread, NULL, 8 * 1024, 1) != SUCCESS) {
 		printf("\n\r%s rtos_task_create(example_player_thread) failed", __FUNCTION__);
 	}
 }

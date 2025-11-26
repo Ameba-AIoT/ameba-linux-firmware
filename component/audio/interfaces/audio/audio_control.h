@@ -34,8 +34,8 @@
  * @version 1.0
  */
 
-#ifndef AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_CONTROL_H
-#define AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_CONTROL_H
+#ifndef AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_CONTROL_H
+#define AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_CONTROL_H
 
 #include <stdint.h>
 
@@ -45,6 +45,20 @@ extern "C" {
 
 /**
  * @brief Defines all the audio playback devices.
+ *
+ * @since 1.0
+ * @version 1.0
+ */
+enum {
+	/** play through speaker */
+	RTAUDIO_DEVICE_SPEAKER         = 0,
+	/** play through headphone*/
+	RTAUDIO_DEVICE_HEADPHONE       = 1,
+	RTAUDIO_DEVICE_MAX_NUM         = 2,
+};
+
+/**
+ * @brief Defines all the audio microphone categories.
  *
  * @since 1.0
  * @version 1.0
@@ -174,8 +188,6 @@ int32_t RTAudioControl_GetAmplifierEnPin(void);
 
 /**
  * @brief Set Amplifier Mute.
- * Note: this interface may take some time, see component/audio/audio_hal/ameba_audio_stream_control:
- *       ameba_audio_ctl_set_amp_state.
  *
  * @param mute true means mute amplifier, false means unmute amplifier.
  * @return  Returns a value listed below: \n
@@ -223,7 +235,7 @@ bool RTAudioControl_GetPlaybackMute(void);
 /**
  * @brief Set Playback Device. Please set it before create RTAudioTrack.
  *
- * @param device_category the device of playback, maybe RTDEVICE_OUT_SPEAKER or RTDEVICE_OUT_HEADPHONE.
+ * @param device_category the device of playback, maybe RTAUDIO_DEVICE_SPEAKER or RTAUDIO_DEVICE_HEADPHONE.
  * @return Returns a value listed below: \n
  * int32_t | Description
  * ----------------------| -----------------------
@@ -237,7 +249,7 @@ int32_t RTAudioControl_SetPlaybackDevice(uint32_t device_category);
 /**
  * @brief Get Playback Device.
  *
- * @return Returns the device of playback, maybe RTDEVICE_OUT_SPEAKER or RTDEVICE_OUT_HEADPHONE.
+ * @return Returns the device of playback, maybe RTAUDIO_DEVICE_SPEAKER or RTAUDIO_DEVICE_HEADPHONE.
  *         If the value < 0, means get fail.
  * @since 1.0
  * @version 1.0

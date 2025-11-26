@@ -1,5 +1,5 @@
-#include "ameba_soc.h"
-#include "sn_coap_protocol_internal.h"
+#include "sn_coap_ameba_port.h"
+
 
 ///////////////////////////////////////////ramdom function///////////////////////////////////////////
 uint16_t randLIB_get_16bit()
@@ -75,7 +75,7 @@ int coap_sock_close(int socket_fd)
 	return r;
 }
 
-int coap_send(char *to_address, uint16_t port, int socket, sn_coap_hdr_s *coap_msg_hdr)
+int coap_sendto(char *to_address, uint16_t port, int socket, sn_coap_hdr_s *coap_msg_hdr)
 {
 
 	// Calculate the CoAP message size, allocate the memory and build the message

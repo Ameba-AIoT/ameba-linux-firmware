@@ -1515,24 +1515,6 @@ typedef struct {
   * @}
   */
 
-/** @defgroup AUDIO_CODEC_MICBIAS
-  * @{
-  */
-#define MICBIAS1							((u32)0x00000001)
-#define MICBIAS2							((u32)0x00000002)
-#define MICBIAS3							((u32)0x00000003)
-#define MICBIAS4							((u32)0x00000004)
-#define MICBIAS5							((u32)0x00000005)
-
-#define IS_CODEC_MICBIAS_SEL(SEL) (((SEL) == MICBIAS1) || \
-							((SEL) == MICBIAS2) || \
-							((SEL) == MICBIAS3) || \
-							((SEL) == MICBIAS4) || \
-							((SEL) == MICBIAS5))
-/**
-  * @}
-  */
-
 /** @defgroup AUDIO_CODEC_ADC
   * @{
   */
@@ -1987,7 +1969,6 @@ _LONG_CALL_ void AUDIO_CODEC_SetDACSRSrc(u32 src, u32 sr);
 _LONG_CALL_ void AUDIO_CODEC_DisPAD(u32 path);
 _LONG_CALL_ void AUDIO_CODEC_SetLDOMode(u32 powermode);
 _LONG_CALL_ void AUDIO_CODEC_EnableADC(u32 ad_chn, u32 newstate);
-_LONG_CALL_ void AUDIO_CODEC_EnableADCForMask(u32 ad_chn_mask);
 _LONG_CALL_ void AUDIO_CODEC_SetADCVolume(u32 adc_sel, u32 gain);
 _LONG_CALL_ void AUDIO_CODEC_SetADCHPF(u32 adc_sel, u32 fc, u32 newstate);
 _LONG_CALL_ void AUDIO_CODEC_SetADCASRC(u32 i2s_sel, u32 adc_sel, u32 sr, u32 newstate);
@@ -1997,7 +1978,7 @@ _LONG_CALL_ void AUDIO_CODEC_SetADCANASrc(u32 ad_chn, u32 amic_num);
 _LONG_CALL_ void AUDIO_CODEC_SetADCANAFilter(u32 adc_num, u32 newstate);
 _LONG_CALL_ void AUDIO_CODEC_SetMicBiasPowerMode(u32 powermode);
 _LONG_CALL_ void AUDIO_CODEC_SetMicBstPowerMode(u32 amic_num, u32 powermode);
-_LONG_CALL_ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 micbias_num, u32 pcut_mode);
+_LONG_CALL_ void AUDIO_CODEC_SetMicBiasPCUTMode(u32 amic_num, u32 pcut_mode);
 _LONG_CALL_ void AUDIO_CODEC_SetMicBstChnMute(u32 amic_sel, u32 type, u32 newstate);
 _LONG_CALL_ void AUDIO_CODEC_SetMicBstInputMode(u32 amic_num, u32 mode);
 _LONG_CALL_ void AUDIO_CODEC_SetMicBstGain(u32 amic_sel, u32 gain);
@@ -2030,9 +2011,7 @@ _LONG_CALL_ void AUDIO_CODEC_SetADCZDETTimeOut(u32 adc_sel, u32 time_out);
 _LONG_CALL_ void AUDIO_CODEC_Record(u32 i2s_sel, u32 type, I2S_InitTypeDef *I2S_InitStruct);
 _LONG_CALL_ void AUDIO_CODEC_Playback(u32 i2s_sel, u32 type, I2S_InitTypeDef *I2S_InitStruct);
 _LONG_CALL_ void AUDIO_CODEC_EnableADCFifo(u32 ad_chn, u32 newstate);
-_LONG_CALL_ void AUDIO_CODEC_EnableADCFifoForMask(u32 ad_chn_mask);
 _LONG_CALL_ void AUDIO_CODEC_EnableDACFifo(u32 newstate);
-_LONG_CALL_ u32 AUDIO_CODEC_GetHPOMode(u32 channel);
 
 /**
   * @}

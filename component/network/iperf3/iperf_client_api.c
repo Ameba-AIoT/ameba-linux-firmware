@@ -24,8 +24,9 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
-
-#include "lwip_netconf.h" //realtek add
+#include "platform_stdlib.h"
+#include "basic_types.h"
+#include "lwipconf.h" //realtek add
 
 #include <errno.h>
 #include <setjmp.h>

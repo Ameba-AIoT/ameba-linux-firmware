@@ -94,34 +94,6 @@ static void app_hfp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 					}
 				}
 			}
-		} else {
-			if (UUID_HANDSFREE_AUDIO_GATEWAY == sdp_info->srv_class_uuid_data.uuid_16) {
-				bt_hfp_connect_req(param->sdp_attr_info.bd_addr, sdp_info->server_channel, true);
-				{
-					p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HFP, RTK_BT_HFP_EVT_SDP_ATTR_INFO, sizeof(rtk_bt_hfp_sdp_attr_info_t));
-					if (!p_evt) {
-						BT_LOGE("app_hfp_bt_cback: evt_t allocate fail \r\n");
-						handle = false;
-						break;
-					}
-					p_info = (rtk_bt_hfp_sdp_attr_info_t *)p_evt->data;
-					memcpy((void *)&p_info->bd_addr, (void *)&param->sdp_attr_info.bd_addr, 6);
-					p_info->srv_class_uuid_type = (br_gap_uuid_type_t)sdp_info->srv_class_uuid_type;
-					memcpy((void *)&p_info->srv_class_uuid_data, (void *)&sdp_info->srv_class_uuid_data, sizeof(T_GAP_UUID_DATA));
-					p_info->profile_version = sdp_info->profile_version;
-					p_info->protocol_version = sdp_info->protocol_version;
-					p_info->server_channel = sdp_info->server_channel;
-					p_info->supported_feat = sdp_info->supported_feat;
-					p_info->l2c_psm = sdp_info->l2c_psm;
-					p_info->supported_repos = sdp_info->supported_repos;
-					p_info->pbap_supported_feat = sdp_info->pbap_supported_feat;
-					/* Send event */
-					if (RTK_BT_OK != rtk_bt_evt_indicate(p_evt, NULL)) {
-						handle = false;
-						break;
-					}
-				}
-			}
 		}
 	}
 	break;
@@ -859,40 +831,9 @@ static void app_hfp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 	}
 	break;
 
-	case BT_EVENT_HFP_UNKNOW_AT_EVENT: {
-		rtk_bt_hfp_unknown_at_event_t *p_hfp_event_ind = NULL;
-
-		p_link = app_find_br_link(param->hfp_unknow_at_event.bd_addr);
-		if (p_link != NULL) {
-			APP_PRINT_INFO0("BT_EVENT_HFP_UNKNOW_AT_EVENT");
-			BT_LOGA("app_hfp_bt_cback: BT_EVENT_HFP_UNKNOW_AT_EVENT len is %d \r\n", param->hfp_unknow_at_event.at_len);
-			{
-				p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HFP, RTK_BT_HFP_EVT_UNKNOWN_EVENT_IND, sizeof(rtk_bt_hfp_unknown_at_event_t));
-				if (!p_evt) {
-					BT_LOGE("app_hfp_bt_cback: evt_t allocate fail \r\n");
-					handle = false;
-					break;
-				}
-				p_hfp_event_ind = (rtk_bt_hfp_unknown_at_event_t *)p_evt->data;
-				memcpy((void *)p_hfp_event_ind->bd_addr, (void *)p_link->bd_addr, 6);
-				memcpy((void *)p_hfp_event_ind->at_cmd, (void *)param->hfp_unknow_at_event.at_cmd, param->hfp_unknow_at_event.at_len);
-				p_hfp_event_ind->len = param->hfp_unknow_at_event.at_len;
-				/* Send event */
-				if (RTK_BT_OK != rtk_bt_evt_indicate(p_evt, NULL)) {
-					handle = false;
-					break;
-				}
-			}
-		} else {
-			APP_PRINT_INFO0("HFP p_link is NULL");
-			BT_LOGE("app_hfp_bt_cback: HFP p_link is NULL \r\n");
-		}
-	}
-	break;
-
 	default: {
 		APP_PRINT_INFO1("app_hfp_bt_cback: default event_type 0x%04x", event_type);
-		// BT_LOGE("app_hfp_bt_cback: default event_type 0x%04x \r\n", event_type);
+		// BT_LOGA("app_hfp_bt_cback: default event_type 0x%04x \r\n", event_type);
 		handle = false;
 	}
 	break;
@@ -1035,28 +976,6 @@ static uint16_t bt_stack_hfp_call_terminate(void *param)
 	return RTK_BT_FAIL;
 }
 
-static uint16_t bt_stack_hfp_call_dial_with_number(void *param)
-{
-	rtk_bt_hfp_dial_number_t *p_dial_number = (rtk_bt_hfp_dial_number_t *)param;
-
-	if (bt_hfp_dial_with_number_req(p_dial_number->bd_addr, p_dial_number->number)) {
-		return RTK_BT_OK;
-	}
-
-	return RTK_BT_FAIL;
-}
-
-static uint16_t bt_stack_hfp_call_dial_last_number(void *param)
-{
-	uint8_t *bd_addr = (uint8_t *)param;
-
-	if (bt_hfp_dial_last_number_req(bd_addr)) {
-		return RTK_BT_OK;
-	}
-
-	return RTK_BT_FAIL;
-}
-
 static uint16_t bt_stack_hfp_data_send(void *param)
 {
 	rtk_bt_hfp_sco_data_send_t *p_data_send_t = (rtk_bt_hfp_sco_data_send_t *)param;
@@ -1112,18 +1031,6 @@ static uint16_t bt_stack_hfp_report_microphone_gain(void *param)
 	return RTK_BT_FAIL;
 }
 
-static uint16_t bt_stack_hfp_send_vnd_at_cmd_req(void *param)
-{
-	rtk_bt_hfp_vnd_at_cmd_t *p_param_t = (rtk_bt_hfp_vnd_at_cmd_t *)param;
-
-	if (bt_hfp_send_vnd_at_cmd_req(p_param_t->bd_addr, p_param_t->at_cmd)) {
-		return RTK_BT_OK;
-	}
-	BT_LOGE("bt_hfp_send_vnd_at_cmd_req fail \r\n");
-
-	return RTK_BT_FAIL;
-}
-
 uint16_t bt_stack_hfp_act_handle(rtk_bt_cmd_t *p_cmd)
 {
 	uint16_t ret = 0;
@@ -1158,14 +1065,6 @@ uint16_t bt_stack_hfp_act_handle(rtk_bt_cmd_t *p_cmd)
 		ret = bt_stack_hfp_call_terminate(p_cmd->param);
 		break;
 
-	case RTK_BT_HFP_ACT_DIAL_WITH_NUMBER:
-		ret = bt_stack_hfp_call_dial_with_number(p_cmd->param);
-		break;
-
-	case RTK_BT_HFP_ACT_DIAL_LAST_NUMBER:
-		ret = bt_stack_hfp_call_dial_last_number(p_cmd->param);
-		break;
-
 	case RTK_BT_HFP_ACT_SEND_SCO_DATA:
 		ret = bt_stack_hfp_data_send(p_cmd->param);
 		break;
@@ -1180,10 +1079,6 @@ uint16_t bt_stack_hfp_act_handle(rtk_bt_cmd_t *p_cmd)
 
 	case RTK_BT_HFP_ACT_REPORT_MICROPHONE_GAIN:
 		ret = bt_stack_hfp_report_microphone_gain(p_cmd->param);
-		break;
-
-	case RTK_BT_HFP_ACT_VND_CMD_REQ:
-		ret = bt_stack_hfp_send_vnd_at_cmd_req(p_cmd->param);
 		break;
 
 	default:
@@ -1231,13 +1126,16 @@ uint16_t bt_stack_hfp_init(uint8_t role)
 	return RTK_BT_OK;
 }
 
+extern void hfp_deinit(void);
+extern void hfp_ag_deinit(void);
+
 void bt_stack_hfp_deinit(void)
 {
 	BT_LOGA("[HFP]app_hfp_init\n");
 	if (hfp_role == RTK_BT_AUDIO_HFP_ROLE_AG) {
-		bt_hfp_ag_deinit();
+		hfp_ag_deinit();
 	} else {
-		bt_hfp_deinit();
+		hfp_deinit();
 	}
 }
 

@@ -23,6 +23,12 @@ extern "C" {
 #endif
 
 typedef struct PrimaryAudioConfig {
+	/** rate to be output by service, can be 44100, 16000, 48000*/
+	uint32_t out_rate;
+	/** channels to be output by service, only support 2 channels now*/
+	uint32_t out_channels;
+	/** format to be output by service, only support 16bit now */
+	uint32_t out_format;
 	/** period_size from service to set to HAL */
 	uint32_t out_period_frames;
 	/** period_count from service to set to HAL, to be supported, please set 4 now */
@@ -32,13 +38,6 @@ typedef struct PrimaryAudioConfig {
 } PrimaryAudioConfig;
 
 extern PrimaryAudioConfig kPrimaryAudioConfig;
-
-/*
- * If system has no audio output, stop audio clock after kStandbyDurationNs time.
- * If user wants audio clock all the time, please set it as:0x3FFFFFFFFFFFFFFF.
- * If user wants default time calculated by framework, set it as -1.
- */
-extern int64_t kStandbyDurationNs;
 
 #ifdef __cplusplus
 }

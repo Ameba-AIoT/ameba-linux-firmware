@@ -47,7 +47,7 @@ static mesh_msg_send_cause_t generic_battery_stat(const mesh_model_info_p pmodel
     memcpy(msg.time_to_charge, charge, 3);
     msg.flags = flags;
 
-    mesh_msg_t mesh_msg = {0};
+    mesh_msg_t mesh_msg;
     mesh_msg.pmodel_info = pmodel_info;
     access_cfg(&mesh_msg);
     mesh_msg.pbuffer = (uint8_t *)&msg;
@@ -117,7 +117,6 @@ static bool generic_battery_server_receive(mesh_msg_p pmesh_msg)
 
 static int32_t generic_battery_server_publish(const mesh_model_info_p pmodel_info, bool retrans)
 {
-    // RTK porting:avoid compile warning
 	(void) retrans; //avoid warning
     generic_battery_server_get_t get_data = {0, 0, 0, {0, 0, 0, 0}};
     if (NULL != pmodel_info->model_data_cb)

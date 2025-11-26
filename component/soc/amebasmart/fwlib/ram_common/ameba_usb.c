@@ -7,12 +7,11 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "ameba_soc.h"
-#include "usb_hal.h"
 
 /* Private defines -----------------------------------------------------------*/
 
 /* USB OTG addon control register */
-#define USB_ADDON_REG_CTRL							(USB_ADDON_REG_BASE + 0x04UL)
+#define USB_ADDON_REG_CTRL							(USB_OTG_REG_BASE + 0x30004UL)
 
 #define USB_ADDON_REG_CTRL_BIT_UPLL_CKRDY			BIT(5)  /* 1: USB PHY clock ready */
 #define USB_ADDON_REG_CTRL_BIT_USB_OTG_RST			BIT(8)  /* 1: Enable USB OTG */
@@ -29,24 +28,18 @@
 
 /* Private function prototypes -----------------------------------------------*/
 
-static int usb_chip_init(u8 mode);
-static int usb_chip_deinit(void);
-static usb_cal_data_t *usb_chip_get_cal_data(u8 mode);
-static void usb_chip_enable_interrupt(u8 priority);
-static void usb_chip_disable_interrupt(void);
-static void usb_chip_register_irq_handler(void *handler, u8 priority);
-static void usb_chip_unregister_irq_handler(void);
-
 /* Private variables ---------------------------------------------------------*/
+
+static const char *const TAG = "USB";
 
 static const usb_cal_data_t usb_cal_data[] = {
 	{0x00, 0xE0, 0x9D},
 	{0x00, 0xE1, 0x19},
 	{0x00, 0xE2, 0xDB},
-	{0x00, 0xE4, 0x68}, // 0x6B
+	{0x00, 0xE4, 0x68},
 	{0x01, 0xE5, 0x0A},
 	{0x01, 0xE6, 0xD8},
-	{0x02, 0xE7, 0x52}, // 0x32
+	{0x02, 0xE7, 0x52},
 	{0x01, 0xE0, 0x04},
 	{0x01, 0xE0, 0x00},
 	{0x01, 0xE0, 0x04},
@@ -54,26 +47,27 @@ static const usb_cal_data_t usb_cal_data[] = {
 	{0xFF, 0x00, 0x00}
 };
 
-/* Exported variables --------------------------------------------------------*/
-
-usb_hal_driver_t usb_hal_driver = {
-	.init = usb_chip_init,
-	.deinit = usb_chip_deinit,
-	.get_cal_data = usb_chip_get_cal_data,
-	.enable_interrupt = usb_chip_enable_interrupt,
-	.disable_interrupt = usb_chip_disable_interrupt,
-	.register_irq_handler = usb_chip_register_irq_handler,
-	.unregister_irq_handler = usb_chip_unregister_irq_handler,
-};
-
 /* Private functions ---------------------------------------------------------*/
 
+/* Exported functions --------------------------------------------------------*/
+/** @addtogroup Ameba_Periph_Driver
+  * @{
+  */
+
+/** @defgroup USB
+* @brief USB driver modules
+* @{
+*/
+
+/** @defgroup USB_Exported_Functions USB Exported Functions
+  * @{
+  */
 /**
   * @brief  Get USB chip specific calibration data
   * @param  mode: 0 - device; 1 - host
   * @retval Pointer to calibration data buffer
   */
-static usb_cal_data_t *usb_chip_get_cal_data(u8 mode)
+usb_cal_data_t *usb_chip_get_cal_data(u8 mode)
 {
 	UNUSED(mode);
 	return (usb_cal_data_t *)&usb_cal_data[0];
@@ -84,10 +78,8 @@ static usb_cal_data_t *usb_chip_get_cal_data(u8 mode)
   * @param  void
   * @retval Status
   */
-static int usb_chip_init(u8 mode)
+int usb_chip_init(void)
 {
-	UNUSED(mode);
-
 	u32 reg = 0;
 	u32 count = 0;
 
@@ -106,7 +98,7 @@ static int usb_chip_init(u8 mode)
 	/* USB digital pad en,dp/dm sharing GPIO PAD */
 	reg = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_USB_CTRL);
 	reg &= ~(HSYS_BIT_USB2_DIGOTGPADEN | HSYS_BIT_USB_OTGMODE | HSYS_BIT_USB2_DIGPADEN);
-#ifdef CONFIG_USB_OTG_VERIFY
+#if CONFIG_USB_OTG
 	reg |= (HSYS_BIT_USB_OTGMODE | HSYS_BIT_OTG_ANA_EN);
 #endif
 	HAL_WRITE32(SYSTEM_CTRL_BASE_HP, REG_HSYS_USB_CTRL, reg);
@@ -142,6 +134,7 @@ static int usb_chip_init(u8 mode)
 		/* 1ms timeout expected, 10ms for safe */
 		DelayUs(10);
 		if (++count > 1000U) {
+			RTK_LOGS(TAG, "[USB] Chip init TO\n");
 			return HAL_TIMEOUT;
 		}
 	} while (!(HAL_READ32(USB_ADDON_REG_CTRL, 0U) & USB_ADDON_REG_CTRL_BIT_UPLL_CKRDY));
@@ -159,7 +152,7 @@ static int usb_chip_init(u8 mode)
   * @param  void
   * @retval Status
   */
-static int usb_chip_deinit(void)
+int usb_chip_deinit(void)
 {
 	u32 reg = 0;
 
@@ -204,46 +197,6 @@ static int usb_chip_deinit(void)
 	return HAL_OK;
 }
 
-/**
-  * @brief  Enable USB interrupt
-  * @param  priority: IRQ priority
-  * @retval void
-  */
-static void usb_chip_enable_interrupt(u8 priority)
-{
-	UNUSED(priority);
-	InterruptEn(USB_OTG_IRQ, priority);
-}
-
-/**
-  * @brief  Disable USB interrupt
-  * @retval void
-  */
-static void usb_chip_disable_interrupt(void)
-{
-	InterruptDis(USB_OTG_IRQ);
-}
-
-/**
-  * @brief  Register USB IRQ handler
-  * @param  handler: IRQ handler
-  * @param  priority: IRQ priority
-  * @retval void
-  */
-static void usb_chip_register_irq_handler(void *handler, u8 priority)
-{
-	if (handler != NULL) {
-		InterruptRegister((IRQ_FUN)handler, USB_OTG_IRQ, NULL, priority);
-	}
-}
-
-/**
-  * @brief  Unregister USB IRQ handler
-  * @retval void
-  */
-static void usb_chip_unregister_irq_handler(void)
-{
-	InterruptUnRegister(USB_OTG_IRQ);
-}
-
-/* Exported functions --------------------------------------------------------*/
+/**@}*/
+/**@}*/
+/**@}*/

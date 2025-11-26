@@ -254,9 +254,9 @@ u8 LCDC_CheckLCDCReady(LCDC_TypeDef *LCDCx)
 {
 	/*get the LCDC Ready state of LCDC_STATUS*/
 	if (LCDCx->LCDC_STATUS & LCDC_BIT_LCDCREADY) {
-		return TRUE;
+		return _TRUE;
 	} else {
-		return FALSE;
+		return _FALSE;
 	}
 }
 
