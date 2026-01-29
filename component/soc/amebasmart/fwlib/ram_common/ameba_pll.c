@@ -203,9 +203,9 @@ void PLL_I2S_24P576M(u32 NewState)
   *            @arg PLL_FASTER: pll clock faster than 98.304M
   *            @arg PLL_SLOWER: pll clock slower than 98.304M
   */
-float PLL_I2S_98P304M_ClkTune(float ppm, u32 action)
+float PLL_I2S_98P304M_ClkTune(u32 pll_sel, float ppm, u32 action)
 {
-
+	(void)pll_sel;
 	u32 F0F_new;
 	assert_param(ppm <= 4535);
 	float real_ppm = 0;
@@ -213,10 +213,10 @@ float PLL_I2S_98P304M_ClkTune(float ppm, u32 action)
 	u32 F0F_base = 5269;
 
 	if (action == PLL_FASTER) {
-		F0F_new = F0F_base + (u32)(ppm / step + 0.5);
+		F0F_new = F0F_base + (u32)((double)ppm / step + 0.5);
 		real_ppm = (double)((double)F0F_new - (double)F0F_base) * step;
 	} else if (action == PLL_SLOWER) {
-		F0F_new = F0F_base - (u32)(ppm / step + 0.5);
+		F0F_new = F0F_base - (u32)((double)ppm / step + 0.5);
 		real_ppm = (double)((double)F0F_new - (double)F0F_base) * step;
 	} else {
 		F0F_new = F0F_base;
@@ -244,9 +244,9 @@ float PLL_I2S_98P304M_ClkTune(float ppm, u32 action)
   *            @arg PLL_FASTER: pll clock faster than 45.1584M
   *            @arg PLL_SLOWER: pll clock slower than 45.1584M
   */
-float PLL_I2S_45P158M_ClkTune(float ppm, u32 action)
+float PLL_I2S_45P158M_ClkTune(u32 pll_sel, float ppm, u32 action)
 {
-
+	(void)pll_sel;
 	u32 F0F_new;
 	float real_ppm = 0;
 	assert_param(ppm <= 3507);
@@ -254,10 +254,10 @@ float PLL_I2S_45P158M_ClkTune(float ppm, u32 action)
 	u32 F0F_base = 2076;
 
 	if (action == PLL_FASTER) {
-		F0F_new = F0F_base + (u32)(ppm / step + 0.5);
+		F0F_new = F0F_base + (u32)((double)ppm / step + 0.5);
 		real_ppm = (double)((double)F0F_new - (double)F0F_base) * step;
 	} else if (action == PLL_SLOWER) {
-		F0F_new = F0F_base - (u32)(ppm / step + 0.5);
+		F0F_new = F0F_base - (u32)((double)ppm / step + 0.5);
 		real_ppm = (double)((double)F0F_new - (double)F0F_base) * step;
 	} else {
 		F0F_new = F0F_base;
@@ -274,6 +274,32 @@ float PLL_I2S_45P158M_ClkTune(float ppm, u32 action)
 
 	return real_ppm;
 
+}
+
+/**
+  * @brief  get nppll clk.
+  * @param  None.
+  */
+u32 PLL_NP_ClkGet(void)
+{
+	PLL_TypeDef *PLL = (PLL_TypeDef *)PLL_BASE;
+	u32 Div, FoN, FoF;
+	u32 XtalClk = XTAL_ClkGet();
+	u64 PllClk;
+
+	// Get Div value
+	Div = PLL_GET_NPLL_DIVN_SDM(PLL->PLL_NPPLL_CTRL1) + 2;
+
+	// Get FoN and FoF values
+	FoN = PLL_GET_NPLL_F0N_SDM(PLL->PLL_NPPLL_CTRL3);
+	FoF = PLL_GET_NPLL_F0F_SDM(PLL->PLL_NPPLL_CTRL3);
+
+	// Calculate PLL frequency
+	// PllClk = Div * XtalClk + (FoN + FoF >> 13) / 8 * XtalClk
+	PllClk = (u64)Div * XtalClk;
+	PllClk += ((u64)FoN * XtalClk + ((u64)FoF * XtalClk >> 13)) >> 3;
+
+	return (u32)PllClk;
 }
 
 /**
@@ -450,6 +476,31 @@ void PLL_AP_ClkTune(u32 Option)
 
 	// Wait ready
 	while (!(apll->APLL_CTRL1 & APLL_BIT_CK_RDY));
+}
+
+/**
+  * @brief  Acquire Hbus clock.
+  * @param  none
+  * @retval  ipclk, units Hz.
+  */
+u32 PLL_GetHBUSClk(void)
+{
+	u32 reg_temp;
+	u32 hbus_div, ip_clk;
+
+	/* indirectly get np_pll clock according to CPU_ClkGet() in ameba_rom_patch.c */
+	u32 Div, np_pll;
+	PLL_TypeDef *pll = (PLL_TypeDef *)PLL_BASE;
+
+	Div = PLL_GET_NPLL_DIVN_SDM(pll->PLL_NPPLL_CTRL1) + 2;
+	np_pll = 40000000 * Div;
+
+	/* get hbus_div to calculate hbus_clk, which is equal spi ipclk */
+	reg_temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKD_GRP0);
+	hbus_div = LSYS_GET_CKD_HBUS(reg_temp) + 1;
+	ip_clk = np_pll / hbus_div;
+
+	return ip_clk;
 }
 /**@}*/
 /**@}*/

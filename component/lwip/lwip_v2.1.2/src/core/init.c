@@ -79,6 +79,10 @@ PACK_STRUCT_END
 
 #endif
 
+#if defined(IP_NAT) && (IP_NAT == 1)
+extern void ip_nat_initialize(void);
+#endif
+
 /* Compile-time sanity checks for configuration errors.
  * These can be done independently of LWIP_DEBUG, without penalty.
  */
@@ -237,9 +241,9 @@ PACK_STRUCT_END
 #error "NETCONN_MORE != TCP_WRITE_FLAG_MORE"
 #endif
 #endif /* LWIP_NETCONN && LWIP_TCP */
-#if LWIP_SOCKET
-#endif /* LWIP_SOCKET */
-
+#if LWIP_NETCONN_FULLDUPLEX && !LWIP_NETCONN_SEM_PER_THREAD
+#error "For LWIP_NETCONN_FULLDUPLEX to work, LWIP_NETCONN_SEM_PER_THREAD is required"
+#endif
 
 /* Compile-time checks for deprecated options.
  */

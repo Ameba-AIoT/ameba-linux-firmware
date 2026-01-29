@@ -12,7 +12,8 @@
 
 extern lfs_t g_lfs;
 extern int rt_lfs_init(lfs_t *lfs);
-char lfs_mount_fail = 0;
+int lfs_mount_flag = 0;
+static struct dirent *lfs_ent;
 
 int fmodeflags(const char *mode)
 {
@@ -78,6 +79,8 @@ int littlefs_open(const char *filename, const char *mode, vfs_file *finfo)
 	if (ret < 0) {
 		if (ret == LFS_ERR_NOENT) {
 			VFS_DBG(VFS_WARNING, "file is not exist");
+		} else if (ret == LFS_ERR_EXIST) {
+			VFS_DBG(VFS_WARNING, "file already exist %d", ret);
 		} else {
 			VFS_DBG(VFS_ERROR, "Open file error %d", ret);
 		}
@@ -195,7 +198,9 @@ int littlefs_remove(const char *name)
 	int ret = 0;
 	ret = lfs_remove(&g_lfs, name);
 
-	if (ret < 0) {
+	if (ret == LFS_ERR_NOENT) {
+		VFS_DBG(VFS_INFO, "The file to be deleted does not exist.\r\n");
+	} else if (ret < 0) {
 		VFS_DBG(VFS_ERROR, "vfs-littlefs remove error %d \r\n", ret);
 	}
 
@@ -278,11 +283,13 @@ struct dirent *littlefs_readdir(vfs_file *finfo)
 {
 	lfs_dir_t *dir = (lfs_dir_t *)finfo->file;
 	struct lfs_info info;
-	struct dirent *ent = rtos_mem_malloc(sizeof(struct dirent));
-	if (ent == NULL) {
-		return NULL;
+	if (lfs_ent == NULL) {
+		lfs_ent = rtos_mem_malloc(sizeof(struct dirent));
+		if (lfs_ent == NULL) {
+			return NULL;
+		}
 	}
-	memset(ent, 0, sizeof(struct dirent));
+	memset(lfs_ent, 0, sizeof(struct dirent));
 	int err = lfs_dir_read(&g_lfs, dir, &info);
 	if (err <= 0) {
 		return NULL;
@@ -290,16 +297,16 @@ struct dirent *littlefs_readdir(vfs_file *finfo)
 	if (info.name[0] == 0) {
 		return NULL;
 	}
-	ent->d_ino = 0;
-	ent->d_off = 0;
-	ent->d_reclen = info.size;
+	lfs_ent->d_ino = 0;
+	lfs_ent->d_off = 0;
+	lfs_ent->d_reclen = info.size;
 	if (info.type == LFS_TYPE_DIR) {
-		ent->d_type = DT_DIR;
+		lfs_ent->d_type = DT_DIR;
 	} else {
-		ent->d_type = DT_REG;
+		lfs_ent->d_type = DT_REG;
 	}
-	sprintf(ent->d_name, "%s", info.name);
-	return ent;
+	sprintf(lfs_ent->d_name, "%s", info.name);
+	return lfs_ent;
 }
 
 int littlefs_closedir(vfs_file *finfo)
@@ -308,6 +315,10 @@ int littlefs_closedir(vfs_file *finfo)
 	lfs_dir_t *dir = (lfs_dir_t *)finfo->file;
 	ret = lfs_dir_close(&g_lfs, dir);
 	rtos_mem_free(dir);
+	if (lfs_ent != NULL) {
+		rtos_mem_free(lfs_ent);
+		lfs_ent = NULL;
+	}
 	if (ret < 0) {
 		VFS_DBG(VFS_ERROR, "vfs-littlefs Close directory fail: %d", ret);
 	}
@@ -385,9 +396,11 @@ int littlefs_mount(int interface)
 	ret = rt_lfs_init(&g_lfs);
 	if (ret) {
 		VFS_DBG(VFS_ERROR, "Littlefs mount fail, ret is %d", ret);
+		lfs_mount_flag = -1;
 		return ret;
 	}
 	VFS_DBG(VFS_INFO, "Littlefs mount");
+	lfs_mount_flag = 1;
 	return ret;
 }
 

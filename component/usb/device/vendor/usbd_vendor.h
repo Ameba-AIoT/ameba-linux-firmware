@@ -1,13 +1,8 @@
-/**
-  ******************************************************************************
-  * The header file for usbd_vendor.c
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef USBD_VENDOR_H
 #define USBD_VENDOR_H
@@ -19,19 +14,9 @@
 /* Exported defines ----------------------------------------------------------*/
 
 /*  Vendor Test parameters */
-#define CONFIG_USBD_VENDOR_BULK_TEST					0
-#define CONFIG_USBD_VENDOR_INTR_TEST					1
-#define CONFIG_USBD_VENDOR_ISOC_TEST					1
 #define USBD_VENDOR_BULK_OUT_XFER_CNT					100
 #define USBD_VENDOR_INTR_OUT_XFER_CNT					100
 #define USBD_VENDOR_ISOC_OUT_XFER_CNT					100
-#define USBD_VENDOR_BULK_OUT_BUF_SIZE					64U   /* BULK OUT buffer size */
-#define USBD_VENDOR_BULK_IN_BUF_SIZE					64U   /* BULK IN buffer size */
-#define USBD_VENDOR_INTR_OUT_BUF_SIZE					64U   /* INTR OUT buffer size */
-#define USBD_VENDOR_INTR_IN_BUF_SIZE					64U   /* INTR IN buffer size */
-#define USBD_VENDOR_ISOC_OUT_BUF_SIZE					64U   /* ISOC OUT buffer size */
-#define USBD_VENDOR_ISOC_IN_BUF_SIZE					64U   /* ISOC IN buffer size */
-#define USBD_VENDOR_CTRL_BUF_SIZE						512U  /* CTRL buffer size */
 
 /* Vendor Device parameters */
 #define USBD_VENDOR_VID									USB_VID
@@ -50,27 +35,34 @@
 
 /* Vendor Endpoint parameters */
 #if defined (CONFIG_AMEBAGREEN2)
-#define USBD_VENDOR_BULK_IN_EP							0x82U  /* EP2 for BULK IN */
-#define USBD_VENDOR_BULK_OUT_EP							0x02U  /* EP2 for BULK OUT */
-#define USBD_VENDOR_INTR_IN_EP							0x82U  /* EP2 for INTR IN */
-#define USBD_VENDOR_INTR_OUT_EP							0x02U  /* EP2 for INTR OUT */
-#define USBD_VENDOR_ISOC_IN_EP							0x84U  /* EP4 for ISOC IN */
-#define USBD_VENDOR_ISOC_OUT_EP							0x05U  /* EP5 for ISOC OUT */
+#define USBD_VENDOR_BULK_IN_EP                          0x86U  /* EP6 for BULK IN */
+#define USBD_VENDOR_BULK_OUT_EP                         0x03U  /* EP3 for BULK OUT */
+#define USBD_VENDOR_ISOC_IN_EP                          0x82U  /* EP2 for ISOC IN */
+#define USBD_VENDOR_ISOC_OUT_EP                         0x02U  /* EP2 for ISOC OUT */
+#define USBD_VENDOR_INTR_IN_EP                          0x84U  /* EP4 for INTR IN */
+#define USBD_VENDOR_INTR_OUT_EP                         0x05U  /* EP5 for INTR OUT */
+#elif defined (CONFIG_AMEBASMARTPLUS) || defined (CONFIG_AMEBAL2)
+#define USBD_VENDOR_BULK_IN_EP                          0x84U  /* EP4 for BULK IN */
+#define USBD_VENDOR_BULK_OUT_EP                         0x04U  /* EP4 for BULK OUT */
+#define USBD_VENDOR_ISOC_IN_EP                          0x81U  /* EP1 for ISOC IN */
+#define USBD_VENDOR_ISOC_OUT_EP                         0x01U  /* EP1 for ISOC OUT */
+#define USBD_VENDOR_INTR_IN_EP                          0x82U  /* EP2 for INTR IN */
+#define USBD_VENDOR_INTR_OUT_EP                         0x02U  /* EP2 for INTR OUT */
 #else
 #define USBD_VENDOR_BULK_IN_EP							0x81U  /* EP1 for BULK IN */
 #define USBD_VENDOR_BULK_OUT_EP							0x02U  /* EP2 for BULK OUT */
-#define USBD_VENDOR_INTR_IN_EP							0x81U  /* EP1 for INTR IN */
-#define USBD_VENDOR_INTR_OUT_EP							0x02U  /* EP2 for INTR OUT */
+#define USBD_VENDOR_INTR_IN_EP							0x85U  /* EP1 for INTR IN */
+#define USBD_VENDOR_INTR_OUT_EP							0x05U  /* EP2 for INTR OUT */
 #define USBD_VENDOR_ISOC_IN_EP							0x83U  /* EP3 for ISOC IN */
 #define USBD_VENDOR_ISOC_OUT_EP							0x04U  /* EP4 for ISOC OUT */
 #endif
 
-#define USBD_VENDOR_HS_BULK_MPS							64U   /* High speed BULK IN & OUT max packet size */
+#define USBD_VENDOR_HS_BULK_MPS							512U   /* High speed BULK IN & OUT max packet size */
 #define USBD_VENDOR_FS_BULK_MPS							64U   /* Full speed BULK IN & OUT max packet size */
-#define USBD_VENDOR_HS_INTR_MPS							64U   /* High speed INTR IN & OUT max packet size */
+#define USBD_VENDOR_HS_INTR_MPS							1024U   /* High speed INTR IN & OUT max packet size */
 #define USBD_VENDOR_FS_INTR_MPS							64U   /* Full speed INTR IN & OUT max packet size */
-#define USBD_VENDOR_HS_ISOC_MPS							64U   /* High speed ISOC IN & OUT max packet size */
-#define USBD_VENDOR_FS_ISOC_MPS							64U   /* Full speed ISOC IN & OUT max packet size */
+#define USBD_VENDOR_HS_ISOC_MPS							1024U   /* High speed ISOC IN & OUT max packet size */
+#define USBD_VENDOR_FS_ISOC_MPS							1023U   /* Full speed ISOC IN & OUT max packet size */
 
 #define USBD_VENDOR_HS_INTR_IN_INTERVAL					1U    /* High speed INTR IN interval */
 #define USBD_VENDOR_HS_INTR_OUT_INTERVAL				1U    /* High speed INTR OUT interval */
@@ -95,26 +87,20 @@ typedef struct {
 	void(* bulk_transmitted)(u8 status);
 	void(* intr_transmitted)(u8 status);
 	void(* isoc_transmitted)(u8 status);
-	void (*status_changed)(u8 status);
+	void (*status_changed)(u8 old_status, u8 status);
 } usbd_vendor_cb_t;
 
 typedef struct {
+	usb_setup_req_t ctrl_req;
+	usbd_ep_t ep_isoc_in;
+	usbd_ep_t ep_isoc_out;
+	usbd_ep_t ep_bulk_in;
+	usbd_ep_t ep_bulk_out;
+	usbd_ep_t ep_intr_in;
+	usbd_ep_t ep_intr_out;
 	usb_dev_t *dev;
 	usbd_vendor_cb_t *cb;
-	usb_setup_req_t ctrl_req;
-	u8 *ctrl_buf;
-	u8 *bulk_out_buf;
-	u8 *bulk_in_buf;
-	u8 *intr_out_buf;
-	u8 *intr_in_buf;
-	u8 *isoc_out_buf;
-	u8 *isoc_in_buf;
-	u8  alt_setting;
-	__IO u8 bulk_in_state : 1;
-	__IO u8 ctrl_in_state : 1;
-	__IO u8 intr_in_state : 1;
-	__IO u8 is_ready : 1;
-	__IO u8 bulk_in_zlp : 1;
+	u8 alt_setting;
 } usbd_vendor_dev_t;
 
 /* Exported macros -----------------------------------------------------------*/

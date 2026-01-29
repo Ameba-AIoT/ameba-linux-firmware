@@ -6,42 +6,19 @@
 
 #include "ameba_soc.h"
 #include "ameba_system.h"
-#include "FreeRTOS.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
 
-static const char *TAG = "APP";
+static const char *const TAG = "APP";
 #if defined(CONFIG_EXAMPLE_CM_BACKTRACE) && CONFIG_EXAMPLE_CM_BACKTRACE
 #include "cm_backtrace/example_cm_backtrace.h"
 #endif
 
-#if defined ( __ICCARM__ )
-#pragma section=".ram_image2.bss"
-#pragma section="NOCACHE_DATA"
-#pragma section=".psram.bss"
-
-SECTION(".data") u8 *__bss_start__ = 0;
-SECTION(".data") u8 *__bss_end__ = 0;
-SECTION(".data") u8 *__ram_nocache_start__ = 0;
-SECTION(".data") u8 *__ram_nocache_end__ = 0;
-SECTION(".data") u8 *__psram_bss_start__ = 0;
-SECTION(".data") u8 *__psram_bss_end__ = 0;
-#endif
-
+extern void newlib_locks_init(void);
 extern int main(void);
 extern u32 GlobalDebugEnable;
 void NS_ENTRY BOOT_IMG3(void);
 void app_init_psram(void);
-void app_section_init(void)
-{
-#if defined ( __ICCARM__ )
-	__bss_start__               = (u8 *)__section_begin(".ram_image2.bss");
-	__bss_end__                 = (u8 *)__section_end(".ram_image2.bss");
-	__ram_nocache_start__       = (u8 *)__section_begin("NOCACHE_DATA");
-	__ram_nocache_end__         = (u8 *)__section_end("NOCACHE_DATA");
-	__ram_nocache_end__ = (u8 *)(((((u32)__ram_nocache_end__ - 1) >> 5) + 1) << 5); //32-byte aligned
-#endif
-}
 
 u32 app_mpu_nocache_check(u32 mem_addr)
 {
@@ -63,11 +40,19 @@ u32 app_mpu_nocache_init(void)
 	mpu_region_config mpu_cfg;
 	u32 mpu_entry = 0;
 
+	/* ROM Code inside CPU does not enter Cache, Set to RO for NULL ptr access error */
 	mpu_entry = mpu_entry_alloc();
+	mpu_cfg.region_base = 0x00000000;
+	mpu_cfg.region_size = 0x00058000 - 0x00000000;
+	mpu_cfg.xn = MPU_EXEC_ALLOW;
+	mpu_cfg.ap = MPU_UN_PRIV_RO;
+	mpu_cfg.sh = MPU_NON_SHAREABLE;
+	mpu_cfg.attr_idx = MPU_MEM_ATTR_IDX_NC;
+	mpu_region_cfg(mpu_entry, &mpu_cfg);
 
+	mpu_entry = mpu_entry_alloc();
 	mpu_cfg.region_base = (uint32_t)__ram_nocache_start__;
 	mpu_cfg.region_size = __ram_nocache_end__ - __ram_nocache_start__;
-
 	mpu_cfg.xn = MPU_EXEC_ALLOW;
 	mpu_cfg.ap = MPU_UN_PRIV_RW;
 	mpu_cfg.sh = MPU_NON_SHAREABLE;
@@ -75,16 +60,6 @@ u32 app_mpu_nocache_init(void)
 	if (mpu_cfg.region_size >= 32) {
 		mpu_region_cfg(mpu_entry, &mpu_cfg);
 	}
-
-	/* close rom_ns cache */
-	mpu_entry = mpu_entry_alloc();
-	mpu_cfg.region_base = 0x1E000;
-	mpu_cfg.region_size = 0x54000 - 0x1E000;
-	mpu_cfg.xn = MPU_EXEC_ALLOW;
-	mpu_cfg.ap = MPU_UN_PRIV_RW;
-	mpu_cfg.sh = MPU_NON_SHAREABLE;
-	mpu_cfg.attr_idx = MPU_MEM_ATTR_IDX_NC;
-	mpu_region_cfg(mpu_entry, &mpu_cfg);
 
 	/* set 512Byte retention ram no-cache */
 	mpu_entry = mpu_entry_alloc();
@@ -106,7 +81,7 @@ void _init(void) {}
 #if 0
 static void aontimer_dslp_handler(void)
 {
-	SOCPS_AONTimerClearINT();
+	AONTimer_ClearINT();
 	RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, DISABLE);
 }
 
@@ -120,8 +95,8 @@ static void rtc_dslp_handler(void)
 static void wakepin_dslp_handler(void)
 {
 	u32 pinidx;
-	pinidx = SOCPS_WakePinCheck();
-	SOCPS_WakePinClearINT(pinidx);
+	pinidx = WakePin_Get_Idx();
+	WakePin_ClearINT(pinidx);
 }
 
 static void dslp_wake_handler(void)
@@ -134,7 +109,7 @@ static void dslp_wake_handler(void)
 	if (BootReason & AON_BIT_TIM_ISR_EVT) {
 		//RTK_LOGI(TAG, "dslp from aontimer\n");
 		RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
-		//SOCPS_AONTimerINT_EN_HP(ENABLE);
+		//AONTimer_INT(ENABLE);
 		InterruptRegister((IRQ_FUN)aontimer_dslp_handler, AON_TIM_IRQ, NULL, 3);
 		InterruptEn(AON_TIM_IRQ, 3);
 	}
@@ -151,6 +126,26 @@ static void dslp_wake_handler(void)
 }
 #endif
 
+void app_bod_init(void)
+{
+	/* ONLY init bod when first power-on */
+	if (BOOT_Reason() != 0) {
+		return;
+	}
+
+	BOR_ThresholdSet(0x10, 0xD);
+	RTK_LOGI(TAG, "BOR arises when supply voltage decreases under 2.63V and recovers above 2.74V.\n");
+
+	BOR_ModeSet(BOR_RESET);
+	BOR_Enable(ENABLE);
+
+	/* To avoid unwanted extra reset. */
+	/* default debounce delay: 100us(BOR_TDBC = 0x1) */
+	/* It takes 100us for actual BOD output to sync to digital circuit. */
+	DelayUs(100);
+	RCC_PeriphClockCmd(APBPeriph_BOR, APBPeriph_CLOCK_NULL, ENABLE);
+}
+
 // The Main App entry point
 void app_start(void)
 {
@@ -159,7 +154,6 @@ void app_start(void)
 	Cache_Enable(ENABLE);
 
 	/* 2. Init heap region for printf */
-	app_section_init();
 	_memset((void *) __bss_start__, 0, (__bss_end__ - __bss_start__));
 	/* 3. Initialize Non-secure vector table and retarget partly exception handler function. */
 	irq_table_init(MSP_RAM_HP_NS); /* NS Vector table init */
@@ -206,13 +200,16 @@ void app_start(void)
 	/* Add This for C++ support */
 	__libc_init_array();
 #endif
+	newlib_locks_init();
 	/*10. MPU init*/
 	mpu_init();
 	app_mpu_nocache_init();
 
+	app_bod_init();
+
 	/* Force SP align to 8bytes */
 	__asm(
-		"ldr r1, =#0xFFFFFF80\n"
+		"ldr r1, =#0xFFFFFFF8\n"
 		"mov r0, sp \n"
 		"and r0, r0, r1\n"
 		"mov sp, r0\n"

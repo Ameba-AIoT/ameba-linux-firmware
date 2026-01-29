@@ -20,6 +20,7 @@
 #include <trace_app.h>
 #include <remote.h>
 #include <bt_hid.h>
+#include <bt_sdp.h>
 
 static uint8_t hid_role;
 static uint8_t remote_addr[6] = {0};
@@ -40,6 +41,16 @@ static void app_hid_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 
 	switch (event_type) {
 
+	case BT_EVENT_SDP_ATTR_INFO: {
+		T_BT_SDP_ATTR_INFO *sdp_info = &param->sdp_attr_info.info;
+		if (sdp_info->srv_class_uuid_type == BT_SDP_UUID16 && sdp_info->srv_class_uuid_data.uuid_16 == UUID_HUMAN_INTERFACE_DEVICE_SERVICE) {
+			if (!bt_hid_connect_req(param->sdp_attr_info.bd_addr)) {
+				BT_LOGE("bt_stack_rfc_evt_ind_cback: bt_hid_connect_req send failed\r\n");
+			}
+		}
+	}
+	break;
+
 	case BT_EVENT_HID_CONN_IND: {
 		rtk_bt_hid_conn_ind_t *p_hid_conn_ind = NULL;
 
@@ -49,7 +60,7 @@ static void app_hid_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 			APP_PRINT_INFO0("HID p_link confirmed");
 			BT_LOGA("app_hid_bt_cback: HID p_link confirmed \r\n");
 			{
-				p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HID, RTK_BT_HID_EVT_CONN_CMPL, sizeof(rtk_bt_hid_conn_ind_t));
+				p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HID, RTK_BT_HID_EVT_CONN_IND, sizeof(rtk_bt_hid_conn_ind_t));
 				if (!p_evt) {
 					BT_LOGE("app_hid_bt_cback: evt_t allocate fail \r\n");
 					handle = false;
@@ -78,7 +89,7 @@ static void app_hid_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 		if (p_link != NULL) {
 			memcpy((void *)remote_addr, (void *)param->hid_conn_cmpl.bd_addr, 6);
 			{
-				p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HID, RTK_BT_A2DP_EVT_CONN_CMPL, sizeof(rtk_bt_hid_conn_ind_t));
+				p_evt = rtk_bt_event_create(RTK_BT_BR_GP_HID, RTK_BT_HID_EVT_CONN_CMPL, sizeof(rtk_bt_hid_conn_ind_t));
 				if (!p_evt) {
 					BT_LOGE("app_hid_bt_cback: evt_t allocate fail \r\n");
 					handle = false;
@@ -169,7 +180,7 @@ static void app_hid_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 
 	default: {
 		APP_PRINT_INFO1("app_hid_bt_cback: default event_type 0x%04x", event_type);
-		// BT_LOGA("app_hid_bt_cback: default event_type 0x%04x \r\n", event_type);
+		// BT_LOGE("app_hid_bt_cback: default event_type 0x%04x \r\n", event_type);
 		handle = false;
 	}
 	break;
@@ -179,6 +190,20 @@ static void app_hid_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t bu
 		// APP_PRINT_INFO1("app_hid_bt_cback: event_type 0x%04x", event_type);
 		// BT_LOGA("app_hid_bt_cback: event_type 0x%04x \r\n", event_type);
 	}
+}
+
+static uint16_t bt_stack_hid_connect(void *param)
+{
+	uint8_t *bd_addr = (uint8_t *)param;
+	T_BT_SDP_UUID_DATA uuid;
+
+	uuid.uuid_16 = UUID_HUMAN_INTERFACE_DEVICE_SERVICE;
+
+	if (bt_sdp_discov_start(bd_addr, BT_SDP_UUID16, uuid)) {
+		return RTK_BT_OK;
+	}
+
+	return RTK_BT_FAIL;
 }
 
 static uint16_t bt_stack_hid_disconnect(void *param)
@@ -259,6 +284,10 @@ uint16_t bt_stack_hid_act_handle(rtk_bt_cmd_t *p_cmd)
 	BT_LOGD("bt_stack_hid_act_handle: act = %d \r\n", p_cmd->act);
 	switch (p_cmd->act) {
 
+	case RTK_BT_HID_ACT_CONNECT:
+		ret = bt_stack_hid_connect(p_cmd->param);
+		break;
+
 	case RTK_BT_HID_ACT_DISCONNECT:
 		ret = bt_stack_hid_disconnect(p_cmd->param);
 		break;
@@ -305,8 +334,10 @@ uint16_t bt_stack_hid_init(uint8_t role)
 void bt_stack_hid_deinit(void)
 {
 	BT_LOGA("[HID]app_hid_init need to do\n");
+	bt_hid_deinit();
 	if (pdescriptor) {
 		osif_mem_free((void *)pdescriptor);
+		pdescriptor = NULL;
 	}
 }
 

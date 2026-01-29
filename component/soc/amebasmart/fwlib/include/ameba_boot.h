@@ -7,37 +7,6 @@
 #ifndef _AMEBA_BOOT_H_
 #define _AMEBA_BOOT_H_
 
-#if defined ( __ICCARM__ )
-extern u8 *__image2_entry_func__;
-extern u8 *__image1_bss_start__;
-extern u8 *__image1_bss_end__;
-
-extern u8 *__bss_start__;
-extern u8 *__bss_end__;
-
-extern u8 *__cmd_table_start__;
-extern u8 *__cmd_table_end__;
-extern u8 *__psram_bss_start__;
-extern u8 *__psram_bss_end__;
-extern u8 *__ram_nocache_start__;
-extern u8 *__ram_nocache_end__;
-extern u8 *__image3_bss_start__;
-extern u8 *__image3_bss_end__;
-extern u8 __ram_image2_text_start__;
-extern u8 __ram_image2_text_end__;
-
-extern u8 *__ipc_table_start__;
-extern u8 *__ipc_table_end__;
-
-extern u8  NOCACHE_DATA$$Limit[];
-extern u8  IMAGENCSRAM$$Limit[];
-extern u8 __km0_bd_ram_end__[];
-extern u8 __km4_bd_dram_end__[];
-extern u8 __km4_heap_ext_start__[];
-extern u8 __km4_heap_ext_size__[];
-extern u8 __ca32_dram_end__[];
-
-#else
 extern u8 __image1_validate_code__[];
 extern u8 __image1_bss_start__[];
 extern u8 __image1_bss_end__[];
@@ -62,7 +31,7 @@ extern u8 __ipc_table_end__[];
 
 extern u8 __bdram_heap_buffer_start__[];
 extern u8 __bdram_heap_buffer_size__[];
-#endif
+
 extern u8 __rom_bss_start__[];
 extern u8 __rom_bss_end__[];
 extern u8 __rom_bss_start_s__[];
@@ -93,11 +62,13 @@ extern u8 __km4_image2_entry_func__[];
 extern u8 __km4_audio_buf_start__[];
 extern u8 __ca32_fip_dram_start__[];
 extern u8 __ca32_flash_text_start__[];
+extern u8 __ca32_bl1_dram_start__[];
 
 extern u8 __psram_heap_buffer_start__[];
 extern u8 __psram_heap_buffer_size__[];
 extern u8 __psram_heap_extend_start__[];
 extern u8 __psram_heap_extend_size__[];
+extern u8 __non_secure_psram_end__[]; /* if psram is 8MB, than write 0x60800000 will write 0x60000000 */
 
 /* sym for stdlib rom */
 extern u8 __rom_stdlib_bss_start__[];
@@ -135,7 +106,7 @@ typedef struct {
 
 	//export to stdlib rom
 	void (*loguart_putchar)(u8 c);
-	u8(*loguart_getchar)(BOOL PullMode);
+	u8(*loguart_getchar)(bool PullMode);
 	u32(*diagprintf)(const char *fmt, ...);
 } ROM_SECURE_CALL_NS_ENTRY;
 
@@ -282,13 +253,9 @@ typedef struct _DSLP_RETENTION_FUNC_TABLE_ {
 	u32	PatchLen;
 } DSLP_RETENTION_FUNC_TABLE, *PDSLP_RETENTION_FUNC_TABLE;
 
-#if defined (ARM_CORE_CM4)
-#define NS_ENTRY    __attribute__((cmse_nonsecure_entry))
-#ifdef __ICCARM__
-typedef __cmse_nonsecure_call void nsfunc(void);
-#else
+#if defined(__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
+#define NS_ENTRY __attribute__((cmse_nonsecure_entry))
 typedef void __attribute__((cmse_nonsecure_call)) nsfunc(void);
-#endif
 #endif
 
 typedef u8(*FuncPtr)(void);
@@ -311,6 +278,7 @@ extern u32 OTA_Region[3][2];
 extern u32 HUK_Derive_En;
 
 #define DDR_AUTOGATING		ENABLE
+#define PSRAM_AUTOGATING	DISABLE
 
 #define BOOT_FROM_OTA1		0
 #define BOOT_FROM_OTA2		1
@@ -324,6 +292,8 @@ extern u32 HUK_Derive_En;
 #define AP_09V_CLK_LIMIT		920
 #define AP_1P0V_CLK_LIMIT_PSRAM		1200
 #define AP_1P0V_CLK_LIMIT_DDR		1320
+
+#define SPIC_CLK_LIMIT			(208 * MHZ_TICK_CNT)	/* For Flash run up to 104MHz */
 
 #define IS_FLASH_ADDR(addr)			((addr >= SPI_FLASH_BASE) && (addr <= 0x0FFFFFFF))
 #define IS_BOOT_ADDR(addr)			((addr >= HS_BOOT_ADDR_START) && (addr <= HS_BOOT_ADDR_END))

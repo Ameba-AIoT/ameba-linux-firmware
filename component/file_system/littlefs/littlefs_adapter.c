@@ -1,15 +1,16 @@
 #include "platform_autoconf.h"
 #include "littlefs_adapter.h"
+#include "vfs_secondary_nor_flash.h"
 
-#ifdef CONFIG_AMEBASMART
-#include "lfs_nand_ftl.h"
+#if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBASMARTPLUS)
+#include "vfs_nand_ftl.h"
 #endif
 
 lfs_t g_lfs;
 u32 LFS_FLASH_BASE_ADDR;
 u32 LFS_FLASH_SIZE;
 
-#ifdef CONFIG_AMEBASMART
+#if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBASMARTPLUS)
 struct lfs_config g_nand_lfs_cfg = {
 	.read  = lfs_nand_read,
 	.prog  = lfs_nand_prog,
@@ -108,7 +109,11 @@ struct lfs_config g_nor_lfs_cfg = {
 	.prog_size = 1,
 	.block_size = 4096,
 	.lookahead_size = 8,
+#ifdef CONFIG_LITTLEFS_SECONDARY_FLASH
+	.cache_size = 4096,
+#else
 	.cache_size = 256,
+#endif
 	.block_cycles = 100,
 };
 
@@ -118,9 +123,13 @@ int lfs_nor_read(const struct lfs_config *c, lfs_block_t block, lfs_off_t off, v
 		return LFS_ERR_OK;
 	}
 
+#ifdef CONFIG_LITTLEFS_SECONDARY_FLASH
+	secondary_flash_read_stream(LFS_FLASH_BASE_ADDR + c->block_size * block + off, size, (char *)buffer);
+#else
 	flash_t flash;
 
 	flash_stream_read(&flash, LFS_FLASH_BASE_ADDR + c->block_size * block + off, size, (uint8_t *)buffer);
+#endif
 
 	return LFS_ERR_OK;
 }
@@ -135,10 +144,13 @@ int lfs_nor_prog(const struct lfs_config *c, lfs_block_t block, lfs_off_t off, c
 		VFS_DBG(VFS_ERROR, "prog range exceed block size");
 		return LFS_ERR_IO;
 	}
-
+#ifdef CONFIG_LITTLEFS_SECONDARY_FLASH
+	secondary_flash_write_stream(LFS_FLASH_BASE_ADDR + c->block_size * block + off, size, (char *)buffer);
+#else
 	flash_t flash;
 
 	flash_stream_write(&flash, LFS_FLASH_BASE_ADDR + c->block_size * block + off, size, (uint8_t *)buffer);
+#endif
 
 	return LFS_ERR_OK;
 }
@@ -150,10 +162,13 @@ int lfs_nor_erase(const struct lfs_config *c, lfs_block_t block)
 		return LFS_ERR_IO;
 	}
 
+#ifdef CONFIG_LITTLEFS_SECONDARY_FLASH
+	secondary_flash_erase_sector(LFS_FLASH_BASE_ADDR + c->block_size * block);
+#else
 	flash_t flash;
 
 	flash_erase_sector(&flash, LFS_FLASH_BASE_ADDR + c->block_size * block);
-
+#endif
 	return LFS_ERR_OK;
 }
 
@@ -189,14 +204,10 @@ int lfs_diskio_unlock(const struct lfs_config *c)
 
 int rt_lfs_init(lfs_t *lfs)
 {
-#if !defined(CONFIG_AS_INIC_AP) && !defined(CONFIG_SINGLE_CORE_WIFI)
-	(void) lfs;
-	return 0;
-#else
 	struct lfs_config *lfs_cfg;
 	int ret = 0;
 
-#ifdef CONFIG_AMEBASMART
+#if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBASMARTPLUS)
 	if (!SYSCFG_BootFromNor()) {
 		VFS_DBG(VFS_INFO, "init nand lfs cfg");
 		NAND_FTL_Init();
@@ -225,5 +236,4 @@ int rt_lfs_init(lfs_t *lfs)
 	}
 
 	return ret;
-#endif
 }

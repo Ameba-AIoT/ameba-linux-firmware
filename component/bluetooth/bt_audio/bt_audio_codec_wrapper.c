@@ -252,6 +252,20 @@ uint16_t bt_audio_register_codec(uint32_t type, void *param, uint32_t param_len,
 			err = RTK_BT_AUDIO_OK;
 		}
 		break;
+	case RTK_BT_AUDIO_CODEC_mSBC:
+		rtk_bt_audio_sbc_register(RTK_BT_AUDIO_CODEC_mSBC, pentity);
+		if (pentity->init(pentity, param)) {
+			BT_LOGE("[BT_AUDIO] init sbc codec fail \r\n");
+			break;
+		} else {
+			if (false == osif_mutex_create(&pentity->mutex)) {
+				BT_LOGE("[BT AUDIO] mutex create fail \r\n");
+				break;
+			}
+			pentity->active_flag = 1;
+			err = RTK_BT_AUDIO_OK;
+		}
+		break;
 #endif
 #if defined(CONFIG_BT_AUDIO_CODEC_AAC) && CONFIG_BT_AUDIO_CODEC_AAC
 	case RTK_BT_AUDIO_CODEC_AAC:
@@ -298,6 +312,45 @@ uint16_t bt_audio_register_codec(uint32_t type, void *param, uint32_t param_len,
 			}
 			pentity->active_flag = 1;
 			err = RTK_BT_AUDIO_OK;
+		}
+		break;
+#endif
+	default:
+		BT_LOGE("[BT_AUDIO] unknown codec type \r\n");
+		break;
+	}
+
+	return err;
+}
+
+uint16_t bt_audio_update_codec(uint32_t type, void *param, uint32_t param_len, PAUDIO_CODEC_ENTITY pentity)
+{
+	(void)param_len;
+#if !defined(CONFIG_BT_AUDIO_CODEC_SBC) || !CONFIG_BT_AUDIO_CODEC_SBC
+	(void)param;
+#endif
+	uint16_t err = RTK_BT_AUDIO_FAIL;
+
+	if (!pentity) {
+		BT_LOGE("[BT_AUDIO] pentity is empty \r\n");
+		return err;
+	}
+	switch (type) {
+#if defined(CONFIG_BT_AUDIO_CODEC_SBC) && CONFIG_BT_AUDIO_CODEC_SBC
+	case RTK_BT_AUDIO_CODEC_SBC:
+	case RTK_BT_AUDIO_CODEC_mSBC:
+		if (pentity->active_flag) {
+			if (pentity->update) {
+				if (pentity->update(pentity, param)) {
+					BT_LOGE("[BT_AUDIO] update sbc codec fail \r\n");
+					break;
+				}
+				err = RTK_BT_AUDIO_OK;
+			} else {
+				BT_LOGE("[BT_AUDIO] sbc codec update func is null \r\n");
+			}
+		} else {
+			BT_LOGE("[BT_AUDIO] sbc codec has not been initialized, no need to update \r\n");
 		}
 		break;
 #endif

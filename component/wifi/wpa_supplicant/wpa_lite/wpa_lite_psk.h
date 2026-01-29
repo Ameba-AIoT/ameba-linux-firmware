@@ -13,35 +13,14 @@
 #ifndef _WPA_LITE_PSK_H_
 #define _WPA_LITE_PSK_H_
 
+#include "rom_wpa_lite_intf.h"
+
 #ifndef TRUE
 #define TRUE					1
 #endif
 #ifndef FALSE
 #define FALSE					0
 #endif
-
-/*
-	2008-12-16, For Corega CG-WLCB54GL 54Mbps NIC interoperability issue.
-	The behavior of this NIC when it connect to the other AP with WPA/TKIP is:
-		AP	<----------------------> 	STA
-			....................
-			------------> Assoc Rsp (ok)
-			------------> EAPOL-key (4-way msg 1)
-			<------------ unknown TKIP encryption data
-			------------> EAPOL-key (4-way msg 1)
-			<------------ unknown TKIP encryption data
-			.....................
-			<------------ disassoc (code=8, STA is leaving) when the 5 seconds timer timeout counting from Assoc_Rsp is got.
-			....................
-			------------> Assoc Rsp (ok)
-			<-----------> EAPOL-key (4-way handshake success)
-
-	If MAX_RESEND_NUM=3, our AP will send disassoc (code=15, 4-way timeout) to STA before STA sending disassoc to AP.
-	And this NIC will always can not connect to our AP.
-	set MAX_RESEND_NUM=5 can fix this issue.
- */
-//#define MAX_RESEND_NUM	3
-#define MAX_RESEND_NUM		5
 
 /*
 	Revise STA EAPOL-key(4-2) resend time from "RESEND_TIME" to "CLIENT_RESEND_TIME" to make sure one 4-1 followed
@@ -142,8 +121,8 @@ struct wpa_sta_info {
 	u8					UnicastCipher;
 	u8					*AnonceBuf;
 	u8					*SnonceBuf;
-	u8					PMK[PMK_LEN];
-	u8					PTK[PTK_LEN_TKIP];
+	u8					PMK[PMK_LEN_MAX];
+	u8					PTK[PTK_LEN_MAX];
 	u8					*eapSendBuf;
 	u8					mac_addr[6];
 	u8					port;
@@ -152,17 +131,19 @@ struct wpa_sta_info {
 	s8					wpa_stainfo_state;
 	s8					RSNEnabled;		// bit0-WPA, bit1-WPA2
 	s8					resendCnt;
+	u8					eapol_key_rsnd_limit;
 
 	u8					b_enterprise : 1;
 	u8					b_clientHndshkProcessing : 1;
 	u8					b_clientHndshkDone : 1;
 	u8 					b_clientGkeyUpdate : 1;
-
+	u8					b_4way_triggered_by_join : 1;
+	u8 					b_pmk_ready : 1;
 };
 
 struct key_joininfo {
-	u8	wappriv_psk_ssid_cfg[RTW_ESSID_MAX_SIZE + 4];
-	u8	wappriv_passphrase_cfg[RTW_PASSPHRASE_MAX_SIZE + 1];
+	u8	wappriv_psk_ssid_cfg[RTW_ESSID_MAX_SIZE + 1];
+	u8	wappriv_passphrase_cfg[RTW_MAX_PSK_LEN + 1];
 	u8	wappriv_global_psk_cfg[A_SHA_DIGEST_LEN * 2];
 };
 
@@ -269,17 +250,12 @@ __inline static void set_eapol_hdr_params(
 
 extern const char *TAG_WLAN_WPA;
 
-void rtw_psk_sta_start_4way(char *buf, int buf_len, int flags, void *userdata);
 void rtw_psk_sta_send_eapol(struct wpa_sta_info *pStaInfo, struct wpa_global *pGblInfo, u8 *rsnxe_ie, int resend);
-void rtw_psk_sta_recv_eapol(char *data, int data_len, int flags, void *userdata);
-void rtw_psk_ap_start_4way(char *buf, int buf_len, int flags, void *userdata);
 void rtw_psk_ap_send_eapol(struct wpa_sta_info	*pStaInfo, int resend);
-void rtw_psk_ap_recv_eapol(char *data, int data_len, int flags, void *userdata);
-void rtw_psk_set_psk_info_evt_hdl(char *buf, int buf_len, int flags, void *userdata);
 void rtw_psk_timer_hdl(void *task_psta);
 struct wpa_sta_info *rtw_psk_stainfo_get(u8 port, u8 *hwaddr);
 struct wpa_sta_info *rtw_psk_stainfo_alloc(u8 port, u8 *hwaddr);
-u32 rtw_psk_stainfo_free(u8 port, u8 *hwaddr);
+int rtw_psk_stainfo_free(u8 port, u8 *hwaddr);
 void rtw_psk_set_key(u8 port, enum key_type type, struct wpa_sta_info *pStaInfo, struct wpa_global *pGblInfo);
 void rtw_psk_get_global_joininfo(struct wpa_global *pGblInfo);
 void rtw_psk_free_global_joininfo(struct wpa_global *pGblInfo);

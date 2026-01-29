@@ -1,17 +1,8 @@
-/**
-  ******************************************************************************
-  * @file    usbh_uvc_class.c
-  * @author  Realsil WLAN5 Team
-  * @brief   This file provides the functionalities of the USB UVC Class
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -31,17 +22,17 @@ extern usbh_uvc_host_t uvc_host;
 
 static int usbh_uvc_attach(usb_host_t *host);
 static int usbh_uvc_detach(usb_host_t *host);
-static int usbh_uvc_process(usb_host_t *host);
+static int usbh_uvc_process(usb_host_t *host, u32 msg);
 static int usbh_uvc_sof(usb_host_t *host);
 static int usbh_uvc_setup(usb_host_t *host);
 
 /* Private variables ---------------------------------------------------------*/
 
-static const char *TAG = "UVC";
+static const char *const TAG = "UVC";
 
 /* USB Standard Device Descriptor */
 static usbh_class_driver_t usbh_uvc_driver = {
-	.class_code = UVC_CLASS_CODE,
+	.class_code = USBH_UVC_CLASS_CODE,
 	.attach = usbh_uvc_attach,
 	.detach = usbh_uvc_detach,
 	.setup = usbh_uvc_setup,
@@ -59,53 +50,60 @@ static usbh_class_driver_t usbh_uvc_driver = {
 static int usbh_uvc_attach(usb_host_t *host)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
-	uvc_stream_t *stream;
+	usbh_uvc_stream_t *stream = NULL;
+	usbh_uvc_setting_t *cur_setting = NULL;
+	usbh_uvc_alt_t *altsetting = NULL;
+	usbh_ep_desc_t *ep = NULL;
 	int status = HAL_ERR_UNKNOWN;
 	int i = 0;
-	u32 ep_size = 0;
+	u32 xfer_size = 0;
 
 	uvc->host = host;
 
 	status = usbh_uvc_parse_cfgdesc(host);
 	if (status) {
-		RTK_LOGS(TAG, "[UVC] Parse uvc desc fail\n");
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Parse uvc desc fail\n");
 		return status;
 	}
 
 	/* find the first alt setting and enpoint as default for each vs interface */
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
 		stream = &uvc->stream[i];
-		stream->cur_setting.cur_vs_intf = &uvc->uvc_desc.vs_intf[i];
-		ep_size = uvc->uvc_desc.vs_intf[i].altsetting[0].endpoint->wMaxPacketSize;
+		cur_setting = &stream->cur_setting;
+
+		cur_setting->cur_vs_intf = &uvc->uvc_desc.vs_intf[i];
+		altsetting = &cur_setting->cur_vs_intf->altsetting[0];
+		cur_setting->altsetting = altsetting;
+		ep = altsetting->endpoint;
+		xfer_size = ep->wMaxPacketSize;
 
 		if (host->config.speed == USB_SPEED_HIGH) {
-			ep_size = (ep_size & 0x07ff) * (1 + ((ep_size >> 11) & 3));
+			xfer_size = (xfer_size & 0x07ff) * (1 + ((xfer_size >> 11) & 3));
 		} else {
-			ep_size = ep_size & 0x07ff;
+			xfer_size = xfer_size & 0x07ff;
 		}
 
 		//Note: vc may has a interrupt endpoint, vs may has a bulk endpoint for still image data. not support now.
 
-		stream->cur_setting.altsetting = &uvc->uvc_desc.vs_intf[i].altsetting[0];
-		stream->cur_setting.bAlternateSetting = ((usbh_if_desc_t *)stream->cur_setting.altsetting->p)->bAlternateSetting;
-		stream->cur_setting.ep_addr = stream->cur_setting.altsetting->endpoint->bEndpointAddress;
-		stream->cur_setting.ep_size = ep_size;
-		stream->cur_setting.mps = stream->cur_setting.altsetting->endpoint->wMaxPacketSize & 0x7ff;
-		stream->cur_setting.interval = stream->cur_setting.altsetting->endpoint->bInterval;
-		stream->cur_setting.ep_type = stream->cur_setting.altsetting->endpoint->bmAttributes & USB_EP_XFER_TYPE_MASK;
-		stream->cur_setting.bInterfaceNumber = stream->cur_setting.cur_vs_intf->bInterfaceNumber;
-		stream->cur_setting.valid = 1;
-		stream->cur_setting.pipe = usbh_alloc_pipe(host, stream->cur_setting.ep_addr);
+		cur_setting->bAlternateSetting = ((usbh_if_desc_t *)altsetting->p)->bAlternateSetting;
+		cur_setting->ep_addr = ep->bEndpointAddress;
+		cur_setting->xfer_size = xfer_size;
+		cur_setting->mps = ep->wMaxPacketSize & 0x7ff;
+		cur_setting->interval = ep->bInterval;
+		cur_setting->ep_type = ep->bmAttributes & USB_EP_XFER_TYPE_MASK;
+		cur_setting->bInterfaceNumber = cur_setting->cur_vs_intf->bInterfaceNumber;
+		cur_setting->valid = 1;
+		cur_setting->pipe = usbh_alloc_pipe(host, cur_setting->ep_addr);
 
 #if USBH_UVC_DEBUG
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.altsetting:%d\n", i, stream->cur_setting.altsetting);
-		TK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.bAlternateSetting:%d\n", i, stream->cur_setting.bAlternateSetting);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_addr:%d\n", i, stream->cur_setting.ep_addr);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_size:%d\n", i, stream->cur_setting.ep_size);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.mps:%d\n", i, stream->cur_setting.mps);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.interval:%d\n", i, stream->cur_setting.interval);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.ep_type:%d\n", i, stream->cur_setting.ep_type);
-		RTK_LOGS(TAG, "[UVC] Stream[%d]->cur_set.bInterfaceNumber:%d\n", i, stream->cur_setting.bInterfaceNumber);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.altsetting:%d\n", i, cur_setting->altsetting);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.bAlternateSetting:%d\n", i, cur_setting->bAlternateSetting);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.ep_addr:%d\n", i, cur_setting->ep_addr);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.xfer_size:%d\n", i, cur_setting->xfer_size);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.mps:%d\n", i, cur_setting->mps);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.interval:%d\n", i, cur_setting->interval);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.ep_type:%d\n", i, cur_setting->ep_type);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Stream[%d]->cur_set.bInterfaceNumber:%d\n", i, cur_setting->bInterfaceNumber);
 #endif
 	}
 
@@ -123,15 +121,17 @@ static int usbh_uvc_attach(usb_host_t *host)
 static int usbh_uvc_detach(usb_host_t *host)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
-	uvc_stream_t *stream ;
+	usbh_uvc_stream_t *stream;
 	int i;
+	u8 pipe;
 
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
 		stream = &uvc->stream[i];
-		if (stream->cur_setting.pipe) {
-			usbh_close_pipe(host, stream->cur_setting.pipe);
-			usbh_free_pipe(host, stream->cur_setting.pipe);
-			stream->cur_setting.pipe = 0U;
+		pipe = stream->cur_setting.pipe;
+		if (pipe) {
+			usbh_close_pipe(host, pipe);
+			usbh_free_pipe(host, pipe);
+			pipe = 0U;
 		}
 	}
 
@@ -150,17 +150,29 @@ static int usbh_uvc_detach(usb_host_t *host)
 static int usbh_uvc_setup(usb_host_t *host)
 {
 	int status = HAL_BUSY;
-	int i;
+	int i, retry_cnt;
 	usbh_uvc_host_t *uvc = &uvc_host;
-	uvc_stream_t *stream;
+	usbh_uvc_stream_t *stream;
 
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
+		retry_cnt = 0;
 		stream = &uvc->stream[i];
 		do {
 			status = usbh_ctrl_set_interface(host, stream->cur_setting.bInterfaceNumber, 0);
-		} while (status != HAL_OK);
+			if (status == HAL_OK) {
+				break;
+			} else {
+				retry_cnt++;
+				usb_os_sleep_ms(10);
+			}
+		} while (retry_cnt < 10);
 
-		usbh_uvc_video_init(stream);
+		if (status != HAL_OK) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Setup err\n");
+			return HAL_ERR_HW;
+		} else {
+			usbh_uvc_video_init(stream);
+		}
 	}
 
 	if ((uvc->cb != NULL) && (uvc->cb->attach != NULL)) {
@@ -175,18 +187,19 @@ static int usbh_uvc_setup(usb_host_t *host)
   * @param  host: Host handle
   * @retval Status
   */
-static int usbh_uvc_process(usb_host_t *host)
+static int usbh_uvc_process(usb_host_t *host, u32 msg)
 {
 	int status = HAL_BUSY;
 	usbh_uvc_host_t *uvc = &uvc_host;
 	int i;
 	UNUSED(host);
+	UNUSED(msg);
 
 	for (i = 0; i < uvc->uvc_desc.vs_num; i ++) {
 		if (uvc->stream[i].stream_data_state == STREAM_DATA_IN) {
 			status = usbh_uvc_process_rx(&uvc->stream[i]);
 			if (status) {
-				RTK_LOGS(TAG, "[UVC] Process rx err\n");
+				RTK_LOGS(TAG, RTK_LOG_ERROR, "Process rx err\n");
 			}
 		}
 	}

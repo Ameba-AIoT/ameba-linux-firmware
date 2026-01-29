@@ -60,7 +60,7 @@ static mesh_msg_send_cause_t generic_level_stat(mesh_model_info_p pmodel_info, u
     }
     msg.present_level = present_level;
 
-    mesh_msg_t mesh_msg;
+    mesh_msg_t mesh_msg = {0};
     mesh_msg.pmodel_info = pmodel_info;
     access_cfg(&mesh_msg);
     mesh_msg.pbuffer = (uint8_t *)&msg;
@@ -127,7 +127,7 @@ static int32_t generic_level_trans_step_change(const mesh_model_info_p pmodel_in
                                                generic_transition_time_t total_time,
                                                generic_transition_time_t remaining_time)
 {
-	(void) type;
+    UNUSED(type);
     int32_t ret = MODEL_SUCCESS;
     generic_level_server_set_t set_data;
     generic_level_info_t *plevel_info = pmodel_info->pargs;
@@ -338,7 +338,7 @@ static bool generic_level_server_receive(mesh_msg_p pmesh_msg)
             if (plevel_info->max_move)
             {
                 remaining_time.num_steps = GENERIC_TRANSITION_NUM_STEPS_UNKNOWN;
-                remaining_time.step_resolution = GENERIC_TRANSITION_STEP_RESOLUTION_10MINUTS;
+                remaining_time.step_resolution = GENERIC_TRANSITION_STEP_RESOLUTION_10MINUTES;
             }
 
             int16_t present_level = get_present_level(pmodel_info);
@@ -644,7 +644,7 @@ static bool generic_level_server_receive(mesh_msg_p pmesh_msg)
 
 static int32_t generic_level_server_publish(mesh_model_info_p pmodel_info, bool retrans)
 {
-	(void) retrans;
+    UNUSED(retrans);
     generic_transition_time_t trans_time = {0, 0};
     generic_level_stat(pmodel_info, 0, 0, get_present_level(pmodel_info), FALSE, 0, trans_time, 0);
     return 0;

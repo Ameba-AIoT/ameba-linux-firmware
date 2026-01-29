@@ -5,8 +5,11 @@
  */
 
 #include "ameba_soc.h"
-static const char *TAG = "SDIO";
+static const char *const TAG = "SDIO";
 SDIOH_InitTypeDef sdioh_init_para;
+#if defined(SDIO) &&(SDIO == SD)
+u32 wait_for_sema = 0;
+#endif
 extern int (*sd_sema_take_fn)(u32);
 
 /**
@@ -91,6 +94,16 @@ u32 SDIOH_WaitTxDone(u32 timeout_us)
 	return HAL_TIMEOUT;
 }
 
+void SDIOH_PreDMATrans(void)
+{
+#if defined(SDIO) &&(SDIO == SD)
+	if ((CPU_InInterrupt() == 0) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (sd_sema_take_fn != NULL)) {
+		wait_for_sema = 1;
+		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, ENABLE);
+	}
+#endif
+}
+
 /**
   * @brief  Wait some time for SDIOH DMA done.
   * @param  timeout_us: timeout value in microseconds.
@@ -102,19 +115,21 @@ u32 SDIOH_WaitDMADone(u32 timeout_us)
 {
 	SDIOH_TypeDef *psdioh = SDIOH_BASE;
 
+#if defined(SDIO) &&(SDIO == SD)
 	/*If scheduling has already started, wait for sema to obtain the DMA done signal.*/
-	if ((CPU_InInterrupt() == 0) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (sd_sema_take_fn != NULL)) {
-
-		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, ENABLE);
-
-		if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != SUCCESS) {
-			SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
-			RTK_LOGE(TAG, " SD Get Semaphore Timeout\r\n");
-			return HAL_TIMEOUT;
+	if (wait_for_sema == 1) {
+		wait_for_sema = 0;
+		if ((CPU_InInterrupt() == 0) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (sd_sema_take_fn != NULL)) {
+			if (sd_sema_take_fn(MAX(timeout_us / 1000, SD_SEMA_MAX_DELAY)) != RTK_SUCCESS) {
+				SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
+				RTK_LOGS(TAG, RTK_LOG_ERROR, " SD Get Semaphore Timeout\r\n");
+				return HAL_TIMEOUT;
+			}
 		}
 
 		SDIOH_INTConfig(SDIOH_DMA_CTL_INT_EN, DISABLE);
 	}
+#endif
 
 	/*If scheduling has already started, poll transfer status; otherwise, poll transfer and DMA_ Xfree status.*/
 	do {
@@ -161,7 +176,7 @@ void SDIOH_INTConfig(u8 SDIO_IT, u32 newState)
 		psdioh->SD_ISREN |= (SDIO_IT | SDIOH_WRITE_DATA);
 	} else {
 		/*Bit0 reads as 0*/
-		psdioh->SD_ISREN |= SDIO_IT;
+		psdioh->SD_ISREN = SDIO_IT;
 	}
 }
 

@@ -50,9 +50,8 @@ extern "C" {
 #endif
 
 /** period (in seconds) of the application calling dhcp_coarse_tmr() */
-#if CONFIG_LWIP_DHCP_COARSE_TIMER
-#define DHCP_COARSE_TIMER_SECS CONFIG_LWIP_DHCP_COARSE_TIMER    //Realtek add
-#else
+//Realtek add, unify options not in opt.h to configure in lwipopts.h
+#ifndef DHCP_COARSE_TIMER_SECS
 #define DHCP_COARSE_TIMER_SECS  60
 #endif
 /** period (in milliseconds) of the application calling dhcp_coarse_tmr() */
@@ -139,6 +138,11 @@ extern void dhcp_set_ntp_servers(u8_t num_ntp_servers, const ip4_addr_t* ntp_ser
 #endif /* LWIP_DHCP_GET_NTP_SRV */
 
 #define netif_dhcp_data(netif) ((struct dhcp*)netif_get_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_DHCP))
+
+/* Realtek add */
+#ifdef CONFIG_STANDARD_TICKLESS
+u8_t check_dhcp_fine_tmr_removable(void);
+#endif
 
 #ifdef __cplusplus
 }

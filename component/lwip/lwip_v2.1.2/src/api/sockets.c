@@ -696,7 +696,6 @@ lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen)
     err = netconn_peer(newconn, &naddr, &port);
     if (err != ERR_OK) {
       LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_accept(%d): netconn_peer failed, err=%d\n", s, err));
-      netconn_delete(newconn);
       free_socket(nsock, 1);
       sock_set_errno(sock, err_to_errno(err));
       done_socket(sock);
@@ -2906,6 +2905,7 @@ lwip_getsockopt_impl(int s, int level, int optname, void *optval, socklen_t *opt
 
 #ifdef LWIP_HOOK_SOCKETS_GETSOCKOPT
   if (LWIP_HOOK_SOCKETS_GETSOCKOPT(s, sock, level, optname, optval, optlen, &err)) {
+    done_socket(sock);
     return err;
   }
 #endif
@@ -2976,60 +2976,18 @@ lwip_getsockopt_impl(int s, int level, int optname, void *optval, socklen_t *opt
         case SO_ERROR:
           LWIP_SOCKOPT_CHECK_OPTLEN(sock, *optlen, int);
           *(int *)optval = err_to_errno(netconn_err(sock->conn));
-/* Added by Realtek start */	  
-#if 1
-          //SO_ERROR returns only "pending errors", and EWOULDBLOCK is not one of them
-          //Check https://savannah.nongnu.org/bugs/?func=detailitem&item_id=49848#options
-          //Once you are aware of this, you can remove this warning message
-          static u8_t warning = 0;
-          if((*(int *)optval == ERR_OK) && !warning){
-            RTK_LOGS("#", "WARNING(lwip_getsockopt): EWOULDBLOCK(EAGAIN) IS NOT SO_ERROR(sockets.c:%d)\r\n", __LINE__);
-            warning = 1;
-          }
-#endif
-/* Added by Realtek end */
           LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_getsockopt(%d, SOL_SOCKET, SO_ERROR) = %d\n",
                                       s, *(int *)optval));
           break;
 
 #if LWIP_SO_SNDTIMEO
         case SO_SNDTIMEO:
-/* Added by Realtek start */
-/* compatible with int and timeval */
-#if LWIP_SO_SNDRCVTIMEO_NONSTANDARD
-        if(sizeof(struct timeval) == *optlen) {
-            ((struct timeval *)(optval))->tv_sec = netconn_get_sendtimeout(sock->conn) / 1000U;
-            ((struct timeval *)(optval))->tv_usec = (netconn_get_sendtimeout(sock->conn) % 1000U) * 1000U;
-            break;
-        }
-#else
-        if(sizeof(int) == *optlen) {
-            *((int *) optval) = netconn_get_sendtimeout(sock->conn);
-            break;
-        }
-#endif
-/* Added by Realtek end */
           LWIP_SOCKOPT_CHECK_OPTLEN_CONN(sock, *optlen, LWIP_SO_SNDRCVTIMEO_OPTTYPE);
           LWIP_SO_SNDRCVTIMEO_SET(optval, netconn_get_sendtimeout(sock->conn));
           break;
 #endif /* LWIP_SO_SNDTIMEO */
 #if LWIP_SO_RCVTIMEO
         case SO_RCVTIMEO:
-/* Added by Realtek start */
-/* compatible with int and timeval */
-#if LWIP_SO_SNDRCVTIMEO_NONSTANDARD
-        if(sizeof(struct timeval) == *optlen) {
-            ((struct timeval *)(optval))->tv_sec = netconn_get_recvtimeout(sock->conn) / 1000U;
-            ((struct timeval *)(optval))->tv_usec = (netconn_get_recvtimeout(sock->conn) % 1000U) * 1000U;
-            break;
-        }
-#else
-        if(sizeof(int) == *optlen) {
-            *((int *) optval) = netconn_get_recvtimeout(sock->conn);
-            break;
-        }
-#endif
-/* Added by Realtek end */
           LWIP_SOCKOPT_CHECK_OPTLEN_CONN(sock, *optlen, LWIP_SO_SNDRCVTIMEO_OPTTYPE);
           LWIP_SO_SNDRCVTIMEO_SET(optval, netconn_get_recvtimeout(sock->conn));
           break;
@@ -3369,6 +3327,7 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
 
 #ifdef LWIP_HOOK_SOCKETS_SETSOCKOPT
   if (LWIP_HOOK_SOCKETS_SETSOCKOPT(s, sock, level, optname, optval, optlen, &err)) {
+    done_socket(sock);
     return err;
   }
 #endif
@@ -3410,20 +3369,6 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
 
 #if LWIP_SO_SNDTIMEO
         case SO_SNDTIMEO: {
-/* Added by Realtek start */
-/* compatible with int and timeval */
-#if LWIP_SO_SNDRCVTIMEO_NONSTANDARD
-    if(sizeof(struct timeval) == optlen) {
-        netconn_set_sendtimeout(sock->conn, (((const struct timeval *)(optval))->tv_sec * 1000U) + (((const struct timeval *)(optval))->tv_usec / 1000U));
-        break;
-    }
-#else
-    if(sizeof(int) == optlen) {
-        netconn_set_sendtimeout(sock->conn, *((const int *) optval));
-        break;
-    }
-#endif
-/* Added by Realtek end */
           long ms_long;
           LWIP_SOCKOPT_CHECK_OPTLEN_CONN(sock, optlen, LWIP_SO_SNDRCVTIMEO_OPTTYPE);
           ms_long = LWIP_SO_SNDRCVTIMEO_GET_MS(optval);
@@ -3437,20 +3382,6 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
 #endif /* LWIP_SO_SNDTIMEO */
 #if LWIP_SO_RCVTIMEO
         case SO_RCVTIMEO: {
-/* Added by Realtek start */
-/* compatible with int and timeval */
-#if LWIP_SO_SNDRCVTIMEO_NONSTANDARD
-    if(sizeof(struct timeval) == optlen) {
-        netconn_set_recvtimeout(sock->conn, (((const struct timeval *)(optval))->tv_sec * 1000U) + (((const struct timeval *)(optval))->tv_usec / 1000U));
-        break;
-    }
-#else
-    if(sizeof(int) == optlen) {
-        netconn_set_recvtimeout(sock->conn, *((const int *) optval));
-        break;
-    }
-#endif
-/* Added by Realtek end */
           long ms_long;
           LWIP_SOCKOPT_CHECK_OPTLEN_CONN(sock, optlen, LWIP_SO_SNDRCVTIMEO_OPTTYPE);
           ms_long = LWIP_SO_SNDRCVTIMEO_GET_MS(optval);
@@ -4251,14 +4182,14 @@ int lwip_allocsocketsd(void)
 {
   struct netconn *conn;
   int i;
-  
+
   /*new a netconn due to avoid some socket->conn check*/
   conn = netconn_new_with_proto_and_callback(NETCONN_RAW, 0, NULL);
   if (!conn) {
     printf("\r\n could not create netconn");
     return -1;
   }
-  
+
   /*alloc a socket*/
   i = alloc_socket(conn, 1);
   if (i == -1) {
@@ -4266,7 +4197,7 @@ int lwip_allocsocketsd(void)
     printf("\r\n alloc socket fail!");
     return -1;
   }
-  
+
   conn->socket = i;
   return i;
 }
@@ -4285,7 +4216,7 @@ void lwip_selectevindicate(int fd)
 {
   struct lwip_select_cb *scb;
   struct lwip_sock *sock;
-  
+
   sock = get_socket(fd);
   SYS_ARCH_DECL_PROTECT(lev);
   while (1) {
@@ -4303,7 +4234,7 @@ void lwip_selectevindicate(int fd)
     }
     if (scb) {
       scb->sem_signalled = 1;
-      sys_sem_signal(&scb->sem);
+      sys_sem_signal(SELECT_SEM_PTR(scb->sem));
       SYS_ARCH_UNPROTECT(lev);
     } else {
       SYS_ARCH_UNPROTECT(lev);

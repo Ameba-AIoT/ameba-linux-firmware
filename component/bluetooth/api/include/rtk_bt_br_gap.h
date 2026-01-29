@@ -51,6 +51,11 @@ extern "C"
 
 /* ------------------------------- Data Types ------------------------------- */
 typedef enum {
+	RTK_BT_BR_GAP_ROLE_MASTER  = 0,
+	RTK_BT_BR_GAP_ROLE_SLAVE,
+} rtk_bt_br_role_t;
+
+typedef enum {
 	RTK_BT_BR_GAP_PAGE_SCAN_TYPE_STANDARD  = 0,/*!< BR/EDR page scan type standard. */
 	RTK_BT_BR_GAP_PAGE_SCAN_TYPE_INTERLACED,   /*!< BR/EDR page scan type interlaced. */
 } rtk_bt_br_page_scan_t;
@@ -95,10 +100,13 @@ typedef struct {
 	void                *timer_handle_later_avrcp;
 	uint8_t             bd_addr[6];
 	bool                used;
+	bool                acl_conn_ind;
+	uint8_t             role;
 	uint8_t             id;
 	void                *a2dp_track_handle;
 	void                *sco_track_handle;
 	bool                is_streaming;
+	bool                reg_play_status_flag;
 	uint8_t             avrcp_play_status;
 	uint16_t            handle;
 	uint16_t            sco_handle;
@@ -197,11 +205,20 @@ typedef struct {
 } rtk_bt_br_inquiry_start_t;
 
 /**
+ * @struct    rtk_bt_br_auto_sniff_mode_t
+ * @brief     BR/EDR auto sniff mode parameters.
+ */
+typedef struct {
+	uint8_t     bd_addr[6];                        /*!< address */
+	bool        enable;                            /*!< enable */
+} rtk_bt_br_auto_sniff_mode_t;
+
+/**
  * @struct    rtk_bt_br_sniff_mode_t
  * @brief     BR/EDR sniff mode parameters.
  */
 typedef struct {
-	uint8_t     enable;                            /*!< 0 for disable, 1 for enable */
+	uint8_t     enter;                             /*!< 0 for exit, 1 for enter */
 	uint8_t     bd_addr[6];                        /*!< address */
 	uint16_t    min_interval;                      /*!< Min sniff interval, only even values between 0x0002 and 0xFFFE are valid */
 	uint16_t
@@ -209,6 +226,22 @@ typedef struct {
 	uint16_t    sniff_attempt;                     /*!< Number of baseband receive slots for sniff attempt */
 	uint16_t    sniff_timeout;                     /*!< Number of baseband receive slots for sniff timeout */
 } rtk_bt_br_sniff_mode_t;
+
+typedef enum {
+	RTK_BT_BR_QOS_TYPE_NO_TRAFFIC    = 0x00,
+	RTK_BT_BR_QOS_TYPE_BEST_EFFORT   = 0x01,
+	RTK_BT_BR_QOS_TYPE_GUARANTEED    = 0x02,
+} rtk_bt_br_qos_type_t;
+
+/**
+ * @struct    rtk_bt_br_link_qos_t
+ * @brief     BR/EDR config link qos parameters.
+ */
+typedef struct {
+	uint8_t              bd_addr[6];                        /*!< address */
+	rtk_bt_br_qos_type_t type;                              /*!< qos type */
+	uint16_t             tpoll;                             /*!< the poll interval ranged from 0x06 to 0x1000 in 625us slot unit */
+} rtk_bt_br_link_qos_t;
 
 /**
  * @struct    rtk_bt_br_security_param_t
@@ -241,6 +274,15 @@ typedef struct {
 	uint8_t     bd_addr[6];                        /*!< address */
 	uint16_t    cause;                             /*!< disc cause */
 } rtk_bt_br_acl_disc_t;
+
+/**
+ * @struct    rtk_bt_br_link_key_req_t
+ * @brief     link key request.
+ */
+typedef struct {
+	uint8_t     found;                             /*!< indicate whether containing link key */
+	uint8_t     bd_addr[6];                        /*!< address */
+} rtk_bt_br_link_key_req_t;
 
 /**
  * @struct    rtk_bt_br_bond_key_t
@@ -293,6 +335,25 @@ typedef struct {
 	uint16_t    cause;
 	uint8_t     name[RTK_BT_GAP_DEVICE_NAME_LEN];
 } rtk_bt_br_remote_name_rsp_t;
+
+/**
+ * @struct    rtk_bt_br_acl_conn_fail_t
+ * @brief     Bluetooth BR/EDR ACL connection fail event
+ */
+typedef struct {
+	uint8_t     bd_addr[6];
+	uint16_t    cause;
+} rtk_bt_br_acl_conn_fail_t;
+
+/**
+ * @struct    rtk_bt_br_lin_read_rssi_rsp
+ * @brief     Bluetooth BR/EDR read rssi rsp
+ */
+typedef struct {
+	uint8_t     bd_addr[6];       /**< Bluetooth address of remote device. */
+	uint16_t    cause;            /**< Result of reading RSSI. */
+	int8_t      rssi;             /**< RSSI value read if success. */
+} rtk_bt_br_link_read_rssi_rsp;
 
 /* ------------------------------ Functions Declaration ------------------------------ */
 /**
@@ -515,19 +576,40 @@ uint16_t rtk_bt_br_gap_set_pincode(uint8_t *pin_code, uint32_t length);
 uint16_t rtk_bt_br_gap_set_radio_mode(uint8_t radio_mode);
 
 /**
- * @brief     configure sniff mode.
- * @param[in] enable: 0 for disable, 1 for enable.
+ * @brief     configure auto entering sniff mode.
  * @param[in] bd_addr The Bluetooth device address
- * @param[in] min_interval: (0 for disable)Min sniff interval, only even values between 0x0002 and 0xFFFE are valid.
- * @param[in] max_interval: (0 for disable)Max sniff interval, only even values between 0x0002 and 0xFFFE are valid, should be larger than min_interval.
- * @param[in] sniff_attempt: (0 for disable)Number of baseband receive slots for sniff attempt.
- * @param[in] sniff_timeout: (0 for disable)Number of baseband receive slots for sniff timeout.
+ * @param[in] enable: false for disabling auto entering sniff mode and true for enabling.
  * @return
  *            - 0  : Succeed
  *            - Others: Error code
  */
-uint16_t rtk_bt_br_gap_set_sniff_mode(uint8_t enable, uint8_t *bd_addr, uint16_t min_interval, uint16_t max_interval, uint16_t sniff_attempt,
+uint16_t rtk_bt_br_gap_set_auto_sniff_mode(uint8_t *bd_addr, bool enable);
+
+/**
+ * @brief     configure sniff mode.
+ * @param[in] enter: 0 for exit, 1 for enter.
+ * @param[in] bd_addr The Bluetooth device address
+ * @param[in] min_interval: (Only works for Enter Action)Min sniff interval, only even values between 0x0002 and 0xFFFE are valid.
+ * @param[in] max_interval: (Only works for Enter Action)Max sniff interval, only even values between 0x0002 and 0xFFFE are valid, should be larger than min_interval.
+ * @param[in] sniff_attempt: (Only works for Enter Action)Number of baseband receive slots for sniff attempt.
+ * @param[in] sniff_timeout: (Only works for Enter Action)Number of baseband receive slots for sniff timeout.
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_br_gap_set_sniff_mode(uint8_t enter, uint8_t *bd_addr, uint16_t min_interval, uint16_t max_interval, uint16_t sniff_attempt,
 									  uint16_t sniff_timeout);
+
+/**
+* @brief     Set BT link QoS
+* @param[in] bd_addr The Bluetooth device address
+* @param[in] type QoS type defined in ref rtk_bt_br_qos_type_t.
+* @param[in] The poll interval ranged from 0x06 to 0x1000 in 625us slot unit.
+* @return
+*            - 0  : Succeed
+*            - Others: Error code
+*/
+uint16_t rtk_bt_br_gap_set_link_qos(uint8_t *bd_addr, rtk_bt_br_qos_type_t type, uint16_t tpoll);
 
 /**
  * @brief     set bt code of class(should be invoked before rtk_bt_enable).
@@ -547,6 +629,15 @@ uint16_t rtk_bt_br_gap_set_cod(uint32_t *bt_cod);
  *            - Others: Error code
  */
 uint16_t rtk_bt_br_gap_set_supvisiontimeout(uint16_t *supv_timeout);
+
+/**
+ * @brief     get rssi of current link.
+ * @param[in] bd_addr: The Bluetooth device address
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_br_gap_read_rssi(uint8_t *bd_addr);
 /**
  * @}
  */

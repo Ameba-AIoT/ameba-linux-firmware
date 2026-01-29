@@ -57,7 +57,7 @@ struct hci_evt_hdr {
 
 #define HCI_HDR_MAX_SIZE 4
 
-#define LE_TO_UINT16(_data, _array)  {              \
+#define LE_TO_UINT16(_data, _array)    {            \
         _data = ((uint16_t)(*((uint8_t *)(_array) + 0)) << 0) |        \
                 ((uint16_t)(*((uint8_t *)(_array) + 1)) << 8);         \
     }
@@ -69,15 +69,32 @@ struct hci_evt_hdr {
                 ((uint32_t)(*((uint8_t *)(_array) + 3)) << 24);        \
     }
 
+#define LE_TO_UINT64(_data, _array)    {            \
+        _data = ((uint64_t)(*((uint8_t *)(_array) + 0)) <<  0) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 1)) <<  8) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 2)) << 16) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 3)) << 24) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 4)) << 32) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 5)) << 40) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 6)) << 48) |       \
+                ((uint64_t)(*((uint8_t *)(_array) + 7)) << 56);        \
+    }
+
+#define PATCH_VERSION_INVALID   0
+#define PATCH_VERSION_V1        1
+#define PATCH_VERSION_V2        2
+#define PATCH_VERSION_V3        3
+
 /****** functions called by hci_process.c ******/
-uint8_t hci_downlod_patch_init(void);
-uint8_t hci_get_patch_cmd_buf(uint8_t *cmd_buf, uint8_t cmd_len);
-uint8_t hci_get_patch_cmd_len(uint8_t *cmd_len);
-void hci_downlod_patch_done(void);
 void hci_patch_set_chipid(uint8_t chipid);
 void hci_set_work_baudrate(uint8_t *baudrate);
 void hci_get_baudrate(uint8_t *baudrate, bool use_default_rate);
 uint8_t hci_update_uart_baudrate(bool use_default_rate);
+uint8_t hci_patch_get_patch_version(uint8_t **pp_patch_buf, uint32_t *p_patch_len);
+/**********************************************/
+
+/****** functions called by hci_download_vx.c ******/
+uint8_t hci_patch_get_chipid(void);
 /**********************************************/
 
 void hci_set_mp(bool is_mp);
@@ -93,14 +110,21 @@ void hci_controller_free(void);
 bool hci_controller_is_enabled(void);
 /**********************************************/
 
+/********** APIs called by hci uart ***********/
+void hci_uart_rx_irq_handler(bool from_irq);
+/**********************************************/
+
 #if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
 #if defined(CONFIG_MP_SHRINK) && CONFIG_MP_SHRINK
-#define hci_is_mp_mode() true
-#else
-#define hci_is_mp_mode hci_check_mp
-#endif
+#define hci_is_mp_mode()            true
+#define hci_is_wifi_need_leave_ps() false    /* WiFi will not enter ps in MP shrink mode, no need to leave */
+#else /* CONFIG_MP_SHRINK */
+#define hci_is_mp_mode              hci_check_mp
+#define hci_is_wifi_need_leave_ps() true
+#endif /* CONFIG_MP_SHRINK */
 #else /* CONFIG_MP_INCLUDED */
-#define hci_is_mp_mode() false
+#define hci_is_mp_mode()            false
+#define hci_is_wifi_need_leave_ps() true
 #endif /* CONFIG_MP_INCLUDED */
 
 #endif /* _HCI_COMMON_H_ */

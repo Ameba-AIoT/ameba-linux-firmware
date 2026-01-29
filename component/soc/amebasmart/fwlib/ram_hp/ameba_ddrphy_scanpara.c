@@ -7,7 +7,7 @@
 #include "ameba_soc.h"
 #include "ameba_ddrphy_scanpara.h"
 
-static const char *TAG = "DDRPHY";
+static const char *const TAG = "DDRPHY";
 #if 0
 #define SCAN_PRINT DiagPrintf
 #define BSTC_DEBUG_PRINT TRUE
@@ -236,9 +236,9 @@ void DDR_PHY_ZQ_CAL(void)
 #endif
 	RTK_LOGI(TAG,  "DDR_PHY_ZQ_CAL\n");
 	ddr_phy->DDRPHY_PAD_CTRL_PROG = ((ddr_phy->DDRPHY_PAD_CTRL_PROG & (~DDRPHY_MASK_ZCTRL_CLK_SEL)) | DDRPHY_ZCTRL_CLK_SEL(0x2));
-	if (DDR_PHY_ChipInfo_ddrtype() == DDR_Type_DDR3L) {
+	if (DDR_PHY_ChipInfo_ddrtype() == MCM_DDR3L) {
 		ddr_phy->DDRPHY_PAD_CTRL_PROG |= DDRPHY_BIT_RZQ_EXT_R240; //external register
-	} else if (DDR_PHY_ChipInfo_ddrtype() == DDR_Type_DDR2) {
+	} else if (DDR_PHY_ChipInfo_ddrtype() == MCM_DDR2) {
 		ddr_phy->DDRPHY_PAD_CTRL_PROG &= (~DDRPHY_BIT_RZQ_EXT_R240); //internal register
 	} else {
 		RTK_LOGI(TAG,  "Confirm R240 location to RDC...\n");
@@ -297,7 +297,7 @@ void DDR_PHY_R480_CAL(void)
 	DDRPHY_TypeDef *ddr_phy = DDRPHY_DEV;
 	u32 temp;
 
-	if (DDR_PHY_ChipInfo_ddrtype() == DDR_Type_DDR3L) {
+	if (DDR_PHY_ChipInfo_ddrtype() == MCM_DDR3L) {
 		return; //DDR3L use external 240ohm, no need to K R480
 	}
 
@@ -315,7 +315,7 @@ void DDR_PHY_R480_CAL(void)
 
 	temp = ddr_phy->DDRPHY_PAD_BUS_2;
 	temp &= (~(DDRPHY_MASK_VREF_S_0 | DDRPHY_BIT_VREF_RANGE_0 | DDRPHY_BIT_VREF_PD_0));
-	if (DDR_PHY_ChipInfo_ddrtype() == DDR_Type_DDR2) {
+	if (DDR_PHY_ChipInfo_ddrtype() == MCM_DDR2) {
 		temp |= DDRPHY_VREF_S_0(0x4); //for DDR2 VREF_CA
 	}
 	ddr_phy->DDRPHY_PAD_BUS_2 = temp;
@@ -788,7 +788,7 @@ static u8 DDR_PHY_Scan_param_setup_map(void)
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 
 	while (!(LOGUART_Readable()));
-	scan_stage = LOGUART_GetChar(_FALSE) - '0';
+	scan_stage = LOGUART_GetChar(FALSE) - '0';
 
 	LOGUART_ClearRxFifo(LOGUART_DEV);
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, ENABLE);
@@ -3020,7 +3020,7 @@ static u8 DDR_PHY_Scan_param_Stage(void)
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 
 	while (!(LOGUART_Readable()));
-	scan_stage = LOGUART_GetChar(_FALSE) - '0';
+	scan_stage = LOGUART_GetChar(FALSE) - '0';
 
 	LOGUART_ClearRxFifo(LOGUART_DEV);
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, ENABLE);
@@ -3033,6 +3033,13 @@ void DDR_PHY_Scan_param(void)
 {
 	u8 scan_stage = DDR_PHY_Scan_param_Stage();
 
+	if ((HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1) & LSYS_BIT_BG_ON_USB2) == 0) {
+		/* ZQK will use ref current controlled by LSYS_BIT_BG_ON_USB2 */
+		assert_param(0);
+	}
+
+	RTK_LOGI(TAG,  "ChipInfo_Get:[%08x]\n", ChipInfo_Get());
+
 	//when ddrphy init, do R480/ZQ K first
 	DDR_PHY_BSTC_STARK();
 	sram_sg();
@@ -3040,7 +3047,7 @@ void DDR_PHY_Scan_param(void)
 
 	if (scan_stage == TX_MR_WRLVL) {
 		/*1. MR_wrlvl, DDR2 Not Support, DDR3 shall do this*/
-		if (DDR_PHY_ChipInfo_ddrtype() != DDR_Type_DDR2) {
+		if (DDR_PHY_ChipInfo_ddrtype() != MCM_DDR2) {
 			tx_MR_wrlvl();
 		} else {
 			RTK_LOGE(TAG, "DDR2 Not Support MR_wrlvl\r\n");

@@ -1,10 +1,6 @@
+#include "ameba_soc.h"
 #include "lwip_netconf.h"
-#include "os_wrapper.h"
-#include "rtw_wifi_constants.h"
-#include "wifi_conf.h"
 
-#include "mbedtls/config.h"
-#include "mbedtls/platform.h"
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
 
@@ -29,20 +25,17 @@ static void example_ssl_client_thread(void *param)
 
 	(void)param;
 
-	RTK_LOGS(NOTAG, "\nExample: SSL client\n");
+	// Delay to check successful WiFi connection and obtain of an IP address
+	LwIP_Check_Connectivity();
 
-	while (!((wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) && (*(u32 *)LwIP_GetIP(0) != IP_ADDR_INVALID))) {
-		RTK_LOGS(NOTAG, "Wait for WIFI connection ...\n");
-		RTK_LOGS(NOTAG, "Please use AT+WLCONN=ssid,***,pw,*** to connect AP first time\n");
-		rtos_time_delay_ms(2000);
-	}
+	RTK_LOGS(NOTAG, RTK_LOG_INFO, "\nExample: SSL client\n");
 
 	mbedtls_net_init(&server_fd);
 	mbedtls_ssl_init(&ssl);
 	mbedtls_ssl_config_init(&conf);
 
 	if ((ret = mbedtls_net_connect(&server_fd, SERVER_HOST, SERVER_PORT, MBEDTLS_NET_PROTO_TCP)) != 0) {
-		RTK_LOGS(NOTAG, "ERROR: mbedtls_net_connect ret(%d)\n", ret);
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "ERROR: mbedtls_net_connect ret(%d)\n", ret);
 		goto exit;
 	}
 
@@ -53,7 +46,7 @@ static void example_ssl_client_thread(void *param)
 										   MBEDTLS_SSL_TRANSPORT_STREAM,
 										   MBEDTLS_SSL_PRESET_DEFAULT)) != 0) {
 
-		RTK_LOGS(NOTAG, "ERROR: mbedtls_ssl_config_defaults ret(%d)\n", ret);
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "ERROR: mbedtls_ssl_config_defaults ret(%d)\n", ret);
 		goto exit;
 	}
 
@@ -61,18 +54,18 @@ static void example_ssl_client_thread(void *param)
 	mbedtls_ssl_conf_rng(&conf, my_random, NULL);
 
 	if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
-		RTK_LOGS(NOTAG, "ERRPR: mbedtls_ssl_setup ret(%d)\n", ret);
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "ERROR: mbedtls_ssl_setup ret(%d)\n", ret);
 		goto exit;
 	}
 
 	if ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
-		RTK_LOGS(NOTAG, "ERROR: mbedtls_ssl_handshake ret(-0x%x)", -ret);
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "ERROR: mbedtls_ssl_handshake ret(-0x%x)", -ret);
 		goto exit;
 	} else {
 		unsigned char buf[BUFFER_SIZE + 1];
 		int pos = 0, read_size = 0, resource_size = 0, content_len = 0, header_removed = 0;
 
-		RTK_LOGS(NOTAG, "SSL ciphersuite %s\n", mbedtls_ssl_get_ciphersuite(&ssl));
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "SSL ciphersuite %s\n", mbedtls_ssl_get_ciphersuite(&ssl));
 		sprintf((char *) buf, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", RESOURCE, SERVER_HOST);
 		mbedtls_ssl_write(&ssl, buf, strlen((char *) buf));
 
@@ -90,7 +83,7 @@ static void example_ssl_client_thread(void *param)
 					body = header + strlen("\r\n\r\n");
 					*(body - 2) = 0;
 					header_removed = 1;
-					RTK_LOGS(NOTAG, "\nHTTP Header: %s\n", buf);
+					RTK_LOGS(NOTAG, RTK_LOG_INFO, "\nHTTP Header: %s\n", buf);
 
 					// Remove header size to get first read size of data from body head
 					read_size = pos - ((unsigned char *) body - buf);
@@ -104,7 +97,7 @@ static void example_ssl_client_thread(void *param)
 					}
 				} else {
 					if (pos >= BUFFER_SIZE) {
-						RTK_LOGS(NOTAG, "ERROR: HTTP header\n");
+						RTK_LOGS(NOTAG, RTK_LOG_ERROR, "ERROR: HTTP header\n");
 						goto exit;
 					}
 
@@ -112,12 +105,12 @@ static void example_ssl_client_thread(void *param)
 				}
 			}
 
-			RTK_LOGS(NOTAG, "read resource %d bytes\n", read_size);
+			RTK_LOGS(NOTAG, RTK_LOG_INFO, "read resource %d bytes\n", read_size);
 			resource_size += read_size;
 		}
 
-		RTK_LOGS(NOTAG, "exit read. ret = %d\n", read_size);
-		RTK_LOGS(NOTAG, "http content-length = %d bytes, download resource size = %d bytes\n", content_len, resource_size);
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "exit read. ret = %d\n", read_size);
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "http content-length = %d bytes, download resource size = %d bytes\n", content_len, resource_size);
 	}
 
 exit:
@@ -133,7 +126,7 @@ void example_ssl_client(void)
 {
 	rtos_task_t task;
 	if (rtos_task_create(&task, ((const char *)"example_ssl_client_thread"), example_ssl_client_thread,
-						 NULL, 2048 * 4, 1) != SUCCESS) {
-		RTK_LOGS(NOTAG, "\n\r%s rtos_task_create(example_ssl_client_thread) failed", __FUNCTION__);
+						 NULL, 2048 * 4, 1) != RTK_SUCCESS) {
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\n\r%s rtos_task_create(example_ssl_client_thread) failed", __FUNCTION__);
 	}
 }

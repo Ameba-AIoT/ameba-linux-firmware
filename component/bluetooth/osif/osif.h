@@ -24,6 +24,7 @@ bool osif_task_context_check(void);
 
 /* OS schedule interfaces */
 void osif_delay(uint32_t ms);
+void osif_delay_us(uint32_t us);
 uint32_t osif_sys_time_get(void);
 bool osif_sched_start(void);
 bool osif_sched_stop(void);
@@ -91,6 +92,7 @@ bool osif_timer_state_get(void **pp_handle, uint32_t *p_timer_state);
 bool osif_timer_dump(void);
 
 void osif_create_secure_context(uint32_t size);
+void osif_rand(void *val, uint32_t size);
 
 #ifdef __cplusplus
 }

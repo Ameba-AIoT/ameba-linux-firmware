@@ -20,12 +20,14 @@ Ameba audio project can achieve:
 ## Supported IC <a name = "supported-ic"></a>
 1. AmebaSmart
 2. AmebaLite
-3. AmebaDplus(only support passthrough architecture)
+3. AmebaDplus(for mixer architecture, please set menuconfig.py->Config Link Option->Img2 In Psram)
+4. AmebaGreen2(for mixer architecture, please set menuconfig.py->Config Link Option->Img2 Code In Psram_DataHeapInSram)
 
 ## Configurations <a name = "configurations"></a>
 
-Please see discriptions in component/soc/xx/usrcfg/include/ameba_audio_hw_usrcfg.h.
-ameba_audio_hw_usrcfg.h is for audio Hardware configurations.
+Please see discriptions in component/soc/usrcfg/xx/include/ameba_audio_hw_usrcfg.h, ameba_audio_hw_usrcfg.h is for audio hardware configurations.
+Please see discriptions in component/audio/configs/include/ameba_audio_mixer_usrcfg.h, and setup component/audio/configs/ameba_audio_mixer_usrcfg.cpp.
+Please see discriptions in component/audio/configs/include/ameba_audio_policy_configs.h, and setup component/audio/configs/audio_policy/ameba**/ameba_audio_policy_configs.c
 
 ### Hardware configurations
 
@@ -34,5 +36,12 @@ ameba_audio_hw_usrcfg.h is for audio Hardware configurations.
 3. Please refer to component/audio/audio_hal/xx/README.md.
 
 ## How to run <a name = "How to run"></a>
-1. Use CMD `make EXAMPLE=audio_track` to compile this example.
+
+Build and Download:
+   * Refer to the SDK Examples section of the online documentation to generate images.
+   * `Download` images to board by Ameba Image Tool.
+
+### Note
+
+1. Use CMD `./build.py -a audio_track -p` to compile this example.
 2. For playing run command and parameters, please refer to app_example.c.

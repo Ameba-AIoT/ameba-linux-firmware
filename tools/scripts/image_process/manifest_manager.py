@@ -82,24 +82,25 @@ class ManifestImageConfig:
 
         if image_type != ImageType.CERT:
             #RSIP
-            self.rsip_enable:bool = config.get("rsip_enable", config.get("rsip_en", False))
-            if self.rsip_enable:
-                self.rsip_mode:int = config["rsip_mode"] #0 is CTR, 1 is XTS(CTR+ECB), 2 is GCM
-                self.rsip_gcm_tag_len:int = config.get("rsip_gcm_tag_len", 0xFF)
-                self.rsip_iv:str = config["rsip_iv"]
-                self.rsip_key:List[str] = []
-                if "rsip_key_group" in config:
-                    self.rsip_key = [config[v] for v in config[config["rsip_key_group"]]]
-                else:
-                    if self.rsip_mode == 0:
-                        self.rsip_key = [config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]]]
-                    elif self.rsip_mode == 1:
-                        self.rsip_key = [
-                            config["ecb_key"] if isinstance(config["ecb_key"], str) else config["ecb_key"][config["rsip_key_id"]],
-                            config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]],
-                        ]
-                    elif self.rsip_mode == 1:
-                        self.rsip_key = [config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]]]
+            if image_type == ImageType.IMAGE1 or image_type == ImageType.IMAGE2:
+                self.rsip_enable:bool = config.get("rsip_enable", config.get("rsip_en", False))
+                if self.rsip_enable:
+                    self.rsip_mode:int = config["rsip_mode"] #0 is CTR, 1 is XTS(CTR+ECB), 2 is GCM
+                    self.rsip_gcm_tag_len:int = config.get("rsip_gcm_tag_len", 0xFF)
+                    self.rsip_iv:str = config["rsip_iv"]
+                    self.rsip_key:List[str] = []
+                    if "rsip_key_group" in config:
+                        self.rsip_key = [config[v] for v in config[config["rsip_key_group"]]]
+                    else:
+                        if self.rsip_mode == 0:
+                            self.rsip_key = [config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]]]
+                        elif self.rsip_mode == 1:
+                            self.rsip_key = [
+                                config["ecb_key"] if isinstance(config["ecb_key"], str) else config["ecb_key"][config["rsip_key_id"]],
+                                config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]],
+                            ]
+                        elif self.rsip_mode == 1:
+                            self.rsip_key = [config["ctr_key"] if isinstance(config["ctr_key"], str) else config["ctr_key"][config["rsip_key_id"]]]
 
             #RDP
             self.rdp_enable:bool = config.get("rdp_enable", config.get("rdp_en", False))
@@ -113,12 +114,15 @@ class ManifestImageConfig:
                         self.rdp_key = config[config["rdp_key"]]
 
         #SBOOT:
-        if image_type in [ImageType.IMAGE1, ImageType.IMAGE2, ImageType.CERT]:  #image3 is not required
+        if image_type in [ImageType.IMAGE1, ImageType.IMAGE2, ImageType.CERT, ImageType.VBMETA]:  #image3 is not required
             self.sboot_enable:bool = config.get("sboot_enable", config.get("secure_boot_en", False))
             if self.sboot_enable:
                 self.sboot_algorithm:str = config["sboot_algorithm"] if "sboot_algorithm" in config else config["algorithm"]
                 self.sboot_hash_alg:str = config["sboot_hash_alg"] if "sboot_hash_alg" in config else config["hash_alg"]
-                self.sboot_hmac_key:str = config["sboot_hmac_key"] if "sboot_hmac_key" in config else config["hmac_key"]
+                if "sboot_hmac_key" in config:
+                    self.sboot_hmac_key:str = config[config["sboot_hmac_key"]] if config["sboot_hmac_key"] in config else config["sboot_hmac_key"]
+                else:
+                    self.sboot_hmac_key:str = config["hmac_key"]
                 self.sboot_private_key:str = config["sboot_private_key"] if "sboot_private_key" in config else config["private_key"]
                 self.sboot_public_key:str = config["sboot_public_key"] if "sboot_public_key" in config else config["public_key"]
             self.sboot_public_key_hash:str = config["sboot_public_key_hash"] if "sboot_public_key_hash" in config else config["public_key_hash"]
@@ -138,7 +142,7 @@ class ManifestManager(ABC):
 
         self.new_json_data = copy.deepcopy(self.origin_json_data)
         # Add key from outside(global config) of image part if key not in image part
-        for img in ['image1', 'image2', 'image3', 'cert']:
+        for img in ['image1', 'image2', 'image3', 'cert', 'vbmeta']:
             if img not in self.new_json_data:
                 context.logger.info(f"manifest file does not contains {img}")
                 continue
@@ -170,6 +174,8 @@ class ManifestManager(ABC):
             context.logger.info(f"manifest file does not contains cert, will use image2 config for cert")
             self.cert = self.image2
         self.app_all = self.image2 #NOTE: APP_ALL used in compress image
+        if 'vbmeta' in self.new_json_data:
+            self.vbmeta = ManifestImageConfig(self.new_json_data['vbmeta'], ImageType.VBMETA)
 
     def validate_config(self, data:Union[str, dict]) -> bool:
         if isinstance(data, str):
@@ -221,13 +227,13 @@ class ManifestManager(ABC):
                     if value not in choices:
                         self.context.logger.error(f'{key} format error: should be one of {choices}')
                         return False
-                elif key in ["ctr_key", "rdp_key", "sboot_private_key", "sboot_public_key", "sboot_public_key_hash"]:
+                elif key in ["ctr_key", "rdp_key", "sboot_public_key_hash"]:
                     if isinstance(value, list):
                         if any(len(v) != 64 and len(v) != 32 for v in value):
                             self.context.logger.error(f'{key} format error: should be 32/64 bytes')
                             return False
                     elif len(value) != 64 and len(value) != 32 and value not in jdata:
-                        self.context.logger.error(f'{key} format error: should be 32/64 bytes: {value}')
+                        self.context.logger.error(f'{key} format error: should be 32/64 bytes: {value}, current len: {len(value)}')
                         return False
                 elif key.startswith("ecb_key"):
                     if isinstance(value, list):
@@ -355,8 +361,13 @@ class ManifestManager(ABC):
 
         if image_config.rsip_enable:
             for i, img in enumerate([self.image1, self.image2, self.image3], start=1):
-                if img == None: continue #NOTE: manifest maybe not contain image3
-                rsip_mode = 0xFF if img.rsip_mode == None else img.rsip_mode
+                if img is None: continue #NOTE: manifest maybe not contain image3
+                # Only process rsip_mode for images that have rsip_enable and rsip_mode attribute
+                if not hasattr(img, 'rsip_enable') or not img.rsip_enable:
+                    continue
+                rsip_mode = getattr(img, 'rsip_mode', None)
+                if rsip_mode is None:
+                    continue
                 manifest.RsipCfg = manifest.RsipCfg & (~(0x03 << (i * 2))|(rsip_mode << (i * 2)))
 
             memmove(addressof(manifest.RsipIV), bytes.fromhex(image_config.rsip_iv), 8)

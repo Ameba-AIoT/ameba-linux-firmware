@@ -308,7 +308,7 @@ typedef struct {
 	uint16_t seq;                           /*!< Sequence number, for convinience, not mandatory */
 	uint16_t app_id;                        /*!< Every service has a app_id. */
 	uint16_t conn_handle;                   /*!< Connection handle for a client */
-	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, MUST be same as cid in @ref rtk_bt_gatts_read_ind_t. Ignored when RTK_BT_5_2_EATT_SUPPORT is 0. */
+	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, MUST be same as cid in @ref rtk_bt_gatts_read_ind_t. Ignored when RTK_BLE_MGR_LIB is 0. */
 	uint16_t index;                         /*!< Attribute index in service */
 	uint8_t err_code;                       /*!< Error code, @ref rtk_bt_err_att , if NOT ERR_RESP, equals 0 */
 	uint16_t len;                           /*!< Response Value length, when err_code == 0 */
@@ -323,7 +323,7 @@ typedef struct {
 	uint16_t seq;                           /*!< Sequence number, for convinience, not mandatory */
 	uint16_t app_id;                        /*!< Every service has a app_id. */
 	uint16_t conn_handle;                   /*!< Connection handle for a client */
-	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, 0 indicates auto-select. Ignored when RTK_BT_5_2_EATT_SUPPORT is 0. */
+	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, 0 indicates auto-select. Ignored when RTK_BLE_MGR_LIB is 0. */
 	uint16_t index;                         /*!< Attribute index in service */
 	uint8_t type;                           /*!< Write type */
 	uint8_t err_code;                       /*!< Error code, @ref rtk_bt_err_att , if NOT ERR_RESP, equals 0 */
@@ -337,11 +337,32 @@ typedef struct {
 	uint16_t seq;                           /*!< Sequence number, for convinience, not mandatory */
 	uint16_t app_id;                        /*!< Every service has a app_id. */
 	uint16_t conn_handle;                   /*!< Connection handle for a client */
-	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, 0 indicates auto-select. Ignored when RTK_BT_5_2_EATT_SUPPORT is 0. */
+	uint16_t cid;                           /*!< ID of L2CAP channel to send the response, 0 indicates auto-select. Ignored when RTK_BLE_MGR_LIB is 0. */
 	uint16_t index;                         /*!< Attribute index in service */
 	uint16_t len;                           /*!< Indicate Value length */
 	const void *data;                       /*!< Indicate Value data */
 } rtk_bt_gatts_ntf_and_ind_param_t;
+
+/**
+ * @struct    rtk_bt_gatts_service_changed_indicate_param_t
+ * @brief     Bluetooth GATT server service changed indicate paramter definition.
+ */
+typedef struct {
+	uint16_t conn_handle;                   /*!< Connection handle for a client */
+	uint16_t cid;                           /*!< ID of L2CAP channel, 0 indicates auto-select. Ignored when RTK_BLE_MGR_LIB is 0. */
+	uint16_t start_handle;                  /*!< Start of affected attribute handle range */
+	uint16_t end_handle;                    /*!< End of affected attribute handle range */
+} rtk_bt_gatts_service_changed_indicate_param_t;
+
+/**
+ * @struct    rtk_bt_gatts_get_attr_handle_param_t
+ * @brief     Bluetooth GATT server get attribute handle paramter definition.
+ */
+typedef struct {
+	uint16_t app_id;                        /*!< Every service has a app_id */
+	uint16_t attr_index;                    /*!< Attribute index in a service */
+	uint16_t *attr_handle;                  /*!< Handle of attribute */
+} rtk_bt_gatts_get_attr_handle_param_t;
 
 /**
  * @struct    rtk_bt_gatt_service
@@ -352,7 +373,7 @@ struct rtk_bt_gatt_service {
 	uint8_t alloc_ind;                      /*!< indicate whether this rtk_bt_gatt_service is mallocated */
 	uint16_t app_id;                        /*!< Service app_id */
 	rtk_bt_gatt_attr_t *attrs;              /*!< Service Attributes */
-	uint16_t attr_count;                        /*!< Service Attribute count */
+	uint16_t attr_count;                    /*!< Service Attribute count */
 #if !defined(RTK_BLE_MGR_LIB) || !RTK_BLE_MGR_LIB
 	bool assgin_handle_flag;                /*!< Flag of if the service start attr handle is assigned by user */
 	uint16_t start_handle;                  /*!< User assigned start attr handle of service */
@@ -457,6 +478,16 @@ typedef struct {
 	uint8_t features;                       /*!< Client Supported Features after writed, which is bit combination of @ref rtk_bt_gatts_client_supported_features_t. */
 } rtk_bt_gatts_client_supported_features_ind_t;
 
+/**
+ * @struct    rtk_bt_gatts_service_changed_cccd_ind_t
+ * @brief     Bluetooth GATT server's Service Changed Characteristic cccd updated event msg.
+ */
+typedef struct {
+	uint16_t conn_handle;                   /*!< Connection handle for a client */
+	uint16_t cid;                           /*!< L2CAP channel ID */
+	bool cccd_enable;                       /*!< cccd bits is enabled or disabled */
+} rtk_bt_gatts_service_changed_cccd_ind_t;
+
 /********************************* Functions Declaration *******************************/
 /**
  * @defgroup  bt_gatts BT GATT Server APIs
@@ -511,6 +542,30 @@ uint16_t rtk_bt_gatts_read_resp(rtk_bt_gatts_read_resp_param_t *param);
  *            - Others: Error code
  */
 uint16_t rtk_bt_gatts_write_resp(rtk_bt_gatts_write_resp_param_t *param);
+
+/**
+ * @brief     Server send service changed indication when builtin service is used.
+ * @param[in] conn_handle: Connection handle for a client.
+ * @param[in] cid: ID of L2CAP channel, 0 indicates auto-select. Ignored when RTK_BLE_MGR_LIB is 0.
+ * @param[in] start_handle: Start of affected attribute handle range.
+ * @param[in] end_handle: End of affected attribute handle range.
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_gatts_service_changed_indicate(uint16_t conn_handle, uint16_t cid,
+											   uint16_t start_handle, uint16_t end_handle);
+
+/**
+ * @brief     Server get attribute handle.
+ * @param[in] app_id: Every service has a app_id.
+ * @param[in] attr_index: Attribute index in a service.
+ * @param[out] attr_handle: Handle of attribute.
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_gatts_get_attribute_handle(uint16_t app_id, uint16_t attr_index, uint16_t *attr_handle);
 
 /**
  * @}

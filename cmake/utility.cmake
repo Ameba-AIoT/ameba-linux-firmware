@@ -174,9 +174,10 @@ function(ameba_add_external_library name output_path output_name)
         add_library(${flag_target} INTERFACE)
     endif()
 
+    if(BUILD_FOR_RLS)
+        list(APPEND ARGN p_STRIP_DEBUG p_ENABLE_DETERMINISTIC_ARCHIVES)
+    endif()
     ameba_add_library(${name}
-        p_STRIP_DEBUG
-        p_ENABLE_DETERMINISTIC_ARCHIVES
         p_OUTPUT_PATH ${output_path}
         p_OUTPUT_NAME ${output_name}
         ${ARGN}
@@ -247,6 +248,28 @@ function(ameba_add_external_soc_library name)
     endif()
 
     ameba_add_external_library(${name} ${c_SDK_LIB_SOC_DIR} ${ARG_p_OUTPUT_NAME} ${ARGN})
+    set(c_CURRENT_TARGET_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
+    set(c_CURRENT_TARGET_FILE ${c_CURRENT_TARGET_FILE} PARENT_SCOPE)
+endfunction()
+
+function(ameba_add_external_module_library name output_path)
+    set(oneValueArgs
+        p_OUTPUT_NAME               # Set target output name, default: ${name}
+    )
+    cmake_parse_arguments(ARG "" "${oneValueArgs}" "" ${ARGN})
+
+    #NOTE: Only work before release
+    if(CONFIG_AMEBA_RLS)
+        return()
+    endif()
+
+    if (ARG_p_OUTPUT_NAME)
+        ameba_list_remove_key_value(ARGN p_OUTPUT_NAME)
+    else()
+        set(ARG_p_OUTPUT_NAME ${name})
+    endif()
+
+    ameba_add_external_library(${name} ${output_path} ${ARG_p_OUTPUT_NAME} ${ARGN})
     set(c_CURRENT_TARGET_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
     set(c_CURRENT_TARGET_FILE ${c_CURRENT_TARGET_FILE} PARENT_SCOPE)
 endfunction()
@@ -328,6 +351,8 @@ function(ameba_add_merge_library output_name output_path)
    endif()
 
     set(full_output ${output_path}/lib_${output_name}.a)
+    set(_objcopy_flags)
+    ameba_list_append_if(BUILD_FOR_RLS _objcopy_flags -g -D)
     add_custom_command(
         OUTPUT ${full_output}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${temp_dir}
@@ -336,11 +361,12 @@ function(ameba_add_merge_library output_name output_path)
         ${list_cmd}
         COMMAND ${CMAKE_COMMAND} -E rm -f ${full_output}
         COMMAND ${CMAKE_COMMAND} -E chdir ${temp_dir} ${CMAKE_AR} crs ${full_output} "@o_files.list"
-        COMMAND ${CMAKE_OBJCOPY} -g -D ${full_output}
+        COMMAND ${CMAKE_OBJCOPY} ${_objcopy_flags} ${full_output}
         COMMAND ${CMAKE_COMMAND} -E remove_directory ${temp_dir}
         DEPENDS ${libs}
         COMMENT "Merging libraries lib_${output_name}.a using ar"
     )
+    unset(_objcopy_flags)
 
     add_custom_target(
         ${c_CURRENT_TARGET_NAME}_merge ALL
@@ -380,6 +406,16 @@ function(ameba_add_merge_soc_library output_name)
         return()
     endif()
     ameba_add_merge_library(${output_name} ${c_SDK_LIB_SOC_DIR} ${ARGN})
+    set(c_CURRENT_TARGET_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
+    set(c_CURRENT_TARGET_FILE ${c_CURRENT_TARGET_FILE} PARENT_SCOPE)
+endfunction()
+
+function(ameba_add_merge_module_library output_name output_path)
+    #NOTE: Only work before release
+    if(CONFIG_AMEBA_RLS)
+        return()
+    endif()
+    ameba_add_merge_library(${output_name} ${output_path} ${ARGN})
     set(c_CURRENT_TARGET_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
     set(c_CURRENT_TARGET_FILE ${c_CURRENT_TARGET_FILE} PARENT_SCOPE)
 endfunction()
@@ -530,13 +566,11 @@ function(ameba_add_subdirectory_ifnot condition dir)
 endfunction()
 
 function(ameba_add_subdirectory_if_exist dir)
-    if(CONFIG_AMEBA_RLS)
-        if(NOT IS_ABSOLUTE "${dir}")
-            file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${dir}" dir)
-        endif()
-        if(NOT EXISTS ${dir})
-            return()
-        endif()
+    if(NOT IS_ABSOLUTE "${dir}")
+        file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${dir}" dir)
+    endif()
+    if(NOT EXISTS ${dir})
+        return()
     endif()
     ameba_add_subdirectory(${dir} ${ARGN})
 endfunction()

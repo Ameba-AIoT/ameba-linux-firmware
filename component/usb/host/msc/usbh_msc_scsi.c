@@ -1,17 +1,8 @@
-/**
-  ******************************************************************************
-  * @file    usbh_msc_scsi.c
-  * @author  Realsil WLAN5 Team
-  * @brief   This file provides the functionalities of the USB MSC Class
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2020, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 /* Includes ------------------------------------------------------------------*/
 
@@ -268,20 +259,30 @@ int usbh_scsi_write(usbh_msc_host_t *msc, u8 lun, u32 address, u8 *pbuf, u32 len
 		cbw->field.CB[4]  = (((u8 *)(void *)&address)[1]);
 		cbw->field.CB[5]  = (((u8 *)(void *)&address)[0]);
 
-
 		/*Transfer length */
-		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]) ;
-		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]) ;
-
+		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]);
+		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]);
 
 		msc->hbot.state = BOT_SEND_CBW;
 		msc->hbot.cmd_state = BOT_CMD_BUSY;
-		msc->hbot.pbuf = pbuf;
-		status = HAL_BUSY;
+		msc->hbot.origin_tx_pbuf = pbuf;
+		msc->hbot.origin_tx_pbuf_len = cbw->field.DataTransferLength;
+		if ((msc->hbot.pbuf != NULL) && (msc->hbot.pbuf != msc->hbot.data)) {
+			usb_os_mfree(msc->hbot.pbuf);
+		}
+		msc->hbot.pbuf = (u8 *)usb_os_malloc(cbw->field.DataTransferLength);
+		if (msc->hbot.pbuf != NULL) {
+			usb_os_memcpy(msc->hbot.pbuf, pbuf, cbw->field.DataTransferLength);
+			status = HAL_BUSY;
+		}
 		break;
 
 	case BOT_CMD_BUSY:
 		status = usbh_msc_bot_process(msc->host, lun);
+		if (status == HAL_OK) {
+			usb_os_mfree(msc->hbot.pbuf);
+			msc->hbot.pbuf = NULL;
+		}
 		break;
 
 	default:
@@ -322,20 +323,30 @@ int usbh_scsi_read(usbh_msc_host_t *msc, u8 lun, u32 address, u8 *pbuf, u32 leng
 		cbw->field.CB[4]  = (((u8 *)(void *)&address)[1]);
 		cbw->field.CB[5]  = (((u8 *)(void *)&address)[0]);
 
-
 		/*Transfer length */
-		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]) ;
-		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]) ;
-
+		cbw->field.CB[7]  = (((u8 *)(void *)&length)[1]);
+		cbw->field.CB[8]  = (((u8 *)(void *)&length)[0]);
 
 		msc->hbot.state = BOT_SEND_CBW;
 		msc->hbot.cmd_state = BOT_CMD_BUSY;
-		msc->hbot.pbuf = pbuf;
-		status = HAL_BUSY;
+		msc->hbot.origin_rx_pbuf = pbuf;
+		msc->hbot.origin_rx_pbuf_len = cbw->field.DataTransferLength;
+		if ((msc->hbot.pbuf != NULL) && (msc->hbot.pbuf != msc->hbot.data)) {
+			usb_os_mfree(msc->hbot.pbuf);
+		}
+		msc->hbot.pbuf = (u8 *)usb_os_malloc(cbw->field.DataTransferLength);
+		if (msc->hbot.pbuf != NULL) {
+			status = HAL_BUSY;
+		}
 		break;
 
 	case BOT_CMD_BUSY:
 		status = usbh_msc_bot_process(msc->host, lun);
+		if (status == HAL_OK) {
+			usb_os_memcpy(msc->hbot.origin_rx_pbuf, msc->hbot.pbuf, msc->hbot.origin_rx_pbuf_len);
+			usb_os_mfree(msc->hbot.pbuf);
+			msc->hbot.pbuf = NULL;
+		}
 		break;
 
 	default:

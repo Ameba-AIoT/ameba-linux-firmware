@@ -8,7 +8,7 @@
 #include "ameba_soc.h"
 #include "FreeRTOS.h"
 
-static const char *TAG = "PMC";
+static const char *const TAG = "PMC";
 
 void SOCPS_SleepPG(void)
 {
@@ -24,11 +24,11 @@ void SOCPS_SleepPG(void)
 		return;
 	}
 
-	debug_printf("pg-s\n");
+	RTK_LOGS(NOTAG, RTK_LOG_INFO, "APPG\n");
 
 	SOCPS_SleepPG_LIB();
 
-	debug_printf("pg-w\n");
+	RTK_LOGS(NOTAG, RTK_LOG_INFO, "APPW\n");
 	/* exec sleep hook functions */
 	pmu_exec_wakeup_hook_funs(PMU_MAX);
 
@@ -37,6 +37,8 @@ void SOCPS_SleepPG(void)
 	smp_init();
 	pmu_set_secondary_cpu_state(1, CPU1_WAKE_FROM_PG);
 #endif
+	HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW,
+			   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) | LSYS_BIT_AP_RUNNING);
 	//pmu_acquire_wakelock(PMU_OS);
 }
 
@@ -54,11 +56,11 @@ void SOCPS_SleepCG(void)
 		return;
 	}
 
-	debug_printf("cg-s\n");
+	RTK_LOGS(NOTAG, RTK_LOG_INFO, "APCG\n");
 
 	SOCPS_SleepCG_LIB();
 
-	debug_printf("cg-w\n");
+	RTK_LOGS(NOTAG, RTK_LOG_INFO, "APCW\n");
 
 	/* exec sleep hook functions */
 	pmu_exec_wakeup_hook_funs(PMU_MAX);

@@ -18,7 +18,9 @@ extern "C"
 #define RTK_BT_RFC_HSP_CHANN_NUM               2
 #define RTK_BT_RFC_HSP_AG_CHANN_NUM            22
 #define RTK_BT_RFC_HFP_AG_CHANN_NUM            23
-#define RTK_BT_HFP_MAX_SCO_DATA_LENGTH         1024
+#define RTK_BT_HFP_MAX_SCO_DATA_LENGTH         120
+#define RTK_BT_HFP_MAX_PHONE_NUMBER            20
+#define RTK_BT_HFP_MAX_ATCMD_LENGTH            40
 /* BT HFP AG Supported Local Feature */
 #define RTK_BT_HFP_AG_LOCAL_CAPABILITY_3WAY                   (1 << 0)
 #define RTK_BT_HFP_AG_LOCAL_CAPABILITY_EC_NR                  (1 << 1)
@@ -192,6 +194,16 @@ typedef struct {
 } rtk_bt_hfp_microphone_gain_t;
 
 /**
+ * @struct    rtk_bt_hfp_vnd_at_cmd_t
+ * @brief     hfp vendor at cmd.
+ */
+typedef struct {
+	uint8_t bd_addr[6];                             /*!< Remote BT address */
+	const char at_cmd[RTK_BT_HFP_MAX_ATCMD_LENGTH]; /*!< at cmd */
+	uint16_t len;                                   /*!< at cmd length */
+} rtk_bt_hfp_vnd_at_cmd_t;
+
+/**
  * @struct    rtk_bt_hfp_speaker_gain_t
  * @brief     hfp hf report speaker gain structure.
  */
@@ -233,10 +245,10 @@ typedef struct {
  * @brief     hfp calling data structure.
  */
 typedef struct {
-	uint8_t bd_addr[6];                             /*!< Remote BT address */
-	const char call_num[20];                        /*!< HFP AG incoming call number */
-	uint8_t call_num_len;                           /*!< HFP AG incoming call number length with the maximum of 20 including '\0' */
-	uint8_t call_num_type;                          /*!< HFP AG incoming call number type */
+	uint8_t bd_addr[6];                                /*!< Remote BT address */
+	const char call_num[RTK_BT_HFP_MAX_PHONE_NUMBER];  /*!< HFP AG incoming call number */
+	uint8_t call_num_len;                              /*!< HFP AG incoming call number length with the maximum of 20 including '\0' */
+	uint8_t call_num_type;                             /*!< HFP AG incoming call number type */
 } rtk_bt_hfp_call_incoming_t;
 
 /**
@@ -296,7 +308,7 @@ typedef struct {
  */
 typedef struct {
 	uint8_t bd_addr[6];                                 /*!< address */
-	char    number[20];                                 /*!< number */
+	char    number[RTK_BT_HFP_MAX_PHONE_NUMBER];        /*!< number */
 	uint8_t type;                                       /*!< number type */
 } rtk_bt_hfp_caller_id_ind_t;
 
@@ -332,6 +344,15 @@ typedef struct {
 	uint32_t length;                                    /*!< stream data length */
 	uint8_t  data[RTK_BT_HFP_MAX_SCO_DATA_LENGTH];      /*!< stream data */
 } rtk_bt_hfp_sco_data_ind_t;
+
+/**
+ * @struct    rtk_bt_hfp_dial_number_t
+ * @brief     Bluetooth HFP dial call number struct.
+ */
+typedef struct {
+	uint8_t bd_addr[6];                                 /*!< Remote BT address */
+	const char number[RTK_BT_HFP_MAX_PHONE_NUMBER];     /*1< dial number */
+} rtk_bt_hfp_dial_number_t;
 
 /**
  * @struct    rtk_bt_hfp_sco_data_send_t
@@ -398,6 +419,16 @@ typedef struct {
 typedef struct {
 	uint8_t bd_addr[6];                                 /*!< address */
 } rtk_bt_hfp_ag_call_terminate_req_ind_t;
+
+/**
+ * @struct    rtk_bt_hfp_unknown_at_event_t
+ * @brief     unknown at cmd event .
+ */
+typedef struct {
+	uint8_t bd_addr[6];                             /*!< Remote BT address */
+	const char at_cmd[RTK_BT_HFP_MAX_ATCMD_LENGTH]; /*!< at cmd */
+	uint16_t len;                                   /*!< at cmd length */
+} rtk_bt_hfp_unknown_at_event_t;
 
 /* ------------------------------ Functions Declaration ------------------------------ */
 /**
@@ -484,6 +515,26 @@ uint16_t rtk_bt_hfp_call_answer(uint8_t *bd_addr);
 uint16_t rtk_bt_hfp_call_terminate(uint8_t *bd_addr);
 
 /**
+ * @brief     dial call with number.
+ * @param[in] bd_addr: bt address
+ * @param[in] call_num: dial call number pointer
+ * @param[in] call_num_len: call number length
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_hfp_dial_with_number_req(uint8_t *bd_addr, const char *call_num, uint8_t call_num_len);
+
+/**
+ * @brief     dial last call.
+ * @param[in] bd_addr: bt address
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_hfp_dial_last_number_req(uint8_t *bd_addr);
+
+/**
  * @brief     hfp sco data send.
  * @param[in] p_data_send_t: send data struct pointer
  * @return
@@ -521,6 +572,17 @@ uint16_t rtk_bt_hfp_speaker_gain_report(uint8_t *bd_addr, uint8_t gain);
  *            - Others: Error code
  */
 uint16_t rtk_bt_hfp_microphone_gain_report(uint8_t *bd_addr, uint8_t gain);
+
+/**
+ * @brief     hfp send vendor at cmd request.
+ * @param[in] bd_addr: bt address
+ * @param[in] at_cmd: at cmd. End with "\r"
+ * @param[in] len: at cmd length
+ * @return
+ *            - 0  : Succeed
+ *            - Others: Error code
+ */
+uint16_t rtk_bt_hfp_send_vnd_at_cmd_req(uint8_t *bd_addr, const char *at_cmd, uint16_t len);
 
 /**
  * @}

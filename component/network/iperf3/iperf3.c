@@ -32,10 +32,7 @@
 #include <getopt.h>
 #include <errno.h>
 
-#include "platform_stdlib.h"
-#include "basic_types.h"
-#include "lwipconf.h" //realtek add
-#include <os_wrapper.h>
+#include "lwip_netconf.h" //realtek add
 #include "rtw_misc.h"
 
 #include "iperf.h"
@@ -52,7 +49,7 @@ struct task_struct g_client_task;
 unsigned char g_server_terminate = 0;
 unsigned char g_client_terminate = 0;
 
-#define printf	DiagPrintf_minimal
+#define printf	DiagPrintfNano
 
 void server_thread(void *param)
 {
@@ -65,9 +62,9 @@ void server_thread(void *param)
 	while (!g_server_terminate) {
 		rc = iperf_run_server(test);
 		if (rc < 0) {
-			iperf_err(test, "error - %s", iperf_strerror(i_errno));
+			iperf_err(test, "error - %s\n", iperf_strerror(i_errno));
 			if (rc < -1) {
-				iperf_err(test, "exiting");
+				iperf_err(test, "exiting\n");
 			}
 		}
 
@@ -75,6 +72,7 @@ void server_thread(void *param)
 		if (iperf_get_test_one_off(test)) {
 			break;
 		}
+		rtos_time_delay_ms(5);
 	}
 
 	iperf_free_test(test);
@@ -122,8 +120,10 @@ static void indicate_server(void)
 /**************************************************************************/
 
 
-void cmd_iperf3(int argc, char **argv)
+int cmd_iperf3(int argc, char **argv)
 {
+	int error_no = 0;
+
 	if (strcmp(argv[1], "stop") == 0) {
 		switch (test->role) {
 		case 's':
@@ -163,21 +163,23 @@ void cmd_iperf3(int argc, char **argv)
 	iperf_defaults(test);	/* sets defaults */
 	if (iperf_parse_arguments(test, argc, argv) < 0) {
 		iperf_err(test, "parameter error - %s", iperf_strerror(i_errno));
-		fprintf(stderr, "\n");
+		printf("\n");
 		usage_long(stdout);
 		iperf_free_test(test);
+		error_no = 2;
+		i_errno = IENONE;
 		goto Exit;
 	}
 
 	switch (test->role) {
 	case 's':
-		if (rtos_task_create(&g_server_task.task, ((const char *)"server_thread"), server_thread, NULL, 4096, 2 + PRIORITIE_OFFSET) != SUCCESS) {
+		if (rtos_task_create(&g_server_task.task, ((const char *)"server_thread"), server_thread, NULL, 4096, 2 + 4) != RTK_SUCCESS) {
 			printf("\n\r%s rtos_task_create(server_thread) failed", __FUNCTION__);
 			iperf_free_test(test);
 		}
 		break;
 	case 'c':
-		if (rtos_task_create(&g_client_task.task, ((const char *)"client_thread"), client_thread, NULL, 4096, 1 + PRIORITIE_OFFSET) != SUCCESS) {
+		if (rtos_task_create(&g_client_task.task, ((const char *)"client_thread"), client_thread, NULL, 4096, 1 + 4) != RTK_SUCCESS) {
 			printf("\n\r%s rtos_task_create(client_thread) failed", __FUNCTION__);
 			iperf_free_test(test);
 		}
@@ -187,5 +189,5 @@ void cmd_iperf3(int argc, char **argv)
 		break;
 	}
 Exit:
-	return;
+	return error_no;
 }

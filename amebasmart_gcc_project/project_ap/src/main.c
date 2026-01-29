@@ -7,15 +7,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "main.h"
 
 /* Scheduler includes. */
 
 #include "ameba_soc.h"
+#ifdef CONFIG_CORE_AS_AP
 #include "vfs.h"
+#endif
 #include "os_wrapper.h"
+#include "ssl_rom_to_ram_map.h"
+#if defined(CONFIG_BT_COEXIST)
+#include "rtw_coex_ipc.h"
+#endif
 
-static const char *TAG = "MAIN";
-u32 use_hw_crypto_func;
+static const char *const TAG = "MAIN";
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 #include "ftl_int.h"
@@ -37,29 +43,18 @@ void app_ftl_init(void)
 #endif
 
 
-static void *app_mbedtls_calloc_func(size_t nelements, size_t elementSize)
-{
-	size_t size;
-	void *ptr = NULL;
-	size = nelements * elementSize;
-	ptr = rtos_mem_malloc(size);
-	if (ptr) {
-		memset(ptr, 0, size);
-	}
-	return ptr;
-}
-
-static void app_mbedtls_free_func(void *buf)
-{
-	rtos_mem_free(buf);
-}
-
 void app_mbedtls_rom_init(void)
 {
-	mbedtls_platform_set_calloc_free(app_mbedtls_calloc_func, app_mbedtls_free_func);
-	use_hw_crypto_func = 0;
-	//rtl_cryptoEngine_init();
+	CRYPTO_Init(NULL);
+	CRYPTO_SHA_Init(NULL);
+	RCC_PeriphClockCmd(APBPeriph_RSA, APBPeriph_CLOCK_NULL, ENABLE);
+	RCC_PeriphClockCmd(APBPeriph_ECDSA, APBPeriph_ECDSA_CLOCK, ENABLE);
+	ssl_function_map.ssl_calloc = (void *(*)(unsigned int, unsigned int))rtos_mem_calloc;
+	ssl_function_map.ssl_free = (void (*)(void *))rtos_mem_free;
+	ssl_function_map.ssl_printf = (long unsigned int (*)(const char *, ...))DiagPrintf;
+	ssl_function_map.ssl_snprintf = (int (*)(char *s, size_t n, const char *format, ...))DiagSnPrintf;
 }
+
 /*
  * This function will be replaced when Sdk example is compiled using CMD "make all EXAMPLE=xxx" or "make xip EXAMPLE=xxx"
  * To aviod compile error when example is not compiled
@@ -77,14 +72,15 @@ _WEAK void app_example(void)
 }
 
 #ifdef CONFIG_WLAN
-extern void wlan_initialize(void);
+extern void wifi_init(void);
 #endif
 
 extern int rt_kv_init(void);
 
-void app_filesystem_init(void)
+void fs_init_thread(void *param)
 {
-#if defined(CONFIG_AS_INIC_AP)
+	(void)param;
+#if !(defined(CONFIG_MP_SHRINK)) && defined(CONFIG_CORE_AS_AP)
 	int ret = 0;
 	vfs_init();
 #ifdef CONFIG_FATFS_WITHIN_APP_IMG
@@ -96,24 +92,61 @@ void app_filesystem_init(void)
 	}
 #endif
 
-	ret = vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	ret = rt_kv_init();
 	if (ret == 0) {
-		ret = rt_kv_init();
-		if (ret == 0) {
-			RTK_LOGI(TAG, "File System Init Success \n");
-			return;
-		}
+		RTK_LOGI(TAG, "File System Init Success \n");
+		goto exit;
 	}
 
+
 	RTK_LOGE(TAG, "File System Init Fail \n");
+exit:
 #endif
-	return;
+	rtos_task_delete(NULL);
+}
+
+void app_filesystem_init(void)
+{
+	rtos_task_create(NULL, ((const char *)"fs_init_thread"), fs_init_thread, NULL, 4096, 5);
+}
+
+u32 app_uart_rx_pin_wake_int_handler(void *data)
+{
+	GPIO_InitTypeDef *GPIO_InitStruct = (GPIO_InitTypeDef *)data;
+	/*clear edge interrupt*/
+	GPIO_INTConfig(GPIO_InitStruct->GPIO_Pin, DISABLE);
+	/*Keep the AP active for 5 seconds */
+	pmu_set_sysactive_time(5000);
+
+	return 0;
+}
+void app_uart_rx_pin_wake_init(void)
+{
+	GPIO_InitTypeDef GPIO_InitStruct = {
+		.GPIO_Pin = UART_LOG_RXD,	/*PB_23*/
+		.GPIO_PuPd = GPIO_PuPd_UP,
+		.GPIO_Mode = GPIO_Mode_INT,
+		.GPIO_ITTrigger = GPIO_INT_Trigger_EDGE,
+		.GPIO_ITPolarity = GPIO_INT_POLARITY_ACTIVE_LOW,
+	};
+	GPIO_INTConfig(UART_LOG_RXD, DISABLE);
+	GPIO_Direction(GPIO_InitStruct.GPIO_Pin, GPIO_Mode_IN);
+	PAD_PullCtrl(GPIO_InitStruct.GPIO_Pin, GPIO_InitStruct.GPIO_PuPd);
+
+	GPIO_INTMode(GPIO_InitStruct.GPIO_Pin, ENABLE, GPIO_InitStruct.GPIO_ITTrigger,
+				 GPIO_InitStruct.GPIO_ITPolarity, GPIO_InitStruct.GPIO_ITDebounce);
+	InterruptRegister(GPIO_INTHandler, GPIOB_IRQ, (u32)GPIOB_BASE, 3);
+	InterruptEn(GPIOB_IRQ, 3);
+	GPIO_UserRegIrq(UART_LOG_RXD, app_uart_rx_pin_wake_int_handler, &GPIO_InitStruct);
 }
 
 void app_pmu_init(void)
 {
 	pmu_set_sleep_type(SLEEP_PG);
 	pmu_acquire_deepwakelock(PMU_OS);
+	/*Init logUart rx pin for gpio wakeup*/
+	app_uart_rx_pin_wake_init();
 }
 
 /*
@@ -134,22 +167,15 @@ int main(void)
 	InterruptRegister(IPC_INTHandler, IPC_AP_IRQ, (u32)IPCAP_DEV, INT_PRI_MIDDLE);
 	InterruptEn(IPC_AP_IRQ, INT_PRI_MIDDLE);
 
-#ifdef CONFIG_MBED_TLS_ENABLED
+#ifdef CONFIG_MBEDTLS_ENABLED
 	app_mbedtls_rom_init();
 #endif
 
 	ipc_table_init(IPCAP_DEV);
 
-	/* init console */
-	shell_init_rom(0, 0);
-	shell_init_ram();
-
 	app_pmu_init();
 
-#ifndef CONFIG_MP_INCLUDED
 	app_filesystem_init();
-#endif
-
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 	app_ftl_init();
@@ -158,14 +184,24 @@ int main(void)
 	/* pre-processor of application example */
 	app_pre_example();
 
+#if defined(CONFIG_BT_COEXIST)
+	/* init coex ipc */
+	coex_ipc_entry();
+#endif
+
 	/* wifi init*/
 #ifdef CONFIG_WLAN
-	wlan_initialize();
+	wifi_init();
 #endif
+
+	/* init console */
+	shell_init_rom(0, 0);
+	shell_init_ram();
 
 	/* Execute application example */
 	app_example();
 
+	IPC_patch_function(&rtos_critical_enter, &rtos_critical_exit);
 	IPC_SEMDelayStub(&rtos_time_delay_ms);
 
 	/* Start the tasks and timer running. */

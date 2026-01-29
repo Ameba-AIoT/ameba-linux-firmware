@@ -22,7 +22,7 @@
 /****************** configurations for concurrent mode ************************/
 //#define CONFIG_NAN
 #define CONFIG_MCC_MODE
-//#define CONFIG_MCC_NAN_TEST
+
 #ifdef CONFIG_NAN
 #define NET_IF_NUM	3
 #define SUPPORT_ADAPTER_NUM	3
@@ -33,8 +33,6 @@
 /**************** configurations for concurrent mode end **********************/
 
 /************************* Default Values of User Configure *****************************/
-/* Upper limit of STAs connected with SoftAP, more STAs connected will cost more heap*/
-#define AP_STA_NUM	12
 #define MACID_HW_MAX_NUM		16
 /************************* Default Values of User Configure End***************************/
 
@@ -63,13 +61,10 @@
 #define SUPPORT_5G_CHANNEL
 /* PHY layer band config end */
 
-/* enable 1X code in lib_wlan as default (increase 380 bytes) */
-#define CONFIG_EAP
-
 /* For phydm configurations */
 #define CONFIG_FW_C2H_PKT
 
-#define CONFIG_BT_COEXIST
+//#define CONFIG_BT_COEXIST
 
 #if WIFI_LOGO_CERTIFICATION == 0
 #define RX_SHORTCUT /*there's no reoder in rx short right now, wifi logo need ping 10k which needs reorder*/
@@ -140,38 +135,35 @@
 //#define DISABLE_BB_WATCHDOG
 #define PLATFOM_IS_LITTLE_ENDIAN	1/*for halbb use*/
 
-#if defined (CONFIG_CLINTWOOD) && CONFIG_CLINTWOOD
-#define DISABLE_FW
-#define CONFIG_TWT
-#define TWT_CSI_EN			0
-#define TWT_TRIGGER_EN	1
-#else
 #define PHYSTS_WORK_AROUND
-#endif
 #define RTL8730E_WORK_AROUND
 
 //#define RA_RX_ACK_RSSI
 
 #define CONFIG_P2P
+
+/*************************** Config for Gen TxPower Tool *******************************/
+/** VERSION 0: only support extending one EXT PWR_LIMIT table
+  * VERSION 1: support more EXT PWR_LIMIT tables, depending on customer configuration
+  */
+#define GEN_TXPWR_TOOL_VERSION 1
+/*************************** Config for Gen TxPower Tool End **************************/
+
 /*************************** Config for MP_MODE *******************************/
-#ifdef CONFIG_MP_INCLUDED
+#ifdef CONFIG_MP_SHRINK
 #undef RX_SHORTCUT
 #undef TX_SHORTCUT
-
 
 #define DRV_BB_DBG_TRACE_DISABLE
 #define DRV_BB_PMAC_TX_DISABLE
 #define DRV_BB_CMN_RPT_DISABLE
 #define DRV_BB_STATISTICS_DISABLE
 #define DRV_BB_DGB_SUPPORT_DISABLE
-#define DRV_RF_DBG_TRACE_DISABLE
 #define DRV_BB_CH_INFO_DISABLE
 #define DRV_BB_ENV_MNTR_DISABLE
 #define DRV_BB_PHYSTS_PARSING_DISABLE
 #define DRV_BB_TIMER_SUPPORT_DISABLE
-#endif
 
-#ifdef CONFIG_MP_SHRINK
 #undef CONFIG_TWT
 #undef CONFIG_MCC_MODE
 #undef CONFIG_DFS
@@ -185,15 +177,10 @@
 #define DISABLE_FW
 #endif
 /************************* Config for MP_MODE end *****************************/
+/* Config for BB/RF debug */
+//#define CONFIG_PHYDM_CMD
+//#define CONFIG_HALRF_CMD
 
-#ifndef CONFIG_PHYDM_CMD
-#define DRV_BB_DBG_TRACE_DISABLE
-#define DRV_BB_PMAC_TX_DISABLE
-#define DRV_BB_CMN_RPT_DISABLE
-#define DRV_BB_STATISTICS_DISABLE
-#define DRV_BB_DGB_SUPPORT_DISABLE
-#define DRV_RF_DBG_TRACE_DISABLE
-#endif
 /*Config for SKB Size*/
 #define SKB_CACHE_SZ	64/*max(AP_Core_Cache, NP_Core_Cache)*/
 #define SKB_ALIGNMENT	__attribute__((aligned(SKB_CACHE_SZ)))
@@ -204,7 +191,7 @@
 #define WLAN_MAX_ETHFRM_LEN	1904/*max payload size of wifi frame*/
 
 /* debug log level */
-#define RELEASE_WIFI
+#undef RELEASE_WIFI
 
 #define CONFIG_IOT_RS 1
 #endif /*#ifndef AUTOCONF_8730A_H */

@@ -14,6 +14,8 @@
 #ifndef _PLATFORM_MACROS_H_
 #define _PLATFORM_MACROS_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C"  {
 #endif      /* __cplusplus */
@@ -25,18 +27,23 @@ extern "C"  {
 /** @defgroup Platform_Macros_Exported_Macros Exported Macros
   * @{
   */
-#undef _PACKED4_
-#undef _SHORT_ENUM_
-#define _PACKED4_            __attribute__ ((packed))
-#define _SHORT_ENUM_        __attribute__ ((packed))
+
+#ifndef _PACKED4_
+#define _PACKED4_  __attribute__ ((packed))
+#endif
+
+#ifndef _SHORT_ENUM_
+#define _SHORT_ENUM_  __attribute__ ((packed))
+#endif
+
 #ifndef __INLINE
-#if   defined ( __CC_ARM )
+#if   defined(__CC_ARM)
 #define __INLINE            __inline
-#elif defined (__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+#elif defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
 #define __INLINE            __inline
-#elif defined ( __GNUC__ )
+#elif defined(__GNUC__)
 #define __INLINE            __inline
-#elif defined( __ICCARM__ )
+#elif defined(__ICCARM__)
 #define __INLINE            inline
 #endif
 #endif
@@ -52,6 +59,10 @@ extern "C"  {
 
 #undef  CLAMP
 #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+
+#ifndef DIVISION_ROUND
+#define DIVISION_ROUND(dividend, divisor)       ((dividend) + ((divisor)/2))/(divisor)
+#endif
 
 #ifndef MEMBER_OFFSET
 #define MEMBER_OFFSET(struct_type, member)      ((uint32_t)&((struct_type *)0)->member)
@@ -117,11 +128,11 @@ extern "C"  {
 
 #ifndef BE_EXTRN2WORD
 /* Get local WORD from external 2 BYTE, Big-Endian format STANDARD NETWORK BYTE ORDER */
-#define BE_EXTRN2WORD(p) ((*((p)+1)) & 0xff) + ((*(p)) << 8)
+#define BE_EXTRN2WORD(p) (((*((p)+1)) & 0xff) + ((*(p)) << 8))
 
 /* Get local DWORD from external 4 BYTE, Big-Endian format STANDARD NETWORK BYTE ORDER */
-#define BE_EXTRN2DWORD(p) ((unsigned long)(*((p)+3)) & 0xff) + ((unsigned long)(*((p)+2)) << 8) \
-    + ((unsigned long)(*((p)+1)) << 16)  + ((unsigned long)(*((p)+0)) << 24)
+#define BE_EXTRN2DWORD(p) (((unsigned long)(*((p)+3)) & 0xff) + ((unsigned long)(*((p)+2)) << 8) \
+                           + ((unsigned long)(*((p)+1)) << 16)  + ((unsigned long)(*((p)+0)) << 24))
 
 /* PUT external 2 CHARS from local SHORT, Big-Endian format STANDARD NETWORK BYTE ORDER */
 #define BE_WORD2EXTRN(p,w)                 \
@@ -165,6 +176,30 @@ extern "C"  {
 
 #ifndef UNUSED
 #define UNUSED(x) ((void)(x))
+#endif
+
+#ifndef __get_lr
+#if defined(__ARMCC_VERSION)    /* armcc, armclang */
+#if __ARMCC_VERSION >= 6000000
+#include "cmsis_armclang.h"
+#define __get_lr()              ((uint32_t)__builtin_return_address(0))
+#elif __ARMCC_VERSION >= 5000000
+#include "cmsis_armcc.h"
+#define __get_lr()              (__return_address())
+#else
+#error "Unsupported ARM compiler version"
+#define __get_lr()              0
+#endif
+#elif defined(__GNUC__)
+//#include "cmsis_gcc.h"
+#define __get_lr()              0//((uint32_t)__builtin_return_address(0))
+#elif defined(__ICCARM__)
+#include "cmsis_iccarm.h"
+#define __get_lr()              (__get_LR())
+#else
+#error "Unsupported compiler"
+#define __get_lr()              0
+#endif
 #endif
 
 /** @} */

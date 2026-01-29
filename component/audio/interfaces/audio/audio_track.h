@@ -34,8 +34,8 @@
  * @version 1.0
  */
 
-#ifndef AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_TRACK_H
-#define AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_TRACK_H
+#ifndef AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_TRACK_H
+#define AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_TRACK_H
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -178,7 +178,7 @@ int32_t RTAudioTrack_Write(struct RTAudioTrack *track, const void *buffer, size_
  * ----------------------| -----------------------
  * RTAUDIO_CATEGORY_MEDIA | the data stream is music.
  * RTAUDIO_CATEGORY_COMMUNICATION | the data stream is call.
- * RTAUDIO_CATEGORY_SPEECH | the data stream is voice recognition.
+ * RTAUDIO_CATEGORY_TTS | the data stream is voice recognition.
  * RTAUDIO_CATEGORY_BEEP | the data stream is beep.
  * @param sample_rate is the samplerate of RTAudioTrack.
  * @param format can be a value listed below: \n
@@ -473,4 +473,4 @@ int32_t RTAudioTrack_GetPosition(struct RTAudioTrack *track, uint64_t *position)
 #endif
 
 
-#endif  // AMEBA_FWK_MEDIA_AUDIO_AUDIOLITE_INTERFACES_AUDIO_AUDIO_TRACK_H
+#endif  // AMEBA_AUDIO_INTERFACES_AUDIO_AUDIO_TRACK_H

@@ -1,15 +1,19 @@
 
 #include "ameba_soc.h"
 #include "main.h"
+#ifdef CONFIG_CORE_AS_AP
 #include "vfs.h"
+#endif
 #include "os_wrapper.h"
 #include "ameba_rtos_version.h"
+#include "ssl_rom_to_ram_map.h"
 //#include "wifi_fast_connect.h"
+#if defined(CONFIG_BT_COEXIST)
+#include "rtw_coex_ipc.h"
+#endif
 
-static const char *TAG = "MAIN";
-u32 use_hw_crypto_func;
+static const char *const TAG = "MAIN";
 u32 g_Boot_Status;
-
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 #include "ftl_int.h"
@@ -52,43 +56,21 @@ void app_init_debug(void)
 	LOG_MASK(LEVEL_TRACE, debug[LEVEL_TRACE]);
 }
 
-static void *app_mbedtls_calloc_func(size_t nelements, size_t elementSize)
-{
-	size_t size;
-	void *ptr = NULL;
-
-	size = nelements * elementSize;
-	ptr = rtos_mem_malloc(size);
-
-	if (ptr) {
-		memset(ptr, 0, size);
-	}
-
-	return ptr;
-}
-
-static void app_mbedtls_free_func(void *buf)
-{
-	rtos_mem_free(buf);
-}
-
 void app_mbedtls_rom_init(void)
 {
-	mbedtls_platform_set_calloc_free(app_mbedtls_calloc_func, app_mbedtls_free_func);
-	use_hw_crypto_func = 0;
-	//rtl_cryptoEngine_init();
-
+	CRYPTO_Init(NULL);
+	CRYPTO_SHA_Init(NULL);
+	ssl_function_map.ssl_calloc = (void *(*)(unsigned int, unsigned int))rtos_mem_calloc;
+	ssl_function_map.ssl_free = (void (*)(void *))rtos_mem_free;
+	ssl_function_map.ssl_printf = (long unsigned int (*)(const char *, ...))DiagPrintf;
+	ssl_function_map.ssl_snprintf = (int (*)(char *s, size_t n, const char *format, ...))DiagSnPrintf;
 }
 
 
 void app_pmu_init(void)
 {
 
-#if defined(CONFIG_CLINTWOOD ) && CONFIG_CLINTWOOD
-	pmu_set_sleep_type(SLEEP_CG);
-#else
 	pmu_set_sleep_type(SLEEP_PG);
-#endif
 	pmu_acquire_deepwakelock(PMU_OS);
 
 	/* if wake from deepsleep, that means we have released wakelock last time */
@@ -148,9 +130,10 @@ _WEAK void app_example(void)
 
 extern int rt_kv_init(void);
 
-void app_filesystem_init(void)
+void fs_init_thread(void *param)
 {
-#if defined(CONFIG_SINGLE_CORE_WIFI)
+	(void)param;
+#if !(defined(CONFIG_MP_SHRINK)) && defined(CONFIG_CORE_AS_AP)
 	int ret = 0;
 	vfs_init();
 #ifdef CONFIG_FATFS_WITHIN_APP_IMG
@@ -162,18 +145,22 @@ void app_filesystem_init(void)
 	}
 #endif
 
-	ret = vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	ret = rt_kv_init();
 	if (ret == 0) {
-		ret = rt_kv_init();
-		if (ret == 0) {
-			RTK_LOGI(TAG, "File System Init Success \n");
-			return;
-		}
+		RTK_LOGI(TAG, "File System Init Success \n");
+		goto exit;
 	}
 
 	RTK_LOGE(TAG, "File System Init Fail \n");
+exit:
 #endif
-	return;
+	rtos_task_delete(NULL);
+}
+
+void app_filesystem_init(void)
+{
+	rtos_task_create(NULL, ((const char *)"fs_init_thread"), fs_init_thread, NULL, 4096, 5);
 }
 
 //default main
@@ -185,33 +172,34 @@ int main(void)
 	InterruptRegister(IPC_INTHandler, IPC_NP_IRQ, (u32)IPCNP_DEV, 5);
 	InterruptEn(IPC_NP_IRQ, 5);
 
-#ifdef CONFIG_MBED_TLS_ENABLED
+#ifdef CONFIG_MBEDTLS_ENABLED
 	app_mbedtls_rom_init();
 #endif
 	//app_init_debug();
 
-	/* init console */
-	shell_init_rom(0, 0);
-	shell_init_ram();
-
 	ipc_table_init(IPCNP_DEV);
-	IPC_SEMDelayStub((void *)rtos_time_delay_ms);
 
-#ifndef CONFIG_MP_INCLUDED
 	app_filesystem_init();
-#endif
 
 #if defined(CONFIG_FTL_ENABLED) && CONFIG_FTL_ENABLED
 	app_ftl_init();
 #endif
 
-
 	/* pre-processor of application example */
 	app_pre_example();
 
-#ifdef CONFIG_WLAN
-	wlan_initialize();
+#if defined(CONFIG_BT_COEXIST)
+	/* init coex ipc */
+	coex_ipc_entry();
 #endif
+
+#ifdef CONFIG_WLAN
+	wifi_init();
+#endif
+
+	/* init console */
+	shell_init_rom(0, 0);
+	shell_init_ram();
 
 	//app_shared_btmem(ENABLE);
 
@@ -222,6 +210,7 @@ int main(void)
 
 	/* Execute application example */
 	app_example();
+	IPC_patch_function(&rtos_critical_enter, &rtos_critical_exit);
 	IPC_SEMDelayStub(&rtos_time_delay_ms);
 
 	RTK_LOGI(TAG, "KM4 START SCHEDULER \n");

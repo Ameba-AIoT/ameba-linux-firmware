@@ -8,6 +8,7 @@
 #include "task.h"
 #include "platform_autoconf.h"
 #include "ameba_soc.h"
+#include "os_wrapper_specific.h"
 
 
 static uint32_t wakelock     = DEFAULT_WAKELOCK;
@@ -22,8 +23,10 @@ static uint32_t deepwakelock_timeout     = 0;
 static uint32_t sysactive_timeout_temp = 0;
 uint32_t sysactive_timeout_flag = 0;
 
+static uint32_t timer_min_sleep_time = 0;
+static uint32_t timer_max_sleep_time = 0;
 
-#ifdef ARM_CORE_CA32
+#ifdef CONFIG_ARM_CORE_CA32
 /* cpu hotplug flag for each core */
 volatile uint32_t cpuhp_flag[configNUM_CORES];
 #endif
@@ -101,10 +104,12 @@ uint32_t pmu_set_sysactive_time(uint32_t timeout)
 	}
 	sysactive_timeout_temp = 0;
 
-	TimeOut = rtos_time_get_current_system_time_ms() + timeout;
+	if (timeout != 0) {
+		TimeOut = RTOS_CONVERT_MS_TO_TICKS(rtos_time_get_current_system_time_ms()) + timeout + RTOS_CONVERT_MS_TO_TICKS(rtos_time_get_current_pended_time_ms());
 
-	if (pmu_systick_check(TimeOut, sleepwakelock_timeout)) {
-		sleepwakelock_timeout = TimeOut;
+		if (pmu_systick_check(TimeOut, sleepwakelock_timeout)) {
+			sleepwakelock_timeout = TimeOut;
+		}
 	}
 
 	return 0;
@@ -144,7 +149,7 @@ uint32_t pmu_yield_os_check(void)
 	return system_can_yield;
 }
 
-#if defined (ARM_CORE_CM4)
+#if defined (CONFIG_ARM_CORE_CM4)
 uint32_t ap_clk_status_on(void)
 {
 
@@ -180,7 +185,7 @@ int pmu_ready_to_sleep(void)
 		return FALSE;
 	}
 
-#if defined (ARM_CORE_CM4)
+#if defined (CONFIG_ARM_CORE_CM4)
 	if ((HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) & LSYS_BIT_AP_ENABLE)) {
 		if (!(HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) & LSYS_BIT_AP_RUNNING)) {
 			if (! ap_status_on()) {
@@ -233,16 +238,7 @@ int pmu_ready_to_dsleep(void)
  *  @param  expected_idle_time : The time that FreeRTOS expect to sleep.
  *                               If we set this value to 0 then FreeRTOS will do nothing in its sleep function.
  **/
-#if defined (ARM_CORE_CM4)
-#if 0 //for longrun test
-void pg_aontimer_int(uint32_t Data)
-{
-	DBG_8195A("pg Hp aontimer handler 1\n", SOCPS_AONWakeReason());
-	SOCPS_AONTimerClearINT();
-	DBG_8195A("pg Hp aontimer handler 2\n", SOCPS_AONWakeReason());
-	RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, DISABLE);
-}
-#endif
+#if defined (CONFIG_ARM_CORE_CM4)
 
 void pmu_pre_sleep_processing(uint32_t *tick_before_sleep)
 {
@@ -255,21 +251,11 @@ void pmu_pre_sleep_processing(uint32_t *tick_before_sleep)
 		sleep_param.dlps_enable = DISABLE;
 	}
 	sleep_param.sleep_type = sleep_type;
+	DCache_CleanInvalidate((u32)&sleep_param, sizeof(SLEEP_ParamDef));
 
 	/*  Store gtimer timestamp before sleep */
 	*tick_before_sleep = SYSTIMER_TickGet();
 	sysactive_timeout_flag = 1;
-
-	/* for test */
-#if 0
-	RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
-	uint32_t tmp = rand();
-	SOCPS_AONTimer(tmp % 800 + 50);
-	SOCPS_AONTimerINT_EN(ENABLE);
-	InterruptRegister(pg_aontimer_int, AON_TIM_IRQ, NULL, 7);
-	InterruptEn(AON_TIM_IRQ, 7);
-	SOCPS_SetNPWakeEvent_MSK0_HP(WAKE_SRC_AON_TIM, ENABLE);
-#endif
 
 	if (sleep_type == SLEEP_PG) {
 		SOCPS_SleepPG();
@@ -280,21 +266,24 @@ void pmu_pre_sleep_processing(uint32_t *tick_before_sleep)
 	//pmu_set_sysactive_time(5);
 }
 
-#elif defined (ARM_CORE_CA32)
+#elif defined (CONFIG_ARM_CORE_CA32)
 
 void pmu_pre_sleep_processing(uint32_t *tick_before_sleep)
 {
 	if (pmu_ready_to_dsleep()) {
-		sleep_param.sleep_time = 0;// do not wake on system schedule tick
+		sleep_param.sleep_time = pmu_get_sleep_time();// do not wake on system schedule tick
 		sleep_param.dlps_enable = ENABLE;
 	} else {
-		sleep_param.sleep_time = max_sleep_time;//*expected_idle_time;
-		max_sleep_time = 0;
+#if defined(CONFIG_STANDARD_TICKLESS)
+		sleep_param.sleep_time = tick_before_sleep;
+#else
+		sleep_param.sleep_time = pmu_get_sleep_time();//*expected_idle_time;
+#endif
 		sleep_param.dlps_enable = DISABLE;
 	}
 
 	sleep_param.sleep_type = sleep_type;
-
+	DCache_CleanInvalidate((u32)&sleep_param, sizeof(SLEEP_ParamDef));
 	/*  Store gtimer timestamp before sleep */
 	*tick_before_sleep = SYSTIMER_TickGet();
 	sysactive_timeout_flag = 1;
@@ -334,15 +323,19 @@ void pmu_pre_sleep_processing(uint32_t *tick_before_sleep)
 void pmu_acquire_wakelock(uint32_t nDeviceId)
 {
 	uint32_t PrevStatus;
-#ifndef ARM_CORE_CA32
+#ifndef CONFIG_ARM_CORE_CA32
 	PrevStatus = ulSetInterruptMaskFromISR();
 #else
+#ifdef CONFIG_CA32_FREERTOS_V11_1_0
+	PrevStatus = portSET_INTERRUPT_MASK();
+#else
 	PrevStatus = portDISABLE_INTERRUPTS();
+#endif
 #endif
 
 	wakelock |= BIT(nDeviceId);
 
-#ifndef ARM_CORE_CA32
+#ifndef CONFIG_ARM_CORE_CA32
 	vClearInterruptMaskFromISR(PrevStatus);
 #else
 	portRESTORE_INTERRUPTS(PrevStatus);
@@ -352,15 +345,19 @@ void pmu_acquire_wakelock(uint32_t nDeviceId)
 void pmu_release_wakelock(uint32_t nDeviceId)
 {
 	uint32_t PrevStatus;
-#ifndef ARM_CORE_CA32
+#ifndef CONFIG_ARM_CORE_CA32
 	PrevStatus = ulSetInterruptMaskFromISR();
 #else
+#ifdef CONFIG_CA32_FREERTOS_V11_1_0
+	PrevStatus = portSET_INTERRUPT_MASK();
+#else
 	PrevStatus = portDISABLE_INTERRUPTS();
+#endif
 #endif
 
 	wakelock &= ~BIT(nDeviceId);
 
-#ifndef ARM_CORE_CA32
+#ifndef CONFIG_ARM_CORE_CA32
 	vClearInterruptMaskFromISR(PrevStatus);
 #else
 	portRESTORE_INTERRUPTS(PrevStatus);
@@ -375,7 +372,7 @@ uint32_t pmu_get_wakelock_status(void)
 uint32_t pmu_set_sleep_type(uint32_t type)
 {
 	sleep_type = type;
-#if defined (ARM_CORE_CM0)
+#if defined (CONFIG_ARM_CORE_CM0)
 	if (ps_config.km0_pg_enable) {
 		sleep_type = SLEEP_PG;
 	}
@@ -391,6 +388,21 @@ uint32_t pmu_get_sleep_type(void)
 void pmu_set_max_sleep_time(uint32_t timer_ms)
 {
 	max_sleep_time = timer_ms;
+}
+uint32_t pmu_get_sleep_time(void)
+{
+	u32 time = 0;
+	if (timer_max_sleep_time > timer_min_sleep_time) {
+		time = _rand() % (timer_max_sleep_time - timer_min_sleep_time + 1) + timer_min_sleep_time;
+	} else if (timer_min_sleep_time != 0) {
+		time = timer_min_sleep_time;
+	}
+	return time;
+}
+void pmu_set_sleep_time_range(uint32_t min_time, uint32_t max_time)
+{
+	timer_min_sleep_time = min_time;
+	timer_max_sleep_time = max_time;
 }
 
 void pmu_set_dsleep_active_time(uint32_t TimeOutMs)
@@ -421,7 +433,7 @@ uint32_t pmu_get_deepwakelock_status(void)
 	return deepwakelock;
 }
 
-#ifdef ARM_CORE_CA32
+#ifdef CONFIG_ARM_CORE_CA32
 void pmu_set_secondary_cpu_state(uint32_t CoreID, uint32_t NewStatus)
 {
 	cpuhp_flag[CoreID] = NewStatus;

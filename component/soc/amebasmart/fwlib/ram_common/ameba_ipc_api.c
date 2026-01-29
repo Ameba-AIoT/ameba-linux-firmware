@@ -17,17 +17,14 @@
 /** @defgroup IPC_Exported_Constants IPC Exported Constants
   * @{
   */
-static const char *TAG = "IPC";
+static const char *const TAG = "IPC";
 rtos_sema_t ipc_Semaphore[IPC_TX_CHANNEL_NUM];
 
 void (*ipc_delay)(uint32_t);
 
-#if defined ( __ICCARM__ )
-#pragma section=".ipc.table.data"
+void (*ipc_enter)(u32);
+void (*ipc_exit)(u32);
 
-SECTION(".data") u8 *__ipc_table_start__ = 0;
-SECTION(".data") u8 *__ipc_table_end__ = 0;
-#endif
 /**@}*/
 
 /** @defgroup IPC_Exported_Functions IPC Exported Functions
@@ -48,10 +45,6 @@ void ipc_table_init(IPC_TypeDef *IPCx)
 	u32 IPC_IMR;
 	u32 IPC_IntMode;
 
-#if defined ( __ICCARM__ )
-	__ipc_table_start__ = (u8 *)__section_begin(".ipc.table.data");
-	__ipc_table_end__ = (u8 *)__section_end(".ipc.table.data");
-#endif
 	IPC_INIT_TABLE *ipc_init_table = (IPC_INIT_TABLE *)__ipc_table_start__;
 	u32 ipc_num = ((__ipc_table_end__ - __ipc_table_start__) / sizeof(IPC_INIT_TABLE));
 
@@ -133,7 +126,7 @@ void IPC_TXHandler(void *Data, u32 IrqStatus, u32 ChanNum)
   * @brief  Processing functions when the IPC channel is occupied
   * @param  IPCx: where IPCx can be IPCKM0_DEV for KM0, IPCKM4_DEV for CM4.
   * @param  IPC_ChNum: IPC_ChNum
-  * @retval IPC_REQ_TIMEOUT or IPC_SEMA_TIMEOUT or SUCCESS
+  * @retval IPC_REQ_TIMEOUT or IPC_SEMA_TIMEOUT or RTK_SUCCESS
   */
 u32 IPC_wait_idle(IPC_TypeDef *IPCx, u32 IPC_ChNum)
 {
@@ -145,7 +138,7 @@ u32 IPC_wait_idle(IPC_TypeDef *IPCx, u32 IPC_ChNum)
 		while (IPCx->IPC_TX_DATA & (BIT(IPC_ChNum))) {
 			timeout--;
 			if (timeout == 0) {
-				RTK_LOGS(TAG, " IPC Request Timeout\r\n");
+				RTK_LOGS(TAG, RTK_LOG_ERROR, " IPC Request Timeout\r\n");
 				return IPC_REQ_TIMEOUT;
 			}
 		}
@@ -156,8 +149,8 @@ u32 IPC_wait_idle(IPC_TypeDef *IPCx, u32 IPC_ChNum)
 
 		IPC_INTConfig(IPCx, IPC_ChNum, ENABLE);
 
-		if (rtos_sema_take(ipc_Semaphore[IPC_ChNum], IPC_SEMA_MAX_DELAY) != SUCCESS) {
-			RTK_LOGS(TAG, " IPC Get Semaphore Timeout\r\n");
+		if (rtos_sema_take(ipc_Semaphore[IPC_ChNum], IPC_SEMA_MAX_DELAY) != RTK_SUCCESS) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, " IPC Get Semaphore Timeout\r\n");
 			IPC_INTConfig(IPCx, IPC_ChNum, DISABLE);
 			return IPC_SEMA_TIMEOUT;
 		}
@@ -228,7 +221,7 @@ u32 ipc_send_message(u32 IPC_Dir, u8 IPC_ChNum, PIPC_MSG_STRUCT IPC_Msg)
 	}
 
 	if (IPC_Msg) {
-		memcpy(&IPC_MSG[msg_idx], IPC_Msg, sizeof(IPC_MSG_STRUCT));
+		_memcpy(&IPC_MSG[msg_idx], IPC_Msg, sizeof(IPC_MSG_STRUCT));
 		DCache_Clean((u32)&IPC_MSG[msg_idx], sizeof(IPC_MSG_STRUCT));
 	}
 	IPCx->IPC_TX_DATA = (BIT(IPC_ChNum + ipc_shift));
@@ -262,6 +255,17 @@ PIPC_MSG_STRUCT ipc_get_message(u32 IPC_Dir, u8 IPC_ChNum)
 }
 
 /**
+  * @brief  Set delay function for ipc sema.
+  * @param  pfunc: delay function.
+  * @retval   None
+  */
+void IPC_patch_function(void (*pfunc1)(u32), void (*pfunc2)(u32))
+{
+	ipc_enter = pfunc1;
+	ipc_exit = pfunc2;
+}
+
+/**
   * @brief  Get core-to-core hardware semaphone.
   * @param  SEM_Idx: 0~15.
   * @param  timeout: timeout to wait. 0 means never wait, 0xffffffff means waiting permanently.
@@ -273,16 +277,20 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 	/* Check the parameters */
 	assert_param(IS_IPC_VALID_SEMID(SEM_Idx));
 
+	if (ipc_enter) {
+		ipc_enter(RTOS_CRITICAL_SEMA);
+	}
+
 	if ((SYSCFG_RLVersion()) >= SYSCFG_CUT_VERSION_D) {
 
 		do {
 			Sema_Stat = HAL_READ32(IPC_SEMA_BASE, SEM_Idx * 4);
 
 			if (Sema_Stat == 0) {
-				return _TRUE;
+				return TRUE;
 			} else {
 				if (timeout == 0) {
-					return _FALSE;
+					goto fail;
 				}
 
 				/* yield os for high priority thread*/
@@ -302,7 +310,7 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 			Sema_Stat = HAL_READ16(IPC_IPC_SEMA_BASE, 0x0);
 			if (Sema_Stat & BIT(SEM_Idx)) {
 				if (timeout == 0) {
-					return _FALSE;
+					goto fail;
 				}
 
 				/* yield os for high priority thread*/
@@ -313,14 +321,18 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 
 			} else {
 				HAL_WRITE16(IPC_IPC_SEMA_BASE, 0x0, Sema_Stat | BIT(SEM_Idx));
-				return _TRUE;
+				return TRUE;
 			}
 
 		} while (timeout);
 
 	}
 
-	return _FALSE;
+fail:
+	if (ipc_exit) {
+		ipc_exit(RTOS_CRITICAL_SEMA);
+	}
+	return FALSE;
 }
 
 
@@ -341,7 +353,11 @@ u32 IPC_SEMFree(u32 SEM_Idx)
 		HAL_WRITE16(IPC_IPC_SEMA_BASE, 0x0, HAL_READ16(IPC_IPC_SEMA_BASE, 0x0) & (~ BIT(SEM_Idx)));
 	}
 
-	return _TRUE;
+	if (ipc_exit) {
+		ipc_exit(RTOS_CRITICAL_SEMA);
+	}
+
+	return TRUE;
 }
 
 

@@ -15,7 +15,6 @@
 #if MODEL_ENABLE_DELAY_MSG_RSP
 #include "delay_msg_rsp.h"
 #endif
-#include "model_property.h"
 
 typedef struct
 {
@@ -38,7 +37,7 @@ static mesh_msg_send_cause_t light_lc_server_send(mesh_model_info_p pmodel_info,
                                                   uint16_t dst, uint8_t *pmsg, uint16_t msg_len, uint16_t app_key_index,
                                                   uint32_t delay_time)
 {
-    mesh_msg_t mesh_msg;
+    mesh_msg_t mesh_msg = {0};
     mesh_msg.pmodel_info = pmodel_info;
     access_cfg(&mesh_msg);
     mesh_msg.pbuffer = pmsg;
@@ -248,7 +247,7 @@ static int32_t light_lc_light_on_off_trans_step_change(const mesh_model_info_p p
                                                        generic_transition_time_t total_time,
                                                        generic_transition_time_t remaining_time)
 {
-	(void) type; //avoid warning
+    UNUSED(type);
     int32_t ret = MODEL_SUCCESS;
     light_lc_server_set_light_on_off_t set_data;
     light_lc_info_t *plc_info = pmodel_info->pargs;
@@ -652,7 +651,7 @@ static bool light_lc_server_receive(mesh_msg_p pmesh_msg)
 
 static int32_t light_lc_server_publish(mesh_model_info_p pmodel_info, bool retrans)
 {
-	(void) retrans; //avoid warning
+    UNUSED(retrans);
     generic_transition_time_t remaining_time;
     light_lc_light_on_off_status(pmodel_info, 0, 0, get_present_light_on_off(pmodel_info), FALSE,
                                  GENERIC_OFF,

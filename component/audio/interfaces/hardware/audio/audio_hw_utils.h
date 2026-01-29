@@ -33,8 +33,8 @@
  */
 
 
-#ifndef AMEBA_HARDWARE_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
-#define AMEBA_HARDWARE_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
+#ifndef AMEBA_AUDIO_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
+#define AMEBA_AUDIO_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
 
 #include "hardware/audio/audio_hw_types.h"
 
@@ -79,6 +79,7 @@ static inline bool AudioCheckValidFormat(enum AudioHwFormat format)
 		switch (format) {
 		case AUDIO_HW_FORMAT_PCM_8_BIT:
 		case AUDIO_HW_FORMAT_PCM_16_BIT:
+		case AUDIO_HW_FORMAT_PCM_24_BIT:
 		case AUDIO_HW_FORMAT_PCM_8_24_BIT:
 		case AUDIO_HW_FORMAT_PCM_32_BIT:
 			return true;
@@ -95,5 +96,5 @@ static inline bool AudioCheckValidFormat(enum AudioHwFormat format)
 }
 #endif
 
-#endif  // AMEBA_HARDWARE_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
+#endif  // AMEBA_AUDIO_INTERFACES_HARDWARE_AUDIO_AUDIO_HW_UTILS_H
 /** @} */

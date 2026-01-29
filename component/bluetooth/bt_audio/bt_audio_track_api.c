@@ -56,9 +56,10 @@ void *rtk_bt_audio_track_init(uint32_t channels,
 		/* mixer period size is config within ameba_audio_mixer_usrcfg.cpp */
 		/* passthrough has no period size concept */
 		if (duration) {
-			track_buf_size = duration * (rate * channels * (bits / 8)) / 1000000;
+			track_buf_size = (duration * ((rate / 1000) * channels * (bits / 8)) / 1000) * 6;
 		} else {
 			track_buf_size = RTAudioTrack_GetMinBufferBytes(audio_track, RTAUDIO_CATEGORY_MEDIA, rate, format, channels) * 3;
+			//track_buf_size = 22608;
 		}
 		RTAudioTrackConfig  track_config;
 		track_config.category_type = RTAUDIO_CATEGORY_MEDIA;
@@ -70,11 +71,16 @@ void *rtk_bt_audio_track_init(uint32_t channels,
 
 #if defined(CONFIG_AUDIO_MIXER) && CONFIG_AUDIO_MIXER
 		/* set audio play start buffer size to match play latency and play fluency */
-		RTAudioTrack_SetStartThresholdBytes(audio_track, track_buf_size);
+		if (duration) {
+			int32_t thresholdBytes = (duration * ((rate / 1000) * channels * (bits / 8)) / 1000) * 3;
+			RTAudioTrack_SetStartThresholdBytes(audio_track, thresholdBytes);
+		} else {
+			RTAudioTrack_SetStartThresholdBytes(audio_track, track_buf_size);
+		}
 		track_start_threshold = RTAudioTrack_GetStartThresholdBytes(audio_track);
-		BT_LOGE("%s get start threshold:%d\r\n", __func__, (int)track_start_threshold);
+		BT_LOGA("%s: get start threshold:%d\r\n", __func__, (int)track_start_threshold);
 #endif
-		BT_LOGE("%s sample_rate %d, channel_cout %d, track_buf_size %d \r\n", __func__,
+		BT_LOGE("%s sample_rate %d, channel_count %d, track_buf_size %d \r\n", __func__,
 				(int)rate,
 				(int)channels,
 				(int)track_buf_size);
@@ -131,6 +137,20 @@ uint16_t rtk_bt_audio_track_pause(void *track_hdl)
 	return 0;
 }
 
+uint16_t rtk_bt_audio_track_pause_without_flush(void *track_hdl)
+{
+	struct RTAudioTrack *audio_track = NULL;
+
+	if (!track_hdl) {
+		BT_LOGE("%s: audio track is NULL", __func__);
+		return 1;
+	} else {
+		audio_track = (struct RTAudioTrack *)track_hdl;
+	}
+	RTAudioTrack_Pause(audio_track);
+
+	return 0;
+}
 uint16_t rtk_bt_audio_track_resume(void *track_hdl)
 {
 	struct RTAudioTrack *audio_track = NULL;
@@ -146,7 +166,7 @@ uint16_t rtk_bt_audio_track_resume(void *track_hdl)
 	return 0;
 }
 
-int32_t rtk_bt_audio_track_play(void *track_hdl, void *buffer, uint16_t size)
+int32_t rtk_bt_audio_track_play(void *track_hdl, void *buffer, uint32_t size)
 {
 	struct RTAudioTrack *audio_track = NULL;
 
@@ -311,6 +331,19 @@ uint32_t rtk_bt_audio_track_get_channel_count(void *track_hdl)
 		audio_track = (struct RTAudioTrack *)track_hdl;
 	}
 	return RTAudioTrack_GetChannelCount(audio_track);
+}
+
+int32_t rtk_bt_audio_track_get_start_thresholdbytes(void *track_hdl)
+{
+	struct RTAudioTrack *audio_track = NULL;
+
+	if (!track_hdl) {
+		BT_LOGE("%s: audio track is NULL", __func__);
+		return 0;
+	} else {
+		audio_track = (struct RTAudioTrack *)track_hdl;
+	}
+	return RTAudioTrack_GetStartThresholdBytes(audio_track);
 }
 
 long rtk_bt_audio_track_get_buffer_size(void)

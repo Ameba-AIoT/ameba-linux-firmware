@@ -9,20 +9,9 @@
 
 #include "ameba_soc.h"
 #include "os_wrapper.h"
-#include "rtw_wifi_constants.h"
-#include <stdarg.h>
-#include "FreeRTOS.h"
-//#include "strproc.h"
 
 #define LIB_INFO_CMD	"ATS?"
 #define ALL_CPU_RECV	0xFFFF
-
-#if defined ( __ICCARM__ )
-#pragma section=".cmd.table.data"
-
-SECTION(".data") u8 *__cmd_table_start__ = 0;
-SECTION(".data") u8 *__cmd_table_end__ = 0;
-#endif
 
 #define OpenShellRx		2
 
@@ -87,7 +76,7 @@ void shell_loguratRx_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum)
 	(void) IrqStatus;
 	(void) ChanNum;
 
-#if defined (ARM_CORE_CM4)
+#if defined (CONFIG_ARM_CORE_CM4)
 #ifndef CONFIG_LINUX_FW_EN
 	PIPC_MSG_STRUCT	ipc_msg_temp = (PIPC_MSG_STRUCT)ipc_get_message(IPC_LP_TO_NP, IPC_L2N_LOGUART_RX_SWITCH);
 #else
@@ -103,20 +92,20 @@ void shell_loguratRx_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum)
 	DCache_Invalidate(addr, sizeof(UART_LOG_BUF));
 	_memcpy(pUartLogBuf, (u32 *)addr, sizeof(UART_LOG_BUF));
 
-	shell_ctl.ExecuteCmd = _TRUE;
+	shell_ctl.ExecuteCmd = TRUE;
 	if (shell_ctl.shell_task_rdy) {
 		shell_ctl.GiveSema();
 	}
 }
 
-#ifdef ARM_CORE_CM0
+#ifdef CONFIG_ARM_CORE_CM0
 UART_LOG_BUF				tmp_log_buf;
 
 void shell_loguratRx_Ipc_Tx(u32 ipc_dir, u32 ipc_ch)
 {
 	IPC_MSG_STRUCT ipc_msg_temp;
 
-	memcpy(&tmp_log_buf, shell_ctl.pTmpLogBuf, sizeof(UART_LOG_BUF));
+	_memcpy(&tmp_log_buf, shell_ctl.pTmpLogBuf, sizeof(UART_LOG_BUF));
 	DCache_CleanInvalidate((u32)&tmp_log_buf, sizeof(UART_LOG_BUF));
 
 	ipc_msg_temp.msg_type = IPC_USER_POINT;
@@ -137,10 +126,10 @@ void shell_loguartRx_dispatch(void)
 				CpuId = LP_CPU_ID;
 				CONSOLE_AMEBA(); /* '\0' put # */
 				shell_array_init((u8 *)pUartLogBuf, sizeof(UART_LOG_BUF), '\0');
-				shell_ctl.ExecuteCmd = _FALSE;
+				shell_ctl.ExecuteCmd = FALSE;
 				break;
 			}
-#ifdef CONFIG_AS_INIC_KM4_NP_CA32_AP
+#ifdef CONFIG_WHC_INTF_IPC
 			if ((shell_ctl.pTmpLogBuf->UARTLogBuf[i] == '~')) {
 				i = i + 1; /* remove flag */
 				CpuId = NP_CPU_ID;	/* CMD should processed by KM4 */
@@ -166,7 +155,7 @@ void shell_loguartRx_dispatch(void)
 			}
 
 			/* avoid useless space */
-			memcpy(&pUartLogBuf->UARTLogBuf[0], &pUartLogBuf->UARTLogBuf[i], UART_LOG_CMD_BUFLEN - i);
+			_memcpy(&pUartLogBuf->UARTLogBuf[0], &pUartLogBuf->UARTLogBuf[i], UART_LOG_CMD_BUFLEN - i);
 			break;
 		}
 	}
@@ -179,41 +168,14 @@ void shell_loguartRx_dispatch(void)
 		shell_loguratRx_Ipc_Tx(IPC_LP_TO_AP, IPC_L2A_LOGUART_RX_SWITCH);
 	}
 
-	if (CpuId == ALL_CPU_RECV) {
-		//1. logurat recv CPU Printf Info
-		u32 buflen = 1024;
-		char *buf = rtos_mem_malloc(buflen);
-		ChipInfo_GetSocName_ToBuf(buf, buflen - 1);
-		RTK_LOGS(NOTAG, "%s", buf);
-		ChipInfo_GetLibVersion_ToBuf(buf, buflen - 1);
-		RTK_LOGS(NOTAG, "%s", buf);
-		rtos_mem_free(buf);
-
-		//2. Other CPU Pintf Lib Info
-		LOGUART_WaitTxComplete();
-		shell_loguratRx_Ipc_Tx(IPC_LP_TO_NP, IPC_L2N_LOGUART_RX_SWITCH);
-		LOGUART_WaitTxComplete();
-		shell_loguratRx_Ipc_Tx(IPC_LP_TO_AP, IPC_L2A_LOGUART_RX_SWITCH);
-	}
-
 	if (CpuId != LP_CPU_ID) {
 		shell_array_init((u8 *)pUartLogBuf, sizeof(UART_LOG_BUF), '\0');
-		shell_ctl.ExecuteCmd = _FALSE;
+		shell_ctl.ExecuteCmd = FALSE;
 	}
 }
 #else
 void shell_loguartRx_dispatch(void)
 {
-	PUART_LOG_BUF pUartLogBuf = shell_ctl.pTmpLogBuf;
-	if (_stricmp((const char *)&pUartLogBuf->UARTLogBuf[0], LIB_INFO_CMD) == 0) {
-		u32 buflen = 1024;
-		char *buf = rtos_mem_malloc(buflen);
-		ChipInfo_GetLibVersion_ToBuf(buf, buflen - 1);
-		RTK_LOGS(NOTAG, "%s", buf);
-		rtos_mem_free(buf);
-		shell_array_init((u8 *)pUartLogBuf, sizeof(UART_LOG_BUF), '\0');
-		shell_ctl.ExecuteCmd = _FALSE;
-	}
 }
 #endif
 
@@ -236,7 +198,7 @@ static void shell_task_ram(void *Data)
 		shell_loguartRx_dispatch();
 
 		if (shell_ctl.ExecuteCmd) {
-#if (defined CONFIG_SUPPORT_ATCMD) && ((defined CONFIG_SINGLE_CORE_WIFI) || (defined CONFIG_AS_INIC_AP))
+#if (defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_CORE_AS_AP)
 			shell_array_init((u8 *)atcmd_buf, sizeof(atcmd_buf), '\0');
 			strcpy(atcmd_buf, (const char *)pUartLogBuf->UARTLogBuf);
 			ret = atcmd_service(atcmd_buf);
@@ -249,13 +211,13 @@ static void shell_task_ram(void *Data)
 #endif
 			if (ret == FALSE) {
 				if (shell_cmd_exec_ram(pUartLogBuf->UARTLogBuf) == FALSE) {
-					RTK_LOGS(NOTAG, "\r\nunknown command '%s'", pUartLogBuf->UARTLogBuf);
-					RTK_LOGS(NOTAG, "\r\n\n#\r\n");
+					RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\r\nunknown command '%s'", pUartLogBuf->UARTLogBuf);
+					RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\r\n\n#\r\n");
 				}
 			}
 
 			shell_array_init((u8 *)pUartLogBuf, sizeof(UART_LOG_BUF), '\0');
-			shell_ctl.ExecuteCmd = _FALSE;
+			shell_ctl.ExecuteCmd = FALSE;
 		}
 
 	} while (1);
@@ -263,27 +225,22 @@ static void shell_task_ram(void *Data)
 
 void shell_init_ram(void)
 {
-#if (defined CONFIG_SUPPORT_ATCMD) && ((defined CONFIG_SINGLE_CORE_WIFI) || (defined CONFIG_AS_INIC_AP))
+#if (defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_CORE_AS_AP)
 	atcmd_service_init();
-#endif
-
-#if defined ( __ICCARM__ )
-	__cmd_table_start__ = (u8 *)__section_begin(".cmd.table.data");
-	__cmd_table_end__ = (u8 *)__section_end(".cmd.table.data");
 #endif
 
 	shell_ctl.pCmdTbl = (PCOMMAND_TABLE)__cmd_table_start__;
 	shell_ctl.CmdTblSz = ((__cmd_table_end__ - __cmd_table_start__) / sizeof(COMMAND_TABLE));
 
-	shell_ctl.ExecuteCmd = _FALSE;
-	shell_ctl.ExecuteEsc = _TRUE; //don't check Esc anymore
+	shell_ctl.ExecuteCmd = FALSE;
+	shell_ctl.ExecuteEsc = TRUE; //don't check Esc anymore
 	shell_ctl.GiveSema = shell_give_sema;
 
 
 	/* Create a Semaphone */
 	rtos_sema_create_binary(&shell_sema);
 
-	if (SUCCESS != rtos_task_create(NULL, "LOGUART_TASK", shell_task_ram, NULL, SHELL_TASK_FUNC_STACK_SIZE, 5)) {
+	if (RTK_SUCCESS != rtos_task_create(NULL, "shell_task", shell_task_ram, NULL, SHELL_TASK_FUNC_STACK_SIZE, 2)) {
 		DiagPrintf("Create Log UART Task Err!!\n");
 	}
 
@@ -326,7 +283,7 @@ const IPC_INIT_TABLE ipc_shell_table[] = {
 
 };
 
-#ifdef ARM_CORE_CM0
+#ifdef CONFIG_ARM_CORE_CM0
 
 /* for uart bridge to close shell loguart rx */
 void shell_uartbridge_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum)

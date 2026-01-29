@@ -6,7 +6,7 @@
 
 #include "ameba_soc.h"
 
-static const char *TAG = "CLK";
+static const char *const TAG = "CLK";
 
 /**
   * @brief  32K clock Enable,
@@ -16,6 +16,8 @@ static const char *TAG = "CLK";
 void SDM32K_Enable(void)
 {
 	SDM_TypeDef *SDM = SDM_DEV;
+
+	SDM->SDM_TIMEOUT = SDM_TIEMRCAL_INTERVAL_1MIN;
 	SDM->SDM_CTRL0 |= SDM_BIT_EN | SDM_BIT_RST | SDM_BIT_ALWAYS_CAL_EN | SDM_BIT_TIMER_CAL_EN;
 }
 
@@ -71,15 +73,17 @@ u32 OSC_CalResult_Get(u8 cal_clk)
 void OSC131_R_Set(u32 setbit, u32 clearbit)
 {
 	REGU_TypeDef *regu = REGU_BASE;
+	u32 reg_val = regu->REGU_32KOSC;
 
 	if (setbit) {
-		regu->REGU_32KOSC |= REGU_RCAL(setbit);
+		reg_val |= REGU_RCAL(setbit);
 	}
 
 	if (clearbit) {
-		regu->REGU_32KOSC &= ~REGU_RCAL(clearbit);
+		reg_val &= ~REGU_RCAL(clearbit);
 	}
 
+	regu->REGU_32KOSC = reg_val;
 	/* It takes 1ms to stable */
 	DelayMs(1);
 }
@@ -100,6 +104,7 @@ u32 OSC131K_Calibration(u32 ppm_limit)
 	u32 min_delta_r = 0;
 	u32 target_40m_counter = 2441; //cal_rpt=8*40Mhz/fclk_osc131k
 	u32 clearbit = 0;
+	u32 reg_val;
 	REGU_TypeDef *regu = REGU_BASE;
 
 	/* Step1: Power on aon 128kHz OSC: 0x4200_8100[0]=1'b1 */
@@ -154,8 +159,10 @@ u32 OSC131K_Calibration(u32 ppm_limit)
 
 	/* the last one is not the best one */
 	if (delta > min_delta) {
-		regu->REGU_32KOSC &= ~REGU_MASK_RCAL;
-		regu->REGU_32KOSC |= min_delta_r;
+		reg_val = regu->REGU_32KOSC;
+		reg_val &= ~REGU_MASK_RCAL;
+		reg_val |= min_delta_r;
+		regu->REGU_32KOSC = reg_val;
 
 		/* It takes 1ms to stable */
 		DelayMs(1);

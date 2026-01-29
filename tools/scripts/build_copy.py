@@ -9,7 +9,7 @@ import shutil
 import argparse
 import json
 
-FILES_TO_COPY = ['manifest.json5', '../tools/scripts/build.py', '../tools/scripts/menuconfig.py']
+FILES_TO_COPY = ['manifest.json5', '../tools/scripts/build.py', '../tools/scripts/menuconfig.py', '../tools/scripts/monitor.py', '../tools/scripts/flash.py']
 
 def copy_files(file_list, target_dir):
     for file in file_list:
@@ -67,7 +67,7 @@ def create_json_file(target_dir, current_path):
 
 def create_cmake_file(target_dir, subdirectory_name=None):
     if subdirectory_name:
-        cmake_content = f"add_subdirectory({subdirectory_name})\r\n"
+        cmake_content = f"ameba_add_subdirectory({subdirectory_name})\r\n"
     else:
         cmake_content="\r\n"
     cmake_path = os.path.join(target_dir, 'CMakeLists.txt')

@@ -8,13 +8,13 @@
  */
 
 #include "ameba_soc.h"
-#include "amebahp_secure_boot.h"
+#include "ameba_secure_boot.h"
 #include "bootloader_hp.h"
 #include "boot_ota_hp.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
 
-static const char *TAG = "BOOT";
+static const char *const TAG = "BOOT";
 typedef struct {
 	u32 NVICbackup_HP[6];
 	u32 SCBVTORbackup_HP;
@@ -23,27 +23,16 @@ typedef struct {
 
 CPU_S_BackUp_TypeDef PMC_S_BK;
 
-#if defined ( __ICCARM__ )
-#pragma section=".ram.bss"
-#pragma section=".rom.bss"
-#pragma section=".ram.start.table"
-#pragma section=".ram_image1.bss"
-#pragma section=".ram_image2.entry"
-
-BOOT_RAM_RODATA_SECTION u8 *__image2_entry_func__ = 0;
-BOOT_RAM_RODATA_SECTION u8 *__image1_bss_start__ = 0;
-BOOT_RAM_RODATA_SECTION u8 *__image1_bss_end__ = 0;
-#endif
+#define CHECK_AND_PRINT_FLAG(flagValue, bit, name) \
+    do { \
+        if ((flagValue) & (bit)) { \
+            RTK_LOGS(NOTAG, RTK_LOG_INFO, "%s ", (name)); \
+        } \
+    } while (0)
 
 BOOT_RAM_TEXT_SECTION
 PRAM_START_FUNCTION BOOT_SectionInit(void)
 {
-#if defined ( __ICCARM__ )
-	// only need __bss_start__, __bss_end__
-	__image2_entry_func__		= (u8 *)__section_begin(".ram_image2.entry");
-	__image1_bss_start__		= (u8 *)__section_begin(".ram_image1.bss");
-	__image1_bss_end__			= (u8 *)__section_end(".ram_image1.bss");
-#endif
 	return (PRAM_START_FUNCTION)__image2_entry_func__;
 }
 
@@ -84,6 +73,11 @@ void BOOT_RccConfig(void)
 	u32 CenReg[4] = {REG_LSYS_CKE_GRP0, REG_LSYS_CKE_GRP1, REG_LSYS_CKE_GRP2, REG_AON_CLK};
 	u32 CenSet[4] = {0};
 	u32 ClkRegIndx = 0;
+
+	TempVal = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_SW_RST_CTRL);
+	/* For debug reset: when debugger reset cpu, it's required to reset other cpus and some peripherals */
+	TempVal |= LSYS_OTHERCPU_RST_EN(1);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_SW_RST_CTRL, TempVal);
 
 	for (idx = 0; ; idx++) {
 		/*  Check if search to end */
@@ -218,7 +212,7 @@ void BOOT_GRstConfig(void)
 	/* step 3: release por */
 	Val = HAL_READ16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR);
 	Val |= TempVal;
-	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR, TempVal);
+	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR, Val);
 }
 
 
@@ -292,7 +286,7 @@ void BOOT_PSRAM_Init(void)
 
 	PSRAM_CTRL_Init();
 
-	if (ChipInfo_MemoryVendor() == Vendor_PSRAM_A) {
+	if (PsramInfo.Psram_Vendor == MCM_PSRAM_VENDOR_APM) {
 		//RTK_LOGD(TAG, "Init APM\r\n");
 		PSRAM_APM_DEVIC_Init();
 	} else {
@@ -377,6 +371,12 @@ u32 BOOT_LoadImages(void)
 {
 	u8 CertImgIndex;
 
+#ifdef CONFIG_IMG2_FLASH
+	if (FALSE == SYSCFG_BootFromNor()) {
+		assert_param(0); /* Nand Cannot XIP */
+	}
+#endif
+
 	/* Load from OTA and ECC check for Certificate and IMG2*/
 	CertImgIndex = BOOT_OTA_IMG2();
 
@@ -388,7 +388,7 @@ u32 BOOT_LoadImages(void)
 		BOOT_OTA_AP_Linux(CertImgIndex);
 	}
 #endif
-	return _TRUE;
+	return TRUE;
 }
 
 /**
@@ -400,16 +400,37 @@ u32 BOOT_LoadImages(void)
 BOOT_RAM_TEXT_SECTION
 void BOOT_ReasonSet(void)
 {
-	u16 temp = HAL_READ16(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW);
+	u32 temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW);
+	u32 ret = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_REASON_SW);
 
 	/*Clear the wake up reason*/
-	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW, temp);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_AON_BOOT_REASON_HW, temp);
+
+	/* keep lower 16bit, high 8 bit reserved for DMA, and bit16-18 is used by AP */
+	temp &= 0x0000FFFF;
+	temp |= (ret & 0x00FF0000);
 
 	/*Backup it to system register,So the software can read from the register*/
-	HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_REASON_SW, temp);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_REASON_SW, temp);
 
-	RTK_LOGI(TAG, "KM4 BOOT REASON: %lx \n", temp);
-
+	RTK_LOGI(TAG, "KM4 BOOT REASON %x: ", temp);
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG4, "WDG4");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG3, "WDG3");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG2, "WDG2");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_WDG1, "WDG1");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_IWDG, "IWDG");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_APSYS, "APSYS");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_NPSYS, "NPSYS");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_LPSYS, "LPSYS");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_DSLP, "DSLP");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_BOR_ACC, "BOR_ACC");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_BOR, "BOR");
+	CHECK_AND_PRINT_FLAG(temp, AON_BIT_RSTF_THM, "THM");
+	if (temp == 0) {
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "Initial Power on\n");
+	} else {
+		RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n");
+	}
 }
 
 BOOT_RAM_TEXT_SECTION
@@ -460,6 +481,7 @@ void BOOT_SOC_ClkSet(void)
 {
 	u32 temp;
 	u32 PsramDiv, HBusDiv, HPeriDiV;
+	MCM_MemTypeDef meminfo = ChipInfo_MCMInfo();
 
 	u32 APCLK = BOOT_AP_Clk_Get();
 	u32 NPCLK = SocClk_Info->NPPLL_CLK / SocClk_Info->KM4_CPU_CKD;
@@ -471,13 +493,17 @@ void BOOT_SOC_ClkSet(void)
 	/*HPeri target clk 200M*/
 	HPeriDiV = SocClk_Info->NPPLL_CLK / 200 - 1;
 
+	if ((SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA)) {
+		return ;
+	}
+
 	/*configure core power according user setting*/
 	if (SocClk_Info->Vol_Type == VOL_10) {
 		SWR_BST_MODE_Set(ENABLE);
 		RRAM->VOL_TYPE = VOL_10;
 		assert_param(NPCLK <= KM4_1P0V_CLK_LIMIT);
 		if (Boot_AP_Enbale == ENABLE) {
-			if (ChipInfo_MemoryType() == Memory_Type_PSRAM) {
+			if ((meminfo.mem_type & MCM_TYPE_PSRAM) == MCM_TYPE_PSRAM) {
 				assert_param(APCLK <= AP_1P0V_CLK_LIMIT_PSRAM);
 			} else {
 				assert_param(APCLK <= AP_1P0V_CLK_LIMIT_DDR);
@@ -539,6 +565,9 @@ void BOOT_SOC_ClkSet(void)
 	RTK_LOGI(TAG, "NP Freq %lu MHz\n", NPCLK);
 	RTK_LOGI(TAG, "AP Freq %lu MHz\n", APCLK);
 	RTK_LOGI(TAG, "LP Freq %lu MHz\n", LPCLK / MHZ_TICK_CNT);
+
+	/* Note that if no anti-rollback and warm reset continuously, clear BOOT_CNT to avoid boot from older bootloader */
+	BKUP_Write(BKUP_REG0, BKUP_Read(BKUP_REG0) & ~BOOT_CNT_MASK);
 }
 
 // 0x1 for core 0, 0x3 for core 0/1
@@ -636,7 +665,8 @@ void BOOT_WakeFromPG(void)
 	/* Initial TRNG*/
 	TRNG_Init();
 
-	if (ChipInfo_MemoryType() == Memory_Type_DDR) {
+	MCM_MemTypeDef meminfo = ChipInfo_MCMInfo();
+	if (meminfo.mem_type & MCM_TYPE_DDR) {
 		RTK_LOGI(TAG, "ReInit DDR\r\n");
 
 		RCC_PeriphClockCmd(APBPeriph_DDRP, APBPeriph_DDRP_CLOCK, ENABLE);
@@ -710,6 +740,9 @@ u32 BOOT_Share_Memory_Patch(void)
 	Rtemp = HAL_READ32(HP_SRAM_EXT_BASE + 0x100000, 0x0);
 	sum += Rtemp;
 
+	/* read wifi_share_mem_rsvd to fix hw bug */
+	sum += HAL_READ32(HP_SRAM_EXT_BASE + 0x100000 + 40 * 1024, 0x4);
+
 	/* switch share mem control back */
 	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HPLAT_CTRL);
 	Rtemp &= ~(HSYS_BIT_SHARE_WL_MEM | HSYS_BIT_SHARE_BT_MEM);
@@ -751,6 +784,38 @@ void BOOT_Log_Init(void)
 	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_2, ENABLE);
 }
 
+void Peripheral_Reset(void)
+{
+	//reason: The reason for maintaining these bits is for our debugging function.
+	//issue: LSYS_PERIALL_RST_EN will reset cpu, causing loss of debug information, which is unexpected.
+	//resolve: When initializing power, at bootloader, these bits are enabled.
+
+	/* The following IP cores are activated during power initialization, excluding those specified in the comments */
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_FEN_GRP0,
+				APBPeriph_HPON | APBPeriph_LPLFM | APBPeriph_HPLFM | APBPeriph_LP | APBPeriph_NP |
+				APBPeriph_FLASH | APBPeriph_SCE | APBPeriph_DTIM | APBPeriph_AIP | APBPeriph_LOGUART |
+				APBPeriph_THM);
+
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_FEN_GRP1,
+				APBPeriph_TRNG |
+				/* These IP cores are enabled depends on OTP programming */
+				APBPeriph_IPSEC | APBPeriph_LX1 | APBPeriph_ED25519 | APBPeriph_ECDSA);
+
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_FEN_GRP2,
+				/* No IP cores are enabled when initializing power */
+				0UL);
+}
+
+/* To avoid RRAM holding incorrect data, incorporate a MAGIC_NUMBER for verification. */
+static bool BOOT_RRAM_InfoValid(void)
+{
+	if (RRAM->MAGIC_NUMBER != 0x6969A5A5) {
+		return FALSE;
+	} else {
+		return TRUE;
+	}
+}
+
 //3 Image 1
 BOOT_RAM_TEXT_SECTION
 void BOOT_Image1(void)
@@ -765,10 +830,13 @@ void BOOT_Image1(void)
 
 	BOOT_ReasonSet();
 
-	if (BOOT_Reason() == 0) {
-		memset(RRAM, 0, sizeof(RRAM_TypeDef));
-	}
+	/* For debug reset: when debugger reset cpu, it's required to reset other cpus and some peripherals */
+	Peripheral_Reset();
 
+	if ((BOOT_Reason() == 0) || (!BOOT_RRAM_InfoValid())) {
+		_memset(RRAM, 0, sizeof(RRAM_TypeDef));
+		RRAM->MAGIC_NUMBER = 0x6969A5A5;
+	}
 
 	BOOT_VerCheck();
 
@@ -796,11 +864,12 @@ void BOOT_Image1(void)
 	BOOT_GRstConfig();
 
 	/* need about 100-300us, need sync */
-	if (ChipInfo_MemoryType() == Memory_Type_PSRAM) {
+	MCM_MemTypeDef meminfo = ChipInfo_MCMInfo();
+	if ((meminfo.mem_type & MCM_TYPE_PSRAM) == MCM_TYPE_PSRAM) {
 		/* off ddrphy BG for psram chip, open by USB AND MIPI when need */
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1, HAL_READ32(SYSTEM_CTRL_BASE_LP,
 					REG_LSYS_AIP_CTRL1) & (~(LSYS_BIT_BG_PWR | LSYS_BIT_BG_ON_MIPI | LSYS_BIT_BG_ON_USB2)));
-		rram->MEM_TYPE = Memory_Type_PSRAM;
+		rram->MEM_TYPE = MCM_TYPE_PSRAM;
 		RCC_PeriphClockCmd(APBPeriph_PSRAM, APBPeriph_PSRAM_CLOCK, ENABLE);
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098, (HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098) | LSYS_BIT_PWDPAD15N_DQ));
 
@@ -808,7 +877,7 @@ void BOOT_Image1(void)
 		/* off USB AND MIPI by default, open in IP */
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1, HAL_READ32(SYSTEM_CTRL_BASE_LP,
 					REG_LSYS_AIP_CTRL1) & (~(LSYS_BIT_BG_ON_MIPI | LSYS_BIT_BG_ON_USB2)));
-		rram->MEM_TYPE = Memory_Type_DDR;
+		rram->MEM_TYPE = MCM_TYPE_DDR;
 		RCC_PeriphClockCmd(APBPeriph_DDRP, APBPeriph_DDRP_CLOCK, ENABLE);
 		RCC_PeriphClockCmd(APBPeriph_DDRC, APBPeriph_DDRC_CLOCK, ENABLE);
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098, (HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098)  | LSYS_BIT_PWDPAD15N_DQ | LSYS_BIT_PWDPAD15N_CA));
@@ -843,7 +912,7 @@ void BOOT_Image1(void)
 
 	flash_highspeed_setup();
 
-	if (ChipInfo_MemoryType() == Memory_Type_PSRAM) {
+	if ((meminfo.mem_type & MCM_TYPE_PSRAM) == MCM_TYPE_PSRAM) {
 		RTK_LOGI(TAG, "Init PSRAM\r\n");
 		PSRAM_INFO_Update(); //only when boot
 		BOOT_PSRAM_Init();
@@ -860,7 +929,7 @@ void BOOT_Image1(void)
 				DelayMs(5000);
 			}
 		}
-		if (ChipInfo_DDRType() == DDR_Type_DDR2) {
+		if (ChipInfo_DDRType() == MCM_DDR2) {
 			RTK_LOGI(TAG, "Init DDR2\r\n");
 		} else {
 			RTK_LOGI(TAG, "Init DDR3\r\n");
@@ -878,25 +947,30 @@ void BOOT_Image1(void)
 	BOOT_Share_Memory_Patch();
 
 	ret = BOOT_LoadImages();
-	if (ret == _FALSE) {
+	if (ret == FALSE) {
 		goto INVALID_IMG2;
 	}
 
-	BOOT_Enable_KM0();
-
-	/*switch shell control to KM0, disable loguart interrupt to avoid loguart irq not assigned in non-secure world */
+	/* it will switch shell control to KM0, disable loguart interrupt to avoid loguart irq not assigned in non-secure world.
+	 it should switch before BOOT_RAM_TZCfg to avoid crash when loguart intr occur but it has been set to ns intr. */
 	LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ERBI, DISABLE);
 	InterruptDis(UART_LOG_IRQ);
 
-	/* Config Non-Security World Registers */
+	/* Config Non-Security World Registers and clean Dcache */
 	BOOT_RAM_TZCfg();
+
+	BOOT_Enable_KM0();
 
 	/* AP Power-on, AP start run */
 	if (Boot_AP_Enbale) {
-		BOOT_Enable_AP();
-		/* indicate AP is running */
-		HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW,
-				   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) | LSYS_BIT_AP_RUNNING | LSYS_BIT_AP_ENABLE);
+		ret = HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW);
+		if (0 == (ret & LSYS_BIT_AP_ENABLE)) {
+			BOOT_Enable_AP();
+		}
+
+		ret &= ~LSYS_BIT_AP_RUNNING; /* CA32 will set this Bit */
+		ret |= LSYS_BIT_AP_ENABLE;
+		HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW, ret);
 	} else {
 		BOOT_Disable_AP();
 	}

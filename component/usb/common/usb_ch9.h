@@ -1,17 +1,8 @@
-/**
-  ******************************************************************************
-  * @file    usb_ch9.h
-  * @author  Realsil WLAN5 Team
-  * @brief   This file provides general defines for USB SPEC CH9
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef USB_CH9_H
 #define USB_CH9_H
@@ -22,15 +13,16 @@
 
 /* Exported defines ----------------------------------------------------------*/
 
-/* USB speed */
-#define USB_SPEED_HIGH                                 0
-#define USB_SPEED_HIGH_IN_FULL                         1
-#define USB_SPEED_LOW                                  2
-#define USB_SPEED_FULL                                 3
+/* USB Version */
+#define USB_VERSION_ID_0201                            0x0201 /*USB Specification version 2.01*/
+
+/* USB device class type  */
+#define USB_CLASS_HUB                                  0x09U
 
 /* USB descriptor length */
 #define USB_LEN_DEV_QUALIFIER_DESC                     0x0AU
 #define USB_LEN_DEV_DESC                               0x12U
+#define USB_LEN_BOS_DESC                               0x05U
 #define USB_LEN_CFG_DESC                               0x09U
 #define USB_LEN_IAD_DESC                               0x08U
 #define USB_LEN_IF_DESC                                0x09U
@@ -85,6 +77,8 @@
 #define USB_DESC_TYPE_OTHER_SPEED_CONFIGURATION        0x07U
 #define USB_DESC_TYPE_INTERFACE_POWER                  0x08U
 #define USB_DESC_TYPE_IAD                              0x0BU
+#define USB_DESC_TYPE_BOS                              0x0FU
+#define USB_DESC_TYPE_HUB                              0x29U
 
 #define USB_DESC_DEVICE                                ((USB_DESC_TYPE_DEVICE << 8) & 0xFF00U)
 #define USB_DESC_CONFIGURATION                         ((USB_DESC_TYPE_CONFIGURATION << 8) & 0xFF00U)
@@ -94,6 +88,52 @@
 #define USB_DESC_DEVICE_QUALIFIER                      ((USB_DESC_TYPE_DEVICE_QUALIFIER << 8) & 0xFF00U)
 #define USB_DESC_OTHER_SPEED_CONFIGURATION             ((USB_DESC_TYPE_OTHER_SPEED_CONFIGURATION << 8) & 0xFF00U)
 #define USB_DESC_INTERFACE_POWER                       ((USB_DESC_TYPE_INTERFACE_POWER << 8) & 0xFF00U)
+#define USB_DESC_BOS                                   ((USB_DESC_TYPE_BOS << 8) & 0xFF00U)
+#define USB_DESC_HUB_DESC                              ((USB_DESC_TYPE_HUB << 8) & 0xFF00U)
+
+/*************************************************************************
+ * Hub defines
+ */
+
+/*
+ * Port feature numbers
+ */
+#define USB_PORT_FEAT_CONNECTION     0
+#define USB_PORT_FEAT_ENABLE         1
+#define USB_PORT_FEAT_SUSPEND        2
+#define USB_PORT_FEAT_OVER_CURRENT   3
+#define USB_PORT_FEAT_RESET          4
+#define USB_PORT_FEAT_POWER          8
+#define USB_PORT_FEAT_LOWSPEED       9
+#define USB_PORT_FEAT_HIGHSPEED      10
+
+#define USB_PORT_FEAT_C_CONNECTION   16
+#define USB_PORT_FEAT_C_ENABLE       17
+#define USB_PORT_FEAT_C_SUSPEND      18
+#define USB_PORT_FEAT_C_OVER_CURRENT 19
+#define USB_PORT_FEAT_C_RESET        20
+
+/* wPortStatus bits */
+#define USB_PORT_STAT_CONNECTION    0x0001
+#define USB_PORT_STAT_ENABLE        0x0002
+#define USB_PORT_STAT_SUSPEND       0x0004
+#define USB_PORT_STAT_OVERCURRENT   0x0008
+#define USB_PORT_STAT_RESET         0x0010
+#define USB_PORT_STAT_POWER         0x0100
+#define USB_PORT_STAT_LOW_SPEED     0x0200
+#define USB_PORT_STAT_HIGH_SPEED    0x0400	/* support for EHCI */
+#define USB_PORT_STAT_SUPER_SPEED   0x0600	/* faking support to XHCI */
+#define USB_PORT_STAT_SPEED_MASK	(USB_PORT_STAT_LOW_SPEED | USB_PORT_STAT_HIGH_SPEED)
+
+/* wPortChange bits */
+#define USB_PORT_STAT_C_CONNECTION  0x0001
+#define USB_PORT_STAT_C_ENABLE      0x0002
+#define USB_PORT_STAT_C_SUSPEND     0x0004
+#define USB_PORT_STAT_C_OVERCURRENT 0x0008
+#define USB_PORT_STAT_C_RESET       0x0010
+
+/* Hub defines end
+*************************************************************************/
 
 /* Configuration descriptor offset */
 #define USB_CFG_DESC_OFFSET_TYPE                       1U
@@ -114,6 +154,15 @@
 #define USB_HS_MAX_PACKET_SIZE                         512U
 #define USB_FS_MAX_PACKET_SIZE                         64U
 #define USB_MAX_EP0_SIZE                               64U
+
+#define USB_CTRL_MAX_MPS                               64U
+#define USB_XFER_MAX_MPS                               1024U
+#define USB_BULK_FS_MAX_MPS                            64U
+#define USB_BULK_HS_MAX_MPS                            512U
+#define USB_INTR_FS_MAX_MPS                            64U
+#define USB_INTR_HS_MAX_MPS                            USB_XFER_MAX_MPS
+#define USB_ISOC_FS_MAX_MPS                            1023U
+#define USB_ISOC_HS_MAX_MPS                            USB_XFER_MAX_MPS
 
 /* bmAttributes D1..0 Transfer type */
 #define USB_EP_XFER_TYPE_MASK                          0x03U

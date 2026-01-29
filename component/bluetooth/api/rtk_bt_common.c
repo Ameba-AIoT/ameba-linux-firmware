@@ -51,14 +51,14 @@ static uint32_t rtk_bt_br_hfp_evt_direct_calling_flag =
 	 (1 << RTK_BT_HFP_EVT_HF_BATTERY_IND) |
 	 (1 << RTK_BT_HFP_EVT_AG_INDICATORS_STATUS_REQ));
 static uint32_t rtk_bt_br_pbap_evt_direct_calling_flag = 0;
-static uint32_t rtk_bt_le_audio_evt_direct_calling_flag =
+static uint32_t rtk_bt_le_audio_evt_bap_direct_calling_flag =
 	((1 << RTK_BT_LE_AUDIO_EVT_BASS_GET_PA_SYNC_PARAM_IND) |
 	 (1 << RTK_BT_LE_AUDIO_EVT_BASS_GET_BIG_SYNC_PARAM_IND) |
-	 (1 << RTK_BT_LE_AUDIO_EVT_BASS_GET_BROADCAST_CODE_IND) |
-	 (1 << RTK_BT_LE_AUDIO_EVT_BASS_GET_PREFER_BIS_SYNC_IND) |
-	 (1 << RTK_BT_LE_AUDIO_EVT_BAP_START_QOS_CFG_IND) |
-	 (1 << RTK_BT_LE_AUDIO_EVT_BAP_START_METADATA_CFG_IND) |
-	 (1 << RTK_BT_LE_AUDIO_EVT_ASCS_GET_PREFER_QOS_IND));
+	 (1 << RTK_BT_LE_AUDIO_EVT_ASCS_ASE_STATE_IND) |
+	 (1 << RTK_BT_LE_AUDIO_EVT_ASCS_GET_PREFER_QOS_IND) |
+	 (1 << RTK_BT_LE_AUDIO_EVT_ISO_DATA_RECEIVE_IND));
+static uint32_t rtk_bt_le_audio_evt_cap_direct_calling_flag =
+	(1 << RTK_BT_LE_AUDIO_EVT_MCP_SERVER_READ_IND);
 static uint32_t rtk_bt_gap_evt_direct_calling_flag =
 	(1 << RTK_BT_GAP_EVT_ECFC_RECONF_REQ_IND);
 
@@ -78,7 +78,6 @@ static void *g_evt_task_sem = NULL;
 static void *g_evt_queue = NULL;
 static void *g_evt_task_hdl = NULL;
 bool event_task_running = false;
-uint32_t event_task_msg_num = 0;
 
 rtk_bt_evt_cb_t rtk_bt_le_evt_cb_tbl[RTK_BT_LE_GP_MAX - RTK_BT_API_LE_BASE] = {0};
 rtk_bt_evt_cb_t rtk_bt_br_evt_cb_tbl[RTK_BT_BR_GP_MAX - RTK_BT_API_BR_BASE] = {0};
@@ -329,11 +328,7 @@ uint16_t rtk_bt_evt_deinit(void)
 
 	event_task_running = false;
 
-	/* Waiting rtk_bt_evt_indicate() on other tasks interrupted by deinit task to complete */
-	while (event_task_msg_num) {
-		osif_delay(5);
-	}
-
+	/* This is the last event indicated. */
 	p_evt = rtk_bt_event_create(RTK_BT_EVENT_TASK_EXIT, 0, 0);
 	if (!p_evt) {
 		return RTK_BT_ERR_NO_MEMORY;
@@ -452,7 +447,7 @@ end:
 	return pevt;
 }
 
-bool rtk_bt_check_evt_cb_direct_calling(uint8_t group, uint8_t evt_code)
+static bool rtk_bt_check_evt_cb_direct_calling(uint8_t group, uint8_t evt_code)
 {
 	bool ret = false;
 
@@ -502,8 +497,13 @@ bool rtk_bt_check_evt_cb_direct_calling(uint8_t group, uint8_t evt_code)
 			ret = true;
 		}
 		break;
-	case RTK_BT_LE_GP_AUDIO:
-		if (rtk_bt_le_audio_evt_direct_calling_flag & (1 << evt_code)) {
+	case RTK_BT_LE_GP_BAP:
+		if (rtk_bt_le_audio_evt_bap_direct_calling_flag & (1 << evt_code)) {
+			ret = true;
+		}
+		break;
+	case RTK_BT_LE_GP_CAP:
+		if (rtk_bt_le_audio_evt_cap_direct_calling_flag & (1 << evt_code)) {
 			ret = true;
 		}
 		break;
@@ -560,7 +560,7 @@ bool rtk_bt_check_evt_cb_direct_calling(uint8_t group, uint8_t evt_code)
 uint16_t rtk_bt_evt_indicate(void *evt, uint8_t *cb_ret)
 {
 	uint16_t ret = 0;
-	uint32_t flags = 0;
+	uint32_t msg_num = 0;
 	rtk_bt_evt_t *p_evt = (rtk_bt_evt_t *)evt;
 
 	if (!evt) {
@@ -578,24 +578,29 @@ uint16_t rtk_bt_evt_indicate(void *evt, uint8_t *cb_ret)
 		return 0;
 	}
 
-	flags = osif_lock();
-	event_task_msg_num++;
-	osif_unlock(flags);
-
 	/* send EXIT as last msg to kill task */
 	if (!event_task_running && p_evt->group != RTK_BT_EVENT_TASK_EXIT) {
 		ret = RTK_BT_ERR_NOT_READY;
 		goto end;
+	}
+
+	/* When too many scan/escan/padv reported, the event msg may make the msg queue full.
+	Then the event such as scan_stop may report fail, so let scan/escan/padv event don't
+	take all queue space, leave 1 to let other event have chance to be reported */
+	if (RTK_BT_LE_GP_GAP == p_evt->group &&
+		(RTK_BT_LE_GAP_EVT_SCAN_RES_IND == p_evt->evt ||
+		 RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND == p_evt->evt ||
+		 RTK_BT_LE_GAP_EVT_PA_ADV_REPORT_IND == p_evt->evt)) {
+		if (osif_msg_queue_peek(g_evt_queue, &msg_num) && msg_num >= (EVENT_NUM - 1)) {
+			ret = RTK_BT_ERR_QUEUE_FULL;
+			goto end;
+		}
 	}
 	if (false == osif_msg_send(g_evt_queue, &evt, BT_TIMEOUT_NONE)) {
 		ret = RTK_BT_ERR_OS_OPERATION;
 	}
 
 end:
-	flags = osif_lock();
-	event_task_msg_num--;
-	osif_unlock(flags);
-
 	if (ret) {
 		rtk_bt_event_free(evt);
 	}

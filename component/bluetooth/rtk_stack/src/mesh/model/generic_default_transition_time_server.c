@@ -31,7 +31,7 @@ static mesh_msg_send_cause_t generic_default_transition_time_stat(mesh_model_inf
     ACCESS_OPCODE_BYTE(msg.opcode, MESH_MSG_GENERIC_DEFAULT_TRANSITION_TIME_STAT);
     msg.trans_time = trans_time;
 
-    mesh_msg_t mesh_msg;
+    mesh_msg_t mesh_msg = {0};
     mesh_msg.pmodel_info = pmodel_info;
     access_cfg(&mesh_msg);
     mesh_msg.pbuffer = (uint8_t *)&msg;
@@ -129,7 +129,7 @@ static bool generic_default_transition_time_server_receive(mesh_msg_p pmesh_msg)
 static int32_t generic_default_transition_time_server_publish(mesh_model_info_p pmodel_info,
                                                               bool retrans)
 {
-	(void) retrans;
+    UNUSED(retrans);
     generic_default_transition_time_stat(pmodel_info, 0, 0, get_present_transition_time(pmodel_info));
     return 0;
 }

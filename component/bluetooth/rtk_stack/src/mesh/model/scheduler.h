@@ -51,11 +51,11 @@ BEGIN_DECLS
   * @{
   */
 
-#define IS_SCHEDULER_INDEX_VALID(index)     ((index <= 15))
+#define IS_SCHEDULER_INDEX_VALID(index)     ((index) <= 15)
 
 /* scheduler year */
 #define SCHEDULER_EVERY_YEAR                0x64
-#define IS_SCHEDULER_YEAR_VALIE(year)       ((year) <= 0x64)
+#define IS_SCHEDULER_YEAR_VALID(year)       ((year) <= 0x64)
 
 /* scheduler month */
 #define SCHEDULER_IN_JANUARY                (1 << 0)
@@ -66,7 +66,7 @@ BEGIN_DECLS
 #define SCHEDULER_IN_JUNE                   (1 << 5)
 #define SCHEDULER_IN_JULY                   (1 << 6)
 #define SCHEDULER_IN_AUGUST                 (1 << 7)
-#define SCHEDULER_IN_SETEMBER               (1 << 8)
+#define SCHEDULER_IN_SEPTEMBER              (1 << 8)
 #define SCHEDULER_IN_OCTOBER                (1 << 9)
 #define SCHEDULER_IN_NOVEMBER               (1 << 10)
 #define SCHEDULER_IN_DECEMBER               (1 << 11)

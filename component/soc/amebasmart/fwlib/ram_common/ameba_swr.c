@@ -13,7 +13,7 @@
 * @brief SWR driver modules
 * @{
 */
-static const char *TAG = "SWR";
+static const char *const TAG = "SWR";
 
 /** @defgroup SWR_Exported_Functions SWR Exported Functions
   * @{
@@ -41,7 +41,7 @@ u32 SWR_MEM(u32 NewState)
 		/* 1.35v for DDR3L, 1.8v for psram and DDR2 */
 		swr->SWR_ON_CTRL2 &= (~SWR_MASK_REG_PWM_VREF_SEL);
 		swr->SWR_ON_CTRL0 &= (~SWR_MASK_VREFPFM_L);
-		if (ChipInfo_DDRType() == DDR_Type_DDR3L) {
+		if (ChipInfo_DDRType() == MCM_DDR3L) {
 			swr->SWR_ON_CTRL2 |= DDR3L_Vol;
 			swr->SWR_ON_CTRL0 |= SWR_VREFPFM_L(DDR3L_Vol_PFM);
 		} else {
@@ -295,6 +295,24 @@ u32 SWR_AUDIO_Mode_Set(u32 SWR_Mode)
 }
 
 /**
+  * @brief  Get core swr mode.
+  * @retval swr mode.
+  *   swr mode shows as follows:
+  *            - SWR_PWM : PWM mode
+  *            - SWR_PFM : PFM mode
+  */
+u32 SWR_Mode_Get(void)
+{
+	REGU_TypeDef *regu = REGU_BASE;
+
+	if (regu->REGU_POWER_CTRL & REGU_BIT_SYS_PWM_REQ) {
+		return SWR_PWM;
+	} else {
+		return SWR_PFM;
+	}
+}
+
+/**
   * @brief  set Core mode req from sys
   * @param  MODE: ENABLE PFM, DISABLE PWM
   * @retval None.
@@ -306,16 +324,20 @@ void SWR_PFM_MODE_Set(u32 MODE)
 	REGU_TypeDef *regu = REGU_BASE;
 	temp = regu->REGU_POWER_CTRL;
 
-	if (MODE && (SWR_PWM == SWR_MEM_Mode_Get())) {
+	if (MODE && (SWR_PWM == SWR_Mode_Get())) {
 		if (SWR_In_BST_MODE()) {
 			RTK_LOGE(TAG, "In BST mode Now, goto Normal mode First !\n");
 			return;
 		}
+		SOCPS_SetReguOCP(ENABLE);
+		/*After enabling OCP, it takes 100us to take effect before switching to PFM mode.*/
+		DelayUs(100);
 		temp &= (~(REGU_BIT_SYS_PWM_REQ));
 		regu->REGU_POWER_CTRL = temp;
-	} else if ((!MODE) && (SWR_PFM == SWR_MEM_Mode_Get())) {
+	} else if ((!MODE) && (SWR_PFM == SWR_Mode_Get())) {
 		temp |= (REGU_BIT_SYS_PWM_REQ);
 		regu->REGU_POWER_CTRL = temp;
+		SOCPS_SetReguOCP(DISABLE);
 	}
 	return;
 }

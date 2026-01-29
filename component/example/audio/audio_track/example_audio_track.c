@@ -26,21 +26,21 @@
 //to use pll for audio playback in ameba_audio_hw_usrcfg.h.
 #define TEST_TIMESTAMP         0
 
-#define EXAMPLE_AUDIO_DEBUG(fmt, args...)    printf("=> D/AudioTrackExample:[%s]: " fmt "\n", __func__, ## args)
-#define EXAMPLE_AUDIO_ERROR(fmt, args...)    printf("=> E/AudioTrackExample:[%s]: " fmt "\n", __func__, ## args)
+#define EXAMPLE_AUDIO_DEBUG(fmt, args...)    RTK_LOGA("TrackDemo", "[%s]: " fmt "\n", __func__, ## args)
+#define EXAMPLE_AUDIO_ERROR(fmt, args...)    RTK_LOGA("TrackDemo", "[%s]: " fmt "\n", __func__, ## args)
 
 #define  RTAUDIO_TRACK_DEBUG_HEAP_BEGIN() \
 	unsigned int heap_start;\
 	unsigned int heap_end;\
 	unsigned int heap_min_ever_free;\
-	printf("=> I/AudioTrackExample:[Mem] mem debug info init \n");\
+	RTK_LOGA("TrackDemo", "[Mem] mem debug info init \n");\
 	heap_start = rtos_mem_get_free_heap_size()
 
 #define  RTAUDIO_TRACK_DEBUG_HEAP_END() \
     heap_end = rtos_mem_get_free_heap_size();\
 	heap_min_ever_free = rtos_mem_get_minimum_ever_free_heap_size();\
-	printf("=> I/AudioTrackExample:[Mem] start (0x%x), end (0x%x), \n", heap_start, heap_end);\
-	printf("=> I/AudioTrackExample: diff (%d), peak (%d) \n", heap_start - heap_end, heap_start - heap_min_ever_free)
+	RTK_LOGA("TrackDemo", "[Mem] start (0x%x), end (0x%x), \n", heap_start, heap_end);\
+	RTK_LOGA("TrackDemo", "diff (%d), peak (%d) \n", heap_start - heap_end, heap_start - heap_min_ever_free)
 
 static uint32_t  g_track_rate = 16000;
 static uint32_t  g_track_channel = 2;
@@ -50,10 +50,12 @@ static uint32_t  g_write_frames_one_time = 1024;
 /* pcm frequency in Hz */
 static double    g_freq = 1000;
 static uint32_t  g_generate_cnt = 0;
+static float     g_vol = 0.6;
+static uint32_t  g_mute = 0;
 
 static struct RTAudioTrack *g_audio_track = NULL;
 
-int32_t g_gain = 15;
+int32_t g_gain = -800;
 #if LITTLEFS_RAW
 #include <fcntl.h>
 static int s_lfs_fd = 0;
@@ -256,7 +258,7 @@ void play_sample(uint32_t channels, uint32_t rate, uint32_t bits, uint32_t perio
 		return;
 	}
 
-	track_buf_size = RTAudioTrack_GetMinBufferBytes(audio_track, RTAUDIO_CATEGORY_MEDIA, rate, format, channels) * 4;
+	track_buf_size = RTAudioTrack_GetMinBufferBytes(audio_track, RTAUDIO_CATEGORY_MEDIA, rate, format, channels) * 16;
 	RTAudioTrackConfig  track_config;
 	track_config.category_type = RTAUDIO_CATEGORY_MEDIA;
 	track_config.sample_rate = rate;
@@ -272,12 +274,9 @@ void play_sample(uint32_t channels, uint32_t rate, uint32_t bits, uint32_t perio
 	test_eq(&audio_equalizer);
 #endif
 
-	/*set dac hardware volume, if you want to test this demo's sine from oscilloscope, better set 0.956*/
-#if TEST_DELAY
-	RTAudioControl_SetHardwareVolume(0.956, 0.956);
-#endif
 	/*for mixer version, this mean sw volume, for passthrough version, sw volume is not supported*/
 	RTAudioTrack_SetVolume(audio_track, 1.0, 1.0);
+	RTAudioControl_SetHardwareVolume(g_vol, g_vol);
 
 	RTAudioTrack_SetStartThresholdBytes(audio_track, track_buf_size);
 	track_start_threshold = RTAudioTrack_GetStartThresholdBytes(audio_track);
@@ -305,11 +304,6 @@ void play_sample(uint32_t channels, uint32_t rate, uint32_t bits, uint32_t perio
 
 #if SINE_GEN_EVERY_TIME
 		generate_sine(sine_buf, sine_frames_count, rate, channels, bits, &phase);
-		if (g_generate_cnt >= 1000 && g_generate_cnt % 1000 == 0) {
-			g_freq -= 1000;
-		} else if (g_generate_cnt >= 500 && g_generate_cnt % 500 == 0) {
-			g_freq += 1000;
-		}
 #else
 		if (g_generate_cnt < 1) {
 			generate_sine(sine_buf, sine_frames_count, rate, channels, bits, &phase);
@@ -371,6 +365,9 @@ void play_sample(uint32_t channels, uint32_t rate, uint32_t bits, uint32_t perio
 	RTAudioTrack_Stop(audio_track);
 	RTAudioTrack_Destroy(audio_track);
 
+	bool muted = RTAudioControl_GetAmplifierMute();
+	EXAMPLE_AUDIO_DEBUG("amp muted:%d", muted);
+
 #if DUMP_ENABLE
 	if (dump_buffer) {
 		free(dump_buffer);
@@ -413,8 +410,13 @@ void example_audio_track_thread(void *param)
 	rtos_time_delay_ms(5 * RTOS_TICK_RATE_HZ);
 #endif
 
-	play_sample(g_track_channel, g_track_rate, g_track_format, g_write_frames_one_time);
-	rtos_time_delay_ms(2 * RTOS_TICK_RATE_HZ);
+	while (1) {
+
+		play_sample(g_track_channel, g_track_rate, g_track_format, g_write_frames_one_time);
+
+		rtos_time_delay_ms(2000);
+
+	}
 
 #if LITTLEFS_RAW
 	if (s_lfs_fd > 0) {
@@ -525,27 +527,84 @@ void example_audio_track(char **argv)
 			if (*argv) {
 				g_gain = atoi(*argv);
 			}
+		} else if (strcmp(*argv, "-v") == 0) {
+			argv++;
+			if (*argv) {
+				g_vol = atof(*argv);
+			}
+		} else if (strcmp(*argv, "-m") == 0) {
+			argv++;
+			if (*argv) {
+				g_mute = atoi(*argv);
+			}
 		}
 		if (*argv) {
 			argv++;
 		}
 	}
 
-	if (rtos_task_create(NULL, ((const char *)"example_audio_track_thread"), example_audio_track_thread, NULL, 8192 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_audio_track_thread"), example_audio_track_thread, NULL, 8192 * 6, 1) != RTK_SUCCESS) {
 		EXAMPLE_AUDIO_ERROR("error: rtos_task_create(example_audio_track_thread) failed");
 	}
 
 #if TEST_TIMESTAMP
-	if (rtos_task_create(NULL, ((const char *)"example_audio_counter_time"), example_audio_counter_time, NULL, 8192 * 4, 1) != SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"example_audio_counter_time"), example_audio_counter_time, NULL, 8192 * 4, 1) != RTK_SUCCESS) {
 		EXAMPLE_AUDIO_ERROR("error: rtos_task_create(example_audio_counter_time) failed");
 	}
 #endif
 }
 
 u32 example_track_test(u16 argc, unsigned char **argv)
-
 {
 	(void) argc;
 	example_audio_track((char **)argv);
-	return _TRUE;
+	return TRUE;
+}
+
+void example_track_control_thread(void *param)
+{
+	(void) param;
+	RTAudioControl_SetHardwareVolume(g_vol, g_vol);
+	RTAudioControl_SetAmplifierMute(g_mute);
+
+	float left, right;
+	bool muted;
+
+	RTAudioControl_GetHardwareVolume(&left, &right);
+	muted = RTAudioControl_GetAmplifierMute();
+	EXAMPLE_AUDIO_DEBUG("amp vol:%f %f, muted:%d", left, right, muted);
+
+	rtos_task_delete(NULL);
+}
+
+void example_track_control(char **argv)
+{
+	/* parse command line arguments */
+	while (*argv) {
+		if (strcmp(*argv, "-v") == 0) {
+			argv++;
+			if (*argv) {
+				g_vol = atof(*argv);
+			}
+		} else if (strcmp(*argv, "-m") == 0) {
+			argv++;
+			if (*argv) {
+				g_mute = atoi(*argv);
+			}
+		}
+		if (*argv) {
+			argv++;
+		}
+	}
+
+	if (rtos_task_create(NULL, ((const char *)"example_track_control_thread"), example_track_control_thread, NULL, 8192 * 6, 1) != RTK_SUCCESS) {
+		EXAMPLE_AUDIO_ERROR("error: rtos_task_create(example_track_control_thread) failed");
+	}
+}
+
+u32 example_track_control_test(u16 argc, unsigned char **argv)
+{
+	(void) argc;
+	example_track_control((char **)argv);
+	return TRUE;
 }

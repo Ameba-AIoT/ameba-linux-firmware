@@ -7,17 +7,9 @@
 #ifndef _AMEBA_OTA_H_
 #define _AMEBA_OTA_H_
 
-#include "amebahp_secure_boot.h"
-#if defined(CONFIG_MBED_TLS_ENABLED) && (CONFIG_MBED_TLS_ENABLED == 1)
-#include <mbedtls/config.h>
-#include <mbedtls/platform.h>
-#include <mbedtls/net_sockets.h>
-#include <mbedtls/ssl.h>
-
-#define HTTPS_OTA_UPDATE
-#endif
-
-#define HTTP_OTA_UPDATE
+#include "ameba_secure_boot.h"
+#include "mbedtls/net_sockets.h"
+#include "mbedtls/ssl.h"
 
 /** @addtogroup Ameba_Platform
   * @{
@@ -25,20 +17,9 @@
 #define OTA_CLEAR_PATTERN	0
 
 #define BUF_SIZE			2048								/*the size of the buffer used for receiving firmware data from server*/
-#define SD_OTA_BUF_SIZE		512
 #define HEADER_BAK_LEN		32
 #define HEADER_LEN			8
 #define SUB_HEADER_LEN		24
-
-#if defined(CONFIG_AS_INIC_AP) || defined(CONFIG_SINGLE_CORE_WIFI)
-#include "ff.h"
-#include "vfs_fatfs.h"
-
-#define SDCARD_OTA_UPDATE
-// larger _MAX_SS would accelerate the OTA procedure
-#undef SD_OTA_BUF_SIZE
-#define SD_OTA_BUF_SIZE 	_MAX_SS
-#endif
 
 /* Exported constants --------------------------------------------------------*/
 
@@ -48,19 +29,24 @@
 /** @defgroup OTA_system_parameter_definitions
   * @{
   */
-#define MAX_IMG_NUM			2
 
 #define OTA_IMGID_BOOT		0
 #define OTA_IMGID_APP		1
 #define OTA_IMGID_APIMG		2
 #define OTA_IMGID_MAX		3
 
-#define OTA_IMAG			0								/*identify the OTA image*/
+#define MAX_IMG_NUM			2
 
-#define OTA_LOCAL			0
+/* OTA download type */
+#define OTA_USER			0
 #define OTA_HTTP			1
 #define OTA_HTTPS			2
-#define OTA_SDCARD			3
+#define OTA_VFS				3
+
+/* OTA download status */
+#define OTA_RET_ERR			-1
+#define OTA_RET_OK			0
+#define OTA_RET_FINISH		1
 
 /**
   * @}
@@ -160,7 +146,8 @@ typedef struct {
 	u8 SigFg;		/*!< Specifies the Flag that Manifest received finished. */
 	u8 SkipBootOTAFg;	/*!< Specifies the Flag that skip update the bootloader. */
 	u8 FirstBufFg;		/*!< Specifies the Flag that exist a buffer before downloading. */
-	u8 IsGetHdr;		/*!< Specifies the Flag that get ota target header. */
+	u8 IsGetOTAHdr;		/*!< Specifies the Flag that get ota target header. */
+	u8 IsDnldInit;		/*!< Specifies the Flag that download initialize. */
 	u8 targetIdx;		/*!< Specifies the ota target index. */
 	int index;			/*!< Specifies the current image index. */
 } update_ota_ctrl_info;
@@ -169,27 +156,12 @@ typedef struct {
   * @brief  OTA ssl structure definition
   */
 typedef struct {
-#ifdef HTTPS_OTA_UPDATE
 	mbedtls_ssl_context ssl;
 	mbedtls_ssl_config conf;
-#else
-	void *ssl;
-	void *conf;
-#endif
+	mbedtls_x509_crt ca;
+	mbedtls_x509_crt cert;
+	mbedtls_pk_context key;
 } update_tls;
-
-/**
-  * @brief  OTA sdcard structure definition
-  */
-typedef struct {
-#ifdef SDCARD_OTA_UPDATE
-	FATFS fs;
-	FIL file;
-#endif
-	int offset;			/* file read offset is used for f_lseek  */
-	int drv_num;
-	char logical_drv[4]; /* root diretor */
-} update_sdcard;
 
 /**
   * @brief  OTA http redirect connection structure definition
@@ -202,6 +174,8 @@ typedef struct {
 	char *resource;
 } update_redirect_conn;
 
+typedef void (*ota_progress_cb_t)(int percent);
+
 /**
   * @brief  OTA context structure definition
   */
@@ -209,14 +183,16 @@ typedef struct {
 	char *host;
 	int port;
 	char *resource;
+	char *ca_cert;
+	char *client_cert;
+	char *private_key;
 	int fd;
 	u8 type;
-	int buflen;
 	update_tls *tls;
-	update_sdcard *sdcard;
 	update_ota_ctrl_info *otactrl;
 	update_redirect_conn *redirect;
 	update_ota_target_hdr *otaTargetHdr;
+	ota_progress_cb_t progress_cb;
 } ota_context;
 
 
@@ -230,6 +206,8 @@ u32 ota_update_manifest(update_ota_target_hdr *pOtaTgtHdr, u32 ota_target_index,
 int ota_update_init(ota_context *ctx, char *host, int port, char *resource, u8 type);
 void ota_update_deinit(ota_context *ctx);
 int ota_update_start(ota_context *ctx);
+int ota_update_fw_program(ota_context *ctx, u8 *buf, u32 len);
+int ota_update_register_progress_cb(ota_context *ctx, ota_progress_cb_t cb);
 
 #define OTA_GET_FWVERSION(address) \
 	(HAL_READ16(SPI_FLASH_BASE, address + 22) << 16) | HAL_READ16(SPI_FLASH_BASE, address + 20)

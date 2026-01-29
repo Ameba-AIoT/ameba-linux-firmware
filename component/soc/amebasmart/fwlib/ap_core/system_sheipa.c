@@ -28,7 +28,8 @@ uint64_t vGetGenericTimerFreq(void)
 	if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
 		return 12500000;
 	} else {
-		return 50000000;
+		/* Systick clock source is APB clock, which is half of AHB clock */
+		return PLL_GetHBUSClk() / 2;
 	}
 }
 
@@ -50,6 +51,8 @@ void prvSetupHardware(void)
 		smp_init();
 	}
 #endif
+	HAL_WRITE8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW,
+			   HAL_READ8(SYSTEM_CTRL_BASE_LP, REG_LSYS_AP_STATUS_SW) | LSYS_BIT_AP_RUNNING);
 }
 
 #if ( configNUM_CORES > 1 )
@@ -215,7 +218,7 @@ void vRegisterIRQHandler(uint32_t ulID, ISRCallback_t pxHandler, void *pvContext
 }
 /*-----------------------------------------------------------*/
 
-void vApplicationIRQHandler(void)
+void vApplicationFPUSafeIRQHandler(void)
 {
 	uint32_t ulInterruptStat, ulInterruptID;
 	UBaseType_t ulCoreID = 0;

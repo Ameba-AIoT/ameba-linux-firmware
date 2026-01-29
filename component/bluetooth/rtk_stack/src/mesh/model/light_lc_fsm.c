@@ -61,7 +61,7 @@ static bool light_lc_mode_on_action(uint32_t state)
 
 static bool light_lc_mode_off_action(uint32_t state)
 {
-	(void) state; //avoid warning
+    UNUSED(state);
     plt_timer_stop(lc_fsm_ctx.lc_timer, 0);
     if (lc_fsm_ctx.lc_action)
     {
@@ -436,7 +436,7 @@ uint32_t light_lc_time_get(light_lc_time_type_t type)
 
 void light_lc_fsm_handle_timeout(void *ptimer)
 {
-	(void) ptimer; //avoid warning
+    UNUSED(ptimer);
     light_lc_fsm_handle_event(LIGHT_LC_EVENT_TIMER_OFF);
 }
 

@@ -131,7 +131,7 @@ static bool private_lc3_codec_init(PAUDIO_CODEC_ENTITY p_entity, rtk_bt_le_audio
 	}
 	p_entity->lc3.p_lc3_t = (void *)p_codec_t;
 
-	return _SUCCESS;
+	return true;
 
 fail:
 	if (p_codec_t) {
@@ -154,7 +154,7 @@ fail:
 	p_entity->lc3.audio_channel_allocation = 0;
 	p_entity->lc3.compress_bytes = 0;
 
-	return _FAIL;
+	return false;
 }
 
 static void private_lc3_codec_deinit(PAUDIO_CODEC_ENTITY p_entity)
@@ -231,10 +231,18 @@ uint16_t lc3_decoder_process_data(void *p_entity, uint8_t *data, uint32_t size, 
 		return RTK_BT_AUDIO_FAIL;
 	}
 	/* --- Decoding loop --- */
-	for (uint32_t ich = 0; ich < entity->lc3.channels; ich ++) {
-		lc3_decode(p_codec_t->dec[ich],
-				   data + ich * frame_bytes, frame_bytes,
-				   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
+	if (!data) {
+		for (uint32_t ich = 0; ich < entity->lc3.channels; ich ++) {
+			lc3_decode(p_codec_t->dec[ich],
+					   NULL, frame_bytes,
+					   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
+		}
+	} else {
+		for (uint32_t ich = 0; ich < entity->lc3.channels; ich ++) {
+			lc3_decode(p_codec_t->dec[ich],
+					   data + ich * frame_bytes, frame_bytes,
+					   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
+		}
 	}
 	decode_buffer->pbuffer = pout;
 	decode_buffer->total_size = entity->lc3.channels * frame_samples * pcm_sbytes;

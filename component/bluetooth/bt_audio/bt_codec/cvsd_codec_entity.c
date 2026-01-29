@@ -42,15 +42,15 @@ static uint16_t cvsd_encoder_process_data(void *p_entity, int16_t *data, uint32_
 {
 	(void)p_entity;
 
-	if (size > CVSD_FRAME_SIZE / 2) {
+	if (size > CVSD_FRAME_SIZE) {
 		BT_LOGE("%s : inpute size is large than 256 \r\n", __func__);
 		return 1;
 	}
 	pencoder_buffer->pbuffer = (uint8_t *)data;
 	pencoder_buffer->frame_num = 1;
-	pencoder_buffer->frame_size = size * 2;
+	pencoder_buffer->frame_size = size;
 	*p_frame_num = 1;
-	*p_actual_len = size * 2;
+	*p_actual_len = size;
 
 	return 0;
 }
@@ -82,7 +82,7 @@ static uint16_t cvsd_audio_handle_media_data_packet(void *p_entity, uint8_t *pac
 	*pcodec_header_flag = 0;
 	paudio_param->channels = cvsd_codec_t.decoder_t.channel_num;
 	paudio_param->channel_allocation = 1;
-	paudio_param->rate = cvsd_codec_t.decoder_t.sample_rate;;
+	paudio_param->rate = cvsd_codec_t.decoder_t.sample_rate;
 	paudio_param->bits = 16;
 
 	return 0;

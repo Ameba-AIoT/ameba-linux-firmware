@@ -31,7 +31,7 @@
 #define IMAGE3_ENTRY_SECTION				SECTION(".image3.nsc_entry.text")
 
 // Define Non-Cacheable region
-#define SRAM_NOCACHE_DATA_SECTION			SECTION(".ncsram.data")
+#define SRAM_NOCACHE_DATA_SECTION			SECTION(".nocache.data")
 
 #define TIMESENSITIVE_TEXT_SECTION			SECTION(".timesensitive.text")
 #define TIMESENSITIVE_DATA_SECTION			SECTION(".timesensitive.data")
@@ -45,6 +45,8 @@
 /* sram only used in pmc flow, such as deepsleep entry when flash deep down or after psram disabled */
 #define SRAM_ONLY_TEXT_SECTION				SECTION(".sram.only.text")
 #define SRAM_ONLY_DATA_SECTION				SECTION(".sram.only.data")
+
+#define SRAM_WLAN_CRITICAL_CODE_SECTION
 
 // Wlan Section(Not Used)
 #define WLAN_ROM_TEXT_SECTION

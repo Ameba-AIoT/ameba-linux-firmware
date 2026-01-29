@@ -12,12 +12,14 @@
 #include <rtk_bt_device.h>
 #include <rtk_bt_common.h>
 #include <bt_api_config.h>
+#include <rtk_bt_le_gap.h>
 #include <rtk_bt_br_gap.h>
 #include <rtk_bt_sdp.h>
 #include <rtk_bt_avrcp.h>
 #include <rtk_bt_a2dp.h>
 #include <rtk_bt_hfp.h>
 #include <bt_audio_intf.h>
+#include <bt_audio_noise_cancellation.h>
 #include <bt_audio_track_api.h>
 #include <bt_audio_record_api.h>
 #include <app_audio_data.h>
@@ -26,6 +28,19 @@
 #include "kv.h"
 #include <dlist.h>
 #include <bt_utils.h>
+#include <bt_audio_resample.h>
+
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+#define AUDIO_RECORD_CHANNELS (2) /* 1 channel for audio source, another for AEC */
+#define MAX_RECORD_FRAME_SAMPLES_PER_CHANNLE (256)
+#else
+#define AUDIO_RECORD_CHANNELS (1)
+#define MAX_RECORD_FRAME_SAMPLES_PER_CHANNLE (60)
+#endif
+/* this parameter will calculate samples per channel from RTK_BT_HFP_EVT_SCO_CONN_CMPL codec configuration and
+will be used during transmit and recording flow */
+static int record_frame_samples_per_channel = 0;
+#define BT_ENCODE_FRAME_BYTES (120)
 
 /* -------------------------------- Defines --------------------------------- */
 #define RTK_BT_DEV_NAME "RTK_BT_AUDIO_DEV"
@@ -39,6 +54,8 @@
 #define RTK_BT_A2DP_SRC_STREAM_MAX_CREDITS   2
 #define RTK_BT_DEMO_RECONNECT_TIMER_INTERVAL 5000
 #define RTK_BT_DEMO_RECONNECT_COUNT          3
+#define RTK_BT_A2DP_SRC_DEMO_MAX_SEND_DATA_SIZE (8 * 16 * 2 * SBC_MAX_NUM_FRAME) * (48000 / 16000) // the maximum sbc input pcm size (int16_t) (MAX_SUBBANDS * MAX_BLOCKS * MAX_NUM * SBC_MAX_NUM_FRAME)
+// 48000 / 16000 means the max ratio for sbc
 
 /* ------------------------------- Company ID ------------------------------- */
 #define RTK_COMPANY_ID 0x005D
@@ -51,12 +68,32 @@ static uint8_t curr_volume = RTK_BT_DEFAULT_ABSOLUTE_VOLUME;
 
 /* ---------------------------- Static Variables ---------------------------- */
 static uint8_t bt_audio_demo_init_flag = 0;
-static bool app_a2dp_src_send_flag = false;
 static void *alert_timer = NULL;
 static void *alert_track_hdl = NULL;
 static rtk_bt_audio_track_t *a2dp_demo_audio_track_hdl = NULL;
 static rtk_bt_audio_track_t *hfp_demo_audio_track_hdl = NULL;
 static rtk_bt_audio_record_t *hfp_demo_audio_record_hdl = NULL;
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+static rtk_bt_audio_record_config_table_t hfp_demo_audio_record_table = {
+	.strs = NULL,
+	.mic_type = RTK_BT_AUDIO_AMIC,
+	.record_nums = (uint8_t)AUDIO_RECORD_CHANNELS,
+	{
+		/* 1 record */
+		{
+			.mic_channel_index = 0,
+			.mic_category = RTK_BT_AUDIO_AMIC1,
+			.gain = RTK_BT_AUDIO_MICBST_GAIN_0DB
+		},
+		/* 2 record */
+		{
+			.mic_channel_index = 1,
+			.mic_category = RTK_BT_AUDIO_AMIC5,
+			.gain = RTK_BT_AUDIO_MICBST_GAIN_0DB
+		}
+	}
+};
+#endif
 static void *a2dp_demo_codec_entity = NULL;
 static void *hfp_demo_codec_entity = NULL;
 static uint8_t hfp_demo_role;
@@ -67,22 +104,48 @@ static uint8_t battery_power = RTK_BT_HFP_DEMO_DEFAULT_BATTERY_POWER_LEVEL;
 static uint8_t remote_bd_addr[6] = {0};
 static uint8_t call_curr_status = 0;
 /* class of device */
-static uint32_t cod = (0x18 | (0x04 << 8) | (0x24 << 16));
+static uint32_t cod_for_snk = (0x04 | (0x04 << 8) | (0x24 <<
+													 16)); // MAJOR_DEVICE_CLASS_AUDIO + MINOR_DEVICE_CLASS_HEADSET + SERVICE_CLASS_AUDIO + SERVICE_CLASS_RENDERING
+static uint32_t cod_for_src = (0x0C | (0x02 << 8) | (0x64 <<
+													 16)); // MINOR_DEVICE_CLASS_SMART_PHONE + MAJOR_DEVICE_CLASS_PHONE + SERVICE_CLASS_AUDIO + SERVICE_CLASS_RENDERING
 /* supervision_timeout */
 static uint16_t superv_time = (0x1f40);
 static uint16_t sco_seq_num = 0;
+static float hw_volume = 0.7;
+static uint16_t src_a2dp_send_data_size = 0; // unit is sizeof(int16_t)
 static rtk_bt_audio_codec_conf_t audio_a2dp_codec_conf = {0};
 static rtk_bt_audio_codec_conf_t audio_hfp_codec_conf = {0};
+static uint32_t demo_in_rate = 48000;
+static uint8_t demo_in_channels = 2;
+static rtk_bt_audio_biquad_t bq_t = {0};
+static rtk_bt_audio_resample_t *g_audio_resample_t = NULL;
+static uint32_t resample_out_frames, resample_in_frames;
 static rtk_bt_cvsd_codec_t cvsd_codec_t = {0};
 static rtk_bt_sbc_codec_t sbc_codec_t = {
 	{
-		.sbc_enc_mode = (sbc_channel_mode_t)SBC_MODE_STANDARD,
+		.sbc_enc_mode = (sbc_mode_t)SBC_MODE_STANDARD,
+		.sbc_pkt_num = SBC_MAX_NUM_FRAME,
 		.blocks = 16,
 		.subbands = 8,
 		.alloc_method = SBC_ALLOCATION_METHOD_SNR,
 		.sample_rate = 44100,
 		.bitpool = 0x21,
 		.channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL,
+		.frame_size = 0,
+	},
+	{0},
+};
+static rtk_bt_sbc_codec_t msbc_codec_t = {
+	{
+		.sbc_enc_mode = (sbc_mode_t)SBC_MODE_mSBC,
+		.sbc_pkt_num = 1,
+		.blocks = 15,
+		.subbands = 8,
+		.alloc_method = SBC_ALLOCATION_METHOD_LOUDNESS,
+		.sample_rate = 16000,
+		.bitpool = 26,
+		.channel_mode = SBC_CHANNEL_MODE_MONO,
+		.frame_size = 0,
 	},
 	{0},
 };
@@ -90,6 +153,7 @@ static rtk_bt_sbc_codec_t sbc_codec_t = {
 typedef struct {
 	uint16_t type;
 	uint16_t subtype;
+	uint8_t bd_addr[6];
 	union {
 		uint32_t  param;
 		void     *buf;
@@ -102,6 +166,12 @@ struct a2dp_demo_task_t {
 	uint8_t run;
 };
 
+#include "timer_api.h"
+#define A2DP_SEND_TIMER_ID TIMER13
+static gtimer_t bt_a2dp_demo_src_send_timer = {0};
+static bool bt_a2dp_demo_src_send_data_enable = false;
+static void *bt_a2dp_demo_src_send_sem = NULL;
+static uint32_t a2dp_src_data_send_interval_us = 0;
 static struct a2dp_demo_task_t a2dp_task = {
 	.hdl = NULL,
 	.sem = NULL,
@@ -119,7 +189,6 @@ static char a2dp_demo_filesystem_key[] = "a2dp_reconnect_data";
 /* Max bond number is unchangable */
 #define A2DP_DEMO_MAX_BOND_NUM 8
 #define A2DP_DEMO_BOND_INFO_USED_VAL 0x4E
-#define A2DP_DEMO_BOND_INFO_PRIORITY_UNASSIGNED 0x4F
 #define A2DP_DEMO_BOND_INFO_FLUSH_EVENT 0x01
 #define A2DP_DEMO_BOND_INFO_THREAD_EXIT 0xFF
 static char a2dp_demo_bond_info_key[] = "a2dp_bond_table";
@@ -137,6 +206,7 @@ typedef struct {
 	uint8_t             name_contained;                     /* check whether this unit contains name */
 	uint8_t             priority;                           /* bond info priority, range from 1~8, 1 is the highest */
 	uint8_t             used_check;                         /* check whether this unit is configured */
+	uint8_t             save_flag;                          /* indicate whether flash save action is need */
 } a2dp_demo_bond_info_t;
 static a2dp_demo_bond_info_t a2dp_demo_bond_table[A2DP_DEMO_MAX_BOND_NUM] = {0};
 
@@ -163,6 +233,21 @@ static rtk_bt_hfp_ag_indicators_status_t demo_ag_call_status_t = {
 	.roaming_indicator = RTK_BT_HFP_AG_ROAMING_STATUS_ACTIVE,
 	.batt_chg_indicator = 5,
 };
+
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+/* for noise cancellation */
+struct nc_task_t {
+	void *hdl;
+	void *sem;
+	uint8_t run;
+};
+
+static struct nc_task_t nc_task = {
+	.hdl = NULL,
+	.sem = NULL,
+	.run  = 0,
+};
+#endif
 
 /* for hfp hf client read record data */
 struct hfp_task_t {
@@ -920,61 +1005,57 @@ static rtk_bt_a2dp_media_codec_sbc_t codec_sbc = {
 
 static uint32_t pcm_offset = 0;
 static uint16_t a2dp_demo_send_data_seq = 0;
-
+static uint32_t demo_read_size = 0;
+static int16_t in_frame_buf[RTK_BT_A2DP_SRC_DEMO_MAX_SEND_DATA_SIZE] = {0};
+static int16_t out_frame_buf[RTK_BT_A2DP_SRC_DEMO_MAX_SEND_DATA_SIZE] = {0};
 static void app_a2dp_src_send_data(void)
 {
-	rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
+	static rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
 	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
 	short *pdata = NULL;
+	uint32_t out_frames = 0;
 
 	if (src_a2dp_credits) {
 		if (pcm_offset < (birds_sing_size / 2)) {
-			if (pcm_offset + 512 < birds_sing_size / 2) {
-				pdata = (short *)(birds_sing + pcm_offset);
-				penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, pdata, 1024);
-				if (penc_codec_buffer_t) {
-					memset((void *)&data_send_t, 0, sizeof(rtk_bt_a2dp_stream_data_send_t));
-					memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
-					data_send_t.seq_num = a2dp_demo_send_data_seq++;
-					data_send_t.frame_buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
-					data_send_t.frame_num = (uint8_t)penc_codec_buffer_t->frame_num;
-					data_send_t.time_stamp += data_send_t.frame_num * sbc_codec_t.encoder_t.subbands * sbc_codec_t.encoder_t.blocks;
-					data_send_t.len = (uint16_t)(penc_codec_buffer_t->frame_num * penc_codec_buffer_t->frame_size);
-					data_send_t.flush = false;
-					if (rtk_bt_a2dp_data_send(&data_send_t)) {
-						BT_LOGE("[A2DP] data send fail \r\n");
-					} else {
-						src_a2dp_credits --;
-					}
-					rtk_bt_audio_free_encode_buffer(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, penc_codec_buffer_t);
-				} else {
-					BT_LOGE("[A2DP SRC Demo]: Encode fail \r\n");
-				}
+			pdata = (short *)(birds_sing + pcm_offset);
+			if ((pcm_offset + (demo_read_size / 2)) < birds_sing_size / 2) {
+				out_frames = rtk_bt_audio_resample_entry(g_audio_resample_t, &bq_t,
+														 (uint8_t *)pdata,
+														 resample_in_frames,
+														 (uint8_t *)out_frame_buf,
+														 demo_in_rate,
+														 sbc_codec_t.encoder_t.sample_rate);
+				pcm_offset += (demo_read_size / 2);
 			} else {
-				pdata = (short *)(birds_sing + pcm_offset);
-				penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, pdata, ((birds_sing_size / 2) - pcm_offset) * 2);
-				if (penc_codec_buffer_t) {
-					memset((void *)&data_send_t, 0, sizeof(rtk_bt_a2dp_stream_data_send_t));
-					memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
-					data_send_t.seq_num = a2dp_demo_send_data_seq++;
-					data_send_t.frame_buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
-					data_send_t.frame_num = (uint8_t)penc_codec_buffer_t->frame_num;
-					data_send_t.time_stamp += data_send_t.frame_num * sbc_codec_t.encoder_t.subbands * sbc_codec_t.encoder_t.blocks;
-					data_send_t.len = (uint16_t)(penc_codec_buffer_t->frame_num * penc_codec_buffer_t->frame_size);
-					data_send_t.flush = false;
-					if (rtk_bt_a2dp_data_send(&data_send_t)) {
-						BT_LOGE("[A2DP] data send fail \r\n");
-					} else {
-						src_a2dp_credits --;
-					}
-					rtk_bt_audio_free_encode_buffer(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, penc_codec_buffer_t);
-				} else {
-					BT_LOGE("[A2DP SRC Demo]: Encode fail \r\n");
-				}
+				memset((void *)in_frame_buf, 0, demo_read_size);
+				memcpy((void *)in_frame_buf, (void *)pdata, ((birds_sing_size / 2) - pcm_offset) * 2);
+				out_frames = rtk_bt_audio_resample_entry(g_audio_resample_t, &bq_t,
+														 (uint8_t *)in_frame_buf,
+														 resample_in_frames,
+														 (uint8_t *)out_frame_buf,
+														 demo_in_rate,
+														 sbc_codec_t.encoder_t.sample_rate);
+				pcm_offset = 0;
 			}
-			pcm_offset += 512;
-		} else {
-			pcm_offset = 0;
+			penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, (int16_t *)out_frame_buf,
+														   out_frames * g_audio_resample_t->out_frame_size);
+			if (penc_codec_buffer_t) {
+				memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
+				data_send_t.seq_num = a2dp_demo_send_data_seq++;
+				data_send_t.frame_buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
+				data_send_t.frame_num = (uint8_t)penc_codec_buffer_t->frame_num;
+				data_send_t.time_stamp += data_send_t.frame_num * sbc_codec_t.encoder_t.subbands * sbc_codec_t.encoder_t.blocks;
+				data_send_t.len = (uint16_t)(penc_codec_buffer_t->frame_num * penc_codec_buffer_t->frame_size);
+				data_send_t.flush = false;
+				if (rtk_bt_a2dp_data_send(&data_send_t)) {
+					BT_LOGE("[A2DP] data send fail \r\n");
+				} else {
+					src_a2dp_credits --;
+				}
+				rtk_bt_audio_free_encode_buffer(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, penc_codec_buffer_t);
+			} else {
+				BT_LOGE("[A2DP SRC Demo]: Encode fail \r\n");
+			}
 		}
 	} else {
 		// BT_LOGE("[A2DP] waiting src_a2dp_credits \r\n");
@@ -984,17 +1065,29 @@ static void app_a2dp_src_send_data(void)
 static void a2dp_task_entry(void *ctx)
 {
 	(void)ctx;
+	a2dp_task.run = 1;
 	osif_sem_give(a2dp_task.sem);
 
 	while (a2dp_task.run) {
-		if (app_a2dp_src_send_flag) {
-			app_a2dp_src_send_data();
+		if (bt_a2dp_demo_src_send_sem) {
+			osif_sem_take(bt_a2dp_demo_src_send_sem, BT_TIMEOUT_FOREVER);
 		}
-		osif_delay(3);
+		app_a2dp_src_send_data();
 	}
 
 	osif_sem_give(a2dp_task.sem);
 	osif_task_delete(NULL);
+}
+
+static void bt_a2dp_demo_src_send_timer_handler(void *arg)
+{
+	(void)arg;
+
+	if (a2dp_task.run) {
+		if (bt_a2dp_demo_src_send_sem) {
+			osif_sem_give(bt_a2dp_demo_src_send_sem);
+		}
+	}
 }
 
 static a2dp_demo_bond_info_t *a2dp_demo_find_bond_info_by_mac_addr(uint8_t *bd_addr)
@@ -1059,16 +1152,44 @@ static a2dp_demo_bond_info_t *get_free_bond_table_unit(void)
 }
 
 /* once application modify bond info, this api should bt invoke to sync bond info table */
-static uint16_t a2dp_demo_flush_bond_info(uint8_t type)
+static uint16_t a2dp_demo_flush_bond_info(uint8_t type, uint8_t *bd_addr)
 {
 	a2dp_demo_msg_t io_msg;
-	io_msg.type = type;
 
+	io_msg.type = type;
+	if (bd_addr) {
+		memcpy(io_msg.bd_addr, bd_addr, 6);
+	}
 	if (false == osif_msg_send(a2dp_demo_bond_info_flush_msg_q, &io_msg, 0)) {
 		return 1;
 	}
 
 	return 0;
+}
+
+
+static void a2dp_demo_bond_info_dump(void)
+{
+	a2dp_demo_bond_info_t *pbond_info = NULL;
+
+	BT_LOGA("[A2DP Demo] Bond Info List\r\n");
+	for (uint8_t i = 0; i < a2dp_demo_bond_num; i ++) {
+		pbond_info = a2dp_demo_find_bond_info_by_priority(i + 1);
+		if (pbond_info && (pbond_info->used_check == A2DP_DEMO_BOND_INFO_USED_VAL)) {
+			BT_LOGA(">> %d. ", (int)(i + 1));
+			BT_LOGA(" mac addr %02x:%02x:%02x:%02x:%02x:%02x  ", pbond_info->bd_addr[5],
+					pbond_info->bd_addr[4],
+					pbond_info->bd_addr[3],
+					pbond_info->bd_addr[2],
+					pbond_info->bd_addr[1],
+					pbond_info->bd_addr[0]);
+			BT_LOGA(" name ");
+			if (pbond_info->name_contained) {
+				BT_LOGA(" %s", pbond_info->name);
+			}
+			BT_LOGA(" \r\n");
+		}
+	}
 }
 
 static void a2dp_demo_bond_flush_thread(void *ctx)
@@ -1083,7 +1204,7 @@ static void a2dp_demo_bond_flush_thread(void *ctx)
 
 	osif_sem_give(bond_info_flush_task.sem);
 	while (bond_info_flush_task.run) {
-		if (osif_msg_recv(a2dp_demo_bond_info_flush_msg_q, &io_msg, 0xFFFFFFFF) == true) {
+		if (osif_msg_recv(a2dp_demo_bond_info_flush_msg_q, &io_msg, BT_TIMEOUT_FOREVER) == true) {
 			if (A2DP_DEMO_BOND_INFO_THREAD_EXIT == io_msg.type) {
 				bond_info_flush_task.run = 0;
 				continue;
@@ -1095,20 +1216,24 @@ static void a2dp_demo_bond_flush_thread(void *ctx)
 				continue;
 			}
 			BT_LOGA("[A2DP Demo] Get Bond Number %d \r\n", temp_bond_num);
+			if (temp_bond_num > A2DP_DEMO_MAX_BOND_NUM) {
+				temp_bond_num = A2DP_DEMO_MAX_BOND_NUM;
+			}
 			/* 2. get bond mac address accord to bond number */
 			for (uint8_t i = 0; i < temp_bond_num; i ++) {
-				/* gap bond priority start frmo 1, so i + 1 */
+				/* gap bond priority start from 1, so i + 1 */
 				ret = rtk_bt_br_gap_bond_addr_get(i + 1, bd_addr);
 				if (ret) {
 					BT_LOGE("[A2DP Demo] Get bond addr failed! err: 0x%x", ret);
 					continue;
 				}
-				BT_LOGA("[A2DP Demo] Get Bond addr %02x:%02x:%02x:%02x:%02x:%02x \r\n",
-						bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
-				/* 3. sync with a2dp_demo_bond_table */
 				pbond_info = a2dp_demo_find_bond_info_by_mac_addr(bd_addr);
-				if (!pbond_info) {
-					/* allocate new bond info unit */
+				if (pbond_info) {
+					if (pbond_info->priority != (i + 1)) {
+						pbond_info->priority = i + 1;
+						need_save_bond_info = 1;
+					}
+				} else {
 					pbond_info = get_free_bond_table_unit();
 					if (!pbond_info) {
 						BT_LOGE("[A2DP Demo] Get free bond table unit fail \r\n");
@@ -1119,50 +1244,19 @@ static void a2dp_demo_bond_flush_thread(void *ctx)
 					pbond_info->priority = i + 1;
 					memset((void *)pbond_info->name, 0, RTK_BT_GAP_DEVICE_NAME_LEN);
 					need_save_bond_info = 1;
-					/* 4. try to fetch remote device name */
-					rtk_bt_br_gap_get_remote_name(bd_addr);
-				} else {
-					/* update bond info unit */
-					if (pbond_info->priority != (i + 1)) {
-						if (A2DP_DEMO_BOND_INFO_PRIORITY_UNASSIGNED != pbond_info->priority) {
-							a2dp_demo_bond_info_t *ptemp_bond_info = NULL;
-							/* get previous priority bond info unit */
-							ptemp_bond_info = a2dp_demo_find_bond_info_by_priority(i + 1);
-							if (ptemp_bond_info) {
-								/* this bond info should be mask for further configuration */
-								ptemp_bond_info->priority = A2DP_DEMO_BOND_INFO_PRIORITY_UNASSIGNED;
-							}
-						}
-						need_save_bond_info = 1;
-						pbond_info->priority = i + 1;
-					}
-					if (!pbond_info->name_contained) {
-						/* 4. try to fetch remote device name */
-						rtk_bt_br_gap_get_remote_name(bd_addr);
-					}
 				}
 			}
-			/* 5. Maybe the loweset priority bond unit is delete, which cannot be detected by step3 */
-			if (temp_bond_num < a2dp_demo_bond_num) {
-				for (uint8_t i = 0; i < (a2dp_demo_bond_num - temp_bond_num); i ++) {
-					pbond_info = a2dp_demo_find_bond_info_by_priority(temp_bond_num + i + 1);
-					if (pbond_info) {
-						memset((void *)pbond_info, 0, sizeof(a2dp_demo_bond_info_t));
-						need_save_bond_info = 1;
-					}
-				}
+			pbond_info = a2dp_demo_find_bond_info_by_mac_addr(io_msg.bd_addr);
+			if (pbond_info && !pbond_info->name_contained) {
+				rtk_bt_br_gap_get_remote_name(io_msg.bd_addr);
+			} else if (pbond_info && pbond_info->save_flag) {
+				need_save_bond_info = 1;
+				pbond_info->save_flag = 0;
 			}
-			/* 6. check whether need save a2dp_demo_bond_table */
 			if (need_save_bond_info) {
-				/* foreach table to check whether there is A2DP_DEMO_BOND_INFO_PRIORITY_UNASSIGNED bond unit(need to be deleted) */
-				for (uint8_t i = 0; i < A2DP_DEMO_MAX_BOND_NUM; i ++) {
-					if ((A2DP_DEMO_BOND_INFO_USED_VAL == a2dp_demo_bond_table[i].used_check) &&
-						(A2DP_DEMO_BOND_INFO_PRIORITY_UNASSIGNED == a2dp_demo_bond_table[i].priority)) {
-						memset((void *)&a2dp_demo_bond_table[i], 0, sizeof(a2dp_demo_bond_info_t));
-					}
-				}
 				if (rt_kv_set(a2dp_demo_bond_info_key, (void *)a2dp_demo_bond_table, sizeof(a2dp_demo_bond_table)) == sizeof(a2dp_demo_bond_table)) {
 					BT_LOGA("[A2DP Demo] Save a2dp demo bond info table success \r\n");
+					a2dp_demo_bond_info_dump();
 				} else {
 					BT_LOGE("[A2DP Demo] Fail to save a2dp demo bond info table \r\n");
 				}
@@ -1176,30 +1270,6 @@ static void a2dp_demo_bond_flush_thread(void *ctx)
 
 	osif_sem_give(bond_info_flush_task.sem);
 	osif_task_delete(NULL);
-}
-
-static void a2dp_demo_bond_info_dump(void)
-{
-	a2dp_demo_bond_info_t *pbond_info = NULL;
-
-	BT_LOGA("[A2DP Demo] Bond Info List\r\n");
-	for (uint8_t i = 0; i < a2dp_demo_bond_num; i ++) {
-		pbond_info = a2dp_demo_find_bond_info_by_priority(i + 1);
-		if (pbond_info) {
-			BT_LOGA(">> %d. ", (int)(i + 1));
-			BT_LOGA(" mac addr %02x:%02x:%02x:%02x:%02x:%02x ", pbond_info->bd_addr[5],
-					pbond_info->bd_addr[4],
-					pbond_info->bd_addr[3],
-					pbond_info->bd_addr[2],
-					pbond_info->bd_addr[1],
-					pbond_info->bd_addr[0]);
-			BT_LOGA(" name ");
-			if (pbond_info->name_contained) {
-				BT_LOGA(" %s", pbond_info->name);
-			}
-			BT_LOGA(" \r\n");
-		}
-	}
 }
 
 static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, uint32_t len)
@@ -1233,12 +1303,8 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 			if (pbond_info) {
 				memcpy((void *)pbond_info->name, (void *)p_name_rsp->name, RTK_BT_GAP_DEVICE_NAME_LEN);
 				pbond_info->name_contained = 1;
-				if (rt_kv_set(a2dp_demo_bond_info_key, (void *)a2dp_demo_bond_table, sizeof(a2dp_demo_bond_table)) == sizeof(a2dp_demo_bond_table)) {
-					BT_LOGA("[A2DP Demo] Save a2dp demo bond info table success \r\n");
-					a2dp_demo_bond_info_dump();
-				} else {
-					BT_LOGE("[A2DP Demo] Fail to save a2dp demo bond info table \r\n");
-				}
+				pbond_info->save_flag = 1;
+				a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT, p_name_rsp->bd_addr);
 			}
 		}
 		break;
@@ -1268,6 +1334,14 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		break;
 	}
 
+	case RTK_BT_BR_GAP_ACL_CONN_FAIL: {
+		rtk_bt_br_acl_conn_fail_t *p_fail_rsp = (rtk_bt_br_acl_conn_fail_t *)param;
+		BT_LOGA("[BR GAP] ACL connection fail with %02x:%02x:%02x:%02x:%02x:%02x, cause is 0x%x \r\n",
+				p_fail_rsp->bd_addr[5], p_fail_rsp->bd_addr[4], p_fail_rsp->bd_addr[3], p_fail_rsp->bd_addr[2], p_fail_rsp->bd_addr[1], p_fail_rsp->bd_addr[0],
+				p_fail_rsp->cause);
+		break;
+	}
+
 	case RTK_BT_BR_GAP_ACL_SNIFF: {
 		rtk_bt_br_acl_sniff_t *p_sniff = (rtk_bt_br_acl_sniff_t *)param;
 		BT_LOGA("[BR GAP] ACL sniff mode from %02x:%02x:%02x:%02x:%02x:%02x \r\n",
@@ -1286,11 +1360,11 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 	}
 
 	case RTK_BT_BR_GAP_LINK_KEY_REQ: {
-		uint8_t found = *(uint8_t *)param;
-		if (a2dp_demo_bond_info_flush && found) {
-			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT);
+		rtk_bt_br_link_key_req_t *p_link_key_req_t = (rtk_bt_br_link_key_req_t *)param;
+		if (a2dp_demo_bond_info_flush && p_link_key_req_t->found) {
+			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT, p_link_key_req_t->bd_addr);
 		}
-		BT_LOGA("[BR GAP] Link Key Request received and found is 0x%x \r\n", found);
+		BT_LOGA("[BR GAP] Link Key Request received and found is 0x%x \r\n", p_link_key_req_t->found);
 		break;
 	}
 
@@ -1298,10 +1372,24 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		rtk_bt_br_bond_key_t *pbond_key_t = (rtk_bt_br_bond_key_t *)param;
 		uint8_t *bd_addr = pbond_key_t->bd_addr;
 		if (a2dp_demo_bond_info_flush) {
-			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT);
+			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT, pbond_key_t->bd_addr);
 		}
 		BT_LOGA("[BR GAP] Set link key of %02x:%02x:%02x:%02x:%02x:%02x \r\n",
 				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_RSSI_INFO: {
+		rtk_bt_br_link_read_rssi_rsp *prssi_rsp_t = (rtk_bt_br_link_read_rssi_rsp *)param;
+		if (!prssi_rsp_t->cause) {
+			BT_LOGA("[BR GAP] Read rssi %d of %02x:%02x:%02x:%02x:%02x:%02x \r\n", prssi_rsp_t->rssi,
+					prssi_rsp_t->bd_addr[5], prssi_rsp_t->bd_addr[4], prssi_rsp_t->bd_addr[3],
+					prssi_rsp_t->bd_addr[2], prssi_rsp_t->bd_addr[1], prssi_rsp_t->bd_addr[0]);
+		} else {
+			BT_LOGA("[BR GAP] Read rssi fail, cause 0x%x, %02x:%02x:%02x:%02x:%02x:%02x \r\n", prssi_rsp_t->cause,
+					prssi_rsp_t->bd_addr[5], prssi_rsp_t->bd_addr[4], prssi_rsp_t->bd_addr[3],
+					prssi_rsp_t->bd_addr[2], prssi_rsp_t->bd_addr[1], prssi_rsp_t->bd_addr[0]);
+		}
 		break;
 	}
 
@@ -1334,9 +1422,6 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 				osif_timer_start(&reconnect_timer);
 			}
 		}
-		if (a2dp_demo_bond_info_flush) {
-			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_FLUSH_EVENT);
-		}
 		break;
 	}
 
@@ -1368,6 +1453,12 @@ static rtk_bt_evt_cb_ret_t rtk_bt_sdp_app_callback(uint8_t evt_code, void *param
 		break;
 	}
 
+	case RTK_BT_SDP_EVT_DISCOV_CMPL: {
+		rtk_sdp_discov_cmpl *p_info = (rtk_sdp_discov_cmpl *)param;
+		BT_LOGA("[SDP] discovery complete cause 0x%x \r\n", p_info->cause);
+		break;
+	}
+
 	default: {
 		BT_LOGE("%s, Unknown SDP RTK_BLE_EVT: %d\r\n", __func__, evt_code);
 		break;
@@ -1387,6 +1478,122 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		memcpy((void *)bd_addr, param, 6);
 		BT_LOGA("[AVRCP] Receive AVRCP connection from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_ELEMENT_ATTR_INFO: {
+		uint8_t temp_buff[50];
+		const char *attr[] = {"", "Title:", "Artist:", "Album:", "Track:",
+							  "TotalTrack:", "Genre:", "PlayingTime:", "CoverArt:"
+							 };
+		rtk_bt_avrcp_element_attr_info_t *p_attr_t = (rtk_bt_avrcp_element_attr_info_t *)param;
+
+		if (p_attr_t->state == 0) {
+			BT_LOGA("[AVRCP] Get element attr information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_attr_t->num_of_attr; i ++) {
+				if (p_attr_t->attr[i].length) {
+					memset((void *)temp_buff, 0, 50);
+					if (RTK_BT_AVRCP_ELEM_ATTR_DEFAULT_COVER_ART == p_attr_t->attr[i].attribute_id) {
+						uint8_t image_handle[16] = {0};
+						for (uint8_t j = 0; j < p_attr_t->attr[i].length; j++) {
+							image_handle[2 * j + 1] = p_attr_t->attr[i].p_buf[j];
+						}
+						BT_LOGA("[AVRCP] Get cover art image handle ");
+						for (uint8_t i = 0; i < 16; i ++) {
+							BT_LOGA(" 0x%02x ", image_handle[i]);
+						}
+						BT_LOGA("\r\n");
+						continue;
+					} else {
+						uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
+						snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
+						BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+					}
+					osif_mem_free(p_attr_t->attr[i].p_buf);
+				}
+			}
+		} else {
+			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
+		}
+		if (p_attr_t->num_of_attr) {
+			osif_mem_free(p_attr_t->attr);
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_ATTRS_LIST_RSP: {
+		uint8_t temp_buff[10];
+		rtk_bt_avrcp_app_setting_attrs_list_t *p_list_t = (rtk_bt_avrcp_app_setting_attrs_list_t *)param;
+		const char *attr[] = {"", "EQ", "Repeat Mode", "Shuffle", "Scan"};
+
+		if (p_list_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings attrs information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
+				memset((void *)temp_buff, 0, 10);
+				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
+				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_VALUES_LIST_RSP: {
+		rtk_bt_avrcp_app_setting_values_list_t *p_values_t = (rtk_bt_avrcp_app_setting_values_list_t *)param;
+
+		if (p_values_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings values information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_values_t->bd_addr[5], p_values_t->bd_addr[4], p_values_t->bd_addr[3], p_values_t->bd_addr[2], p_values_t->bd_addr[1], p_values_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_values_t->num_of_value; i ++) {
+				BT_LOGA("[AVRCP] value 0x%02x \r\n", p_values_t->p_value[i]);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_APP_SETTING_GET_RSP: {
+		uint8_t temp_buff[20];
+		rtk_bt_avrcp_app_setting_get_rsp_t *p_rsp_t = (rtk_bt_avrcp_app_setting_get_rsp_t *)param;
+		const char *attr[] = {"", "EQ:", "Repeat Mode:", "Shuffle:", "Scan:"};
+
+		if (p_rsp_t->state == 0) {
+			BT_LOGA("[AVRCP] Get app settings response information successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
+			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
+				memset((void *)temp_buff, 0, 20);
+				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
+				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
+			}
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_COVER_ART_DATA_IND: {
+		rtk_bt_avrcp_cover_art_data_ind_t *p_data_t = (rtk_bt_avrcp_cover_art_data_ind_t *)param;
+
+		for (uint16_t i = 0; i < p_data_t->data_len; i ++) {
+			if (i % 10 == 0) {
+				BT_LOGA("\r\n");
+			}
+			BT_LOGA(" 0x%02x ", p_data_t->p_data[i]);
+		}
+		if (p_data_t->data_end) {
+			BT_LOGA("[AVRCP] Data End -> Get art cover successfully \r\n");
+		}
+		break;
+	}
+
+	case RTK_BT_AVRCP_EVT_GET_PLAY_STATUS_RSP_EVENT: {
+		rtk_bt_avrcp_get_play_status_rsp_t *p_rsp_t = (rtk_bt_avrcp_get_play_status_rsp_t *)param;
+
+		if (p_rsp_t->state == 0) {
+			BT_LOGA("[AVRCP] Get play status successfully from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
+			BT_LOGA("[AVRCP] play status is 0x%x, total song length is %d, position is %d \r\n",
+					p_rsp_t->play_status, p_rsp_t->length_ms, p_rsp_t->position_ms);
+		}
 		break;
 	}
 
@@ -1478,8 +1685,12 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		case RTK_BT_AVRCP_STATUS_PLAYING: {
 			BT_LOGA("[AVRCP]: Playing \r\n");
 			if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-				if (a2dp_task.run) {
-					app_a2dp_src_send_flag = true;
+				if (bt_a2dp_demo_src_send_data_enable) {
+					if (bt_a2dp_demo_src_send_timer.handler) {
+						gtimer_start_periodical(&bt_a2dp_demo_src_send_timer, a2dp_src_data_send_interval_us, (void *)bt_a2dp_demo_src_send_timer_handler, NULL);
+					} else {
+						BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+					}
 				}
 			}
 			break;
@@ -1488,8 +1699,12 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		case RTK_BT_AVRCP_STATUS_PAUSED: {
 			BT_LOGA("[AVRCP]: Paused \r\n");
 			if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-				if (a2dp_task.run) {
-					app_a2dp_src_send_flag = false;
+				if (bt_a2dp_demo_src_send_data_enable) {
+					if (bt_a2dp_demo_src_send_timer.handler) {
+						gtimer_stop(&bt_a2dp_demo_src_send_timer);
+					} else {
+						BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+					}
 				}
 			} else {
 				if (a2dp_demo_disconnection_reconnecting) {
@@ -1533,27 +1748,39 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		break;
 	}
 
+	case RTK_BT_AVRCP_EVT_TRACK_CHANGED: {
+		rtk_bt_avrcp_track_changed_t *p_track_t = (rtk_bt_avrcp_track_changed_t *)param;
+		BT_LOGA("[AVRCP]: Track changed id 0x%x \r\n", p_track_t->track_id);
+		break;
+	}
+
 	case RTK_BT_AVRCP_EVT_PLAY_REQ_EVENT: {
+		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
+
 		BT_LOGA("[AVRCP]: Play req \r\n");
-		if (a2dp_task.run) {
-			app_a2dp_src_send_flag = true;
-		}
+		/* fro a2dp source */
+		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_PLAYING);
+		rtk_bt_a2dp_start(p_command_t->bd_addr);
 		break;
 	}
 
 	case RTK_BT_AVRCP_EVT_PAUSE_REQ_EVENT: {
+		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
+
 		BT_LOGA("[AVRCP]: Pause req \r\n");
-		if (a2dp_task.run) {
-			app_a2dp_src_send_flag = false;
-		}
+		/* fro a2dp source */
+		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_PAUSED);
+		rtk_bt_a2dp_suspend(p_command_t->bd_addr);
 		break;
 	}
 
 	case RTK_BT_AVRCP_EVT_STOP_REQ_EVENT: {
+		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
+
 		BT_LOGA("[AVRCP]: Stop req \r\n");
-		if (a2dp_task.run) {
-			app_a2dp_src_send_flag = false;
-		}
+		/* fro a2dp source */
+		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_STOPPED);
+		rtk_bt_a2dp_suspend(p_command_t->bd_addr);
 		break;
 	}
 
@@ -1667,7 +1894,7 @@ static uint16_t rtk_bt_a2dp_sbc_parse_decoder_struct(rtk_bt_a2dp_codec_t *pa2dp_
 	}
 	psbc_decoder_t->min_bitpool = pa2dp_codec->sbc.min_bitpool;
 	psbc_decoder_t->max_bitpool = pa2dp_codec->sbc.max_bitpool;
-	psbc_decoder_t->sbc_dec_mode = (sbc_channel_mode_t)SBC_MODE_STANDARD;
+	psbc_decoder_t->sbc_dec_mode = (sbc_mode_t)SBC_MODE_STANDARD;
 	a2dp_demo_audio_track_hdl = rtk_bt_audio_track_add(RTK_BT_AUDIO_CODEC_SBC, (float)DEFAULT_AUDIO_LEFT_VOLUME, (float)DEFAULT_AUDIO_RIGHT_VOLUME, channels,
 													   psbc_decoder_t->sampling_frequency, BT_AUDIO_FORMAT_PCM_16_BIT, 0, NULL, true);
 	if (!a2dp_demo_audio_track_hdl) {
@@ -1742,9 +1969,126 @@ static uint16_t rtk_bt_a2dp_sbc_parse_encoder_struct(rtk_bt_a2dp_codec_t *pa2dp_
 		return 1;
 	}
 	psbc_encoder_t->bitpool = pa2dp_codec->sbc.max_bitpool;
-	psbc_encoder_t->sbc_enc_mode = (sbc_channel_mode_t)SBC_MODE_STANDARD;
+	psbc_encoder_t->sbc_enc_mode = (sbc_mode_t)SBC_MODE_STANDARD;
+	BT_LOGA("[A2DP] Parsing encode struct:subbands is %d, blocks is %d, channel mode is %d \r\n", psbc_encoder_t->subbands, psbc_encoder_t->blocks,
+			psbc_encoder_t->channel_mode);
 
 	return 0;
+}
+
+static uint16_t app_bt_pcm_data_resample_engine_alloc(rtk_bt_audio_resample_t **pp_sample_t, uint32_t sample_rate_in, uint8_t in_channels,
+													  uint32_t sample_rate_out, uint8_t out_channels)
+{
+	double sample_ratio;
+
+	sample_ratio = (double)sample_rate_out / (double)sample_rate_in;
+	//calculate the expected input and output according to the sample rate
+	/* resample out frames should be matched with the sbc encode size */
+	resample_out_frames = (sbc_codec_t.encoder_t.blocks * sbc_codec_t.encoder_t.subbands * out_channels * sbc_codec_t.encoder_t.sbc_pkt_num) * 2 /
+						  (16 / 8 * out_channels);
+	resample_in_frames = (uint32_t)(resample_out_frames * (float)sample_rate_in / (float)sample_rate_out);
+	/* init bq filter */
+	rtk_bt_audio_bq_config(&bq_t, RTK_BT_AUDIO_LPF, 1.0, (unsigned long)((1.0 / sample_ratio / 2) * (double)sample_rate_in),
+						   (unsigned long)sample_rate_in, 0.2);
+	/* init sinc resample */
+	*pp_sample_t = rtk_bt_audio_resample_alloc((float)sample_rate_in, (float)sample_rate_out, in_channels, out_channels, resample_in_frames);
+	demo_read_size = resample_in_frames * in_channels * 16 / 8;
+	BT_LOGA("[A2DP] Resample allocate: rate in is %d, channel is %d, rate out is %d, channel is %d \r\n", sample_rate_in, in_channels, sample_rate_out,
+			out_channels);
+	BT_LOGA("[A2DP] resample_out_frames is %d, resample_in_frames is %d, demo_read_size is %d \r\n", resample_out_frames, resample_in_frames, demo_read_size);
+
+	return RTK_BT_OK;
+}
+
+static uint16_t app_bt_pcm_data_resample_engine_destroy(rtk_bt_audio_resample_t **pp_sample_t)
+{
+	if (*pp_sample_t) {
+		rtk_bt_audio_resample_free(*pp_sample_t);
+		*pp_sample_t = NULL;
+	}
+
+	return RTK_BT_OK;
+}
+
+static void rtk_bt_a2dp_demo_src_send_data_control(bool enable)
+{
+	BT_LOGA("[APP] %s %d\r\n", __func__, enable);
+	if (enable) {
+		if (bt_a2dp_demo_src_send_data_enable == true) {
+			BT_LOGE("[APP] %s: send data is alreay enabled\r\n", __func__);
+			return;
+		}
+		bt_a2dp_demo_src_send_data_enable = true;
+		if (bt_a2dp_demo_src_send_sem == NULL) {
+			osif_sem_create(&bt_a2dp_demo_src_send_sem, 0, BT_TIMEOUT_FOREVER);
+		}
+		if (a2dp_task.hdl == NULL) {
+			if (false == osif_sem_create(&a2dp_task.sem, 0, 1)) {
+				BT_LOGE("[A2DP Demo] Create a2dp_task.sem fail \r\n");
+				goto fail;
+			}
+			if (false == osif_task_create(&a2dp_task.hdl, "a2dp_task",
+										  a2dp_task_entry, NULL,
+										  2048, 4)) {
+				BT_LOGE("[A2DP Demo] Create a2dp_task fail \r\n");
+				goto fail;
+			}
+			osif_sem_take(a2dp_task.sem, BT_TIMEOUT_FOREVER);
+		}
+		if (!bt_a2dp_demo_src_send_timer.handler) {
+			a2dp_src_data_send_interval_us = ((resample_in_frames * demo_in_channels * 16 / 8) * 1000) / (demo_in_rate * demo_in_channels * (16 / 8) / 1000) + 1;
+			BT_LOGA("[A2DP Demo] rtk_bt_a2dp_demo_src_send_data_control send interval(us) is %d \r\n", a2dp_src_data_send_interval_us);
+			if (bt_a2dp_demo_src_send_timer.handler == NULL) {
+				gtimer_init(&bt_a2dp_demo_src_send_timer, A2DP_SEND_TIMER_ID);
+				gtimer_start_periodical(&bt_a2dp_demo_src_send_timer, a2dp_src_data_send_interval_us, (void *)bt_a2dp_demo_src_send_timer_handler, NULL);
+			}
+		}
+	} else {
+		if (bt_a2dp_demo_src_send_data_enable == false) {
+			BT_LOGE("[APP] %s: send data is alreay disabled\r\n", __func__);
+			return;
+		}
+		bt_a2dp_demo_src_send_data_enable = false;
+		if (bt_a2dp_demo_src_send_timer.handler == NULL) {
+			gtimer_stop(&bt_a2dp_demo_src_send_timer);
+			gtimer_deinit(&bt_a2dp_demo_src_send_timer);
+			bt_a2dp_demo_src_send_timer.handler = NULL;
+		}
+		if (a2dp_task.hdl) {
+			a2dp_task.run = 0;
+			osif_sem_give(bt_a2dp_demo_src_send_sem);
+			osif_sem_take(a2dp_task.sem, BT_TIMEOUT_FOREVER);
+			osif_sem_delete(a2dp_task.sem);
+			memset((void *)&a2dp_task, 0, sizeof(struct a2dp_demo_task_t));
+		}
+		if (bt_a2dp_demo_src_send_sem) {
+			osif_sem_delete(bt_a2dp_demo_src_send_sem);
+			bt_a2dp_demo_src_send_sem = NULL;
+		}
+	}
+	return;
+
+fail:
+	if (bt_a2dp_demo_src_send_timer.handler == NULL) {
+		gtimer_stop(&bt_a2dp_demo_src_send_timer);
+		gtimer_deinit(&bt_a2dp_demo_src_send_timer);
+		bt_a2dp_demo_src_send_timer.handler = NULL;
+	}
+	if (a2dp_task.hdl) {
+		a2dp_task.run = 0;
+		osif_sem_give(bt_a2dp_demo_src_send_sem);
+		osif_sem_take(a2dp_task.sem, BT_TIMEOUT_FOREVER);
+		osif_sem_delete(a2dp_task.sem);
+		memset((void *)&a2dp_task, 0, sizeof(struct a2dp_demo_task_t));
+	}
+	if (a2dp_task.sem) {
+		osif_sem_delete(a2dp_task.sem);
+		a2dp_task.sem = NULL;
+	}
+	if (bt_a2dp_demo_src_send_sem) {
+		osif_sem_delete(bt_a2dp_demo_src_send_sem);
+		bt_a2dp_demo_src_send_sem = NULL;
+	}
 }
 
 static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *param, uint32_t len)
@@ -1785,20 +2129,14 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 	case RTK_BT_A2DP_EVT_DISCONN_CMPL: {
 		rtk_bt_a2dp_disconn_ind_t *disconn_ind = (rtk_bt_a2dp_disconn_ind_t *)param;
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-			if (a2dp_task.hdl) {
-				BT_LOGA("[A2DP Demo] Delete Test Demo \r\n");
-				app_a2dp_src_send_flag = false;
-				a2dp_task.run = 0;
-				if (false == osif_sem_take(a2dp_task.sem, 0xffffffff)) {
-					BT_LOGE("[A2DP Demo] take a2dp_task.sem fail \r\n");
-					break;
-				}
-				osif_sem_delete(a2dp_task.sem);
-				memset((void *)&a2dp_task, 0, sizeof(struct a2dp_demo_task_t));
-			}
+			rtk_bt_a2dp_demo_src_send_data_control(false);
+			rtk_bt_avrcp_play_status_change_req(disconn_ind->bd_addr, RTK_BT_AVRCP_STATUS_STOPPED);
 		}
 		rtk_bt_audio_codec_remove(audio_a2dp_codec_conf.codec_index, a2dp_demo_codec_entity);
 		memset((void *)&audio_a2dp_codec_conf, 0, sizeof(rtk_bt_audio_codec_conf_t));
+		if (g_audio_resample_t) {
+			app_bt_pcm_data_resample_engine_destroy(&g_audio_resample_t);
+		}
 		if (!hfp_demo_audio_track_hdl) {
 			rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_audio_track_hdl);
 		} else {
@@ -1867,62 +2205,90 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 					p_stream_open_t->bd_addr[5], p_stream_open_t->bd_addr[4], p_stream_open_t->bd_addr[3],
 					p_stream_open_t->bd_addr[2], p_stream_open_t->bd_addr[1], p_stream_open_t->bd_addr[0],
 					(int)p_stream_open_t->max_pkt_len);
+		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
+			// set BR/EDR tpoll to 3.75ms
+			uint16_t tpoll = 0x06;
+			if (RTK_BT_OK == rtk_bt_br_gap_set_link_qos(p_stream_open_t->bd_addr, RTK_BT_BR_QOS_TYPE_BEST_EFFORT, tpoll)) {
+				BT_LOGA("[A2DP] set link qos with %02x:%02x:%02x:%02x:%02x:%02x success, tpoll:0x%x \r\n",
+						p_stream_open_t->bd_addr[5], p_stream_open_t->bd_addr[4], p_stream_open_t->bd_addr[3], p_stream_open_t->bd_addr[2], p_stream_open_t->bd_addr[1],
+						p_stream_open_t->bd_addr[0],
+						tpoll);
+			}
+			/* calculate pkt number and update */
+			sbc_codec_t.encoder_t.sbc_pkt_num = p_stream_open_t->max_pkt_len / sbc_codec_t.encoder_t.frame_size;
+			rtk_bt_audio_codec_update(&audio_a2dp_codec_conf, a2dp_demo_codec_entity);
+			src_a2dp_send_data_size = sbc_codec_t.encoder_t.sbc_pkt_num * sbc_codec_t.encoder_t.blocks * sbc_codec_t.encoder_t.subbands * ((
+										  sbc_codec_t.encoder_t.channel_mode == 0) ? 1 : 2);
+			/* default audio stream source is 48000 sample rate, 2 channels */
+			app_bt_pcm_data_resample_engine_alloc(&g_audio_resample_t, demo_in_rate, demo_in_channels, sbc_codec_t.encoder_t.sample_rate,
+												  ((sbc_codec_t.encoder_t.channel_mode != 0) ? 2 : 1));
+			BT_LOGA("[A2DP] sbc_pkt_num is update to %d, src_a2dp_send_data_size is %d \r\n", sbc_codec_t.encoder_t.sbc_pkt_num, src_a2dp_send_data_size);
+		}
 	}
 	break;
 
 	case RTK_BT_A2DP_EVT_STREAM_START_IND: {
 		rtk_bt_a2dp_stream_start_t *pa2dp_stream = (rtk_bt_a2dp_stream_start_t *)param;
 
-		BT_LOGA("[A2DP] BT_EVENT_A2DP_STREAM_START_IND active_a2dp_idx %d, streaming_fg %d \r\n",
-				pa2dp_stream->active_a2dp_link_index, pa2dp_stream->stream_cfg);
-		BT_AT_PRINT("+BTA2DP:start,%d,%d\r\n",
-					pa2dp_stream->active_a2dp_link_index, pa2dp_stream->stream_cfg);
-		if (a2dp_demo_audio_track_hdl) {
-			rtk_bt_audio_track_resume(a2dp_demo_audio_track_hdl->audio_track_hdl);
+		BT_LOGA("[A2DP] BT_EVENT_A2DP_STREAM_START_IND with %02x:%02x:%02x:%02x:%02x:%02x \r\n",
+				pa2dp_stream->bd_addr[5], pa2dp_stream->bd_addr[4], pa2dp_stream->bd_addr[3], pa2dp_stream->bd_addr[2], pa2dp_stream->bd_addr[1],
+				pa2dp_stream->bd_addr[0]);
+		BT_AT_PRINT("+BTA2DP:start,%02x:%02x:%02x:%02x:%02x:%02x,%d\r\n",
+					pa2dp_stream->bd_addr[5], pa2dp_stream->bd_addr[4], pa2dp_stream->bd_addr[3], pa2dp_stream->bd_addr[2], pa2dp_stream->bd_addr[1],
+					pa2dp_stream->bd_addr[0]);
+		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SNK) {
+			if (a2dp_demo_audio_track_hdl) {
+				rtk_bt_audio_track_resume(a2dp_demo_audio_track_hdl->audio_track_hdl);
+			}
+		} else if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
+			if (bt_a2dp_demo_src_send_data_enable) {
+				if (bt_a2dp_demo_src_send_timer.handler) {
+					gtimer_start_periodical(&bt_a2dp_demo_src_send_timer, a2dp_src_data_send_interval_us, (void *)bt_a2dp_demo_src_send_timer_handler, NULL);
+				} else {
+					BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+				}
+			} else {
+				rtk_bt_a2dp_demo_src_send_data_control(true);
+			}
+			rtk_bt_avrcp_play_status_change_req(pa2dp_stream->bd_addr, RTK_BT_AVRCP_STATUS_PLAYING);
 		}
 	}
 	break;
 
 	case RTK_BT_A2DP_EVT_STREAM_START_RSP: {
-		rtk_bt_a2dp_stream_start_t *pa2dp_stream = (rtk_bt_a2dp_stream_start_t *)param;
+		memcpy((void *)bd_addr, param, 6);
 
-		BT_LOGA("[A2DP] BT_EVENT_A2DP_STREAM_START_IND active_a2dp_idx %d, streaming_fg %d \r\n",
-				pa2dp_stream->active_a2dp_link_index, pa2dp_stream->stream_cfg);
-
-		{
-			if (a2dp_task.hdl) {
-				BT_LOGA("[A2DP Demo] Start Test Demo \r\n");
+		BT_LOGA("[A2DP] RTK_BT_A2DP_EVT_STREAM_START_RSP from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+		if (bt_a2dp_demo_src_send_data_enable) {
+			if (bt_a2dp_demo_src_send_timer.handler) {
+				gtimer_start_periodical(&bt_a2dp_demo_src_send_timer, a2dp_src_data_send_interval_us, (void *)bt_a2dp_demo_src_send_timer_handler, NULL);
 			} else {
-				BT_LOGA("[A2DP Demo] Create Test Demo \r\n");
-				if (false == osif_sem_create(&a2dp_task.sem, 0, 1)) {
-					BT_LOGE("[A2DP Demo] Create a2dp_task.sem fail \r\n");
-					break;
-				}
-				a2dp_task.run = 1;
-				if (false == osif_task_create(&a2dp_task.hdl, "a2dp_task",
-											  a2dp_task_entry, NULL,
-											  2048, 4)) {
-					osif_sem_delete(a2dp_task.sem);
-					a2dp_task.run = 0;
-					BT_LOGE("[A2DP Demo] Create a2dp_task fail \r\n");
-					break;
-				}
-				osif_sem_take(a2dp_task.sem, 0xffffffff);
+				BT_LOGE("[APP] %s: timer not init\r\n", __func__);
 			}
-			app_a2dp_src_send_flag = true;
+		} else {
+			rtk_bt_a2dp_demo_src_send_data_control(true);
 		}
+		rtk_bt_avrcp_play_status_change_req(bd_addr, RTK_BT_AVRCP_STATUS_PLAYING);
 	}
 	break;
 
 	case RTK_BT_A2DP_EVT_STREAM_STOP: {
-		rtk_bt_a2dp_conn_ind_t *conn_ind = (rtk_bt_a2dp_conn_ind_t *)param;
-		memcpy((void *)bd_addr, conn_ind->bd_addr, 6);
+		rtk_bt_a2dp_stream_stop_t *p_stream_stop_t = (rtk_bt_a2dp_stream_stop_t *)param;
+
 		BT_LOGA("[A2DP] Stream stop from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+				p_stream_stop_t->bd_addr[5], p_stream_stop_t->bd_addr[4], p_stream_stop_t->bd_addr[3],
+				p_stream_stop_t->bd_addr[2], p_stream_stop_t->bd_addr[1], p_stream_stop_t->bd_addr[0]);
 		BT_AT_PRINT("+BTA2DP:stop,%02x:%02x:%02x:%02x:%02x:%02x\r\n",
-					bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+					p_stream_stop_t->bd_addr[5], p_stream_stop_t->bd_addr[4], p_stream_stop_t->bd_addr[3],
+					p_stream_stop_t->bd_addr[2], p_stream_stop_t->bd_addr[1], p_stream_stop_t->bd_addr[0]);
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-			app_a2dp_src_send_flag = false;
+			if (bt_a2dp_demo_src_send_timer.handler) {
+				gtimer_stop(&bt_a2dp_demo_src_send_timer);
+			} else {
+				BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+			}
+			rtk_bt_avrcp_play_status_change_req(p_stream_stop_t->bd_addr, RTK_BT_AVRCP_STATUS_PAUSED);
 		}
 		if (a2dp_demo_audio_track_hdl) {
 			rtk_bt_audio_track_pause(a2dp_demo_audio_track_hdl->audio_track_hdl);
@@ -1931,12 +2297,15 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 	break;
 
 	case RTK_BT_A2DP_EVT_STREAM_CLOSE: {
-		rtk_bt_a2dp_conn_ind_t *conn_ind = (rtk_bt_a2dp_conn_ind_t *)param;
-		memcpy((void *)bd_addr, conn_ind->bd_addr, 6);
-		BT_LOGA("[A2DP] Stream close from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
-				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+		rtk_bt_a2dp_stream_close_t *p_stream_close_t = (rtk_bt_a2dp_stream_close_t *)param;
+
+		BT_LOGA("[A2DP] Stream close from %02x:%02x:%02x:%02x:%02x:%02x, cause 0x%x \r\n",
+				p_stream_close_t->bd_addr[5], p_stream_close_t->bd_addr[4], p_stream_close_t->bd_addr[3],
+				p_stream_close_t->bd_addr[2], p_stream_close_t->bd_addr[1], p_stream_close_t->bd_addr[0],
+				p_stream_close_t->cause);
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-			app_a2dp_src_send_flag = false;
+			rtk_bt_a2dp_demo_src_send_data_control(false);
+			rtk_bt_avrcp_play_status_change_req(p_stream_close_t->bd_addr, RTK_BT_AVRCP_STATUS_STOPPED);
 		}
 	}
 	break;
@@ -1971,16 +2340,46 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 
 static uint16_t rtk_bt_hfp_cvsd_parse_decoder_struct(rtk_bt_hfp_codec_t *phfp_codec, rtk_bt_cvsd_decode_t *pcvsd_decoder_t)
 {
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+	/* copy left channel to right channel
+	bt audio noise cancellation mic loop back need right channel */
+	pcvsd_decoder_t->channel_num = 2;
+	pcvsd_decoder_t->sample_rate = phfp_codec->cvsd.sample_rate;
+	pcvsd_decoder_t->frame_duration = phfp_codec->cvsd.frame_duration;
+	hfp_demo_audio_track_hdl = rtk_bt_audio_track_add(RTK_BT_AUDIO_CODEC_CVSD, (float)DEFAULT_AUDIO_LEFT_VOLUME, (float)DEFAULT_AUDIO_RIGHT_VOLUME,
+													  pcvsd_decoder_t->channel_num,
+													  pcvsd_decoder_t->sample_rate, BT_AUDIO_FORMAT_PCM_16_BIT, 0, NULL, true);
+	record_frame_samples_per_channel = 256;
+#else
 	pcvsd_decoder_t->channel_num = phfp_codec->cvsd.channel_num;
 	pcvsd_decoder_t->sample_rate = phfp_codec->cvsd.sample_rate;
 	pcvsd_decoder_t->frame_duration = phfp_codec->cvsd.frame_duration;
 	hfp_demo_audio_track_hdl = rtk_bt_audio_track_add(RTK_BT_AUDIO_CODEC_CVSD, (float)DEFAULT_AUDIO_LEFT_VOLUME, (float)0, pcvsd_decoder_t->channel_num,
 													  pcvsd_decoder_t->sample_rate, BT_AUDIO_FORMAT_PCM_16_BIT, 0, NULL, true);
+	if (phfp_codec->cvsd.frame_duration == RTK_BT_AUDIO_CVSD_FRAME_DURATION_7_5_MS) {
+		record_frame_samples_per_channel = 60; // (8000 / 1000) * 7.5
+	} else {
+		record_frame_samples_per_channel = 30; // (8000 / 1000) * 3.75
+	}
+#endif
 	if (!hfp_demo_audio_track_hdl) {
 		BT_LOGE("[HFP] bt audio track add fail \r\n");
 		return 1;
 	}
-	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, 1, 8000, 0);
+	BT_LOGA("cvsd audio record sample_rate %d, %d channels, %d samples\n",
+			pcvsd_decoder_t->sample_rate, AUDIO_RECORD_CHANNELS, record_frame_samples_per_channel);
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+	if (rtk_bt_audio_record_config(&hfp_demo_audio_record_table)) {
+		BT_LOGE("[HFP] rtk_bt_audio_record_config fail \r\n");
+		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl);
+		hfp_demo_audio_track_hdl = NULL;
+		return 1;
+	}
+	/* AIVoice use 16k record */
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, AUDIO_RECORD_CHANNELS, 16000, 0, 0x7f);
+#else
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_CVSD, AUDIO_RECORD_CHANNELS, pcvsd_decoder_t->sample_rate, 0, 0x7f);
+#endif
 	if (!hfp_demo_audio_record_hdl) {
 		BT_LOGE("[HFP] bt audio record add fail \r\n");
 		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl);
@@ -1991,23 +2390,135 @@ static uint16_t rtk_bt_hfp_cvsd_parse_decoder_struct(rtk_bt_hfp_codec_t *phfp_co
 	return 0;
 }
 
-static void hfp_task_entry(void *ctx)
+static uint16_t rtk_bt_hfp_sbc_parse_decoder_struct(rtk_bt_hfp_codec_t *phfp_codec, rtk_bt_sbc_decode_t *psbc_decoder_t)
+{
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+	/* copy left channel to right channel
+	bt audio noise cancellation mic loop back need right channel */
+	psbc_decoder_t->sbc_dec_mode = (sbc_mode_t)SBC_MODE_mSBC;
+	psbc_decoder_t->sampling_frequency = phfp_codec->msbc.sample_rate;
+	psbc_decoder_t->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	psbc_decoder_t->block_length = phfp_codec->msbc.block_length;
+	psbc_decoder_t->subbands = phfp_codec->msbc.subbands;
+	psbc_decoder_t->allocation_method = phfp_codec->msbc.allocation_method;
+	psbc_decoder_t->min_bitpool = phfp_codec->msbc.bitpool;
+	psbc_decoder_t->max_bitpool = phfp_codec->msbc.bitpool;
+	hfp_demo_audio_track_hdl = rtk_bt_audio_track_add(RTK_BT_AUDIO_CODEC_mSBC, (float)DEFAULT_AUDIO_LEFT_VOLUME, (float)DEFAULT_AUDIO_RIGHT_VOLUME, 2,
+													  psbc_decoder_t->sampling_frequency, BT_AUDIO_FORMAT_PCM_16_BIT, 0, NULL, true);
+	record_frame_samples_per_channel = 256;
+#else
+	psbc_decoder_t->sbc_dec_mode = (sbc_mode_t)SBC_MODE_mSBC;
+	psbc_decoder_t->sampling_frequency = phfp_codec->msbc.sample_rate;
+	psbc_decoder_t->channel_mode = phfp_codec->msbc.channel_mode;
+	psbc_decoder_t->block_length = phfp_codec->msbc.block_length;
+	psbc_decoder_t->subbands = phfp_codec->msbc.subbands;
+	psbc_decoder_t->allocation_method = phfp_codec->msbc.allocation_method;
+	psbc_decoder_t->min_bitpool = phfp_codec->msbc.bitpool;
+	psbc_decoder_t->max_bitpool = phfp_codec->msbc.bitpool;
+	hfp_demo_audio_track_hdl = rtk_bt_audio_track_add(RTK_BT_AUDIO_CODEC_mSBC, (float)DEFAULT_AUDIO_LEFT_VOLUME, (float)0, 1,
+													  psbc_decoder_t->sampling_frequency, BT_AUDIO_FORMAT_PCM_16_BIT, 0, NULL, true);
+	record_frame_samples_per_channel = (1 * psbc_decoder_t->block_length * psbc_decoder_t->subbands * 1 * 2) / (16 / 8);
+#endif
+	if (!hfp_demo_audio_track_hdl) {
+		BT_LOGE("[HFP] bt audio track add fail \r\n");
+		return 1;
+	}
+	BT_LOGA("msbc audio record sample_rate %d, %d channels, %d samples\n",
+			psbc_decoder_t->sampling_frequency, AUDIO_RECORD_CHANNELS, record_frame_samples_per_channel);
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+	if (rtk_bt_audio_record_config(&hfp_demo_audio_record_table)) {
+		BT_LOGE("[HFP] rtk_bt_audio_record_config fail \r\n");
+		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_mSBC, hfp_demo_audio_track_hdl);
+		hfp_demo_audio_track_hdl = NULL;
+		return 1;
+	}
+	/* AIVoice use 16k record */
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_mSBC, AUDIO_RECORD_CHANNELS, 16000, 0, 0x7f);
+#else
+	hfp_demo_audio_record_hdl = rtk_bt_audio_record_add(RTK_BT_AUDIO_CODEC_mSBC, AUDIO_RECORD_CHANNELS, psbc_decoder_t->sampling_frequency, 0, 0x7f);
+#endif
+	if (!hfp_demo_audio_record_hdl) {
+		BT_LOGE("[HFP] bt audio record add fail \r\n");
+		rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_mSBC, hfp_demo_audio_track_hdl);
+		hfp_demo_audio_track_hdl = NULL;
+		return 1;
+	}
+
+	return 0;
+}
+
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+static int16_t record_buffer[MAX_RECORD_FRAME_SAMPLES_PER_CHANNLE * AUDIO_RECORD_CHANNELS] = {0};
+static int16_t nc_buffer[MAX_RECORD_FRAME_SAMPLES_PER_CHANNLE * AUDIO_RECORD_CHANNELS] = {0};
+
+static void nc_task_entry(void *ctx)
 {
 	(void)ctx;
 	static int read_size = 0;
-	int16_t voice_buffer[30] = {0};
+
+	osif_sem_give(nc_task.sem);
+	while (nc_task.run) {
+		read_size = rtk_bt_audio_record_data_get(audio_hfp_codec_conf.codec_index, hfp_demo_audio_record_hdl, hfp_demo_codec_entity, (void *)record_buffer,
+												 record_frame_samples_per_channel * AUDIO_RECORD_CHANNELS * sizeof(int16_t),
+												 true);
+		rtk_bt_audio_noise_cancellation_feed(record_buffer, read_size);
+		osif_delay(10);
+	}
+	osif_sem_give(nc_task.sem);
+	osif_task_delete(NULL);
+}
+
+static void hfp_task_entry(void *ctx)
+{
+	(void)ctx;
 	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
 	rtk_bt_hfp_sco_data_send_t sco_data_t = {0};
 
 	osif_sem_give(hfp_task.sem);
 
 	while (hfp_task.run) {
-		read_size = rtk_bt_audio_record_data_get(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_record_hdl, hfp_demo_codec_entity, (void *)voice_buffer, 30 * sizeof(int16_t),
+		if (rtk_bt_audio_noise_cancellation_data_get(nc_buffer,
+													 audio_hfp_codec_conf.codec_index == RTK_BT_AUDIO_CODEC_CVSD ? BT_ENCODE_FRAME_BYTES : (2 * BT_ENCODE_FRAME_BYTES))) {
+			penc_codec_buffer_t = rtk_bt_audio_data_encode(audio_hfp_codec_conf.codec_index, hfp_demo_codec_entity,
+														   nc_buffer, audio_hfp_codec_conf.codec_index == RTK_BT_AUDIO_CODEC_CVSD ? BT_ENCODE_FRAME_BYTES : (2 * BT_ENCODE_FRAME_BYTES));
+			if (!penc_codec_buffer_t) {
+				BT_LOGE("[HFP]get encode buffer fail \r\n");
+				continue;
+			}
+			memcpy((void *)sco_data_t.bd_addr, (void *)remote_bd_addr, 6);
+			sco_data_t.buf = (uint8_t *)penc_codec_buffer_t->pbuffer;
+			sco_data_t.len = (uint8_t)penc_codec_buffer_t->frame_size;
+			sco_data_t.seq_num = (uint8_t)sco_seq_num;
+			rtk_bt_hfp_data_send(&sco_data_t);
+			sco_seq_num ++;
+			rtk_bt_audio_free_encode_buffer(audio_hfp_codec_conf.codec_index, hfp_demo_codec_entity, penc_codec_buffer_t);
+		}
+		osif_delay(1);
+	}
+	osif_sem_give(hfp_task.sem);
+	osif_task_delete(NULL);
+}
+#else
+/* max record_frame_samples_per_channel for hfp without noise cancellation is 120(mSBC) */
+static int16_t voice_buffer[120 * AUDIO_RECORD_CHANNELS] = {0};
+static void hfp_task_entry(void *ctx)
+{
+	(void)ctx;
+	static int read_size = 0;
+	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
+	rtk_bt_hfp_sco_data_send_t sco_data_t = {0};
+
+	osif_sem_give(hfp_task.sem);
+
+	while (hfp_task.run) {
+		read_size = rtk_bt_audio_record_data_get(audio_hfp_codec_conf.codec_index, hfp_demo_audio_record_hdl, hfp_demo_codec_entity, (void *)voice_buffer,
+												 record_frame_samples_per_channel * AUDIO_RECORD_CHANNELS * sizeof(int16_t),
 												 true);
 		osif_delay(1);
 		// BT_LOGA("get size %d \r\n", read_size);
 		if (read_size) {
-			penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_codec_entity, voice_buffer, read_size / 2);
+			penc_codec_buffer_t = rtk_bt_audio_data_encode(audio_hfp_codec_conf.codec_index, hfp_demo_codec_entity,
+														   voice_buffer, record_frame_samples_per_channel * AUDIO_RECORD_CHANNELS * sizeof(int16_t));
 			if (!penc_codec_buffer_t) {
 				BT_LOGE("[HFP]get encode buffer fail \r\n");
 				continue;
@@ -2021,10 +2532,10 @@ static void hfp_task_entry(void *ctx)
 			rtk_bt_audio_free_encode_buffer(audio_hfp_codec_conf.codec_index, hfp_demo_codec_entity, penc_codec_buffer_t);
 		}
 	}
-
 	osif_sem_give(hfp_task.sem);
 	osif_task_delete(NULL);
 }
+#endif
 
 static void hfp_alert_timer_handle(void *arg)
 {
@@ -2034,11 +2545,11 @@ static void hfp_alert_timer_handle(void *arg)
 	while (pcm_offset < birds_sing_size / 2) {
 		if (pcm_offset + 512 < birds_sing_size / 2) {
 			if (alert_track_hdl) {
-				rtk_bt_audio_track_play(alert_track_hdl, (void *)(birds_sing + pcm_offset), (uint16_t)1024);
+				rtk_bt_audio_track_play(alert_track_hdl, (void *)(birds_sing + pcm_offset), (uint32_t)1024);
 			}
 		} else {
 			if (alert_track_hdl) {
-				rtk_bt_audio_track_play(alert_track_hdl, (void *)(birds_sing + pcm_offset), (uint16_t)(((birds_sing_size / 2) - pcm_offset) * 2));
+				rtk_bt_audio_track_play(alert_track_hdl, (void *)(birds_sing + pcm_offset), (uint32_t)(((birds_sing_size / 2) - pcm_offset) * 2));
 			}
 		}
 		pcm_offset += 512;
@@ -2058,12 +2569,13 @@ static void app_hfp_ring_alert_start(void)
 		BT_LOGE("[HFP] Create alert timer fail \r\n");
 		return;
 	}
-	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)44100, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
+	alert_track_hdl = rtk_bt_audio_track_init((uint32_t)2, (uint32_t)48000, BT_AUDIO_FORMAT_PCM_16_BIT, 1024, 0, 0);
 	if (!alert_track_hdl) {
 		BT_LOGE("[HFP]alert track init fail \r\n");
 		osif_timer_delete(&alert_timer);
 		return;
 	}
+	rtk_bt_audio_track_set_hardware_volume(hw_volume, hw_volume);
 	rtk_bt_audio_track_start(alert_track_hdl, 1, 1);
 	osif_timer_start(&alert_timer);
 }
@@ -2221,7 +2733,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 		if (a2dp_demo_audio_track_hdl) {
 			rtk_bt_avrcp_pause(remote_bd_addr);
 		}
-		if ((phfp_codec->codec_type & (RTK_BT_AUDIO_CODEC_CVSD /* | RTK_BT_AUDIO_CODEC_mSBC */)) == 0) {
+		if ((phfp_codec->codec_type & (RTK_BT_AUDIO_CODEC_CVSD | RTK_BT_AUDIO_CODEC_mSBC)) == 0) {
 			BT_LOGE("[HFP] Not support codec %d \r\n", phfp_codec->codec_type);
 			break;
 		}
@@ -2234,6 +2746,15 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 			audio_hfp_codec_conf.codec_index = RTK_BT_AUDIO_CODEC_CVSD;
 			audio_hfp_codec_conf.param = (void *)&cvsd_codec_t;
 			audio_hfp_codec_conf.param_len = sizeof(cvsd_codec_t);
+		} else {
+			if (audio_a2dp_codec_conf.codec_index == RTK_BT_AUDIO_CODEC_SBC) {
+				/* Firstly deinit sbc codec for a2dp, then init msbc for hfp */
+				rtk_bt_audio_codec_remove(audio_a2dp_codec_conf.codec_index, a2dp_demo_codec_entity);
+			}
+			ret = rtk_bt_hfp_sbc_parse_decoder_struct(phfp_codec, &msbc_codec_t.decoder_t);
+			audio_hfp_codec_conf.codec_index = RTK_BT_AUDIO_CODEC_mSBC;
+			audio_hfp_codec_conf.param = (void *)&msbc_codec_t;
+			audio_hfp_codec_conf.param_len = sizeof(msbc_codec_t);
 		}
 		if (ret) {
 			BT_LOGE("[HFP] RTK_BT_HFP_EVT_SCO_CONN_CMPL Fail \r\n");
@@ -2250,11 +2771,32 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 		}
 		hfp_demo_codec_entity = rtk_bt_audio_codec_add(&audio_hfp_codec_conf);
 		BT_LOGA("[HFP] Configure Complete CODEC %d \r\n", phfp_codec->codec_type);
+		if (phfp_codec->codec_type == RTK_BT_AUDIO_CODEC_mSBC) {
+			/* update sbc pkt num to 1 for HFP mSBC */
+			msbc_codec_t.encoder_t.sbc_pkt_num = 1;
+			rtk_bt_audio_codec_update(&audio_hfp_codec_conf, hfp_demo_codec_entity);
+		}
 		/* config audio record thread */
 		{
 			BT_LOGA("[HFP Demo] Create Record Demo \r\n");
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+			rtk_bt_audio_noise_cancellation_new(audio_hfp_codec_conf.codec_index, AUDIO_RECORD_CHANNELS);
+			/* create noise cancellation thread */
+			if (false == osif_sem_create(&nc_task.sem, 0, 1)) {
+				BT_LOGE("[HFP Demo] Create nc_task sema Fail\r\n");
+				return 1;
+			}
+			nc_task.run = 1;
+			if (false == osif_task_create(&nc_task.hdl, "nc_task",
+										  nc_task_entry, NULL,
+										  4096, 4)) {
+				osif_sem_delete(nc_task.sem);
+				return 1;
+			}
+			osif_sem_take(nc_task.sem, BT_TIMEOUT_FOREVER);
+#endif
 			if (false == osif_sem_create(&hfp_task.sem, 0, 1)) {
-				BT_LOGE("[HFP Demo] Create Record Demo Fail\r\n");
+				BT_LOGE("[HFP Demo] Create hfp_task sema Fail\r\n");
 				return 1;
 			}
 			hfp_task.run = 1;
@@ -2264,7 +2806,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 				osif_sem_delete(hfp_task.sem);
 				return 1;
 			}
-			osif_sem_take(hfp_task.sem, 0xffffffff);
+			osif_sem_take(hfp_task.sem, BT_TIMEOUT_FOREVER);
 		}
 	}
 	break;
@@ -2272,8 +2814,8 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 	case RTK_BT_HFP_EVT_SCO_DATA_IND: {
 		rtk_bt_hfp_sco_data_ind_t *pdata_in = (rtk_bt_hfp_sco_data_ind_t *)param;
 
-		if (rtk_bt_audio_recvd_data_in(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl, hfp_demo_codec_entity, pdata_in->data, pdata_in->length, 0)) {
-			BT_LOGE("[HFP] SCO Data Receiving FAIL %d \r\n", RTK_BT_AUDIO_CODEC_CVSD);
+		if (rtk_bt_audio_recvd_data_in(audio_hfp_codec_conf.codec_index, hfp_demo_audio_track_hdl, hfp_demo_codec_entity, pdata_in->data, pdata_in->length, 0)) {
+			BT_LOGE("[HFP] SCO Data Receiving FAIL %d \r\n", audio_hfp_codec_conf.codec_index);
 		}
 	}
 	break;
@@ -2285,8 +2827,17 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 				bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
 		BT_AT_PRINT("+BTHFP:sco_disconn,%02x:%02x:%02x:%02x:%02x:%02x\r\n",
 					bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+		nc_task.run = 0;
+		if (false == osif_sem_take(nc_task.sem, BT_TIMEOUT_FOREVER)) {
+			return 1;
+		}
+		osif_sem_delete(nc_task.sem);
+		nc_task.hdl = NULL;
+		nc_task.sem = NULL;
+#endif
 		hfp_task.run = 0;
-		if (false == osif_sem_take(hfp_task.sem, 0xffffffffUL)) {
+		if (false == osif_sem_take(hfp_task.sem, BT_TIMEOUT_FOREVER)) {
 			return 1;
 		}
 		osif_sem_delete(hfp_task.sem);
@@ -2294,6 +2845,10 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 		hfp_task.sem = NULL;
 		rtk_bt_audio_codec_remove(audio_hfp_codec_conf.codec_index, hfp_demo_codec_entity);
 		memset((void *)&audio_hfp_codec_conf, 0, sizeof(rtk_bt_audio_codec_conf_t));
+		if (audio_a2dp_codec_conf.codec_index == RTK_BT_AUDIO_CODEC_SBC) {
+			/* reinit sbc codec for a2dp */
+			a2dp_demo_codec_entity = rtk_bt_audio_codec_add(&audio_a2dp_codec_conf);
+		}
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
 			/* should not deinit bt audio cause it is still working on a2dp source flow */
 			rtk_bt_audio_track_del(RTK_BT_AUDIO_CODEC_CVSD, hfp_demo_audio_track_hdl);
@@ -2310,6 +2865,9 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 		hfp_demo_audio_record_hdl = NULL;
 		hfp_demo_codec_entity = NULL;
 		call_curr_status = 0;
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+		rtk_bt_audio_noise_cancellation_destroy();
+#endif
 	}
 	break;
 
@@ -2398,12 +2956,29 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 					bd_addr[5], bd_addr[4], bd_addr[3], bd_addr[2], bd_addr[1], bd_addr[0]);
 		/* stop sending a2dp source audio stream */
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-			if (a2dp_task.run && (p_hfp_call_status_ind->prev_status == 0) && (p_hfp_call_status_ind->curr_status == 1)) {
-				app_a2dp_src_send_flag = false;
-			} else if (a2dp_task.run && (p_hfp_call_status_ind->prev_status != 0) && (p_hfp_call_status_ind->curr_status == 0)) {
-				app_a2dp_src_send_flag = true;
+			if (bt_a2dp_demo_src_send_data_enable && (p_hfp_call_status_ind->prev_status == 0) && (p_hfp_call_status_ind->curr_status == 1)) {
+				if (bt_a2dp_demo_src_send_timer.handler) {
+					gtimer_stop(&bt_a2dp_demo_src_send_timer);
+				} else {
+					BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+				}
+			} else if (bt_a2dp_demo_src_send_data_enable && (p_hfp_call_status_ind->prev_status != 0) && (p_hfp_call_status_ind->curr_status == 0)) {
+				if (bt_a2dp_demo_src_send_timer.handler) {
+					gtimer_start_periodical(&bt_a2dp_demo_src_send_timer, a2dp_src_data_send_interval_us, (void *)bt_a2dp_demo_src_send_timer_handler, NULL);
+				} else {
+					BT_LOGE("[APP] %s: timer not init\r\n", __func__);
+				}
 			}
 		}
+	}
+	break;
+
+	case RTK_BT_HFP_EVT_UNKNOWN_EVENT_IND: {
+		rtk_bt_hfp_unknown_at_event_t *p_hfp_event_ind = (rtk_bt_hfp_unknown_at_event_t *)param;
+		BT_LOGA("[HFP] Receive unknown event from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+				p_hfp_event_ind->bd_addr[5], p_hfp_event_ind->bd_addr[4], p_hfp_event_ind->bd_addr[3], p_hfp_event_ind->bd_addr[2], p_hfp_event_ind->bd_addr[1],
+				p_hfp_event_ind->bd_addr[0]);
+		BT_LOGA(" %s \r\n", p_hfp_event_ind->at_cmd);
 	}
 	break;
 
@@ -2423,8 +2998,9 @@ static rtk_bt_hfp_ag_conf_t demo_ag_conf = {
 	.ag_supported_features = RTK_BT_HFP_AG_LOCAL_CAPABILITY_3WAY |
 	RTK_BT_HFP_AG_LOCAL_CAPABILITY_VOICE_RECOGNITION |
 	RTK_BT_HFP_AG_LOCAL_CAPABILITY_HF_INDICATORS |
+	RTK_BT_HFP_AG_LOCAL_CAPABILITY_CODEC_NEGOTIATION |
 	RTK_BT_HFP_AG_LOCAL_CAPABILITY_ESCO_S4_T2_SUPPORTED,
-	.ag_supported_codecs = RTK_BT_HFP_AG_CODEC_TYPE_CVSD
+	.ag_supported_codecs = RTK_BT_HFP_AG_CODEC_TYPE_CVSD | RTK_BT_HFP_AG_CODEC_TYPE_MSBC
 };
 static rtk_bt_hfp_hf_conf_t demo_hf_conf = {
 	.link_num = 1,
@@ -2434,8 +3010,9 @@ static rtk_bt_hfp_hf_conf_t demo_hf_conf = {
 	RTK_BT_HFP_HF_LOCAL_CLI_PRESENTATION_CAPABILITY |
 	RTK_BT_HFP_HF_LOCAL_VOICE_RECOGNITION_ACTIVATION |
 	RTK_BT_HFP_HF_LOCAL_ESCO_S4_SETTINGS |
+	RTK_BT_HFP_HF_LOCAL_CODEC_NEGOTIATION |
 	RTK_BT_HFP_HF_LOCAL_REMOTE_VOLUME_CONTROL,
-	.hf_supported_codecs = RTK_BT_HFP_HF_CODEC_TYPE_CVSD
+	.hf_supported_codecs = RTK_BT_HFP_HF_CODEC_TYPE_CVSD | RTK_BT_HFP_AG_CODEC_TYPE_MSBC
 };
 
 static void a2dp_demo_reconnect_timer_handle(void *arg)
@@ -2474,11 +3051,9 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 		bt_app_conf.app_profile_support =   RTK_BT_PROFILE_A2DP | \
 											RTK_BT_PROFILE_AVRCP | \
 											RTK_BT_PROFILE_HFP | \
+											RTK_BT_PROFILE_PBAP | \
 											RTK_BT_PROFILE_SDP;
 		bt_app_conf.mtu_size = 180;
-		bt_app_conf.prefer_all_phy = 0;
-		bt_app_conf.prefer_tx_phy = 1 | 1 << 1 | 1 << 2;
-		bt_app_conf.prefer_rx_phy = 1 | 1 << 1 | 1 << 2;
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
 
@@ -2486,8 +3061,6 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 
 		dft_param.mtu_size = 180;
 		BT_APP_PROCESS(rtk_bt_br_gap_set_default_param(&dft_param));
-		/* set class of device */
-		BT_APP_PROCESS(rtk_bt_br_gap_set_cod(&cod));
 		/* set supervision_timeout */
 		BT_APP_PROCESS(rtk_bt_br_gap_set_supvisiontimeout(&superv_time));
 		BT_APP_PROCESS(rtk_bt_br_gap_set_inquiry_param(&inquiry_param));
@@ -2497,6 +3070,8 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 		if (RTK_BT_A2DP_ROLE_SNK == role) {
 			bt_app_conf.a2dp_role = RTK_BT_A2DP_ROLE_SNK;
 			bt_app_conf.hfp_role = RTK_BT_AUDIO_HFP_ROLE_HF;
+			/* set class of device */
+			BT_APP_PROCESS(rtk_bt_br_gap_set_cod(&cod_for_snk));
 			BT_APP_PROCESS(rtk_sdp_record_add((void *)a2dp_sink_sdp_record, sizeof(a2dp_sink_sdp_record)));
 			BT_APP_PROCESS(rtk_sdp_record_add((void *)hfp_sdp_record, sizeof(hfp_sdp_record)));
 			BT_APP_PROCESS(rtk_bt_hfp_cfg((uint8_t)RTK_BT_AUDIO_HFP_ROLE_HF, (void *)&demo_hf_conf));
@@ -2505,6 +3080,8 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 		} else if (RTK_BT_A2DP_ROLE_SRC == role) {
 			bt_app_conf.a2dp_role = RTK_BT_A2DP_ROLE_SRC;
 			bt_app_conf.hfp_role = RTK_BT_AUDIO_HFP_ROLE_AG;
+			/* set class of device */
+			BT_APP_PROCESS(rtk_bt_br_gap_set_cod(&cod_for_src));
 			BT_APP_PROCESS(rtk_sdp_record_add((void *)a2dp_src_sdp_record, sizeof(a2dp_src_sdp_record)));
 			BT_APP_PROCESS(rtk_sdp_record_add((void *)hfp_ag_sdp_record, sizeof(hfp_ag_sdp_record)));
 			BT_APP_PROCESS(rtk_bt_hfp_cfg((uint8_t)RTK_BT_AUDIO_HFP_ROLE_AG, (void *)&demo_ag_conf));
@@ -2594,7 +3171,7 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 				goto failed;
 			}
 			/* Wait until event task is running */
-			if (false == osif_sem_take(bond_info_flush_task.sem, 0xffffffff)) {
+			if (false == osif_sem_take(bond_info_flush_task.sem, BT_TIMEOUT_FOREVER)) {
 				goto failed;
 			}
 		}
@@ -2613,8 +3190,8 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 		}
 		if (a2dp_demo_bond_info_flush) {
 			/* indicate a2dp demo bond info flush thread to kill itself */
-			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_THREAD_EXIT);
-			if (false == osif_sem_take(bond_info_flush_task.sem, 0xffffffff)) {
+			a2dp_demo_flush_bond_info(A2DP_DEMO_BOND_INFO_THREAD_EXIT, NULL);
+			if (false == osif_sem_take(bond_info_flush_task.sem, BT_TIMEOUT_FOREVER)) {
 				return -1;
 			}
 			osif_sem_delete(bond_info_flush_task.sem);
@@ -2625,23 +3202,28 @@ int bt_audio_a2dp_hfp_main(uint8_t role, uint8_t enable)
 		}
 		/* a2dp source demo send task delete */
 		if (a2dp_demo_role == RTK_BT_A2DP_ROLE_SRC) {
-			if (a2dp_task.hdl) {
-				BT_LOGA("[A2DP Demo] Delete Test Demo \r\n");
-				app_a2dp_src_send_flag = false;
-				a2dp_task.run = 0;
-				if (false == osif_sem_take(a2dp_task.sem, 0xffffffff)) {
-					BT_LOGE("[A2DP Demo] take a2dp_task.sem fail \r\n");
-					return -1;
-				}
-				osif_sem_delete(a2dp_task.sem);
-				memset((void *)&a2dp_task, 0, sizeof(struct a2dp_demo_task_t));
-			}
+			rtk_bt_a2dp_demo_src_send_data_control(false);
+		}
+		if (g_audio_resample_t) {
+			app_bt_pcm_data_resample_engine_destroy(&g_audio_resample_t);
 		}
 		/* stop outband ring alert */
 		app_hfp_ring_alert_stop();
+#if defined(CONFIG_BT_AUDIO_NOISE_CANCELLATION) && CONFIG_BT_AUDIO_NOISE_CANCELLATION
+		if (nc_task.run) {
+			nc_task.run = 0;
+			if (false == osif_sem_take(nc_task.sem, BT_TIMEOUT_FOREVER)) {
+				return -1;
+			}
+			osif_sem_delete(nc_task.sem);
+			nc_task.hdl = NULL;
+			nc_task.sem = NULL;
+		}
+		rtk_bt_audio_noise_cancellation_destroy();
+#endif
 		if (hfp_task.run) {
 			hfp_task.run = 0;
-			if (false == osif_sem_take(hfp_task.sem, 0xffffffffUL)) {
+			if (false == osif_sem_take(hfp_task.sem, BT_TIMEOUT_FOREVER)) {
 				return -1;
 			}
 			osif_sem_delete(hfp_task.sem);

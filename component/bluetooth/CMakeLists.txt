@@ -1,0 +1,21 @@
+if(NOT CONFIG_BT)
+    return()
+endif()
+
+if(CONFIG_BT_SDN_VERIFY)
+    ameba_add_subdirectory(verification)
+    ameba_add_subdirectory(bt_controller/hal/amebal2)
+endif()
+
+ameba_add_subdirectory_ifnot(CONFIG_BT_INIC api)
+ameba_add_subdirectory_if(CONFIG_BT_AUDIO_CODEC_SUPPORT bt_audio)
+ameba_add_subdirectory(bt_mp)
+ameba_add_subdirectory(driver)
+ameba_add_subdirectory_ifnot(CONFIG_BT_INIC example)
+ameba_add_subdirectory(osif)
+ameba_add_subdirectory_ifnot(CONFIG_BT_INIC rtk_coex)
+if(CONFIG_BT_ZEPHYR)
+    ameba_add_subdirectory(zephyr)
+elseif(NOT CONFIG_BT_INIC)
+    ameba_add_subdirectory(rtk_stack)  # refer to ble_mesh_stack
+endif()

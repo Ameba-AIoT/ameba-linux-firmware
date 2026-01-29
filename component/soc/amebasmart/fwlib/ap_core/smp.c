@@ -8,7 +8,7 @@
 #include "ameba_soc.h"
 #include "FreeRTOS.h"
 
-static const char *TAG = "#";
+static const char *const TAG = "#";
 extern void _boot(void);
 extern void vPortRestoreTaskContext(void);
 
@@ -18,6 +18,10 @@ void rtk_core1_power_on(void)
 {
 	u32 val;
 	CA32_TypeDef *ca32 = CA32_BASE;
+
+	if (HSYS_GET_ISO_HP_AP_CORE(HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HP_ISO)) == 0) {
+		return;
+	}
 
 	ca32->CA32_C0_RST_CTRL &= (~(CA32_NCOREPORESET(0x2) | CA32_NCORERESET(0x2)));
 
@@ -41,8 +45,7 @@ void rtk_core1_power_on(void)
 	HAL_WRITE32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HP_ISO, val);
 	DelayUs(50);
 
-	ca32->CA32_C0_RST_CTRL |= (CA32_NCOREPORESET(0x2) | CA32_NCORERESET(0x2) | CA32_BIT_NRESETSOCDBG | CA32_BIT_NL2RESET | CA32_BIT_NGICRESET);
-
+	ca32->CA32_C0_RST_CTRL |= (CA32_NCOREPORESET(0x2) | CA32_NCORERESET(0x2));
 }
 
 
@@ -107,7 +110,7 @@ void vPortSecondaryOff(void)
 	do {
 		state  = psci_affinity_info(1, 0);
 		if (state == 1) {
-			RTK_LOGS(TAG, "cpu1 power off\n");
+			RTK_LOGS(TAG, RTK_LOG_INFO, "cpu1 power off\n");
 			rtk_core1_power_off();
 			return;
 		}
@@ -115,7 +118,7 @@ void vPortSecondaryOff(void)
 		DelayUs(50);
 	} while (count--);
 
-	RTK_LOGS(TAG, "Secondary core power off fail: %d\n", state);
+	RTK_LOGS(TAG, RTK_LOG_ERROR, "Secondary core power off fail: %d\n", state);
 #endif
 }
 
@@ -125,7 +128,7 @@ void vPortSecondaryStart(void)
 	if (pmu_get_secondary_cpu_state(portGET_CORE_ID()) == CPU1_RUNNING)
 		while (rtos_sched_get_state() == RTOS_SCHED_NOT_STARTED);
 
-	RTK_LOGS(TAG, "CPU%d: on\n", (int)portGET_CORE_ID());
+	RTK_LOGS(TAG, RTK_LOG_INFO, "CPU%d: on\n", (int)portGET_CORE_ID());
 #if ( configNUM_CORES > 1 )
 	/* Configure the hardware ready to run the demo. */
 	prvSetupHardwareSecondary();
@@ -150,7 +153,7 @@ void smp_init(void)
 	BaseType_t err;
 
 #if ( configNUM_CORES > 1 )
-	RTK_LOGS(TAG, "smp: Bringing up secondary CPUs ...\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "smp: Bringing up secondary CPUs ...\n");
 
 	if (SYSCFG_CHIPType_Get() != CHIP_TYPE_RTLSIM) {//RTL sim shall not use delayus before core1 ready
 		/* power on core1 to avoid km4 not open it */
@@ -170,7 +173,7 @@ void smp_init(void)
 
 		err = psci_cpu_on(xCoreID, (unsigned long)_boot);
 		if (err < 0) {
-			RTK_LOGS(TAG, "CPU%d: failed to boot: %d\n", (int)xCoreID, (int)err);
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "CPU%d: failed to boot: %d\n", (int)xCoreID, (int)err);
 		}
 	}
 

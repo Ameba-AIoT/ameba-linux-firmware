@@ -174,7 +174,7 @@ uint16_t rtk_bt_le_gap_start_adv(rtk_bt_le_adv_param_t *padv_param)
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 	/* When extended adv supported, ext adv apis are used to send legacy adv.
 	   Ext adv parameter needs random address, but rtk_bt_le_adv_param_t does not include own address */
 	if ((padv_param->own_addr_type == RTK_BT_LE_ADDR_TYPE_RANDOM) || (padv_param->own_addr_type == RTK_BT_LE_ADDR_TYPE_RPA_RANDOM)) {
@@ -215,7 +215,7 @@ bool rtk_bt_le_gap_adv_is_idle(void)
 	return ret ? true : false;
 }
 
-#if defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 uint16_t rtk_bt_le_gap_create_ext_adv(rtk_bt_le_ext_adv_param_t *p_adv_param, uint8_t *p_adv_handle)
 {
 	uint16_t ret = 0;
@@ -245,6 +245,16 @@ uint16_t rtk_bt_le_gap_create_ext_adv(rtk_bt_le_ext_adv_param_t *p_adv_param, ui
 	}
 
 	if (p_adv_param->filter_policy > RTK_BT_LE_ADV_FILTER_ALLOW_SCAN_WLST_CON_WLST) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (p_adv_param->primary_adv_phy != RTK_BT_LE_PHYS_PRIM_ADV_1M &&
+		p_adv_param->primary_adv_phy != RTK_BT_LE_PHYS_PRIM_ADV_CODED) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (p_adv_param->secondary_adv_phy < RTK_BT_LE_PHYS_1M ||
+		p_adv_param->secondary_adv_phy > RTK_BT_LE_PHYS_CODED) {
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
@@ -320,9 +330,20 @@ uint16_t rtk_bt_le_gap_remove_ext_adv(uint8_t adv_handle)
 
 	return ret;
 }
-#endif /* RTK_BLE_5_0_AE_ADV_SUPPORT */
 
-#if (defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT) || (defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT)
+uint16_t rtk_bt_le_gap_get_ext_adv_handle_by_conn_handle(uint16_t conn_handle, uint8_t *adv_handle)
+{
+	uint16_t ret = 0;
+	rtk_bt_le_get_eadv_by_conn_handle_param_t get_adv_hdl = {
+		.conn_handle = conn_handle,
+		.adv_handle = adv_handle,
+	};
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_GET_EXT_ADV_HANDLE_BY_CONN_HANDLE, &get_adv_hdl, sizeof(get_adv_hdl));
+
+	return ret;
+}
+
 uint16_t rtk_bt_le_gap_ext_connect(rtk_bt_le_ext_create_conn_param_t *p_ext_conn_param)
 {
 	uint16_t ret = 0;
@@ -640,7 +661,7 @@ uint16_t rtk_bt_le_gap_stop_scan(void)
 	return ret;
 }
 
-#if defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT
+#if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
 uint16_t rtk_bt_le_gap_set_ext_scan_param(rtk_bt_le_ext_scan_param_t *p_param)
 {
 	uint16_t ret = 0;
@@ -658,15 +679,12 @@ uint16_t rtk_bt_le_gap_set_ext_scan_param(rtk_bt_le_ext_scan_param_t *p_param)
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 
-		if ((p_param->interval[0] < 0x04) || (p_param->interval[0] > 0x4000)) {
+		if (p_param->interval[0] < 0x04) {
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 
-		if ((p_param->window[0] < 0x04) || (p_param->window[0] > 0x4000)) {
-			return RTK_BT_ERR_PARAM_INVALID;
-		}
-
-		if (p_param->window[0] > p_param->interval[0]) {
+		if (p_param->window[0] < 0x04 ||
+			p_param->window[0] > p_param->interval[0]) {
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 	}
@@ -676,15 +694,12 @@ uint16_t rtk_bt_le_gap_set_ext_scan_param(rtk_bt_le_ext_scan_param_t *p_param)
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 
-		if ((p_param->interval[1] < 0x04) || (p_param->interval[1] > 0x4000)) {
+		if (p_param->interval[1] < 0x04) {
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 
-		if ((p_param->window[1] < 0x04) || (p_param->window[1] > 0x4000)) {
-			return RTK_BT_ERR_PARAM_INVALID;
-		}
-
-		if (p_param->window[1] > p_param->interval[1]) {
+		if (p_param->window[1] < 0x04 ||
+			p_param->window[1] > p_param->interval[1]) {
 			return RTK_BT_ERR_PARAM_INVALID;
 		}
 	}
@@ -930,7 +945,8 @@ uint16_t rtk_bt_le_gap_get_active_conn(rtk_bt_le_get_active_conn_t *p_active_con
 uint16_t rtk_bt_le_gap_get_conn_handle_by_addr(rtk_bt_le_addr_t *p_addr, uint16_t *p_conn_handle)
 {
 	uint16_t ret = 0;
-	rtk_bt_le_get_conn_handle_by_addr_param_t conn_handle_by_addr = {0};
+	rtk_bt_le_get_conn_handle_by_addr_param_t conn_handle_by_addr;
+	memset(&conn_handle_by_addr, 0, sizeof(rtk_bt_le_get_conn_handle_by_addr_param_t));
 	memcpy((void *)&conn_handle_by_addr.addr, (void *)p_addr, sizeof(rtk_bt_le_addr_t));
 	conn_handle_by_addr.p_conn_handle = p_conn_handle;
 
@@ -1207,6 +1223,34 @@ uint16_t rtk_bt_le_sm_set_oob_tk(rtk_bt_le_set_oob_key_t *p_set_oob_key)
 
 	return ret;
 }
+
+uint16_t rtk_bt_le_sm_get_sc_local_oob(rtk_bt_le_sc_local_oob_data_t *local_oob)
+{
+	uint16_t ret = 0;
+
+	if (!local_oob) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_GET_SC_LOCAL_OOB,
+						  local_oob, sizeof(rtk_bt_le_sc_local_oob_data_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_le_sm_input_sc_peer_oob(rtk_bt_le_sc_peer_oob_data_t *peer_oob)
+{
+	uint16_t ret = 0;
+
+	if (!peer_oob) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_INPUT_SC_PEER_OOB,
+						  peer_oob, sizeof(rtk_bt_le_sc_peer_oob_data_t));
+
+	return ret;
+}
 #endif  /* RTK_BLE_SMP_OOB_SUPPORT */
 
 uint16_t rtk_bt_le_sm_get_bond_num(uint8_t *bond_num)
@@ -1240,7 +1284,8 @@ bool rtk_bt_le_sm_is_device_bonded(rtk_bt_le_addr_t *paddr)
 	if (rtk_bt_le_sm_get_bond_info(bond_info, &bond_size) == RTK_BT_OK) {
 		for (i = 0; i < bond_size; i++) {
 			if (paddr->type < RTK_BT_LE_ADDR_TYPE_RPA_PUBLIC &&
-				memcmp(bond_info[i].remote_addr.addr_val, paddr->addr_val, RTK_BD_ADDR_LEN) == 0) {
+				(memcmp(bond_info[i].remote_addr.addr_val, paddr->addr_val, RTK_BD_ADDR_LEN) == 0 ||
+				 memcmp(bond_info[i].ident_addr.addr_val, paddr->addr_val, RTK_BD_ADDR_LEN) == 0)) {
 				ret = true;
 				break;
 			}
@@ -1396,12 +1441,12 @@ uint16_t rtk_bt_le_gap_connless_cte_rx_start(uint8_t sync_id, rtk_bt_le_gap_conn
 	}
 
 	if (!RTK_BLE_GAP_CTE_SLOT_DURATION_VALUE_IN_RANGE(params->slot_durations)) {
-		BT_LOGD("CTE rx param slot_durations=%u invalid\r\n", params->slot_durations);
+		BT_LOGE("CTE rx param slot_durations=%u invalid\r\n", params->slot_durations);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
 	if (!RTK_BLE_GAP_CTE_MAX_SAMPLED_CTES_VALUE_IN_RANGE(params->max_sampled_ctes)) {
-		BT_LOGD("CTE rx param max_sampled_ctes=%u invalid\r\n", params->max_sampled_ctes);
+		BT_LOGE("CTE rx param max_sampled_ctes=%u invalid\r\n", params->max_sampled_ctes);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
@@ -1525,7 +1570,7 @@ uint16_t rtk_bt_le_gap_conn_cte_tx_stop(uint16_t conn_handle)
 
 	return ret;
 }
-#if ((defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT) && \
+#if ((defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV) && \
     (defined(RTK_BLE_5_0_PA_ADV_SUPPORT) && RTK_BLE_5_0_PA_ADV_SUPPORT))
 
 static uint16_t rtk_bt_le_gap_connless_cte_tx_enable(uint8_t adv_handle, rtk_bt_le_gap_connless_cte_tx_param_t *params)
@@ -1543,23 +1588,23 @@ static uint16_t rtk_bt_le_gap_connless_cte_tx_enable(uint8_t adv_handle, rtk_bt_
 	}
 
 	if (!RTK_BLE_GAP_CTE_LEN_VALUE_IN_RANGE(params->cte_len)) {
-		BT_LOGD("CTE connectionless tx param cte_len=%u invalid\r\n", params->cte_len);
+		BT_LOGE("CTE connectionless tx param cte_len=%u invalid\r\n", params->cte_len);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
 	if (!RTK_BLE_GAP_CTE_TYPE_VALUE_IN_RANGE(params->cte_type)) {
-		BT_LOGD("CTE connectionless tx param cte_type=%u invalid\r\n", params->cte_type);
+		BT_LOGE("CTE connectionless tx param cte_type=%u invalid\r\n", params->cte_type);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
 	if (!RTK_BLE_GAP_CTE_CNT_VALUE_IN_RANGE(params->cte_count)) {
-		BT_LOGD("CTE connectionless tx param cte_count=%u invalid\r\n", params->cte_count);
+		BT_LOGE("CTE connectionless tx param cte_count=%u invalid\r\n", params->cte_count);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
 	aod = (params->cte_type == RTK_BT_LE_GAP_CTE_TYPE_AOD_1US) || (params->cte_type == RTK_BT_LE_GAP_CTE_TYPE_AOD_2US);
 	if (aod && (!params->ant_ids || !RTK_BLE_GAP_CTE_NUM_ANT_IDS_VALUE_IN_RANGE(params->num_ant_ids))) {
-		BT_LOGD("CTE connectionless tx param antenna invalid, num_ant_ids=%u, ant_ids=%08x\r\n", params->num_ant_ids, params->ant_ids);
+		BT_LOGE("CTE connectionless tx param antenna invalid, num_ant_ids=%u, ant_ids=%08x\r\n", params->num_ant_ids, params->ant_ids);
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
@@ -1596,21 +1641,21 @@ uint16_t rtk_bt_le_gap_connless_cte_tx_start(rtk_bt_le_gap_connless_cte_tx_param
 
 	ret = rtk_bt_le_gap_create_ext_adv(p_eadv_param, &adv_handle);
 	if (ret) {
-		BT_LOGD("[LE GAP]Create eadv fail for connless CTE TX, ret=%u\r\n", ret);
+		BT_LOGE("[LE GAP]Create eadv fail for connless CTE TX, ret=%u\r\n", ret);
 		return ret;
 	}
 
 	p_pa_param->adv_handle = adv_handle;
 	ret = rtk_bt_le_gap_start_pa(p_pa_param);
 	if (ret) {
-		BT_LOGD("[LE GAP]Start PA fail for connless CTE TX, ret=%u\r\n", ret);
+		BT_LOGE("[LE GAP]Start PA fail for connless CTE TX, ret=%u\r\n", ret);
 		rtk_bt_le_gap_remove_ext_adv(adv_handle);
 		return ret;
 	}
 
 	ret = rtk_bt_le_gap_connless_cte_tx_enable(adv_handle, p_cte_param);
 	if (ret) {
-		BT_LOGD("[LE GAP]Enable CTE TX fail for connless CTE TX, ret=%u\r\n", ret);
+		BT_LOGE("[LE GAP]Enable CTE TX fail for connless CTE TX, ret=%u\r\n", ret);
 		rtk_bt_le_gap_stop_pa(adv_handle);
 		rtk_bt_le_gap_remove_ext_adv(adv_handle);
 		return ret;
@@ -1618,7 +1663,7 @@ uint16_t rtk_bt_le_gap_connless_cte_tx_start(rtk_bt_le_gap_connless_cte_tx_param
 
 	ret = rtk_bt_le_gap_start_ext_adv(adv_handle, 0, 0);
 	if (ret) {
-		BT_LOGD("[LE GAP]Start eadv fail for connless CTE TX, ret=%u\r\n", ret);
+		BT_LOGE("[LE GAP]Start eadv fail for connless CTE TX, ret=%u\r\n", ret);
 		rtk_bt_le_gap_connless_cte_tx_disable(adv_handle);
 		rtk_bt_le_gap_stop_pa(adv_handle);
 		rtk_bt_le_gap_remove_ext_adv(adv_handle);
@@ -1641,7 +1686,7 @@ uint16_t rtk_bt_le_gap_connless_cte_tx_stop(uint8_t adv_handle)
 	return ret;
 }
 
-#endif /* RTK_BLE_5_0_AE_ADV_SUPPORT && RTK_BLE_5_0_PA_ADV_SUPPORT */
+#endif /* RTK_BLE_5_0_USE_EXTENDED_ADV && RTK_BLE_5_0_PA_ADV_SUPPORT */
 
 #endif /* RTK_BLE_5_1_CTE_SUPPORT */
 
@@ -1665,7 +1710,7 @@ uint16_t rtk_bt_le_gap_coc_set_psm_security(uint16_t le_psm, uint8_t active,
 {
 	uint16_t ret = 0;
 
-	if (sec_mode > RTK_BT_LE_COC_SEC_AUTHOR) {
+	if (sec_mode > RTK_BT_LE_COC_SEC_SECURE_CONN_AUTHEN) {
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
@@ -1760,3 +1805,118 @@ uint16_t rtk_bt_le_gap_coc_send_data(uint16_t cid, uint16_t len, uint8_t *data)
 	return ret;
 }
 #endif
+
+uint16_t rtk_bt_le_gap_dtm_rx_test(rtk_bt_le_dtm_rx_param_t *p_rx_param, rtk_bt_le_dtm_rx_version_t rx_version)
+{
+	uint16_t ret = 0;
+	rtk_bt_le_gap_act_t act;
+
+	if (!p_rx_param) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	if (rx_version < RTK_BT_LE_DTM_RX_VERSION_V1 || rx_version > RTK_BT_LE_DTM_RX_VERSION_V3) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (p_rx_param->rx_channel > 0x27) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+	act = RTK_BT_LE_GAP_ACT_DTM_RX_TEST_V1;
+
+	if (rx_version > RTK_BT_LE_DTM_RX_VERSION_V1) {
+		if (p_rx_param->phy < RTK_BT_LE_DTM_RX_PHYS_1M || p_rx_param->phy > RTK_BT_LE_DTM_RX_PHYS_CODED) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_rx_param->mod_idx > RTK_BT_LE_DTM_MODULATION_INDEX_STABLE) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		act = RTK_BT_LE_GAP_ACT_DTM_RX_TEST_V2;
+	}
+
+	if (rx_version > RTK_BT_LE_DTM_RX_VERSION_V2) {
+		if (p_rx_param->exp_cte_len == 0x01 || p_rx_param->exp_cte_len > 0x14) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_rx_param->exp_cte_type > RTK_BT_LE_DTM_CTE_TYPE_AOD_2US_SLOT) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_rx_param->slot_durations < RTK_BT_LE_DTM_SLOT_DURATIONS_SWITCH_SAMPLE_1US ||
+			p_rx_param->slot_durations > RTK_BT_LE_DTM_SLOT_DURATIONS_SWITCH_SAMPLE_2US) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_rx_param->sw_pattern_len < 0x02 || p_rx_param->sw_pattern_len > 0x4B) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_rx_param->p_antenna_ids == NULL) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		act = RTK_BT_LE_GAP_ACT_DTM_RX_TEST_V3;
+	}
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, act, p_rx_param, sizeof(rtk_bt_le_dtm_rx_param_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_le_gap_dtm_tx_test(rtk_bt_le_dtm_tx_param_t *p_tx_param, rtk_bt_le_dtm_tx_version_t tx_version)
+{
+	uint16_t ret = 0;
+	rtk_bt_le_gap_act_t act;
+
+	if (!p_tx_param) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	if (tx_version < RTK_BT_LE_DTM_TX_VERSION_V1 || tx_version > RTK_BT_LE_DTM_TX_VERSION_V4) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (p_tx_param->tx_channel > 0x27) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+	if (p_tx_param->pkt_pl > RTK_BT_LE_DTM_PACKET_PAYLOAD_01) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+	act = RTK_BT_LE_GAP_ACT_DTM_TX_TEST_V1;
+
+	if (tx_version > RTK_BT_LE_DTM_TX_VERSION_V1) {
+		if (p_tx_param->phy < RTK_BT_LE_DTM_TX_PHYS_1M || p_tx_param->phy > RTK_BT_LE_DTM_TX_PHYS_CODED_S2) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		act = RTK_BT_LE_GAP_ACT_DTM_TX_TEST_V2;
+	}
+
+	if (tx_version > RTK_BT_LE_DTM_TX_VERSION_V2) {
+		if (p_tx_param->cte_len == 0x01 || p_tx_param->cte_len > 0x14) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_tx_param->cte_type > RTK_BT_LE_DTM_CTE_TYPE_AOD_2US_SLOT) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_tx_param->sw_pattern_len < 0x02 || p_tx_param->sw_pattern_len > 0x4B) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		if (p_tx_param->p_antenna_ids == NULL) {
+			return RTK_BT_ERR_PARAM_INVALID;
+		}
+		act = RTK_BT_LE_GAP_ACT_DTM_TX_TEST_V3;
+	}
+
+	if (tx_version > RTK_BT_LE_DTM_TX_VERSION_V3) {
+		act = RTK_BT_LE_GAP_ACT_DTM_TX_TEST_V4;
+	}
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, act, p_tx_param, sizeof(rtk_bt_le_dtm_tx_param_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_le_gap_dtm_end(uint16_t *p_num_pkts)
+{
+	uint16_t ret = 0;
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_DTM_END_TEST, p_num_pkts, sizeof(uint16_t));
+
+	return ret;
+}
