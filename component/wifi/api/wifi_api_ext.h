@@ -79,6 +79,26 @@ s32 wifi_set_lps_listen_interval(u8 interval);
 
 
 /**
+ * @brief Set up custom TCP/UDP broadcast port filter white list for wifi wake application core under tickless state
+ * @warning There are up to 6 port numbers.
+ * @param[in] port_list: port list need to add in port filter white list
+ * @param[in] list_count: number of port list
+ * @code
+ * u16 port_list[] = {1234, 2234, 3234, 4234};
+ * wifi_set_broadcast_port_wakeup_white_list(port_list, 4);
+ * @endcode
+ * @return
+ *    - @ref RTK_SUCCESS : The API executed successfully.
+ *    - @ref RTK_FAIL: The API executed fail.
+ *    - @ref RTK_ERR_WIFI_NOT_INIT: wifi not initial
+ *    - @ref RTK_ERR_WIFI_POWEROFF: Wi-Fi is powered off in IPS(Inactive Power Save) mode.
+ * @note
+ *    - If the port of TCP/UDP broadcast packet not match port_list, drop the packet and not wakeup host
+ *    - If this API is not set, all ports will not be filtered
+ */
+s32 wifi_set_broadcast_port_wakeup_white_list(u16 *port_list, u8 list_count);
+
+/**
  * @brief  Set the auto-reconnect mode for Wi-Fi connection.
  * This function allows temporarily enabling or disabling auto-reconnect mode,
  * overriding the default setting in ameba_wificfg.c.
@@ -139,7 +159,9 @@ s32 wifi_ap_switch_chl_and_inform(struct rtw_csa_parm *csa_param);
   * @brief  Toggle whether SoftAP can be discovered.
   * @param[in]  enable: 1-invisible, 0-visible.
   * @return  None
-  * @note  SoftAP becomes invisible by pausing tx beacon and not responsing to probe request.
+  * @note
+  *    - SoftAP becomes invisible by pausing tx beacon and not responsing to probe request.
+  *    - Should be deauth all associted STAs[ref wifi_ap_del_client()] when set ap invisible.
   */
 void wifi_ap_set_invisible(u8 enable);
 
@@ -451,18 +473,14 @@ s32 wifi_send_raw_frame(struct rtw_raw_frame_desc *raw_frame_desc);
 s32 wifi_set_tx_rate_by_tos(u8 enable, u8 tos_precedence, u8 tx_rate);
 
 /**
- * @brief  Set EDCA parameters for STA.
- * @param[in]  ac_param: EDCA parameters format (as per 802.11 spec):
- * <table>
- *   <tr><th>BIT31~16</th><th>BIT15~8</th><th>BIT7~0</th></tr>
- *   <tr><td>TXOP Limit</td><td>ECWmin/ECWmax</td><td>ACI/AIFSN</td></tr>
- * </table>
+ * @brief  Set EDCA parameters for STA/SOFTAP.
+ * @param[in]  pedca_param: EDCA parameters (as per 802.11 spec):
  * @return
  *    - @ref RTK_SUCCESS : The API executed successfully.
  *    - -@ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode,
  *                      unable to access Wi-Fi registers.
  */
-s32 wifi_set_edca_param(u32 ac_param);
+s32 wifi_set_edca_param(struct rtw_edca_param *pedca_param);
 
 /**
  * @brief  Enable or disable CCA/EDCCA for TX.
@@ -582,6 +600,16 @@ void wifi_set_conn_step_try_limit(struct rtw_conn_step_retries *conn_step_retrie
   *      - Get acs report fail
   */
 s32 wifi_acs_find_ideal_channel(struct rtw_acs_config *acs_config, u8 *ideal_ch);
+
+/**
+ * @brief  Configure Wi-Fi tx advanced settings for special scenario.
+ * @param[in]  tx_setting: A pointer to specific parameters.
+ * @return
+ *    - @ref RTK_SUCCESS : The API executed successfully.
+ *    - -@ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode,
+ *                      unable to access Wi-Fi registers.
+ */
+s32 wifi_set_tx_advanced_config(struct rtw_tx_advanced_cfg *tx_setting);
 
 /** @} End of Extended_Functions group */
 /** @} End of WIFI_Exported_Functions group*/

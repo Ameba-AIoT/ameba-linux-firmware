@@ -318,6 +318,8 @@ static uint16_t bt_stack_init(void *app_config)
 	gap_config_le_sec_entry_num(GAP_MAX_LE_SEC_ENTRY_NUM);
 #endif
 
+	gap_config_max_attribute_table_count(RTK_BT_GATTS_SERVICE_NUM);
+
 	//BT Stack init
 	b_bte_init_ret = bte_init();
 	if (false == b_bte_init_ret) {
@@ -938,6 +940,12 @@ uint16_t bt_stack_act_handler(rtk_bt_cmd_t *p_cmd)
 		BT_LOGD("RTK_BT_LE_GP_MESH_HEALTH_SERVER_MODEL group");
 		bt_mesh_health_server_model_act_handle(p_cmd);
 		break;
+#if defined(BT_MESH_ENABLE_REMOTE_PROVISIONING_SERVER_MODEL) && BT_MESH_ENABLE_REMOTE_PROVISIONING_SERVER_MODEL
+	case RTK_BT_LE_GP_MESH_REMOTE_PROV_SERVER_MODEL:
+		BT_LOGD("RTK_BT_LE_GP_MESH_REMOTE_PROV_SERVER_MODEL group");
+		bt_mesh_remote_prov_server_model_act_handle(p_cmd);
+		break;
+#endif
 #endif // end of RTK_BLE_MESH_DEVICE_SUPPORT
 #if defined(BT_MESH_ENABLE_DATATRANS_MODEL) && BT_MESH_ENABLE_DATATRANS_MODEL
 	case RTK_BT_LE_GP_MESH_DATATRANS_MODEL:

@@ -62,9 +62,9 @@ _WEAK void bt_vendor_process_tx_frame(uint8_t type, uint8_t *pdata, uint16_t len
 	(void)len;
 }
 
-void hci_uart_rx_irq_handler(void)
+void hci_uart_rx_irq_handler(bool from_irq)
 {
-	if (h4->rx_disabled) {
+	if (from_irq && h4->rx_disabled) {
 		return;
 	}
 
@@ -93,7 +93,7 @@ void hci_uart_rx_irq_handler(void)
 
 		if (h4->remain == 0) {
 			h4->body_len = hci_get_body_len(h4->hdr, h4->type);
-			if (h4->body_len > CONFIG_HCI_RX_BUF_LEN) {
+			if ((h4->body_len + h4->hlen) > CONFIG_HCI_RX_BUF_LEN) {
 				BT_LOGE("ERROR!!!, type %d, len %d\r\n", h4->type, h4->body_len);
 				h4->remain = h4->body_len;
 				h4->state = ST_DISCARD;
@@ -165,11 +165,11 @@ static void rx_thread(void *context)
 		if (!packet) { /* exit flag */
 			break;
 		}
-
+#ifndef CONFIG_BT_INIC
 		if (!hci_is_mp_mode()) {
 			bt_coex_process_rx_frame(packet->type, packet->buf, packet->len);
 		}
-
+#endif
 		if (h4->cb->recv) { /* send to upperstack */
 			h4->cb->recv(packet);
 		}
@@ -177,9 +177,9 @@ static void rx_thread(void *context)
 		osif_msg_send(h4->rx_free, &packet, BT_TIMEOUT_NONE);
 
 		if (h4->rx_disabled) {
-			h4->rx_disabled = false;
 			BT_LOGA("Uart Rx recover.\r\n");
-			hci_uart_rx_irq_handler(); /* just in case the paused packet has no body */
+			hci_uart_rx_irq_handler(false); /* just in case the paused packet has no body */
+			h4->rx_disabled = false;
 			hci_uart_rx_irq(true);
 		}
 	}
@@ -204,12 +204,12 @@ uint16_t hci_transport_send(uint8_t type, uint8_t *buf, uint16_t len, bool has_r
 	if (type < HCI_CMD || type > HCI_ISO) {
 		return 0;
 	}
-
+#ifndef CONFIG_BT_INIC
 	if (!hci_is_mp_mode()) {
 		bt_coex_process_tx_frame(type, buf, len);
 		bt_vendor_process_tx_frame(type, buf, len);
 	}
-
+#endif
 	osif_mutex_take(h4->tx_mutex, BT_TIMEOUT_FOREVER);
 	if (has_rsvd_byte) {
 		*(buf - 1) = type;
@@ -236,11 +236,11 @@ uint8_t hci_transport_open(void)
 		}
 		memset(h4, 0, sizeof(struct hci_h4_t));
 	}
-
+#ifndef CONFIG_BT_INIC
 	if (!hci_is_mp_mode()) {
 		bt_coex_init();
 	}
-
+#endif
 	osif_sem_create(&h4->rx_run_sema, 0, 1);
 	osif_mutex_create(&h4->tx_mutex);
 	osif_msg_queue_create(&h4->rx_busy, CONFIG_HCI_RX_NUM + 1, sizeof(struct hci_rx_packet_t *));
@@ -268,10 +268,11 @@ void hci_transport_close(void)
 	h4->rx_run = false;
 	osif_msg_send(h4->rx_busy, &null_pkt, BT_TIMEOUT_NONE);
 	osif_sem_take(h4->rx_run_sema, BT_TIMEOUT_FOREVER);
-
+#ifndef CONFIG_BT_INIC
 	if (!hci_is_mp_mode()) {
 		bt_coex_deinit();
 	}
+#endif
 }
 
 void hci_transport_free(void)

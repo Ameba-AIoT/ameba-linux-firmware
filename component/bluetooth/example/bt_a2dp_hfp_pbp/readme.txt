@@ -6,21 +6,27 @@
 
 Test Configuration
 ~~~~~~~~~~~
+LE Audio Config:
 1. BIS num 1 + Sample rate 16kHz + 2-channel + ISO interval 20 ms 
-    1.1 Config the following Macros in app_bt_le_audio_common.h
+    1.1 Config the following Macros in rtk_bt_le_audio_def.h
             change   RTK_BT_LE_AUDIO_BIG_ISO_INTERVAL_CONFIG               to         RTK_BT_ISO_INTERVAL_20_MS
             change   RTK_BT_LE_AUDIO_COMPO_DEMO_AUDIO_STREAM_SAMPLE_RATE   to         RTK_BT_LE_SAMPLING_FREQUENCY_CFG_16K
             change   RTK_BT_LE_AUDIO_COMPO_DEMO_DEFAULT_BIS_CODEC_CFG      to         RTK_BT_LE_CODEC_CFG_ITEM_16_2
-            change   RTK_BT_LE_AUDIO_BIRDS_SING_SAMPLING_RATE              to         RTK_BT_LE_SAMPLING_FREQUENCY_CFG_8K
+
 2. BIS num 1 + Sample rate 48kHz + 1-channel + ISO interval 20 ms
     2.1 Config the following Macros in rtk_bt_le_audio_def.h
             change   RTK_BT_LE_AUDIO_BIG_ISO_INTERVAL_CONFIG               to         RTK_BT_ISO_INTERVAL_20_MS
             change   RTK_BT_LE_AUDIO_BROADCASTER_SETEO_MODE                to         0
-            change   RTK_BT_LE_AUDIO_BIRDS_SING_SAMPLING_RATE              to         RTK_BT_LE_SAMPLING_FREQUENCY_CFG_8K
+
 3. BIS num 1 + Sample rate 48kHz + 2-channel + ISO interval 30 ms 
-    3.1 Config the following Macros in app_bt_le_audio_common.h
+    3.1 Config the following Macros in rtk_bt_le_audio_def.h
             change   RTK_BT_LE_AUDIO_BIG_ISO_INTERVAL_CONFIG               to         RTK_BT_ISO_INTERVAL_30_MS
-            change   RTK_BT_LE_AUDIO_BIRDS_SING_SAMPLING_RATE              to         RTK_BT_LE_SAMPLING_FREQUENCY_CFG_8K
+
+4. BIS num 2 + Sample rate 48kHz + 2-channel + ISO interval 30 ms 
+    3.1 Config the following Macros in rtk_bt_le_audio_def.h
+            change   RTK_BT_LE_AUDIO_BROADCAST_SOURCE_BIS_NUM              to         2
+            change   RTK_BT_LE_AUDIO_BIG_ISO_INTERVAL_CONFIG               to         RTK_BT_ISO_INTERVAL_30_MS
+
 GCC menuconfig 
 ~~~~~~~~~~~
 1. BT Related:
@@ -32,8 +38,17 @@ GCC menuconfig
 
 Test ATCMD
 ~~~~~~~~~~~
-If user want to open audio local play fuction, must change the Maros in rtk_bt_le_audio_def.h before test:
-    change the RTK_BLE_AUDIO_BROADCAST_LOCAL_PLAY_SUPPORT   to  1
+If user want to open audio local play fuction, must change the following Maros before test:
+    1.change the RTK_BLE_AUDIO_BROADCAST_LOCAL_PLAY_SUPPORT          to     1   in rtk_bt_le_audio_def.h 
+    2.change the RTK_BT_LE_AUDIO_ISO_TX_SYNC_SUPPORT                 to     1   in rtk_bt_le_audio_def.h 
+    3.change the VENDOR_CMD_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT      to     1   in bt_vendor_config.h
+    4.change the RTK_BT_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT          to     1   in bt_api_config.h
+    5.change kPrimaryAudioConfig in ameba_audio_mixer_usrcfg.cpp:
+         change from   kPrimaryAudioConfig = {1024, 4, RTAUDIO_OUT_MIN_FRAMES_STAGE1};
+                to     kPrimaryAudioConfig = {240, 4, RTAUDIO_OUT_MIN_FRAMES_STAGE2};
+    6.  unmask the following code in bt_audio_track_api.c
+       from  //track_buf_size = 22608;
+        to    track_buf_size = 22608;
 
 1. A2DP sink + AVRCP + HFP handfree + PBAP + Auracast demo 
     1.1 enable: AT+BTDEMO=a2dp_hfp_pbp,1

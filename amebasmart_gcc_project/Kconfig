@@ -37,6 +37,9 @@ config SUPPORT_USB_SHARED_DFIFO
 config SUPPORT_USBD_UAC
     def_bool y
 
+config SUPPORT_USBH_UAC
+    def_bool y
+
 # USB ECM host
 config SUPPORT_USBH_ECM
     def_bool y
@@ -46,6 +49,14 @@ config SUPPORT_USBH_ECM_BRIDGE
     def_bool y
 
 config SUPPORT_SDIOH
+    def_bool y
+
+#
+# Audio features
+#
+
+# audio device function
+config SUPPORT_AUDIO_DEVICE
     def_bool y
 
 #---------- FEATURE LIST END-------------#
@@ -184,7 +195,6 @@ menu "CONFIG WIFI"
             select LWIP_LAYER if CORE_AS_AP && !MP_SHRINK
             select ENABLE_WPS if CORE_AS_AP && WIFI_WPS_ENABLE_MENU
             select ENABLE_WPS_DISCOVERY if ENABLE_WPS
-            select LWIP_NETCONN_SEM_PER_THREAD if CORE_AS_AP
 
         config FULLMAC_DEV
             bool
@@ -220,7 +230,6 @@ menu "CONFIG WIFI"
             select LWIP_LAYER if !MP_SHRINK
             select ENABLE_WPS if WIFI_WPS_ENABLE_MENU
             select ENABLE_WPS_DISCOVERY if ENABLE_WPS
-            select LWIP_NETCONN_SEM_PER_THREAD
 
     endif
 
@@ -256,7 +265,6 @@ menu "CONFIG WIFI"
         bool
     config ENABLE_WPS_DISCOVERY
         bool
-    config LWIP_NETCONN_SEM_PER_THREAD
         bool
 
 endmenu

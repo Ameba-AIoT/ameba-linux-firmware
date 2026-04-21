@@ -23,6 +23,7 @@ if(CONFIG_USBH_CDC_ECM)
     ameba_list_append(private_sources
         ${USBH_CLASS_DIR}/cdc_ecm/usbh_cdc_ecm.c
         ${USBH_CLASS_DIR}/cdc_ecm/usbh_cdc_ecm_hal.c
+        ${USBH_CLASS_DIR}/cdc_ecm/usbh_cdc_ecm_appx.c
     )
 endif()
 
@@ -70,5 +71,21 @@ if(CONFIG_USBH_VENDOR)
     )
     ameba_list_append(private_sources
         ${USBH_CLASS_DIR}/vendor/usbh_vendor.c
+    )
+endif()
+
+if(CONFIG_USBH_COMPOSITE)
+    ameba_list_append(private_includes
+        ${USBH_CLASS_DIR}/composite
+    )
+
+    if(CONFIG_USBH_COMPOSITE_HID_UAC1)
+        set(COMPOSITE_UAC_SOURCE ${USBH_CLASS_DIR}/composite/usbh_composite_uac1.c)
+    endif()
+
+    ameba_list_append_if(CONFIG_USBH_COMPOSITE_HID_UAC private_sources
+        ${USBH_CLASS_DIR}/composite/usbh_composite_hid_uac.c
+        ${USBH_CLASS_DIR}/composite/usbh_composite_hid.c
+        ${COMPOSITE_UAC_SOURCE}
     )
 endif()

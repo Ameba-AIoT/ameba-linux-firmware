@@ -6,6 +6,7 @@
 #endif
 #include "os_wrapper.h"
 #include "ameba_rtos_version.h"
+#include "ssl_rom_to_ram_map.h"
 //#include "wifi_fast_connect.h"
 #if defined(CONFIG_BT_COEXIST)
 #include "rtw_coex_ipc.h"
@@ -55,29 +56,14 @@ void app_init_debug(void)
 	LOG_MASK(LEVEL_TRACE, debug[LEVEL_TRACE]);
 }
 
-static void *app_mbedtls_calloc_func(size_t nelements, size_t elementSize)
-{
-	size_t size;
-	void *ptr = NULL;
-
-	size = nelements * elementSize;
-	ptr = rtos_mem_malloc(size);
-
-	if (ptr) {
-		memset(ptr, 0, size);
-	}
-
-	return ptr;
-}
-
-static void app_mbedtls_free_func(void *buf)
-{
-	rtos_mem_free(buf);
-}
-
 void app_mbedtls_rom_init(void)
 {
-	mbedtls_platform_set_calloc_free(app_mbedtls_calloc_func, app_mbedtls_free_func);
+	CRYPTO_Init(NULL);
+	CRYPTO_SHA_Init(NULL);
+	ssl_function_map.ssl_calloc = (void *(*)(unsigned int, unsigned int))rtos_mem_calloc;
+	ssl_function_map.ssl_free = (void (*)(void *))rtos_mem_free;
+	ssl_function_map.ssl_printf = (long unsigned int (*)(const char *, ...))DiagPrintf;
+	ssl_function_map.ssl_snprintf = (int (*)(char *s, size_t n, const char *format, ...))DiagSnPrintf;
 }
 
 
@@ -144,9 +130,10 @@ _WEAK void app_example(void)
 
 extern int rt_kv_init(void);
 
-void app_filesystem_init(void)
+void fs_init_thread(void *param)
 {
-#if !(defined(CONFIG_MP_INCLUDED)) && defined(CONFIG_CORE_AS_AP)
+	(void)param;
+#if !(defined(CONFIG_MP_SHRINK)) && defined(CONFIG_CORE_AS_AP)
 	int ret = 0;
 	vfs_init();
 #ifdef CONFIG_FATFS_WITHIN_APP_IMG
@@ -158,17 +145,22 @@ void app_filesystem_init(void)
 	}
 #endif
 
-	ret = vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	vfs_user_register(VFS_PREFIX, VFS_LITTLEFS, VFS_INF_FLASH, VFS_REGION_1, VFS_RW);
+	ret = rt_kv_init();
 	if (ret == 0) {
-		ret = rt_kv_init();
-		if (ret == 0) {
-			RTK_LOGI(TAG, "File System Init Success \n");
-			return;
-		}
+		RTK_LOGI(TAG, "File System Init Success \n");
+		goto exit;
 	}
 
 	RTK_LOGE(TAG, "File System Init Fail \n");
+exit:
 #endif
+	rtos_task_delete(NULL);
+}
+
+void app_filesystem_init(void)
+{
+	rtos_task_create(NULL, ((const char *)"fs_init_thread"), fs_init_thread, NULL, 4096, 5);
 }
 
 //default main
@@ -186,7 +178,6 @@ int main(void)
 	//app_init_debug();
 
 	ipc_table_init(IPCNP_DEV);
-	IPC_SEMDelayStub((void *)rtos_time_delay_ms);
 
 	app_filesystem_init();
 

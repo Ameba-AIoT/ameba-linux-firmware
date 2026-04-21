@@ -61,6 +61,7 @@ ameba_list_append(private_sources
 	sbc/encoder/srce/sbc_enc_coeffs.c
 	sbc/encoder/srce/sbc_encoder.c
 	sbc/encoder/srce/sbc_packing.c
+	sbc/plc/sbc_plc.c
 	lc3/src/attdet.c
 	lc3/src/bits.c
 	lc3/src/bwdet.c
@@ -78,8 +79,10 @@ ameba_list_append(private_sources
 ameba_list_append(private_includes
 	${c_CMPT_AUDIO_DIR}/interfaces
 	${c_CMPT_AUDIO_DIR}/base/osal/osal_c/interfaces
+	sbc/common
 	sbc/decoder/include
 	sbc/encoder/include
+	sbc/plc
 	lc3/include
 	lc3/src
 )

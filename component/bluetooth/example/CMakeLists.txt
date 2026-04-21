@@ -7,15 +7,19 @@ ameba_add_subdirectory_if(CONFIG_BT_LE_AUDIO
     ble_audio
 )
 
-ameba_add_subdirectory_if(CONFIG_BT_A2DP_LE_AUDIO_PBP
+ameba_add_subdirectory_if(CONFIG_BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL
+    bt_le_audio_generic_demo_peripheral
+)
+
+ameba_add_subdirectory_if(CONFIG_BT_A2DP_PBP
     bt_a2dp_pbp
 )
 
-ameba_add_subdirectory_if(CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP
+ameba_add_subdirectory_if(CONFIG_BT_A2DP_HFP_PBP
     bt_a2dp_hfp_pbp
 )
 
-ameba_add_subdirectory_if(CONFIG_BT_A2DP_LE_AUDIO_TMAP
+ameba_add_subdirectory_if(CONFIG_BT_A2DP_TMAP
     bt_a2dp_tmap
 )
 
@@ -83,10 +87,6 @@ ameba_add_subdirectory_if(CONFIG_BT_A2DP
 
 ameba_add_subdirectory_if(CONFIG_BT_A2DP_HFP
     bt_a2dp_hfp
-)
-
-ameba_add_subdirectory_if(CONFIG_BT_A2DP_PROVISIONER_SCATTERNET
-	bt_a2dp_provisioner_scatternet
 )
 
 ameba_add_subdirectory_if(CONFIG_BT_A2DP_SCATTERNET

@@ -22,7 +22,7 @@ extern "C" {
 #define GAP_MAX_CCC_BITS_CNT                32
 #define GAP_MAX_LE_COC_CHANN_NUM            10
 #define GAP_MAX_LE_L2CAP_CHANN_NUM          20  /* L2CAP dynamic channel total number, both ecfc connection and le coc connection will occupy
-                                                   channel number, so when user need to use both ecfc and le coc, shall set 
+                                                   channel number, so when user need to use both ecfc and le coc, shall set
                                                    GAP_MAX_LE_L2CAP_CHANN_NUM >= (GAP_LE_MAX_ECFC_CHANN_NUM + GAP_MAX_LE_COC_CHANN_NUM) */
 #define GAP_MAX_LE_SEC_ENTRY_NUM            12  /* LE security entry number, it will limit the number of ecfc protocal and le coc security */
 
@@ -43,7 +43,7 @@ extern "C" {
 #define RTK_BT_GATTC_APP_NUM        16
 #define RTK_BT_GATTC_SUBS_NUM       10
 
-#define RTK_BT_GATTS_SERVICE_NUM    12
+#define RTK_BT_GATTS_SERVICE_NUM    24
 #define RTK_BT_GATTS_CCCD_NUM       10
 
 #define RTK_BT_STACK_LOG_CONFIG     0

@@ -227,8 +227,13 @@ static uint32_t PrimaryGetStreamOutLatency(const struct AudioHwStreamOut *stream
 
 	uint32_t dma_buf_add_codec_latency_ms = (out->config.period_size * out->config.period_count + 36) * 1000 / out->config.rate;
 	if (latency_ms > dma_buf_add_codec_latency_ms * 2) {
+		// something error happens, using buffer + codec latency.
 		return dma_buf_add_codec_latency_ms;
+	} else if (sport_out_frames == 0) {
+		// not start playing, using codec latency.
+		return (uint32_t)((float)36 * (float)1000 / (float)out->config.rate + 0.5);
 	} else {
+		// normal play latency.
 		return latency_ms;
 	}
 }
@@ -334,7 +339,7 @@ static int32_t StartAudioHwStreamOut(struct PrimaryAudioHwStreamOut *out)
 static ssize_t PrimaryStreamOutWrite(struct AudioHwStreamOut *stream, const void *buffer,
 									 size_t bytes, bool block)
 {
-	HAL_AUDIO_PVERBOSE("primaryStreamOutWrite: bytes: %u", bytes);
+	HAL_AUDIO_PVERBOSE("Write: bytes: %u", bytes);
 
 	int32_t ret = 0;
 	struct PrimaryAudioHwStreamOut *out = (struct PrimaryAudioHwStreamOut *)stream;

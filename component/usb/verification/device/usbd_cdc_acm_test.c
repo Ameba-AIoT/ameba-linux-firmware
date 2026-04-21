@@ -56,12 +56,11 @@ static u16 cdc_acm_verify_ctrl_line_state;
 
 static usbd_config_t cdc_acm_verify_cfg = {
 	.speed = CONFIG_USBD_CDC_ACM_SPEED,
-	.dma_enable = 1U,
 	.isr_priority = INT_PRI_MIDDLE,
 	.intr_use_ptx_fifo = 0U,
 #if defined(CONFIG_AMEBASMART)
 	.nptx_max_epmis_cnt = 10U,
-	.ext_intr_en =  USBD_EPMIS_INTR,
+	.ext_intr_enable =  USBD_EPMIS_INTR,
 #elif defined (CONFIG_AMEBAGREEN2)
 	.rx_fifo_depth = 644U,
 	.ptx_fifo_depth = {16U, 256U, 32U, 16U, 16U, },
@@ -345,7 +344,6 @@ static void cdc_acm_verify_usage(void)
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Invalid arguments, usage:\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm xlen <xfer length in byte>\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm speed <0:high, 1:high in full, 3:full>\n");
-	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm dma <en - enable, dis - disable>\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm init\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm rx\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd acm tx\n");
@@ -383,25 +381,6 @@ int cmd_usbd_cdc_acm(u16 argc, u8 *argv[])
 				RTK_LOGS(TAG, RTK_LOG_INFO, "Speed %d\n", speed);
 			} else {
 				RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid speed\n");
-				ret = HAL_ERR_PARA;
-			}
-		}
-	} else if (_stricmp(cmd, "dma") == 0) {
-		if (argc < 3) {
-			cdc_acm_verify_usage();
-			return HAL_ERR_PARA;
-		}
-		if (cdc_acm_verify_ready) {
-			RTK_LOGS(TAG, RTK_LOG_WARN, "Already init, please deinit first\n");
-		} else {
-			if ((_stricmp((const char *)argv[2], (const char *)"en") == 0)) {
-				cdc_acm_verify_cfg.dma_enable = 1U;
-				RTK_LOGS(TAG, RTK_LOG_INFO, "DMA enabled\n");
-			} else if ((_stricmp((const char *)argv[2], (const char *)"dis") == 0)) {
-				cdc_acm_verify_cfg.dma_enable = 0U;
-				RTK_LOGS(TAG, RTK_LOG_INFO, "DMA disabled\n");
-			} else {
-				cdc_acm_verify_usage();
 				ret = HAL_ERR_PARA;
 			}
 		}
@@ -464,7 +443,6 @@ int cmd_usbd_cdc_acm(u16 argc, u8 *argv[])
 			RTK_LOGS(TAG, RTK_LOG_INFO, "Not init, ignore\n");
 		}
 	} else if (_stricmp(cmd, "dump") == 0) {
-		RTK_LOGS(TAG, RTK_LOG_INFO, "DMA: %d\n", cdc_acm_verify_cfg.dma_enable);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Speed: %d\n", cdc_acm_verify_cfg.speed);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Size: %d\n", cdc_acm_verify_xfer_size);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "TX/RX: %d/%d,\n", cdc_acm_verify_tx_en, cdc_acm_verify_rx_en);

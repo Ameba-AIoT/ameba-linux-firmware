@@ -55,6 +55,7 @@ typedef struct {
 
 typedef struct {
 	bool used;
+	bool is_ready;
 	uint16_t iso_conn_handle;
 	void *p_iso_chann;
 	void *p_track_hdl;
@@ -86,6 +87,7 @@ typedef struct {
 		struct {
 			uint8_t adv_sid;
 			uint8_t broadcast_id[RTK_BT_LE_AUDIO_BROADCAST_ID_LEN];
+			uint8_t broadcast_name[APP_BT_LE_EXT_ADV_MAX_LOCAL_NAME_LENGTH];
 		} bass_scan_info_t;
 	};
 } app_bt_le_audio_scan_dev_info_t;
@@ -651,12 +653,14 @@ static void app_bt_le_audio_scan_parse_report(uint8_t report_data_len, uint8_t *
 }
 
 static bool app_bt_le_audio_adv_filter_service_data(uint8_t report_data_len, uint8_t *p_report_data,
-													uint16_t uuid, uint8_t **pp_service_data, uint16_t *p_data_len)
+													uint16_t uuid, uint8_t **pp_service_data, uint16_t *p_data_len,
+													app_bt_le_audio_scan_dev_info_t *p_scan_dev_info)
 {
 	uint8_t *p_buffer = NULL;
 	uint8_t pos = 0;
 	uint16_t length = 0;
 	uint8_t type = 0;
+	bool is_found = false;
 
 	while (pos < report_data_len) {
 		/* Length of the AD structure. */
@@ -681,10 +685,18 @@ static bool app_bt_le_audio_adv_filter_service_data(uint8_t report_data_len, uin
 					if (p_data_len != NULL) {
 						*p_data_len = length - 3;
 					}
-					return true;
+					is_found = true;
 				}
 			}
 			break;
+
+			case RTK_BT_LE_GAP_ADTYPE_BROADCAST_NAME: {
+				if (length <= (APP_BT_LE_EXT_ADV_MAX_LOCAL_NAME_LENGTH + 1)) {
+					memcpy((void *)p_scan_dev_info->bass_scan_info_t.broadcast_name, (void *)p_buffer, length - 1);
+				}
+			}
+			break;
+
 			default:
 				break;
 			}
@@ -692,7 +704,7 @@ static bool app_bt_le_audio_adv_filter_service_data(uint8_t report_data_len, uin
 		pos += length;
 	}
 
-	return false;
+	return is_found;
 }
 
 static uint16_t app_bt_le_audio_common_scan_report_handle(rtk_bt_le_ext_scan_res_ind_t *scan_res_ind)
@@ -747,7 +759,8 @@ static uint16_t app_bt_le_audio_bass_scan_report_handle(rtk_bt_le_ext_scan_res_i
 												scan_res_ind->data,
 												RTK_BT_LE_BROADCAST_AUDIO_ANNOUNCEMENT_SRV_UUID,
 												&p_service_data,
-												&service_data_len)) {
+												&service_data_len,
+												&scan_dev_info)) {
 		scan_dev_info.scan_type = APP_BT_LE_AUDIO_BASS_SCAN_TYPE;
 		scan_dev_info.bass_scan_info_t.adv_sid = scan_res_ind->adv_sid;
 		memcpy(&scan_dev_info.scan_res_ind, scan_res_ind, sizeof(rtk_bt_le_ext_scan_res_ind_t));
@@ -772,12 +785,13 @@ static uint16_t app_bt_le_audio_bass_scan_report_handle(rtk_bt_le_ext_scan_res_i
 				memcpy(p_scan_dev_info->bass_scan_info_t.broadcast_id, scan_dev_info.bass_scan_info_t.broadcast_id, RTK_BT_LE_AUDIO_BROADCAST_ID_LEN);
 			}
 		}
-		BT_LOGA("[APP] %s broadcast scan add new device in list (addr: %s, adv_sid %x, broadcast_id: %02x %02x %02x) \r\n", __func__,
+		BT_LOGA("[APP] %s broadcast scan add new device in list (addr: %s, adv_sid %x, broadcast_id: %02x %02x %02x, broadcast_name: %s) \r\n", __func__,
 				addr_str,
 				p_scan_dev_info->bass_scan_info_t.adv_sid,
 				scan_dev_info.bass_scan_info_t.broadcast_id[0],
 				scan_dev_info.bass_scan_info_t.broadcast_id[1],
-				scan_dev_info.bass_scan_info_t.broadcast_id[2]);
+				scan_dev_info.bass_scan_info_t.broadcast_id[2],
+				scan_dev_info.bass_scan_info_t.broadcast_name);
 		BT_AT_PRINT("+BLEBAP:broadcast,sink,escan,%s,%x,%x %x %x\r\n",
 					addr_str,
 					p_scan_dev_info->bass_scan_info_t.adv_sid,
@@ -889,6 +903,7 @@ static struct le_audio_demo_task_t bt_le_audio_demo_encode_task = {
 	.run = 0,
 };
 static uint32_t bt_le_audio_demo_send_timer_interval_us = APP_LE_AUDIO_DEFAULT_SDU_INTERVAL_M_S_US;
+static uint32_t bt_le_audio_demo_receiver_interval_us = APP_LE_AUDIO_DEFAULT_SDU_INTERVAL_S_M_US;
 
 static uint8_t app_bt_le_audio_find_total_path_num(rtk_bt_le_audio_iso_data_path_direction_t path_direction)
 {
@@ -1010,7 +1025,7 @@ static uint16_t app_bt_le_audio_lc3_codec_entity_remove(void *codec_entity)
 	return rtk_bt_audio_codec_remove(RTK_BT_AUDIO_CODEC_LC3, codec_entity);
 }
 
-static rtk_bt_audio_track_t *app_bt_le_audio_track_add(rtk_bt_le_audio_cfg_codec_t *p_codec)
+static rtk_bt_audio_track_t *app_bt_le_audio_track_add(rtk_bt_le_audio_cfg_codec_t *p_codec, uint16_t iso_interval)
 {
 	float left_volume = 0.0, right_volume = 0.0;
 	uint8_t channels = 0;
@@ -1019,10 +1034,15 @@ static rtk_bt_audio_track_t *app_bt_le_audio_track_add(rtk_bt_le_audio_cfg_codec
 	uint32_t duration = 0;
 
 	rate = app_bt_le_audio_translate_lea_samp_fre_to_audio_samp_rate(p_codec->sample_frequency);
-	if (p_codec->frame_duration == RTK_BT_LE_FRAME_DURATION_CFG_10_MS) {
-		duration = 10000;
+
+	if (iso_interval) {
+		duration = iso_interval * 1.25 * 1000; // iso interval in 1.25ms units
 	} else {
-		duration = 7500;
+		if (p_codec->frame_duration == RTK_BT_LE_FRAME_DURATION_CFG_10_MS) {
+			duration = 10000;
+		} else {
+			duration = 7500;
+		}
 	}
 #if 1
 	channels = app_bt_le_audio_get_lea_chnl_num(p_codec->audio_channel_allocation);
@@ -1095,8 +1115,9 @@ static uint16_t app_bt_le_audio_record_remove(void *audio_record_hdl)
 }
 
 static uint16_t app_bt_le_audio_add_data_path(uint16_t iso_conn_handle, void *p_iso_chann, rtk_bt_le_audio_iso_data_path_direction_t path_direction,
-											  rtk_bt_le_audio_cfg_codec_t codec_t)
+											  rtk_bt_le_audio_cfg_codec_t codec_t, uint16_t iso_interval, uint32_t pd)
 {
+	(void)pd;
 	for (uint16_t i = 0; i < APP_LE_AUDIO_DEMO_DATA_PATH_NUM; i ++) {
 		if (!app_le_audio_data_path[i].used) {
 			app_le_audio_data_path[i].used = true;
@@ -1111,12 +1132,17 @@ static uint16_t app_bt_le_audio_add_data_path(uint16_t iso_conn_handle, void *p_
 				goto error;
 			}
 			if (RTK_BLE_AUDIO_ISO_DATA_PATH_RX == app_le_audio_data_path[i].path_direction) {
-				app_le_audio_data_path[i].p_track_hdl = app_bt_le_audio_track_add(&app_le_audio_data_path[i].codec_t);
+				app_le_audio_data_path[i].p_track_hdl = app_bt_le_audio_track_add(&app_le_audio_data_path[i].codec_t, iso_interval);
 				if (!app_le_audio_data_path[i].p_track_hdl) {
 					BT_LOGE("[APP] %s track add fail \r\n", __func__);
 					app_bt_le_audio_lc3_codec_entity_remove(app_le_audio_data_path[i].p_codec_entity);
 					goto error;
+				} else {
+#if defined(RTK_BT_LE_AUDIO_ISO_RX_SYNC_SUPPORT) && RTK_BT_LE_AUDIO_ISO_RX_SYNC_SUPPORT
+					rtk_bt_audio_track_enable_sync_mode(app_le_audio_data_path[i].p_track_hdl, pd);
+#endif
 				}
+				((rtk_bt_audio_track_t *)app_le_audio_data_path[i].p_track_hdl)->sdu_interval = bt_le_audio_demo_receiver_interval_us;
 			} else {
 #if defined(RTK_BLE_AUDIO_RECORD_SUPPORT) && RTK_BLE_AUDIO_RECORD_SUPPORT
 				app_le_audio_data_path[i].p_record_hdl = app_bt_le_audio_record_add(&app_le_audio_data_path[i].codec_t);
@@ -1127,6 +1153,7 @@ static uint16_t app_bt_le_audio_add_data_path(uint16_t iso_conn_handle, void *p_
 				}
 #endif
 			}
+			app_le_audio_data_path[i].is_ready = true;
 			return 0;
 
 error:
@@ -1184,7 +1211,7 @@ static void app_bt_le_audio_remove_data_path_all(void)
 	}
 }
 
-static uint16_t app_bt_le_audio_data_received(uint16_t iso_handle, uint8_t path_direction, uint8_t *data, uint16_t data_len)
+static uint16_t app_bt_le_audio_data_received(uint16_t iso_handle, uint8_t path_direction, uint8_t *data, uint16_t data_len, uint32_t ts_us)
 {
 	app_bt_le_audio_data_path_t *p_app_bt_le_audio_data_path = NULL;
 
@@ -1200,13 +1227,17 @@ static uint16_t app_bt_le_audio_data_received(uint16_t iso_handle, uint8_t path_
 		BT_LOGE("[APP] %s cannot find matched p_app_bt_le_audio_data_path \r\n", __func__);
 		return 1;
 	}
+	if (!p_app_bt_le_audio_data_path->is_ready) {
+		BT_LOGE("[APP] %s: p_app_bt_le_audio_data_path not ready \r\n", __func__);
+		return 1;
+	}
 	/* do audio data received flow */
 	if (rtk_bt_audio_recvd_data_in(RTK_BT_AUDIO_CODEC_LC3,
 								   p_app_bt_le_audio_data_path->p_track_hdl,
 								   p_app_bt_le_audio_data_path->p_codec_entity,
 								   data,
 								   data_len,
-								   0)) {
+								   ts_us)) {
 		BT_LOGE("[APP] %s Stream Data receive Fail! \r\n", __func__);
 		return 1;
 	} else {
@@ -1550,8 +1581,9 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 {
 	(void)len;
 	uint16_t ret = RTK_BT_OK;
-	switch (evt_code) {
+	static uint16_t max_sdu_len = 0;
 
+	switch (evt_code) {
 	case RTK_BT_LE_AUDIO_EVT_BAP_DISCOVERY_DONE_IND: {
 		rtk_bt_le_audio_bap_discovery_done_ind_t *param = (rtk_bt_le_audio_bap_discovery_done_ind_t *) data;
 		BT_LOGA("[APP] RTK_BT_LE_AUDIO_EVT_BAP_DISCOVERY_DONE_IND(conn_handle %d, pacs_is_found %d,sink_pac_num %d, source_pac_num %d\r\n",
@@ -1566,8 +1598,8 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 
 	case RTK_BT_LE_AUDIO_EVT_ASCS_SETUP_DATA_PATH_IND: {
 		rtk_bt_le_audio_ascs_setup_data_path_ind_t *param = (rtk_bt_le_audio_ascs_setup_data_path_ind_t *) data;
-		BT_LOGA("[APP] RTK_BT_LE_AUDIO_EVT_ASCS_SETUP_DATA_PATH_IND(conn_handle %d, ase_id 0x%x, path_direction 0x%x, cis_conn_handle 0x%x, dev_num %d \r\n",
-				param->conn_handle, param->ase_id, param->path_direction, param->cis_conn_handle, (int)param->dev_num);
+		BT_LOGA("[APP] RTK_BT_LE_AUDIO_EVT_ASCS_SETUP_DATA_PATH_IND(conn_handle %d, ase_id 0x%x, path_direction 0x%x, cis_conn_handle 0x%x\r\n",
+				param->conn_handle, param->ase_id, param->path_direction, param->cis_conn_handle);
 		BT_AT_PRINT("+BLEBAP:unicast,server,ascs,setup_data_path,%d,0x%x,0x%x,0x%x\r\n",
 					param->conn_handle, param->ase_id, param->path_direction, param->cis_conn_handle);
 		BT_LOGD("[APP] type_exist 0x%x, frame_duration 0x%x, sample_frequency 0x%x, codec_frame_blocks_per_sdu 0x%x, octets_per_codec_frame 0x%x, audio_channel_allocation 0x%x)\r\n",
@@ -1576,9 +1608,11 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 		app_bt_le_audio_add_data_path(param->iso_chann_t.iso_conn_handle,
 									  param->iso_chann_t.p_iso_chann,
 									  param->iso_chann_t.path_direction,
-									  param->codec_cfg);
+									  param->codec_cfg,
+									  0,
+									  param->presentation_delay);
 		if (param->iso_chann_t.path_direction == RTK_BLE_AUDIO_ISO_DATA_PATH_TX) {
-			if (app_bt_le_audio_find_total_path_num(RTK_BLE_AUDIO_ISO_DATA_PATH_TX) == param->dev_num) {
+			if (app_bt_le_audio_find_total_path_num(RTK_BLE_AUDIO_ISO_DATA_PATH_TX) == param->source_ase_num) {
 				app_bt_le_audio_cap_encode_data_control(true);
 				app_bt_le_audio_send_timer_update((param->codec_cfg.frame_duration == RTK_BT_LE_FRAME_DURATION_CFG_10_MS) ? 10000 : 7500);
 			}
@@ -1630,6 +1664,7 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 		BT_LOGD("[APP] framing 0x%x, phy 0x%x, retransmission_number 0x%x, max_sdu 0x%x, max_transport_latency 0x%x, sdu_interval  0x%x, presentation_delay 0x%x)\r\n",
 				param->framing, param->phy, param->retransmission_number, param->max_sdu,
 				param->max_transport_latency, (unsigned int)param->sdu_interval, (unsigned int)param->presentation_delay);
+		bt_le_audio_demo_receiver_interval_us = param->sdu_interval;
 		break;
 	}
 
@@ -1702,55 +1737,68 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 	}
 
 	case RTK_BT_LE_AUDIO_EVT_BIG_INFO_ADV_REPORT: {
-		//rtk_bt_le_audio_big_info_adv_report_t *param = (rtk_bt_le_audio_big_info_adv_report_t *)data;
-		BT_LOGD("[APP] RTK_BT_LE_AUDIO_EVT_BIG_INFO_ADV_REPORT\r\n");
+		rtk_bt_le_audio_big_info_adv_report_t *param = (rtk_bt_le_audio_big_info_adv_report_t *)data;
+		BT_LOGD("[APP] big info ind: nse: 0x%x, iso_interval 0x%x, bn: 0x%x, pto: 0x%x, irc: 0x%x, sdu_interval: 0x%x \r\n",
+				param->nse, param->iso_interval, param->bn, param->pto, param->irc, param->sdu_interval);
+		bt_le_audio_demo_receiver_interval_us = param->sdu_interval;
+		max_sdu_len = param->max_sdu;
 		break;
 	}
 
 	case RTK_BT_LE_AUDIO_EVT_ISO_DATA_RECEIVE_IND: {
 		rtk_bt_le_audio_direct_iso_data_ind_t *p_bt_direct_iso = (rtk_bt_le_audio_direct_iso_data_ind_t *)data;
-		if (p_bt_direct_iso->iso_sdu_len) {
-			BT_LOGD("[APP] RTK_BT_LE_AUDIO_EVT_ISO_DATA_RECEIVE_IND, sys_time=%d,iso_conn_handle 0x%x, pkt_status_flag 0x%x, pkt_seq_num 0x%x, ts_flag 0x%x, time_stamp 0x%x,iso_sdu_len 0x%x, p_buf %08x, buf_len %d, offset %d\r\n",
-					(int)osif_sys_time_get(), p_bt_direct_iso->iso_conn_handle, p_bt_direct_iso->pkt_status_flag,
-					p_bt_direct_iso->pkt_seq_num, p_bt_direct_iso->ts_flag,
-					(unsigned int)p_bt_direct_iso->time_stamp, p_bt_direct_iso->iso_sdu_len, p_bt_direct_iso->p_buf, p_bt_direct_iso->buf_len, p_bt_direct_iso->offset);
+		if (p_bt_direct_iso->pkt_status_flag == RTK_BT_LE_ISO_ISOCH_DATA_PKT_STATUS_LOST_DATA) {
+			BT_LOGD("[APP] pkt status lost data: iso_conn_handle 0x%x, pkt_seq_num:%d \r\n", p_bt_direct_iso->iso_conn_handle, p_bt_direct_iso->pkt_seq_num);
+			if (app_bt_le_audio_data_received(p_bt_direct_iso->iso_conn_handle, RTK_BLE_AUDIO_ISO_DATA_PATH_RX,
+											  NULL, max_sdu_len, p_bt_direct_iso->time_stamp)) {
+				BT_LOGD("[APP] %s app le audio data parsing fail \r\n", __func__);
+				break;
+			}
+		} else {
+			if (p_bt_direct_iso->iso_sdu_len) {
+				BT_LOGD("[APP] RTK_BT_LE_AUDIO_EVT_ISO_DATA_RECEIVE_IND, sys_time=%d,iso_conn_handle 0x%x, pkt_status_flag 0x%x, pkt_seq_num 0x%x, ts_flag 0x%x, time_stamp 0x%x,iso_sdu_len 0x%x, p_buf %08x, buf_len %d, offset %d\r\n",
+						(int)osif_sys_time_get(), p_bt_direct_iso->iso_conn_handle, p_bt_direct_iso->pkt_status_flag,
+						p_bt_direct_iso->pkt_seq_num, p_bt_direct_iso->ts_flag,
+						(unsigned int)p_bt_direct_iso->time_stamp, p_bt_direct_iso->iso_sdu_len, p_bt_direct_iso->p_buf, p_bt_direct_iso->buf_len, p_bt_direct_iso->offset);
 #if 0
-			{
-				uint16_t cur_idx = UINT16_MAX;
-				static uint16_t last_pkt_num[APP_LE_AUDIO_DEMO_DATA_PATH_NUM] = {0};
-				static uint16_t conn_hdl[APP_LE_AUDIO_DEMO_DATA_PATH_NUM] = {0};
-				for (uint16_t i = 0; i < APP_LE_AUDIO_DEMO_DATA_PATH_NUM; i++) {
-					if (conn_hdl[i] == 0) {
-						conn_hdl[i] = p_bt_direct_iso->iso_conn_handle;
-						cur_idx = i;
-						break;
-					} else if (conn_hdl[i] == p_bt_direct_iso->iso_conn_handle) {
-						cur_idx = i;
+				{
+					uint16_t cur_idx = UINT16_MAX;
+					static uint16_t last_pkt_num[APP_LE_AUDIO_DEMO_DATA_PATH_NUM] = {0};
+					static uint16_t conn_hdl[APP_LE_AUDIO_DEMO_DATA_PATH_NUM] = {0};
+					for (uint16_t i = 0; i < APP_LE_AUDIO_DEMO_DATA_PATH_NUM; i++) {
+						if (conn_hdl[i] == 0) {
+							conn_hdl[i] = p_bt_direct_iso->iso_conn_handle;
+							cur_idx = i;
+							break;
+						} else if (conn_hdl[i] == p_bt_direct_iso->iso_conn_handle) {
+							cur_idx = i;
+							break;
+						}
+					}
+					if (cur_idx >= APP_LE_AUDIO_DEMO_DATA_PATH_NUM) {
+						BT_LOGE("[APP] Error: No available space for conn_hdl: 0x%x\r\n",
+								p_bt_direct_iso->iso_conn_handle);
 						break;
 					}
+					uint16_t expected_seq = (last_pkt_num[cur_idx] == UINT16_MAX)
+											? 0
+											: last_pkt_num[cur_idx] + 1;
+					if (p_bt_direct_iso->pkt_seq_num != expected_seq) {
+						BT_LOGE("[APP] Data loss: conn_handle: 0x%x, cur_seq_num: %u, last_seq_num: %u\r\n",
+								p_bt_direct_iso->iso_conn_handle,
+								p_bt_direct_iso->pkt_seq_num,
+								last_pkt_num[cur_idx]);
+					}
+					last_pkt_num[cur_idx] = p_bt_direct_iso->pkt_seq_num;
 				}
-				if (cur_idx >= APP_LE_AUDIO_DEMO_DATA_PATH_NUM) {
-					BT_LOGE("[APP] Error: No available space for conn_hdl: 0x%x\r\n",
-							p_bt_direct_iso->iso_conn_handle);
+#endif
+				if (app_bt_le_audio_data_received(p_bt_direct_iso->iso_conn_handle, RTK_BLE_AUDIO_ISO_DATA_PATH_RX,
+												  p_bt_direct_iso->p_buf + p_bt_direct_iso->offset,
+												  p_bt_direct_iso->iso_sdu_len,
+												  p_bt_direct_iso->time_stamp)) {
+					BT_LOGD("[APP] %s app le audio data parsing fail \r\n", __func__);
 					break;
 				}
-				uint16_t expected_seq = (last_pkt_num[cur_idx] == UINT16_MAX)
-										? 0
-										: last_pkt_num[cur_idx] + 1;
-				if (p_bt_direct_iso->pkt_seq_num != expected_seq) {
-					BT_LOGE("[APP] Data loss: conn_handle: 0x%x, cur_seq_num: %u, last_seq_num: %u\r\n",
-							p_bt_direct_iso->iso_conn_handle,
-							p_bt_direct_iso->pkt_seq_num,
-							last_pkt_num[cur_idx]);
-				}
-				last_pkt_num[cur_idx] = p_bt_direct_iso->pkt_seq_num;
-			}
-#endif
-			if (app_bt_le_audio_data_received(p_bt_direct_iso->iso_conn_handle, RTK_BLE_AUDIO_ISO_DATA_PATH_RX,
-											  p_bt_direct_iso->p_buf + p_bt_direct_iso->offset,
-											  p_bt_direct_iso->iso_sdu_len)) {
-				BT_LOGE("[APP] %s app le audio data parsing fail \r\n", __func__);
-				break;
 			}
 		}
 		break;
@@ -1802,7 +1850,9 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 		app_bt_le_audio_add_data_path(param->iso_chann_t.iso_conn_handle,
 									  param->iso_chann_t.p_iso_chann,
 									  param->iso_chann_t.path_direction,
-									  param->codec_t);
+									  param->codec_t,
+									  param->iso_chann_t.iso_interval,
+									  param->presentation_delay);
 		break;
 	}
 
@@ -1828,7 +1878,9 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 		app_bt_le_audio_add_data_path(param->iso_chann_t.iso_conn_handle,
 									  param->iso_chann_t.p_iso_chann,
 									  param->iso_chann_t.path_direction,
-									  param->codec_parsed_data);
+									  param->codec_parsed_data,
+									  0,
+									  param->presentation_delay);
 		if (param->iso_chann_t.path_direction == RTK_BLE_AUDIO_ISO_DATA_PATH_TX) {
 			if (app_bt_le_audio_find_total_path_num(RTK_BLE_AUDIO_ISO_DATA_PATH_TX) == param->dev_num) {
 				app_bt_le_audio_cap_encode_data_control(true);
@@ -1919,7 +1971,9 @@ static rtk_bt_evt_cb_ret_t app_bt_bap_callback(uint8_t evt_code, void *data, uin
 		app_bt_le_audio_add_data_path(param->iso_chann_t.iso_conn_handle,
 									  param->iso_chann_t.p_iso_chann,
 									  param->iso_chann_t.path_direction,
-									  param->codec_t);
+									  param->codec_t,
+									  param->iso_chann_t.iso_interval,
+									  param->presentation_delay);
 		if (param->iso_chann_t.path_direction == RTK_BLE_AUDIO_ISO_DATA_PATH_TX) {
 			app_bt_le_audio_cap_encode_data_control(true);
 			app_bt_le_audio_send_timer_update((param->codec_t.frame_duration == RTK_BT_LE_FRAME_DURATION_CFG_10_MS) ? 10000 : 7500);
@@ -2881,6 +2935,18 @@ static rtk_bt_evt_cb_ret_t app_le_audio_common_gap_app_callback(uint8_t evt_code
 		BT_LOGA("[APP] proto_id(%d) conn_handle(%d) remote_mtu(%d) identity_id(%d)\r\n",
 				p_ind->proto_id, p_ind->conn_handle, p_ind->remote_mtu, p_ind->identity_id);
 		BT_DUMP16A("[APP] cid: ", p_ind->cid, p_ind->cid_num);
+		rtk_bt_gap_ecfc_conn_cfm_t cfm_param = {0};
+		uint16_t ret = 0;
+		cfm_param.conn_handle = p_ind->conn_handle;
+		cfm_param.identity_id = p_ind->identity_id;
+		cfm_param.cause = 0;
+		cfm_param.cid_num = p_ind->cid_num;
+		memcpy(cfm_param.p_cid, p_ind->cid, p_ind->cid_num * sizeof(uint16_t));
+		cfm_param.local_mtu = p_ind->remote_mtu;
+		ret = rtk_bt_gap_ecfc_send_conn_cfm(&cfm_param);
+		if (RTK_BT_OK == ret) {
+			BT_LOGA("[APP] ECFC auto conn confirm success\r\n");
+		}
 		break;
 	}
 	case RTK_BT_GAP_EVT_ECFC_DISCONN_IND: {

@@ -116,8 +116,9 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 		p_link = app_find_br_link(param->a2dp_conn_cmpl.bd_addr);
 		if (p_link != NULL) {
 			memcpy((void *)remote_addr, (void *)param->a2dp_conn_cmpl.bd_addr, 6);
-			if (a2dp_role == BT_A2DP_ROLE_SRC) {
+			if (!p_link->acl_conn_ind) {
 				/* requeset avrcp connection */
+				BT_LOGA("app_a2dp_bt_cback: start avrcp connect request \r\n");
 				bt_avrcp_connect_req(param->a2dp_conn_cmpl.bd_addr);
 			}
 			{
@@ -192,10 +193,6 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 	case BT_EVENT_A2DP_STREAM_START_IND: {
 		rtk_bt_a2dp_stream_start_t *p_a2dp_stream_start = NULL;
 
-		if (a2dp_role != BT_A2DP_ROLE_SNK) {
-			BT_LOGE("app_a2dp_bt_cback: BT_EVENT_A2DP_STREAM_START_IND Wrong A2DP Role ! \r\n");
-			break;
-		}
 		p_link = app_find_br_link(param->a2dp_stream_start_ind.bd_addr);
 		if (!p_link) {
 			BT_LOGE("app_a2dp_bt_cback: BT_EVENT_A2DP_STREAM_START_IND no link found \r\n");
@@ -217,8 +214,7 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 					break;
 				}
 				p_a2dp_stream_start = (rtk_bt_a2dp_stream_start_t *)p_evt->data;
-				p_a2dp_stream_start->active_a2dp_link_index = 0;
-				p_a2dp_stream_start->stream_cfg = p_link->streaming_fg;
+				memcpy((void *)p_a2dp_stream_start, (void *)&param->a2dp_stream_start_ind, sizeof(T_BT_EVENT_PARAM_A2DP_STREAM_START_IND));
 				/* Send event */
 				if (RTK_BT_OK != rtk_bt_evt_indicate(p_evt, NULL)) {
 					handle = false;
@@ -241,7 +237,9 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 			BT_LOGE("app_a2dp_bt_cback: BT_EVENT_A2DP_STREAM_START_RSP no link found \r\n");
 			break;
 		}
-		{
+		if (p_link->streaming_fg == false ||
+			p_link->avrcp_play_status != BT_AVRCP_PLAY_STATUS_PLAYING) {
+			p_link->streaming_fg = true;
 			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_STREAM_START_RSP, 6);
 			if (!p_evt) {
 				BT_LOGE("app_a2dp_bt_cback: evt_t allocate fail \r\n");
@@ -308,7 +306,7 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 	break;
 
 	case BT_EVENT_A2DP_STREAM_STOP: {
-		rtk_bt_a2dp_conn_ind_t *p_a2dp_conn_ind = NULL;
+		rtk_bt_a2dp_stream_stop_t *p_a2dp_stream_stop_ind = NULL;
 
 		p_link = app_find_br_link(param->a2dp_stream_stop.bd_addr);
 		if (!p_link) {
@@ -319,14 +317,14 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 		BT_LOGA("app_a2dp_bt_cback: BT_EVENT_A2DP_STREAM_STOP \r\n");
 		p_link->streaming_fg = false;
 		{
-			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_STREAM_STOP, sizeof(rtk_bt_a2dp_conn_ind_t));
+			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_STREAM_STOP, sizeof(rtk_bt_a2dp_stream_stop_t));
 			if (!p_evt) {
 				BT_LOGE("app_a2dp_bt_cback: evt_t allocate fail \r\n");
 				handle = false;
 				break;
 			}
-			p_a2dp_conn_ind = (rtk_bt_a2dp_conn_ind_t *)p_evt->data;
-			memcpy((void *)p_a2dp_conn_ind->bd_addr, (void *)param->a2dp_stream_stop.bd_addr, 6);
+			p_a2dp_stream_stop_ind = (rtk_bt_a2dp_stream_stop_t *)p_evt->data;
+			memcpy((void *)p_a2dp_stream_stop_ind->bd_addr, (void *)param->a2dp_stream_stop.bd_addr, 6);
 			/* Send event */
 			if (RTK_BT_OK != rtk_bt_evt_indicate(p_evt, NULL)) {
 				handle = false;
@@ -337,7 +335,7 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 	break;
 
 	case BT_EVENT_A2DP_STREAM_CLOSE: {
-		rtk_bt_a2dp_conn_ind_t *p_a2dp_conn_ind = NULL;
+		rtk_bt_a2dp_stream_close_t *p_a2dp_stream_close_ind = NULL;
 
 		p_link = app_find_br_link(param->a2dp_stream_close.bd_addr);
 		if (!p_link) {
@@ -355,14 +353,14 @@ static void app_a2dp_bt_cback(T_BT_EVENT event_type, void *event_buf, uint16_t b
 		//                                                                                            p_link->bd_addr[0]);
 		// gap_br_send_acl_disconn_req(p_link->bd_addr);
 		{
-			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_STREAM_CLOSE, sizeof(rtk_bt_a2dp_conn_ind_t));
+			p_evt = rtk_bt_event_create(RTK_BT_BR_GP_A2DP, RTK_BT_A2DP_EVT_STREAM_CLOSE, sizeof(rtk_bt_a2dp_stream_close_t));
 			if (!p_evt) {
 				BT_LOGE("app_a2dp_bt_cback: evt_t allocate fail \r\n");
 				handle = false;
 				break;
 			}
-			p_a2dp_conn_ind = (rtk_bt_a2dp_conn_ind_t *)p_evt->data;
-			memcpy((void *)p_a2dp_conn_ind->bd_addr, (void *)param->a2dp_stream_stop.bd_addr, 6);
+			p_a2dp_stream_close_ind = (rtk_bt_a2dp_stream_close_t *)p_evt->data;
+			memcpy((void *)p_a2dp_stream_close_ind, (void *)&param->a2dp_stream_close, sizeof(T_BT_EVENT_PARAM_A2DP_STREAM_CLOSE));
 			/* Send event */
 			if (RTK_BT_OK != rtk_bt_evt_indicate(p_evt, NULL)) {
 				handle = false;
@@ -522,25 +520,21 @@ static uint16_t bt_stack_a2dp_stream_data_send(void *param)
 {
 	rtk_bt_a2dp_stream_data_send_t *p_data_send_t = (rtk_bt_a2dp_stream_data_send_t *)param;
 	T_APP_BR_LINK *p_link;
-	uint8_t a2dp_send_retry_count = 5;
 
 	p_link = app_find_br_link(p_data_send_t->bd_addr);
 	if (!p_link) {
 		BT_LOGE("app_a2dp_bt_cback: bt_stack_a2dp_stream_data_send no link found \r\n");
 		return RTK_BT_FAIL;
 	}
-	do {
-		if (bt_a2dp_stream_data_send(p_data_send_t->bd_addr,
-									 p_data_send_t->seq_num,
-									 p_data_send_t->time_stamp,
-									 p_data_send_t->frame_num,
-									 p_data_send_t->frame_buf,
-									 p_data_send_t->len,
-									 p_data_send_t->flush)) {
-			return RTK_BT_OK;
-		}
-		osif_delay(1);
-	} while (a2dp_send_retry_count --); //increase retry count bt framework buffer is not enough
+	if (bt_a2dp_stream_data_send(p_data_send_t->bd_addr,
+								 p_data_send_t->seq_num,
+								 p_data_send_t->time_stamp,
+								 p_data_send_t->frame_num,
+								 p_data_send_t->frame_buf,
+								 p_data_send_t->len,
+								 p_data_send_t->flush)) {
+		return RTK_BT_OK;
+	}
 	APP_PRINT_INFO0("bt_stack_a2dp_stream_data_send fail");
 	BT_LOGE("bt_stack_a2dp_stream_data_send fail %d %d\r\n", (int)p_data_send_t->frame_num, (int)p_data_send_t->len);
 

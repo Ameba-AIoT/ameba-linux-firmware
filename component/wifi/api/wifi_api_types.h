@@ -628,6 +628,20 @@ enum rtw_frame_type_subtype {
 	RTW_QOS_DATA_NULL	= (BIT(6) | RTW_QOS_DATA_TYPE),
 };
 
+/**
+ * @brief update_masks fields definition for struct rtw_tx_advanced_cfg{} (size: u16).
+ */
+
+enum rtw_tx_advanced_cfg_update_masks {
+	RTW_UPDATE_TXCFG_TX_LIFE_TIME_BEBK      = BIT(0),
+	RTW_UPDATE_TXCFG_TX_LIFE_TIME_VIVO      = BIT(1),
+	RTW_UPDATE_TXCFG_BCN_TX_PROTECT_TIME    = BIT(2),
+	RTW_UPDATE_TXCFG_BCN_RX_PROTECT_TIME    = BIT(3),
+	RTW_UPDATE_TXCFG_NAV_UPDATE_TH          = BIT(4),
+	RTW_UPDATE_TXCFG_IGNORE_TX_NAV          = BIT(5),
+	RTW_UPDATE_TXCFG_PARAM_ALL              = 0xFFFF,
+};
+
 /** @} End of WIFI_Exported_Enumeration_Types group*/
 
 /** @addtogroup WIFI_Exported_Structure_Types Structure Type
@@ -913,6 +927,32 @@ struct rtw_promisc_para {
 	u8(*callback)(struct rtw_rx_pkt_info *pkt_info);
 };
 
+/**
+*@brief Provide necessary parameters for set EDCA
+*/
+struct rtw_edca_param {
+	u8	aci;  /**< AC_BE[0], AC_BK[1], AC_VI[2], AC_VO[3] */
+	u8	aifsn; /**< Arbitration inter-frame space number,specifies the inter-frame interval (waiting time) before transmission: unit: (*slot_time), + sifs*/
+	u8	cw_max; /**< Maximum contention window: unit: *slot_time */
+	u8	cw_min; /**< Minimum contention window: unit: *slot_time */
+	u16	txop_limit;/**< Indicates that a single MSDU or MMPDU in addition to a protection frame exchange can be transmitted at any rate*/
+	u8	slot_time;/**< The slot time value mentioned in 802.11 specification in units, Recommended value: 20us for 2G band, 9us for 5G band[value 0 = use internal chipset default] */
+};
+
+/**
+*@brief Provide optional parameters for improving tx performance in special scenario
+*/
+
+struct rtw_tx_advanced_cfg {
+	u16 update_masks;             /**< Mask subfield. If a parameter is set, its corresponding bit in update_masks must also be set. @ref RTW_UPDATE_TXCFG_TX_LIFE_TIME_BEBK... */
+	u16 pkt_lifetime_bebk;        /**< Packet lifetime in units of 256us for AC_BE/AC_BK. */
+	u16 pkt_lifetime_vivo;        /**< Packet lifetime in units of 256us for AC_VI/AC_VO. */
+	u16 tx_bcn_protect_time;      /**< A reserved period for Beacon TX, preventing other transmissions, unit:32us */
+	u8 rx_bcn_protect_time;       /**< A reserved period for Beacon RX, preventing other transmissions, unit:2.048ms; */
+	u8 rx_nav_update_th;          /**< Rx NAV (Network Allocation Vector) update threshold in units of 128us[can not tx during Rx NAV]. */
+	u8 b_ignore_tx_nav : 1;       /**< Queue BKF not need to wait TX Nav finished. */
+};
+
 /**********************************************************************************************
  *                                     speaker structures
  *********************************************************************************************/
@@ -921,9 +961,8 @@ struct rtw_promisc_para {
  */
 union rtw_speaker_set {
 	struct rtw_speaker_init {
-		u8 mode;              /**< 0 for slave, 1 for master. */
-		u8 nav_thresh;        /**< NAV (Network Allocation Vector) threshold in units of 128us. */
-		u8 relay_en;          /**< Relay control. */
+		u8 mode;                     /**< 0 for slave, 1 for master. */
+		u8 relay_en : 1;             /**< Relay control. */
 	} init; /**< For Wi-Fi speaker setting case @ref RTW_SPEAKER_SET_INIT.*/
 	struct rtw_speaker_i2s {
 		u8 port;           /**< Port selection for TSFT trigger: 0 for port 0, 1 for port 1. */

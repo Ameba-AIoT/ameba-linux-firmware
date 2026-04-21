@@ -74,8 +74,8 @@ typedef struct {
 typedef struct {
 	u32 nptx_max_epmis_cnt;		/* Max Non-Periodical TX transfer epmis count allowed, if epmis count is higher than this
 								value, the GINTSTS.EPMis interrupt will be handled. This parameter is enabled only when
-								USBD_EPMIS_INTR is enabled in ext_intr_en. */
-	u32 ext_intr_en;			/* Enable extra interrupts:
+								USBD_EPMIS_INTR is enabled in ext_intr_enable. */
+	u32 ext_intr_enable;			/* Enable extra interrupts:
 								USBD_SOF_INTR: used for timing synchronization with SOF.
 								USBD_EOPF_INTR: used to toggle frame parity for ISOC transfers, only for slave mode.
 								USBD_EPMIS_INTR: used to re-activate the transfers of multiple non-periodic endpoints when
@@ -90,7 +90,6 @@ typedef struct {
 							   	USB_SPEED_FULL: USB 1.1 transceiver, e.g. AmebaDPlus. */
 	u8 isr_priority;			/* USB ISR priority */
 	u8 isr_in_critical;			/* Process USB ISR in critical state. */
-	u8 dma_enable;				/* Enable USB internal DMA mode, 0-Disable, 1-Enable. */
 	u8 intr_use_ptx_fifo;		/* Use Periodic TX FIFO for INTR IN transfer, only for shared TxFIFO mode. */
 } usbd_config_t;
 
@@ -135,8 +134,6 @@ typedef struct _usbd_class_driver_t {
 	int(*setup)(usb_dev_t *dev, usb_setup_req_t *req);
 
 	int(*sof)(usb_dev_t *dev);
-	int(*suspend)(usb_dev_t *dev);
-	int(*resume)(usb_dev_t *dev);
 
 	int(*ep0_data_in)(usb_dev_t *dev, u8 status);
 	int(*ep0_data_out)(usb_dev_t *dev);

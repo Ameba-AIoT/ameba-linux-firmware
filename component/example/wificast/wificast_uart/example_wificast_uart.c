@@ -12,8 +12,15 @@ static void example_recv_callback(wifi_cast_node_t *pnode, unsigned char *buf, u
 
 	struct example_frame_head *hdr = (struct example_frame_head *)buf;
 	if (hdr->type & WIFI_CAST_UART_DATA) {
-		RTK_LOGI(TAG, MAC_FMT", rssi: %d, recv count: %d, size: %d, data: %s\n",
-				 MAC_ARG(pnode->mac), rssi, ++count, hdr->len, buf + sizeof(struct example_frame_head));
+		RTK_LOGI(TAG, MAC_FMT", rssi: %d, recv count: %d, size: %d\n", MAC_ARG(pnode->mac), rssi, ++count, hdr->len);
+		u8 *print_buf = (u8 *)rtos_mem_zmalloc(hdr->len + 1);
+		if (!print_buf) {
+			return;
+		}
+		memcpy(print_buf, buf + sizeof(struct example_frame_head), hdr->len);
+		print_buf[hdr->len] = '\0';
+		RTK_LOGI(TAG, "data: %s\n", print_buf);
+		rtos_mem_free(print_buf);
 	}
 }
 
@@ -58,6 +65,7 @@ static void example_uart_read_task(void *param)
 				RTK_LOGE(TAG, "%s, send fail\n", __func__);
 				continue;
 			}
+			rx_buf[sizeof(struct example_frame_head) + size] = '\0';
 			RTK_LOGI(TAG, "send count: %d, size: %d, data: %s\n", ++count, size, rx_buf + sizeof(struct example_frame_head));
 		}
 	}

@@ -28,11 +28,9 @@ static __IO u8 usbh_verify_ready = 0;
 
 static usbh_config_t cmd_usbh_verify_cfg = {
 	.speed = USB_SPEED_HIGH,
-	.dma_enable = 1,
-	.sof_tick_en = 1,
+	.sof_tick_enable = 1,
 	.isr_priority = INT_PRI_MIDDLE,
 	.main_task_priority = 5U,
-	.isr_task_priority  = 6U,
 #if defined (CONFIG_AMEBAGREEN2)
 	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
 	.rx_fifo_depth = 500,
@@ -437,7 +435,6 @@ static void usbh_verify_xfer_dir(u8 *argv[])
 static void usbh_verify_usage(void)
 {
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Invalid arguments, usage:\n");
-	RTK_LOGS(TAG, RTK_LOG_INFO, " usbh verify dma dis/en(default)\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbh verify speed full/high(default)\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbh verify loopcount <times>\n");
 
@@ -483,14 +480,6 @@ int cmd_usbh_verify_test_entry(u16 argc, u8 *argv[])
 		}
 		usbh_verify_set_test_count_max(count);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "USBH init test count set to %d\n", count);
-	} else if (_stricmp(sub_cmd, "dma") == 0) {
-		u8 dma_enable = 0;
-		if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"en") == 0)) {
-			dma_enable = 1;
-		} else if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"dis") == 0)) {
-			dma_enable = 0;
-		}
-		cmd_usbh_verify_cfg.dma_enable = dma_enable;
 	} else if (_stricmp(sub_cmd, "speed") == 0) {
 		u8 speed = (u8)USB_SPEED_HIGH;
 		if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"full") == 0)) {
@@ -498,9 +487,9 @@ int cmd_usbh_verify_test_entry(u16 argc, u8 *argv[])
 		}
 		cmd_usbh_verify_cfg.speed = speed;
 	} else if (_stricmp(sub_cmd, "sof_tick") == 0) {
-		cmd_usbh_verify_cfg.sof_tick_en  = 1;
+		cmd_usbh_verify_cfg.sof_tick_enable  = 1;
 		if (argv[2]) {
-			cmd_usbh_verify_cfg.sof_tick_en = _strtoul((const char *)(argv[2]), (char **)NULL, 10);
+			cmd_usbh_verify_cfg.sof_tick_enable = _strtoul((const char *)(argv[2]), (char **)NULL, 10);
 		}
 	} else if (_stricmp(sub_cmd, "xfer") == 0) {
 		usbh_verify_xfer_dir(argv);
@@ -535,10 +524,9 @@ int cmd_usbh_verify_test_entry(u16 argc, u8 *argv[])
 		usbh_verify_ep_status_stop();
 		cmd_usbh_verify_deinit();
 	} else if (_stricmp(sub_cmd, "dump") == 0) {
-		RTK_LOGS(TAG, RTK_LOG_INFO, "DMA: %d\n", cmd_usbh_verify_cfg.dma_enable);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Speed: %d\n", cmd_usbh_verify_cfg.speed);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "ExtIntr: %d\n", cmd_usbh_verify_cfg.ext_intr_en);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "SofTick: %d\n", cmd_usbh_verify_cfg.sof_tick_en);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "ExtIntr: %d\n", cmd_usbh_verify_cfg.ext_intr_enable);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "SofTick: %d\n", cmd_usbh_verify_cfg.sof_tick_enable);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "P_loopback: %d(%d-%d)\n",
 				 usbh_verify_xfer.p_loopback, usbh_verify_xfer.p_in_only, usbh_verify_xfer.p_out_only);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "BULK_loopback: %d(%d-%d)\n",

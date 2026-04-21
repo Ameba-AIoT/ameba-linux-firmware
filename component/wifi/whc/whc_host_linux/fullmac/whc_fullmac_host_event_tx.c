@@ -472,14 +472,11 @@ int whc_fullmac_host_stop_ap(void)
 	return ret;
 }
 
-int whc_fullmac_host_set_EDCA_params(unsigned int *AC_param)
+int whc_fullmac_host_set_EDCA_params(struct rtw_edca_param *pedca_param)
 {
 	int ret = 0;
-	u32 param_buf[1] = {0};
 
-	param_buf[0] = *AC_param;
-
-	whc_fullmac_host_send_event(WHC_API_WIFI_SET_EDCA_PARAM, (u8 *)param_buf, sizeof(param_buf), (u8 *)&ret, sizeof(int));
+	whc_fullmac_host_send_event(WHC_API_WIFI_SET_EDCA_PARAM, (u8 *)pedca_param, sizeof(struct rtw_edca_param), (u8 *)&ret, sizeof(int));
 
 	return ret;
 }
@@ -492,6 +489,16 @@ int whc_fullmac_host_add_key(struct rtw_crypt_info *crypt)
 
 	return ret;
 }
+
+int whc_fullmac_host_wpa_4way_status_indicate(struct rtw_wpa_4way_status *rpt_4way)
+{
+	int ret = 0;
+
+	whc_fullmac_host_send_event(WHC_API_WPA_4WAY_REPORT, (u8 *)rpt_4way, sizeof(struct rtw_wpa_4way_status), (u8 *)&ret, sizeof(int));
+
+	return ret;
+}
+
 
 int whc_fullmac_host_tx_mgnt(u8 wlan_idx, const u8 *buf, size_t buf_len, u8 need_wait_ack)
 {

@@ -401,37 +401,6 @@ int atcmd_bt_a2dp_scatternet(int argc, char *argv[])
 	return 0;
 }
 
-int bt_a2dp_provisioner_scatternet_main(uint8_t role, uint8_t enable);
-int atcmd_bt_a2dp_provisioner_scatternet(int argc, char *argv[])
-{
-	(void)argc;
-	uint8_t role;
-	uint8_t op;
-	char *action[] = {"disable", "enable"};
-
-	if (strcmp(argv[0], "snk") == 0) {
-		role = 1;
-		BT_LOGA("Set a2dp role (snk)\r\n");
-	} else if (strcmp(argv[0], "src") == 0) {
-		role = 0;
-		BT_LOGA("Set a2dp role (src)\r\n");
-	} else {
-		BT_LOGE("Invalid role set\r\n");
-		return -1;
-	}
-	if ((op = (uint8_t)str_to_int(argv[1])) > 2) {
-		BT_LOGE("Error: wrong value (%d) for a2dp provisioner scatternet example!\r\n", op);
-		return -1;
-	}
-	if (bt_a2dp_provisioner_scatternet_main(role, op)) {
-		BT_LOGE("Error: a2dp provisioner scatternet example %s failed!\r\n", action[op]);
-		return -1;
-	}
-
-	BT_LOGA("a2dp provisioner scatternet example %s OK!\r\n", action[op]);
-	return 0;
-}
-
 int bt_a2dp_sink_pbp_source_main(uint8_t enable);
 int atcmd_bt_a2dp_pbp(int argc, char *argv[])
 {
@@ -703,8 +672,8 @@ int atcmd_ble_iso(int argc, char **argv)
 	return 0;
 }
 
-int bt_generic_le_audio_demo_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
-int atcmd_bt_generic_le_audio_demo(int argc, char *argv[])
+int bt_le_audio_generic_demo_main(uint8_t role, uint8_t enable, uint32_t sound_channel);
+int atcmd_bt_le_audio_generic_demo(int argc, char *argv[])
 {
 	(void)argc;
 	uint8_t role;
@@ -750,7 +719,7 @@ int atcmd_bt_generic_le_audio_demo(int argc, char *argv[])
 			return -1;
 		}
 	}
-	if (bt_generic_le_audio_demo_main(role, op, channel)) {
+	if (bt_le_audio_generic_demo_main(role, op, channel)) {
 		BT_LOGE("Error: cap example %s failed!\r\n", action[op]);
 		return -1;
 	}
@@ -944,6 +913,44 @@ int atcmd_bt_gmap(int argc, char *argv[])
 	return 0;
 }
 
+int le_audio_generic_demo_peripheral(uint8_t enable, uint32_t sound_channel);
+int atcmd_bt_le_audio_generic_demo_peripheral(int argc, char *argv[])
+{
+	(void)argc;
+	uint8_t op;
+	uint32_t channel = 0;
+	char *action[] = {"disable", "enable"};
+
+	if ((op = (uint8_t)str_to_int(argv[0])) > 2) {
+		BT_LOGE("Error: wrong value (%d) for gmap example!\r\n", op);
+		return -1;
+	}
+
+	if (strcmp(argv[1], "left") == 0) {
+		/* RTK_BT_LE_AUDIO_LOCATION_FL */
+		channel = 0x01;
+		BT_LOGA("Set channel left \r\n");
+	} else if (strcmp(argv[1], "right") == 0) {
+		/* RTK_BT_LE_AUDIO_LOCATION_FR */
+		channel = 0x02;
+		BT_LOGA("Set channel right \r\n");
+	} else if (strcmp(argv[1], "stereo") == 0) {
+		/* RTK_BT_LE_AUDIO_LOCATION_FL | RTK_BT_LE_AUDIO_LOCATION_FR */
+		channel = 0x03;
+		BT_LOGA("Set channel stereo \r\n");
+	} else {
+		BT_LOGE("Error: cap example only support left, right and stereo channel!\r\n");
+		return -1;
+	}
+	if (le_audio_generic_demo_peripheral(op, channel)) {
+		BT_LOGE("Error: le_audio_generic_demo_peripheral example %s failed!\r\n", action[op]);
+		return -1;
+	}
+
+	BT_LOGA("cap acceptor peripheral example %s OK!\r\n", action[op]);
+	return 0;
+}
+
 int atcmd_bt_pts_cmd(int argc, char *argv[]);
 int bt_pts_main(uint8_t enable);
 int atcmd_bt_pts(int argc, char *argv[])
@@ -1097,16 +1104,13 @@ static const cmd_table_t example_table[] = {
 #if defined(CONFIG_BT_A2DP_SCATTERNET) && CONFIG_BT_A2DP_SCATTERNET
 	{"a2dp_scatternet",  atcmd_bt_a2dp_scatternet,  3, 3},
 #endif
-#if defined(CONFIG_BT_A2DP_PROVISIONER_SCATTERNET) && CONFIG_BT_A2DP_PROVISIONER_SCATTERNET
-	{"a2dp_provisioner_scatternet",  atcmd_bt_a2dp_provisioner_scatternet,  3, 3},
-#endif
-#if defined(CONFIG_BT_A2DP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_LE_AUDIO_PBP
+#if defined(CONFIG_BT_A2DP_PBP) && CONFIG_BT_A2DP_PBP
 	{"a2dp_pbp",         atcmd_bt_a2dp_pbp,         2, 2},
 #endif
-#if defined(CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP) && CONFIG_BT_A2DP_HFP_LE_AUDIO_PBP
+#if defined(CONFIG_BT_A2DP_HFP_PBP) && CONFIG_BT_A2DP_HFP_PBP
 	{"a2dp_hfp_pbp",     atcmd_bt_a2dp_hfp_pbp,     2, 2},
 #endif
-#if defined(CONFIG_BT_A2DP_LE_AUDIO_TMAP) && CONFIG_BT_A2DP_LE_AUDIO_TMAP
+#if defined(CONFIG_BT_A2DP_TMAP) && CONFIG_BT_A2DP_TMAP
 	{"a2dp_tmap",        atcmd_bt_a2dp_tmap,        3, 3},
 #endif
 #if defined(CONFIG_BT_SPP) && CONFIG_BT_SPP
@@ -1125,7 +1129,7 @@ static const cmd_table_t example_table[] = {
 	{"a2dp_hfp",         atcmd_bt_a2dp_hfp,         3, 3},
 #endif
 #if defined(CONFIG_BT_LE_AUDIO_GENERIC_DEMO) && CONFIG_BT_LE_AUDIO_GENERIC_DEMO
-	{"generic_le_audio_demo", atcmd_bt_generic_le_audio_demo, 3, 4},
+	{"le_audio_generic_demo", atcmd_bt_le_audio_generic_demo, 3, 4},
 #endif
 #if defined(CONFIG_BT_PBP) && CONFIG_BT_PBP
 	{"pbp",              atcmd_bt_pbp,              3, 4},
@@ -1135,6 +1139,9 @@ static const cmd_table_t example_table[] = {
 #endif
 #if defined(CONFIG_BT_GMAP) && CONFIG_BT_GMAP
 	{"gmap",             atcmd_bt_gmap,             3, 4},
+#endif
+#if defined(CONFIG_BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL) && CONFIG_BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL
+	{"le_audio_generic_demo_peripheral",         atcmd_bt_le_audio_generic_demo_peripheral,   3, 3},
 #endif
 #if defined(CONFIG_BT_PTS) && CONFIG_BT_PTS
 	{"pts",              atcmd_bt_pts,              2, 4},

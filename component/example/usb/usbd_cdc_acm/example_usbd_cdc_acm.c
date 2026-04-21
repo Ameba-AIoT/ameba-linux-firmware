@@ -71,12 +71,11 @@ static u16 cdc_acm_ctrl_line_state;
 
 static usbd_config_t cdc_acm_cfg = {
 	.speed = CONFIG_USBD_CDC_ACM_SPEED,
-	.dma_enable   = 1U,
 	.isr_priority = INT_PRI_MIDDLE,
 	.intr_use_ptx_fifo  = 0U,
 #if defined(CONFIG_AMEBASMART)
 	.nptx_max_epmis_cnt = 1U,
-	.ext_intr_en        = USBD_EPMIS_INTR,
+	.ext_intr_enable        = USBD_EPMIS_INTR,
 #elif defined (CONFIG_AMEBAGREEN2)
 	.rx_fifo_depth = 644U,
 	.ptx_fifo_depth = {16U, 256U, 32U, 16U, 16U, },

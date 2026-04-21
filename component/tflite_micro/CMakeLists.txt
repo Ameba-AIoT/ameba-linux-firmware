@@ -7,7 +7,7 @@ set(MICROLITE_LIB_NAME "tensorflow-microlite")
 
 set(tflite_dir "${CMAKE_CURRENT_SOURCE_DIR}/tensorflow/lite")
 set(signal_dir "${CMAKE_CURRENT_SOURCE_DIR}/signal")
-set(download_dir "${CMAKE_CURRENT_LIST_DIR}/downloads")
+set(download_dir "${CMAKE_CURRENT_LIST_DIR}/downloads_${CMAKE_CHIP_TARGET}")
 set(compiler_mlir_dir "${CMAKE_CURRENT_SOURCE_DIR}/tensorflow/compiler/mlir/")
 set(tflite_micro_dir "${tflite_dir}/micro")
 set(tflite_micro_frontend_dir "${tflite_dir}/experimental/microfrontend/lib")
@@ -200,9 +200,3 @@ else()
   target_compile_definitions(${MICROLITE_LIB_NAME} PRIVATE TF_LITE_USE_CTIME)
 endif()
 
-# build example test
-if (CMAKE_CHIP_TARGET MATCHES "linux$")
-  add_subdirectory("examples/hello_world")
-  add_subdirectory("examples/micro_speech")
-  add_subdirectory("examples/tflm_mnist")
-endif()

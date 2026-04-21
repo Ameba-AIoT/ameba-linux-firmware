@@ -228,7 +228,7 @@ rtk_bt_le_iso_setup_path_param_t le_iso_demo_setup_path_param = {
 
 /* iso demo send data */
 #define APP_LE_ISO_USE_HW_GTIMER 1
-#define APP_LE_ISO_DATA_SEND_PATH_NUM 3 // 1 cis initiator + 1 cis acceptor + 1 broadcaster source
+#define APP_LE_ISO_DATA_SEND_PATH_NUM 4
 #define APP_LE_ISO_DATA_SEND_TASK_PRIO 5
 #define APP_LE_ISO_DATA_SEND_TASK_STACK_SIZE (1024*5)
 #define APP_LE_ISO_DEFAULT_SDU_INTERVAL_M_S_US RTK_BLE_ISO_DEFAULT_SDU_INTERVAL_M_S_US //units: us
@@ -260,6 +260,19 @@ static struct le_iso_demo_task_t bt_le_iso_demo_data_send_task = {
 };
 static app_bt_le_iso_data_path_t app_le_iso_data_path[APP_LE_ISO_DATA_SEND_PATH_NUM] = {0};
 static uint32_t bt_le_iso_demo_send_timer_interval_us = APP_LE_ISO_DEFAULT_SDU_INTERVAL_M_S_US;
+
+static uint8_t app_bt_le_iso_find_total_path_num(void)
+{
+	uint8_t path_num = 0;
+
+	for (uint16_t i = 0; i < APP_LE_ISO_DATA_SEND_PATH_NUM; i ++) {
+		if (app_le_iso_data_path[i].used) {
+			path_num ++;
+		}
+	}
+
+	return path_num;
+}
 
 static uint16_t app_bt_le_iso_add_data_path(uint16_t iso_conn_handle)
 {
@@ -316,7 +329,7 @@ static void bt_le_iso_demo_data_send_task_entry(void *ctx)
 				app_le_iso_data_path[i].iso_data_t.ts_flag = false;
 				app_le_iso_data_path[i].iso_data_t.time_stamp = 0;
 				app_le_iso_data_path[i].iso_data_t.pkt_seq_num++;
-				app_le_iso_data_path[i].iso_data_t.data_len = 128;
+				app_le_iso_data_path[i].iso_data_t.data_len = 40;
 				app_le_iso_data_path[i].iso_data_t.p_data = iso_demo_data;
 				ret = rtk_bt_le_iso_data_send(&app_le_iso_data_path[i].iso_data_t);
 				// BT_LOGA("DATA SEND ISO handle 0x%x pkt 0x%x systime (%d) \r\n", app_le_iso_data_path[i].iso_data_t.iso_conn_handle,
@@ -918,7 +931,9 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_cb(uint8_t evt_code, void *data, uint32
 		if (!param->cause && (RTK_BLE_ISO_DATA_PATH_ADD_INPUT == param->data_path_direction)) {
 			/* add app le iso data send path */
 			app_bt_le_iso_add_data_path(param->cis_conn_handle);
-			app_bt_le_iso_send_data_control(true);
+			if (bt_le_iso_demo_app_conf.cis_num == app_bt_le_iso_find_total_path_num()) {
+				app_bt_le_iso_send_data_control(true);
+			}
 		}
 		break;
 	}
@@ -930,7 +945,9 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_cb(uint8_t evt_code, void *data, uint32
 		if (!param->cause && (RTK_BLE_ISO_DATA_PATH_ADD_INPUT == param->data_path_direction)) {
 			/* remove app le iso data send path */
 			app_bt_le_iso_remove_data_path(param->cis_conn_handle);
-			app_bt_le_iso_send_data_control(false);
+			if (bt_le_iso_demo_app_conf.cis_num == app_bt_le_iso_find_total_path_num()) {
+				app_bt_le_iso_send_data_control(false);
+			}
 		}
 		break;
 	}
@@ -941,7 +958,8 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_cb(uint8_t evt_code, void *data, uint32
 				param->conn_handle, param->cis_conn_handle, param->cig_id, param->cis_id, param->cis_req_action);
 		if (param->cis_req_action == RTK_BLE_ISO_ACCEPTOR_CIS_REQ_ACTION_PENDING) {
 			rtk_bt_le_iso_cig_acceptor_accept_cis(param->cis_conn_handle);//accept cis request
-			//rtk_bt_le_iso_cig_acceptor_reject_cis(param->cis_conn_handle,HCI_SUCCESS);//if you want to reject cis request
+			//if you want to reject cis request，reject reason @ref rtk_bt_err_hci
+			//rtk_bt_le_iso_cig_acceptor_reject_cis(param->cis_conn_handle, RTK_BT_HCI_ERR_UNKNOWN_CONN_ID);
 		}
 		break;
 	}
@@ -1019,7 +1037,9 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_cb(uint8_t evt_code, void *data, uint32
 		if (!param->cause && (RTK_BLE_ISO_DATA_PATH_ADD_INPUT == param->data_path_direction)) {
 			/* add app le iso data send path */
 			app_bt_le_iso_add_data_path(param->bis_conn_handle);
-			app_bt_le_iso_send_data_control(true);
+			if (bt_le_iso_demo_app_conf.bis_num == app_bt_le_iso_find_total_path_num()) {
+				app_bt_le_iso_send_data_control(true);
+			}
 		}
 		break;
 	}
@@ -1031,7 +1051,9 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_cb(uint8_t evt_code, void *data, uint32
 		if (!param->cause && (RTK_BLE_ISO_DATA_PATH_ADD_INPUT == param->data_path_direction)) {
 			/* add app le iso data send path */
 			app_bt_le_iso_remove_data_path(param->bis_conn_handle);
-			app_bt_le_iso_send_data_control(false);
+			if (bt_le_iso_demo_app_conf.bis_num == app_bt_le_iso_find_total_path_num()) {
+				app_bt_le_iso_send_data_control(false);
+			}
 		}
 		break;
 	}
@@ -1144,7 +1166,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 				set_cig_param.latency_m_s = RTK_BLE_ISO_DEFAULT_LATENCY_M_S;//10,
 				set_cig_param.latency_s_m = RTK_BLE_ISO_DEFAULT_LATENCY_S_M; //10
 				/* cis param */
-				set_cis_param.cis_id = 1;
+				set_cis_param.cis_id = 0;
 				set_cis_param.max_sdu_m_s = RTK_BLE_ISO_MAX_SDU_M_S;//128;
 				set_cis_param.max_sdu_s_m = RTK_BLE_ISO_MAX_SDU_S_M;//128;
 				set_cis_param.phy_m_s = RTK_BLE_ISO_DEFAULT_PHY_2M;
@@ -1157,7 +1179,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 					set_cig_param.cig_id = i + 1;
 					memcpy((void *)&cig_start_setting.set_cig_param, (void *)&set_cig_param, sizeof(rtk_bt_le_iso_cig_initiator_set_cig_param_t));
 					for (uint8_t j = 0; j < cig_start_setting.cis_num; j ++) {
-						set_cis_param.cis_id = (j + 1) + (i * 2);
+						set_cis_param.cis_id = j + (i * 2);
 						memcpy((void *)&cig_start_setting.set_cis_param[j], (void *)&set_cis_param, sizeof(rtk_bt_le_iso_cig_initiator_set_cis_param_t));
 					}
 					BT_APP_PROCESS(rtk_bt_le_iso_cig_start_setting(&cig_start_setting));

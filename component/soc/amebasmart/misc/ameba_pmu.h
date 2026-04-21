@@ -14,7 +14,9 @@ typedef enum {
 	PMU_AP_RUN	= 3,
 	PMU_BT_DEVICE	= 4,
 	PMU_VAD_DEVICE	= 5,
-	PMU_DEV_USER_BASE	= 6, /*number 6 ~ 31 is reserved for customer use*/
+	PMU_DHCP_PROCESS,
+	PMU_LWIP_STACK,
+	PMU_DEV_USER_BASE, /*reserved for customer use*/
 	PMU_MAX,
 } PMU_DEVICE;
 
@@ -48,6 +50,7 @@ uint32_t pmu_exec_sleep_hook_funs(void);
 void pmu_exec_wakeup_hook_funs(uint32_t nDeviceIdMax);
 uint32_t pmu_set_sleep_type(uint32_t type);
 uint32_t pmu_get_sleep_type(void);
+uint32_t pmu_get_sleep_time(void);
 void pmu_set_max_sleep_time(uint32_t timer_ms);
 void pmu_set_sleep_time_range(uint32_t min_time, uint32_t max_time);
 #ifndef CONFIG_BUILD_ROM

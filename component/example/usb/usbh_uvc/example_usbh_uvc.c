@@ -47,9 +47,9 @@ static const char *const TAG = "UVC";
 
 /* Private macros ------------------------------------------------------------*/
 
-#define USBH_UVC_BUF_SIZE       UVC_VIDEO_FRAME_SIZE   // Frame buffer size, resident in PSRAM, depends on format type
+#define USBH_UVC_BUF_SIZE       USBH_UVC_VIDEO_FRAME_SIZE   // Frame buffer size, resident in PSRAM, depends on format type
 //resolution and compression ratio
-#define USBH_UVC_FORMAT_TYPE    UVC_FORMAT_MJPEG
+#define USBH_UVC_FORMAT_TYPE    USBH_UVC_FORMAT_MJPEG
 #define USBH_UVC_WIDTH          640
 #define USBH_UVC_HEIGHT         480
 #define USBH_UVC_FRAME_RATE     30
@@ -108,12 +108,10 @@ u8 uvc_buf[USBH_UVC_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
 
 static usbh_config_t usbh_cfg = {
 	.speed = USB_SPEED_HIGH,
-	.dma_enable = 1,
-	.alt_max = 25,
+	.alt_max_cnt = 25,
 	.isr_priority = INT_PRI_MIDDLE,
-	.isr_task_priority  = 4U,
 	.main_task_priority = 3U,
-	.sof_tick_en = 1U,
+	.sof_tick_enable = 1U,
 #if defined (CONFIG_AMEBAGREEN2)
 	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
 	.rx_fifo_depth = 500,
@@ -189,7 +187,7 @@ static void uvc_calculate_tp(u32 loop)
 	rx_total_H = 0;
 }
 
-static void uvc_img_prepare(uvc_frame_t *frame)
+static void uvc_img_prepare(usbh_uvc_frame_t *frame)
 {
 	u32 len = 0;
 
@@ -222,7 +220,7 @@ static void uvc_img_prepare(uvc_frame_t *frame)
 
 #if ((CONFIG_USBH_UVC_APP == USBH_UVC_APP_HTTPC) || (CONFIG_USBH_UVC_APP == USBH_UVC_APP_VFS))
 	if (rtos_mutex_take(uvc_buf_mutex, 1000 / uvc_ctx.frame_rate / 2) == RTK_SUCCESS) {
-		if (uvc_ctx.fmt_type == UVC_FORMAT_H264) {
+		if (uvc_ctx.fmt_type == USBH_UVC_FORMAT_H264) {
 			if (RingBuffer_Space(uvc_rb) > frame->byteused) {
 				RingBuffer_Write(uvc_rb, frame->buf, frame->byteused);
 			}
@@ -245,7 +243,7 @@ static void uvc_img_prepare(uvc_frame_t *frame)
 
 #if (CONFIG_USBH_UVC_APP == USBH_UVC_APP_VFS)
 
-#if (USBH_UVC_FORMAT_TYPE == UVC_FORMAT_MJPEG)
+#if (USBH_UVC_FORMAT_TYPE == USBH_UVC_FORMAT_MJPEG)
 static void uvc_vfs_thread(void *param)
 {
 	char path[128] = {0};
@@ -386,7 +384,7 @@ char upload_request[] =
 char body_end[] =
 	"\r\n--%s--\r\n";
 
-#if (USBH_UVC_FORMAT_TYPE == UVC_FORMAT_MJPEG)
+#if (USBH_UVC_FORMAT_TYPE == USBH_UVC_FORMAT_MJPEG)
 
 /*
 	"POST /cgi-bin/submit.py HTTP/1.1\r\n"
@@ -593,7 +591,7 @@ static int uvc_httpc_start(void)
 static void example_usbh_uvc_task(void *param)
 {
 	int ret = 0;
-	uvc_frame_t *buf;
+	usbh_uvc_frame_t *buf;
 	int img_cnt = 0;
 	UNUSED(param);
 
@@ -625,11 +623,11 @@ static void example_usbh_uvc_task(void *param)
 	} else {
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Para: %d*%d@%dfps\n", uvc_ctx.width, uvc_ctx.height, uvc_ctx.frame_rate);
 
-		if (uvc_ctx.fmt_type == UVC_FORMAT_MJPEG) {
+		if (uvc_ctx.fmt_type == USBH_UVC_FORMAT_MJPEG) {
 			RTK_LOGS(TAG, RTK_LOG_INFO, "MJPEG Stream\n");
-		} else if (uvc_ctx.fmt_type == UVC_FORMAT_H264) {
+		} else if (uvc_ctx.fmt_type == USBH_UVC_FORMAT_H264) {
 			RTK_LOGS(TAG, RTK_LOG_INFO, "H264 Stream\n");
-		} else if (uvc_ctx.fmt_type == UVC_FORMAT_YUV) {
+		} else if (uvc_ctx.fmt_type == USBH_UVC_FORMAT_YUV) {
 			RTK_LOGS(TAG, RTK_LOG_INFO, "YUV Stream\n");
 		} else {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Unsupport Stream\n");

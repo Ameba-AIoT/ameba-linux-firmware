@@ -55,20 +55,22 @@ if BT_EXAMPLE_DEMO_MENU
         default n
 
     config BT_WIFIMATE_DEVICE
+        depends on (AMEBADPLUS || AMEBALITE || AMEBASMART)    #amebadplus|amebalite|amebasmart
         bool "BLE WiFiMate Device"
         default n
 
     config BT_WIFIMATE_CONFIGURATOR
+        depends on (AMEBADPLUS || AMEBALITE || AMEBASMART)    #amebadplus|amebalite|amebasmart
         bool "BLE WiFiMate Configurator"
         default n
 
     config BT_OTA_CENTRAL
-        depends on AMEBADPLUS || AMEBALITE || AMEBASMART && !AMEBA_RLS    #internal amebadplus|amebalite|amebasmart
+        depends on (AMEBADPLUS || AMEBALITE || AMEBASMART) && !AMEBA_RLS    #internal amebadplus|amebalite|amebasmart
         bool "BLE OTA Central"
         default n
 
     config BT_OTA_PERIPHERAL
-        depends on AMEBADPLUS || AMEBALITE || AMEBASMART && !AMEBA_RLS    #internal amebadplus|amebalite|amebasmart
+        depends on (AMEBADPLUS || AMEBALITE || AMEBASMART) && !AMEBA_RLS    #internal amebadplus|amebalite|amebasmart
         bool "BLE OTA Peripheral"
         default n
 
@@ -126,6 +128,11 @@ if BT_EXAMPLE_DEMO_MENU
                 bool "BLE Audio Gaming Audio Profile"
                 default n
         endif
+
+        config BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL_MENU
+            depends on AMEBASMART && !AMEBA_RLS    #internal amebasmart
+            bool "BT LE Audio Generic Demo and BLE Peripheral"
+            default n
     endif
 
     if BT_HAS_BREDR
@@ -159,25 +166,18 @@ if BT_EXAMPLE_DEMO_MENU
     endif
 
     if BT_HAS_LEAUDIO && BT_HAS_BREDR
-        config BT_A2DP_LE_AUDIO_PBP_MENU
+        config BT_A2DP_PBP_MENU
             depends on !AMEBA_RLS    #internal
             bool "BT A2DP and LE Audio PBP"
             default n
 
-        config BT_A2DP_HFP_LE_AUDIO_PBP_MENU
+        config BT_A2DP_HFP_PBP_MENU
             bool "BT A2DP HFP and LE Audio PBP"
             default n
 
-        config BT_A2DP_LE_AUDIO_TMAP_MENU
+        config BT_A2DP_TMAP_MENU
             depends on !AMEBA_RLS    #internal
             bool "BT A2DP and LE Audio TMAP"
-            default n
-    endif
-
-    if BT_HAS_MESH && BT_HAS_BREDR
-        config BT_A2DP_PROVISIONER_SCATTERNET_MENU
-            depends on !AMEBA_RLS    #internal
-            bool "BT A2DP and BLE Mesh Provisioner and BLE Scatternet"
             default n
     endif
 endif
@@ -230,6 +230,14 @@ if BT
         select BT_GMAP
         select BT_GMAP_SUPPORT
 
+    config BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL_MENU
+        bool
+        select BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL
+        select BT_LE_AUDIO
+        select BT_APP_AUDIO_DATA
+        select BT_AUDIO_CODEC_SUPPORT
+        select BT_AUDIO_CODEC_LC3
+
     config BT_A2DP_MENU
         bool
         select BT_A2DP
@@ -245,6 +253,7 @@ if BT
         select BT_HFP
         select BT_APP_AUDIO_DATA
         select BT_AUDIO_CODEC_SUPPORT
+        select BT_AUDIO_CODEC_SBC
         select BT_AUDIO_CODEC_CVSD
         select BT_PROFILE_HFP_SUPPORT
         select BT_PROFILE_PBAP_SUPPORT
@@ -299,9 +308,9 @@ if BT
         select BT_PROFILE_AVRCP_SUPPORT
         select BT_PROFILE_SDP_SUPPORT
 
-    config BT_A2DP_LE_AUDIO_PBP_MENU
+    config BT_A2DP_PBP_MENU
         bool
-        select BT_A2DP_LE_AUDIO_PBP
+        select BT_A2DP_PBP
         select BT_LE_AUDIO
         select BT_AUDIO_CODEC_SUPPORT
         select BT_AUDIO_CODEC_LC3
@@ -310,9 +319,9 @@ if BT
         select BT_PROFILE_AVRCP_SUPPORT
         select BT_PROFILE_SDP_SUPPORT
 
-    config BT_A2DP_HFP_LE_AUDIO_PBP_MENU
+    config BT_A2DP_HFP_PBP_MENU
         bool
-        select BT_A2DP_HFP_LE_AUDIO_PBP
+        select BT_A2DP_HFP_PBP
         select BT_LE_AUDIO
         select BT_APP_AUDIO_DATA
         select BT_AUDIO_CODEC_SUPPORT
@@ -325,24 +334,13 @@ if BT
         select BT_PROFILE_PBAP_SUPPORT
         select BT_PROFILE_SDP_SUPPORT
 
-    config BT_A2DP_LE_AUDIO_TMAP_MENU
+    config BT_A2DP_TMAP_MENU
         bool
-        select BT_A2DP_LE_AUDIO_TMAP
+        select BT_A2DP_TMAP
         select BT_TMAP_SUPPORT
         select BT_LE_AUDIO
         select BT_AUDIO_CODEC_SUPPORT
         select BT_AUDIO_CODEC_LC3
-        select BT_AUDIO_CODEC_SBC
-        select BT_PROFILE_A2DP_SUPPORT
-        select BT_PROFILE_AVRCP_SUPPORT
-        select BT_PROFILE_SDP_SUPPORT
-
-    config BT_A2DP_PROVISIONER_SCATTERNET_MENU
-        bool
-        select BT_A2DP_PROVISIONER_SCATTERNET
-        select BT_MESH_PROVISIONER_SUPPORT
-        select BT_APP_AUDIO_DATA
-        select BT_AUDIO_CODEC_SUPPORT
         select BT_AUDIO_CODEC_SBC
         select BT_PROFILE_A2DP_SUPPORT
         select BT_PROFILE_AVRCP_SUPPORT
@@ -364,6 +362,8 @@ config BT_MESH_DEVICE_TEST
     bool
 config BT_LE_AUDIO
     bool
+config BT_LE_AUDIO_GENERIC_DEMO_PERIPHERAL
+    bool
 config BT_TMAP
     bool
 config BT_GMAP
@@ -382,13 +382,11 @@ config BT_AUDIO_MP_TEST
     bool
 config BT_A2DP_SCATTERNET
     bool
-config BT_A2DP_LE_AUDIO_PBP
+config BT_A2DP_PBP
     bool
-config BT_A2DP_HFP_LE_AUDIO_PBP
+config BT_A2DP_HFP_PBP
     bool
-config BT_A2DP_LE_AUDIO_TMAP
-    bool
-config BT_A2DP_PROVISIONER_SCATTERNET
+config BT_A2DP_TMAP
     bool
 config BT_MESH_PROVISIONER_SUPPORT
     bool

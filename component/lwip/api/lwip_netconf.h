@@ -19,6 +19,7 @@ extern "C" {
 #include "lwipconf.h"
 
 extern unsigned char ap_ip[4], ap_netmask[4], ap_gw[4];
+extern struct static_ip_config user_static_ip;
 // macros
 /* Give default value if not defined */
 #define IP_ADDR_INVALID 0x00000000
@@ -84,10 +85,6 @@ struct static_ip_config {
 	uint32_t gw;
 };
 
-/* Extern functions ------------------------------------------------------------*/
-#ifndef CONFIG_AS_INIC_AP
-void rtw_wakelock_timeout(uint32_t timeoutms);
-#endif
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/

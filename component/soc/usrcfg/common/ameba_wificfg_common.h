@@ -217,6 +217,9 @@ struct wifi_user_conf {
 		skb_num_np needs to be adjusted simultaneously.*/
 	u8 rx_ampdu_num;
 
+	/* set cck rate mask for tx data frame. Set bit to 1 to mask corresponding cck rate (bit 0 ~ 3: CCK 1M, 2M, 5.5M, 11M) */
+	u8 rate_mask_cck;
+
 	/*!	Linux Fullmac architecture, ignore in RTOS.*/
 	u8 cfg80211;
 
@@ -232,6 +235,11 @@ struct wifi_user_conf {
 
 	/*! STA mode will periodically send null packet to AP to keepalive, unit: second. */
 	u8 keepalive_interval;
+
+	/*! Configure Wi-Fi minimum receivable signal strength, unit: dBm.
+		- 0: Rsvd, will use internal dynamic mechanism of the RTK driver determines the received power threshold.
+		- [-100, 0): Specify the minimum received power threshold, Wi-Fi can only receive the packets with rssi greater than this thresh. */
+	s8 rx_cca_thresh;
 
 	/*! 0: Disable R-mesh function, 1: Enable R-mesh function.*/
 	u8 wtn_en;

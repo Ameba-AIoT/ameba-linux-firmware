@@ -1,6 +1,6 @@
 ﻿##################################################################################
 #                                                                                #
-#                      Generic LE Audio demo                                     #
+#                      LE Audio Generic demo                                     #
 #                                                                                #
 ##################################################################################
 
@@ -21,9 +21,7 @@ GCC menuconfig
 1. BT Related:
     ./menuconfig.py --> CONFIG BT --> BT Example Demo --> BLE Audio --> BLE Audio Generic Demo
 2. Audio Related:
-    ./menuconfig.py --> MENUCONFIG FOR CA32 CONFIG --> Audio Config --> Select Audio Interfaces (Mixer)
-    or
-    ./menuconfig.py --> MENUCONFIG FOR KM4 CONFIG --> Audio Config --> Select Audio Interfaces (Mixer)
+    ./menuconfig.py --> CONFIG Application --> Audio Config --> Select Audio Interfaces (Mixer)
 3. GCC : use CMD "./build.py" to compile example
 4. To Config Media Source (component/bluetooth/api/include/rtk_bt_le_audio_def.h)
      4.1 Config RTK_BLE_AUDIO_BIRDS_SING_PCM_SUPPORT to 1 for enabling birds thing audio stream
@@ -34,11 +32,11 @@ GCC menuconfig
      4.5 Config RTK_BT_LE_MEDIA_AUDIO_CFG_PREFER to change le audio config type(Default is RTK_BT_LE_UNICAST_AUDIO_CFG_4_BIT for single channel and RTK_BT_LE_UNICAST_AUDIO_CFG_6_II_BIT for two channels)
      ** default is 16k birdsthing audio source for 10ms duration (------->>), two channels example.
 
-Generic LE Audio demo ATCMD:
+LE Audio Generic demo ATCMD:
 ~~~~~~~~~~~
 1.CAP Initiator role
-    1.1 enable                                      AT+BTDEMO=generic_le_audio_demo,initiator,1
-    1.2 disable                                     AT+BTDEMO=generic_le_audio_demo,initiator,0
+    1.1 enable                                      AT+BTDEMO=le_audio_generic_demo,initiator,1
+    1.2 disable                                     AT+BTDEMO=le_audio_generic_demo,initiator,0
     1.3 scan start                                  AT+BLEBAP=escan,1
     1.4 scan stop                                   AT+BLEBAP=escan,0
     1.5 connect                                     AT+BLEGAP=conn,<peer_addr_type>,<peer_addr>
@@ -49,8 +47,8 @@ Generic LE Audio demo ATCMD:
     1.10 stop broadcast stream                      AT+BLEBAP=broadcast_stop
 
 2.CAP Acceptor role
-    2.1 enable                                          AT+BTDEMO=generic_le_audio_demo,acceptor,1,<sound channel> sound_channel:{left, right, stereo}
-    2.2 disable                                         AT+BTDEMO=generic_le_audio_demo,acceptor,0
+    2.1 enable                                          AT+BTDEMO=le_audio_generic_demo,acceptor,1,<sound channel> sound_channel:{left, right, stereo}
+    2.2 disable                                         AT+BTDEMO=le_audio_generic_demo,acceptor,0
     2.3 stop ext adv before ext scan                    AT+BLEGAP=eadv,0,0
     2.4 scan start                                      AT+BLEBAP=escan,1
     2.5 create pa sync with broadcast source            AT+BLEBAP=pa_sync_create,<bd_addr type>,<bd_addr>,<adv_sid>,<broadcast_id>  e.g. AT+BLEBAP=pa_sync_create,0,00e04c8002eb,0xe,123abc
@@ -59,8 +57,8 @@ Generic LE Audio demo ATCMD:
     2.8 terminate big sync with broadcast source        AT+BLEBAP=big_sync_remove,<bd_addr type>,<bd_addr>
 
 3.CAP Commander role
-    3.1 enable                                             AT+BTDEMO=generic_le_audio_demo,commander,1
-    3.2 disable                                            AT+BTDEMO=generic_le_audio_demo,commander,0
+    3.1 enable                                             AT+BTDEMO=le_audio_generic_demo,commander,1
+    3.2 disable                                            AT+BTDEMO=le_audio_generic_demo,commander,0
     3.3 scan start                                         AT+BLEBAP=escan,1
     3.4 scan stop                                          AT+BLEBAP=escan,0
     3.5 connect                                            AT+BLEGAP=conn,<peer_addr_type>,<peer_addr>

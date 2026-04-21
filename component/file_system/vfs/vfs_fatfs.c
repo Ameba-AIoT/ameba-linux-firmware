@@ -6,6 +6,9 @@
 #include "os_wrapper.h"
 #include "diag.h"
 
+int fatfs_mount_flag = 0;
+static struct dirent *fatfs_ent;
+
 // return drv_num assigned
 int FATFS_RegisterDiskDriver(ll_diskio_drv *drv)
 {
@@ -298,37 +301,41 @@ struct dirent *fatfs_readdir(vfs_file *finfo)
 	if (pdir == NULL) {
 		return NULL;
 	}
-	struct dirent *ent = rtos_mem_malloc(sizeof(struct dirent));
-	if (ent == NULL) {
-		return NULL;
+	if (fatfs_ent == NULL) {
+		fatfs_ent = rtos_mem_malloc(sizeof(struct dirent));
+		if (fatfs_ent == NULL) {
+			return NULL;
+		}
 	}
 	FILINFO m_fileinfo;
 
 	res = f_readdir(pdir, &m_fileinfo);
 	if (res != FR_OK) {
-		rtos_mem_free(ent);
+		rtos_mem_free(fatfs_ent);
+		fatfs_ent = NULL;
 		VFS_DBG(VFS_ERROR, "vfs-fatfs readdir: error (%d)", res);
 		return NULL;
 	}
 
 	if (m_fileinfo.fname[0] == 0) {
-		rtos_mem_free(ent);
+		rtos_mem_free(fatfs_ent);
+		fatfs_ent = NULL;
 		return NULL;
 	}
 
 	fn = m_fileinfo.fname;
-	ent->d_ino = 0;
-	ent->d_off = 0;
-	ent->d_reclen = m_fileinfo.fsize;
+	fatfs_ent->d_ino = 0;
+	fatfs_ent->d_off = 0;
+	fatfs_ent->d_reclen = m_fileinfo.fsize;
 	if (m_fileinfo.fattrib & AM_DIR) {
-		ent->d_type = DT_DIR;    // directory
+		fatfs_ent->d_type = DT_DIR;    // directory
 	} else {
-		ent->d_type = DT_REG;    // regular file
+		fatfs_ent->d_type = DT_REG;    // regular file
 	}
 
 	fn = m_fileinfo.fname;
-	sprintf(ent->d_name, "%s", fn);
-	return ent;
+	sprintf(fatfs_ent->d_name, "%s", fn);
+	return fatfs_ent;
 }
 
 int fatfs_closedir(vfs_file *finfo)
@@ -336,6 +343,10 @@ int fatfs_closedir(vfs_file *finfo)
 	DIR *pdir = (DIR *)finfo->file;
 	FRESULT res = f_closedir(pdir);
 	rtos_mem_free(pdir);
+	if (fatfs_ent != NULL) {
+		rtos_mem_free(fatfs_ent);
+		fatfs_ent = NULL;
+	}
 	if (res > 0) {
 		VFS_DBG(VFS_ERROR, "vfs-fatfs closedir error %d \r\n", res);
 		return -1;
@@ -463,7 +474,7 @@ int fatfs_mount(int interface)
 	int ret = -1;
 	if (interface == VFS_INF_SD) {
 		VFS_DBG(VFS_INFO, "sd mount");
-#if defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD
+#if (defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD) || (defined(CONFIG_FATFS_SD_SPI_MODE) && CONFIG_FATFS_SD_SPI_MODE)
 		ret = fatfs_sd_init();
 #endif
 	} else if (interface == VFS_INF_FLASH) {
@@ -473,8 +484,14 @@ int fatfs_mount(int interface)
 #endif
 	} else {
 		VFS_DBG(VFS_ERROR, "It don't support the interface %d", interface);
-		return -1;
 	}
+
+	if (ret) {
+		fatfs_mount_flag = -1;
+	} else {
+		fatfs_mount_flag = 1;
+	}
+
 	return ret;
 }
 
@@ -483,7 +500,7 @@ int fatfs_ummount(int interface)
 	int ret = 0;
 	if (interface == VFS_INF_SD) {
 		VFS_DBG(VFS_INFO, "sd unmount");
-#if defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD
+#if (defined(CONFIG_FATFS_DISK_SD) && CONFIG_FATFS_DISK_SD) || (defined(CONFIG_FATFS_SD_SPI_MODE) && CONFIG_FATFS_SD_SPI_MODE)
 		ret = fatfs_sd_close();
 #endif
 	} else if (interface == VFS_INF_FLASH) {
@@ -499,26 +516,28 @@ int fatfs_ummount(int interface)
 }
 
 vfs_opt fatfs_drv = {
+#if !FF_FS_READONLY
+	.write = fatfs_write,
+	.fflush = fatfs_fflush,
+	.remove = fatfs_remove,
+	.rename = fatfs_rename,
+	.ftruncate = fatfs_ftruncate,
+	.mkdir = fatfs_mkdir,
+	.rmdir = fatfs_rmdir,
+#endif
 	.open = fatfs_open,
 	.read = fatfs_read,
-	.write = fatfs_write,
 	.close = fatfs_close,
 	.seek  = fatfs_seek,
 	.rewind = fatfs_rewind,
 	.fgetpos = fatfs_fgetops,
 	.fsetpos = fatfs_fsetops,
-	.fflush = fatfs_fflush,
-	.remove = fatfs_remove,
-	.rename = fatfs_rename,
 	.eof   = fatfs_feof,
 	.error = fatfs_ferror, //ferror
 	.tell  = fatfs_ftell,
-	.ftruncate = fatfs_ftruncate,
 	.opendir = fatfs_opendir,
 	.readdir = fatfs_readdir,
 	.closedir = fatfs_closedir,
-	.mkdir = fatfs_mkdir,
-	.rmdir = fatfs_rmdir,
 	.stat = fatfs_stat,
 	.access = fatfs_access,
 	.mount = fatfs_mount,

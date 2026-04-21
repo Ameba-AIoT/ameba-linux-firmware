@@ -11,7 +11,7 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 156          0          156         0         0           96         60           0                0                  libc.a(lib_a-assert.o)
 56           0          56          0         0           56         0            0                0                  libc.a(lib_a-closer.o)
 257          0          257         0         0           0          257          0                0                  libc.a(lib_a-ctype_.o)
-4506         0          4506        0         0           4380       126          0                0                  libc.a(lib_a-dtoa.o)
+4551         0          4551        0         0           4380       171          0                0                  libc.a(lib_a-dtoa.o)
 328          0          328         0         0           328        0            0                0                  libc.a(lib_a-fclose.o)
 700          0          700         0         0           700        0            0                0                  libc.a(lib_a-fflush.o)
 964          0          1276        0         0           964        0            0                312                libc.a(lib_a-findfp.o)
@@ -29,7 +29,7 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 64           0          64          0         0           64         0            0                0                  libc.a(lib_a-lseekr.o)
 348          0          348         0         0           348        0            0                0                  libc.a(lib_a-makebuf.o)
 92           0          92          0         0           92         0            0                0                  libc.a(lib_a-mbtowc_r.o)
-3948         0          3948        0         0           3580       368          0                0                  libc.a(lib_a-mprec.o)
+3993         0          3993        0         0           3580       413          0                0                  libc.a(lib_a-mprec.o)
 64           0          64          0         0           64         0            0                0                  libc.a(lib_a-readr.o)
 428          0          432         0         0           428        0            0                4                  libc.a(lib_a-reent.o)
 520          0          520         0         0           520        0            0                0                  libc.a(lib_a-signal.o)
@@ -47,9 +47,9 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 304          0          304         0         0           304        0            0                0                  libc.a(lib_a-wsetup.o)
 ------------------------------------------------------------ libc End -----------------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-29283        0          29608       0         0           27736      939          608              325                (TOTALS)
+29373        0          29698       0         0           27736      1029         608              325                (TOTALS)
 Module libc size:
-0x7263			29283
+0x72bd			29373
 
 ============================================================ libgcc Start ===============================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
@@ -71,15 +71,15 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 0            0          116         0         0           0          0            0                116                lib_chipinfo.a(ameba_flash_rom.o)
 728          0          1496        0         0           716        0            12               768                lib_chipinfo.a(ameba_gpio_rom.o)
 52           0          52          0         0           52         0            0                0                  lib_chipinfo.a(ameba_pinmux_rom.o)
-4556         0          4620        0         0           4504       52           0                64                 lib_chipinfo.a(ameba_rom_patch.o)
+4585         0          4649        0         0           4532       52           1                64                 lib_chipinfo.a(ameba_rom_patch.o)
 52           0          52          0         0           52         0            0                0                  lib_chipinfo.a(ameba_syscfg_rom.o)
 68           0          68          0         0           68         0            0                0                  lib_chipinfo.a(ameba_systimer_rom.o)
 580          0          580         0         0           436        144          0                0                  lib_chipinfo.a(ameba_tim_rom.o)
 ------------------------------------------------------------ lib_chipinfo End ---------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-6295         0          7243        0         0           5940       343          12               948                (TOTALS)
+6324         0          7272        0         0           5968       343          13               948                (TOTALS)
 Module lib_chipinfo size:
-0x1897			6295
+0x18b4			6324
 
 ============================================================ libnosys Start =============================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
@@ -105,15 +105,15 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 56           0          56          0         0           56         0            0                0                  lib_fwlib.a(amebaap_vector.o)
 80           0          80          0         0           80         0            0                0                  lib_fwlib.a(ameba_app_start.o)
 156          0          156         0         0           156        0            0                0                  lib_fwlib.a(ameba_delay.o)
-1947         0          2023        0         0           1536       411          0                76                 lib_fwlib.a(ameba_ipc_api.o)
+1975         0          2051        0         0           1564       411          0                76                 lib_fwlib.a(ameba_ipc_api.o)
 424          0          680         0         0           280        144          0                256                lib_fwlib.a(ameba_ipc_ram.o)
 188          0          188         0         0           128        60           0                0                  lib_fwlib.a(ameba_loguart.o)
 3751         0          3751        0         0           3200       551          0                0                  lib_fwlib.a(ameba_otp.o)
 60           0          60          0         0           60         0            0                0                  lib_fwlib.a(ameba_pll.o)
-236          0          236         0         0           208        28           0                0                  lib_fwlib.a(ameba_pmc.o)
+256          0          256         0         0           228        28           0                0                  lib_fwlib.a(ameba_pmc.o)
 1072         0          1520        0         0           1032       40           0                448                lib_pmc.a(ameba_pmc_ap_lib.o)
 40           0          40          0         0           12         28           0                0                  lib_fwlib.a(ameba_pmc_ram.o)
-1084         0          1296        0         0           1072       0            12               212                lib_fwlib.a(ameba_pmu.o)
+1112         0          1360        0         0           1100       0            12               248                lib_fwlib.a(ameba_pmu.o)
 64           0          64          0         0           64         0            0                0                  lib_fwlib.a(ameba_reset.o)
 0            0          128         0         0           0          0            0                128                lib_fwlib.a(ameba_sd.o)
 44           0          44          0         0           44         0            0                0                  lib_fwlib.a(ameba_system.o)
@@ -134,14 +134,14 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 72           0          72          0         0           72         0            0                0                  lib_swlib.a(rand.o)
 82           0          82          0         0           60         22           0                0                  lib_fwlib.a(rtk_assert.o)
 32           0          32          0         0           32         0            0                0                  lib_fwlib.a(smccc_call.o)
-597          0          597         0         0           468        129          0                0                  lib_fwlib.a(smp.o)
+601          0          601         0         0           472        129          0                0                  lib_fwlib.a(smp.o)
 0            0          0           0         0           0          0            0                0                  lib_fwlib.a(startup.o)
 244          0          244         0         0           244        0            0                0                  lib_swlib.a(strcmp.o)
 120          0          120         0         0           120        0            0                0                  lib_swlib.a(stricmp.o)
 152          0          152         0         0           152        0            0                0                  lib_swlib.a(strlen.o)
 444          0          444         0         0           444        0            0                0                  lib_swlib.a(strtoul.o)
 72           0          72          0         0           72         0            0                0                  lib_swlib.a(strwrap.o)
-895          0          1927        0         0           848        47           0                1032               lib_fwlib.a(system_sheipa.o)
+915          0          1947        0         0           868        47           0                1032               lib_fwlib.a(system_sheipa.o)
 1267         0          1279        0         0           712        555          0                12                 lib_fwlib.a(traps.o)
 0            0          0           0         0           0          0            0                0                  lib_fwlib.a(vectors_table.o)
 1163         0          1163        0         0           1008       155          0                0                  lib_fwlib.a(xlat_tables_arch.o)
@@ -150,49 +150,49 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 8            0          8           0         0           8          0            0                0                  lib_fwlib.a(xlat_tables_utils.o)
 ------------------------------------------------------------ fwlib End ----------------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-23649        0          26437       0         0           20596      2976         77               2788               (TOTALS)
+23749        0          26573       0         0           20696      2976         77               2824               (TOTALS)
 Module fwlib size:
-0x5c61			23649
+0x5cc5			23749
 
 ============================================================ os Start ===================================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-420          0          473         0         0           288        132          0                53                 lib_freertos_os_wrapper.a(freertos_heap5_config.o)
+428          0          481         0         0           296        132          0                53                 lib_freertos_os_wrapper.a(freertos_heap5_config.o)
 1783         0          1815        0         0           1528       255          0                32                 lib_freertos_smp.a(heap_5.o)
 244          0          244         0         0           244        0            0                0                  lib_freertos_smp.a(list.o)
-739          0          1431        0         0           672        67           0                692                lib_freertos_os_wrapper.a(os_wrapper_critical.o)
+795          0          1487        0         0           728        67           0                692                lib_freertos_os_wrapper.a(os_wrapper_critical.o)
 108          0          108         0         0           108        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_memory.o)
 368          0          368         0         0           368        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_semaphore.o)
-120          0          120         0         0           120        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_task.o)
-140          0          140         0         0           140        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_time.o)
-1819         0          19423       0         0           1620       199          0                17604              lib_freertos_smp.a(port.o)
+136          0          136         0         0           136        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_task.o)
+152          0          152         0         0           152        0            0                0                  lib_freertos_os_wrapper.a(os_wrapper_time.o)
+1839         0          19443       0         0           1640       199          0                17604              lib_freertos_smp.a(port.o)
 636          0          636         0         0           636        0            0                0                  lib_freertos_smp.a(portASM.o)
 4240         0          4304        0         0           4096       144          0                64                 lib_freertos_smp.a(queue.o)
-9733         0          10165       0         0           9584       149          0                432                lib_freertos_smp.a(tasks.o)
+10173        0          10605       0         0           10024      149          0                432                lib_freertos_smp.a(tasks.o)
 1762         0          2146        0         0           1604       158          0                384                lib_freertos_smp.a(timers.o)
 ------------------------------------------------------------ os End -------------------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-22112        0          41373       0         0           21008      1104         0                19261              (TOTALS)
+22664        0          41925       0         0           21560      1104         0                19261              (TOTALS)
 Module os size:
-0x5660			22112
+0x5888			22664
 
 ============================================================ others Start ===============================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-1402         0          1402        0         0           696        706          0                0                  lib_project_src.a(main.o)
+1485         0          1485        0         0           764        721          0                0                  lib_project_src.a(main.o)
 815          0          819         0         0           688        127          0                4                  lib_monitor.a(shell_ram.o)
 488          0          844         0         0           488        0            0                356                lib_monitor.a(shell_rom.o)
 224          0          252         0         0           216        8            0                28                 crtbegin.o
 ------------------------------------------------------------ others End ---------------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-2929         0          3317        0         0           2088       841          0                388                (TOTALS)
+3012         0          3400        0         0           2156       856          0                388                (TOTALS)
 Module others size:
-0xb71			2929
+0xbc4			3012
 
 ======================================================================================================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-89860        0          113570      0         0           81292      7871         697              23710              (TOTALS)
+90714        0          114460      0         0           82040      7976         698              23746              (TOTALS)
 
 Image size:
-0x15f04			89860
+0x1625a			90714
 
 ============================================================ RAM analysis Start =========================================================================
 ============================================================ libc Start =================================================================================
@@ -228,11 +228,12 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 0            0          0           0         0           0          0            0                128                PortC_IrqData(ameba_gpio_rom.o)
 0            0          0           0         0           0          0            0                128                PortC_IrqHandler(ameba_gpio_rom.o)
 0            0          0           0         0           0          0            0                64                 print_lock(ameba_rom_patch.o)
+0            0          0           0         0           0          0            1                0                  rtk_temp(ameba_rom_patch.o)
 ------------------------------------------------------------ lib_chipinfo End ---------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-0            0          0           0         0           0          0            12               948                (TOTALS)
+0            0          0           0         0           0          0            13               948                (TOTALS)
 Module lib_chipinfo size:
-0x3c0			960
+0x3c1			961
 
 ============================================================ fwlib Start ================================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
@@ -248,8 +249,7 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 0            0          0           0         0           0          0            0                8                  cpuhp_flag(lib_fwlib.a(ameba_pmu.o))
 0            0          0           0         0           0          0            4                0                  deepwakelock(lib_fwlib.a(ameba_pmu.o))
 0            0          0           0         0           0          0            0                4                  deepwakelock_timeout(lib_fwlib.a(ameba_pmu.o))
-0            0          0           0         0           0          0            0                140                gPsmDdHookInfo(lib_fwlib.a(ameba_pmu.o))
-0            0          0           0         0           0          0            0                4                  max_sleep_time(lib_fwlib.a(ameba_pmu.o))
+0            0          0           0         0           0          0            0                180                gPsmDdHookInfo(lib_fwlib.a(ameba_pmu.o))
 0            0          0           0         0           0          0            0                4                  sleepwakelock_timeout(lib_fwlib.a(ameba_pmu.o))
 0            0          0           0         0           0          0            0                32                 sleep_param(lib_fwlib.a(ameba_pmu.o))
 0            0          0           0         0           0          0            0                4                  sleep_type(lib_fwlib.a(ameba_pmu.o))
@@ -282,9 +282,9 @@ image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata
 0            0          0           0         0           0          0            0                0                  xlat_table(lib_fwlib.a(xlat_tables_context.o))
 ------------------------------------------------------------ fwlib End ----------------------------------------------------------------------------------
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-0            0          0           0         0           0          0            77               2788               (TOTALS)
+0            0          0           0         0           0          0            77               2824               (TOTALS)
 Module fwlib size:
-0xb31			2865
+0xb55			2901
 
 ============================================================ os Start ===================================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
@@ -372,9 +372,9 @@ Module others size:
 
 ======================================================================================================================================================
 image_total  xip_total  sram_total  xip_text  xip_rodata  sram_text  sram_rodata  sram_data(load)  sram_data(noload)  module  
-0            0          0           0         0           0          0            697              23710              (TOTALS)
+0            0          0           0         0           0          0            698              23746              (TOTALS)
 
 Image size:
-0x5f57			24407
+0x5f7c			24444
 
 ------------------------------------------------------------ RAM analysis End ---------------------------------------------------------------------------

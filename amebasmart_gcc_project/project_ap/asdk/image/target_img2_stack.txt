@@ -1,0 +1,32 @@
+TASK FUNCTION           shell_task_ram
+FuncName                Size
+shell_task_ram          80
+rtos_sema_take          352
+TotalSize               432
+                        
+TASK FUNCTION           cmd_efuse_protect
+FuncName                Size
+cmd_efuse_protect       64
+OTP_LogicalMap_Write    104
+OTP_LogicalMap_Read     64
+OTP_Read32.isra.0       24
+OTP_Read8.part.0        40
+IPC_SEMTake             24
+io_assert_failed        16
+rtk_log_write_nano      32
+DiagPrintfNano          40
+DiagVprintfNano         80
+TotalSize               488
+                        
+TASK FUNCTION           fs_init_thread
+FuncName                Size
+fs_init_thread          0
+rtos_task_delete        8
+vTaskDelete             16
+prvDeleteTCB            8
+_reclaim_reent          16
+cleanup_glue            16
+__wrap__free_r          0
+rtos_mem_free           200
+TotalSize               264
+                        

@@ -4,11 +4,18 @@
 # Copyright (c) 2024 Realtek Semiconductor Corp.
 # SPDX-License-Identifier: Apache-2.0
 import os
+import sys
 import subprocess
 import re
 import shutil
+import signal
 from typing import List, Dict
 from difflib import unified_diff
+
+IS_POSIX = (os.name == 'posix')
+if not IS_POSIX:
+    import win32api
+    import win32con
 
 BLACK = '\033[30m'
 RED = '\033[31m'
@@ -59,6 +66,7 @@ class Manager(object):
         self.prj_conf_external = os.path.join(out_dir, 'prj.conf') #for user external project
 
         self.general_configs = []
+        self.lock_file = os.path.join(self.config_root_dir, 'config_tmp')
 
     def run_command(self, script, *args):
         script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), script)
@@ -115,6 +123,32 @@ class Manager(object):
                 return 1
         return 0
 
+    def lock_acquire(self):
+        if os.path.exists(self.lock_file):
+            return False
+        else:
+            open(self.lock_file, "w")
+            return True
+
+    def lock_release(self):
+        if os.path.exists(self.lock_file):
+            os.remove(self.lock_file)
+
+    def lock_cleanup(self):
+        def cleanup_handler(signum, frame):
+            self.lock_release()
+            sys.exit(0)
+        return cleanup_handler
+
+    def lock_cleanup_windows(self):
+        def cleanup_handler(ctrl_type):
+            if ctrl_type in (win32con.CTRL_CLOSE_EVENT, win32con.CTRL_C_EVENT, win32con.CTRL_LOGOFF_EVENT, win32con.CTRL_SHUTDOWN_EVENT, win32con.CTRL_BREAK_EVENT):
+                self.lock_release()
+                os._exit(0)
+                return True
+            return False
+        return cleanup_handler
+
     def apply_manual_config(self) -> int:
         if not os.path.exists(self.config_in): #load default value to .config
             self.apply_default_config()
@@ -124,7 +158,23 @@ class Manager(object):
         if os.path.exists(self.config_default_old):
             os.remove(self.config_default_old)
 
-        return self.run_command('menuconfig.py', self.top_kconfig)
+        # cleanup the lock file when abnormal termination occurs
+        if IS_POSIX: # for linux
+            signal_handler = self.lock_cleanup()
+            signal.signal(signal.SIGTERM, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler) # ctrl+C
+            signal.signal(signal.SIGHUP, signal_handler) # close the terminal or SSH disconnected
+        else: # for windows
+            windows_handler = self.lock_cleanup_windows()
+            win32api.SetConsoleCtrlHandler(windows_handler, True) # close/logoff/shutdown
+
+        if self.lock_acquire():
+            result = self.run_command('menuconfig.py', self.top_kconfig)
+            self.lock_release()
+            return result
+        else:
+            print("error: menuconfig is running in another terminal")
+            return None
 
     def apply_default_config(self) ->int:
         if os.path.exists(self.config_in):
@@ -248,24 +298,35 @@ class Manager(object):
 
     def extract_lines(self, filename, sections:List[str]) -> List[str]:
         results = []
-        for section in sections:
-            begin_marker = f'{self.section_begin_marker_prefix}{section}{self.section_begin_marker_suffix}'
-            end_marker = f'{self.section_end_marker_prefix}{section}{self.section_end_marker_suffix}'
+        with open(filename, 'r') as file:
+            lines = file.readlines()
+            for section in sections:
+                begin_marker = f'{self.section_begin_marker_prefix}{section}{self.section_begin_marker_suffix}'
+                end_marker = f'{self.section_end_marker_prefix}{section}{self.section_end_marker_suffix}'
 
-            with open(filename, 'r') as file:
-                lines = file.readlines()
-            start_index = None
-            end_index = None
-            find_start = False
+                start_index = None
+                end_index = None
+                find_start = False
+                for i, line in enumerate(lines):
+                    if (not find_start) and (begin_marker in line):  #avoid start_marker is a substr of end_marker
+                        start_index = i
+                        find_start = True
+                    elif end_marker in line:
+                        end_index = i
+                        break
+                if start_index and end_index:
+                    results.extend(lines[start_index - 1:end_index + 2])
+
+            #NOTE: add the Private part to the result
+            end_markers = [f'{self.section_end_marker_prefix}{core}{self.section_end_marker_suffix}' for core in self.projects.values()]
+            no = 0
             for i, line in enumerate(lines):
-                if (not find_start) and (begin_marker in line):  #avoid start_marker is a substr of end_marker
-                    start_index = i
-                    find_start = True
-                elif end_marker in line:
-                    end_index = i
-                    break
-            if start_index and end_index:
-                results.extend(lines[start_index - 1:end_index + 2])
+                # Find the last end mark
+                if any(end_marker in line for end_marker in end_markers):
+                    no = max(no, i)
+            if no > 0:
+                results.extend(lines[no+1:])
+
         return results
 
     def parse_general_config(self) -> int:
@@ -289,6 +350,7 @@ class Manager(object):
         for proj, core in self.projects.items():
             role_config = self.extract_core_role(core)
             core_config_file = os.path.join(self.config_root_dir, f'.config_{core.lower()}')
+            core_config_file_tmp = os.path.join(self.config_root_dir, f'.config_{core.lower()}_tmp')
             core_config_file_old = os.path.join(self.config_root_dir, f'.config_{core.lower()}.old')
             core_hearder_dir = os.path.join(self.config_root_dir, f'project_{proj.lower()}')
             if not os.path.exists(core_hearder_dir):
@@ -300,11 +362,17 @@ class Manager(object):
                 config_out = core_config_file,
                 content = role_config
             )
+
+            core_config = self.extract_lines(core_config_file, [self.general_section_name, core.upper()])
+            with open(core_config_file_tmp, "w") as f:
+                f.writelines(core_config)
+            #NOTE: header MUST be generate use core_config_file_tmp but core_config_file
+            #      for core_config_file would include other core-kconfig-specifiled config unexpectly
             self.run_gen_config(
-                config_in=core_config_file,
+                config_in=core_config_file_tmp,
                 header_path=tmp_header_file
             )
-            core_config = self.extract_lines(core_config_file, [self.general_section_name, core.upper()])
+            os.remove(core_config_file_tmp)
 
             skip_pattern = [f"_FOR_{c}" for c in self.projects.values() if c != core]
             skip_pattern.append(r"_MENU(=|\s).*$")

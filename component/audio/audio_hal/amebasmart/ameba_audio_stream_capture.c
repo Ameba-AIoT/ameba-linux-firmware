@@ -172,22 +172,27 @@ static void ameba_audio_stream_rx_codec_adc_reset(void)
 static void ameba_audio_stream_rx_mic_bias_power_cut_configure(void)
 {
 #if AUDIO_MICBIAS_1_ENABLE
+	AUDIO_CODEC_DisPAD(PAD_MICBIAS1);
 	AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS1, POWER_ON);
 #endif
 
 #if AUDIO_MICBIAS_2_ENABLE
+	AUDIO_CODEC_DisPAD(PAD_MICBIAS2);
 	AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS2, POWER_ON);
 #endif
 
 #if AUDIO_MICBIAS_3_ENABLE
+	AUDIO_CODEC_DisPAD(PAD_MICBIAS3);
 	AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS3, POWER_ON);
 #endif
 
 #if AUDIO_MICBIAS_4_ENABLE
+	AUDIO_CODEC_DisPAD(PAD_MICBIAS4);
 	AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS4, POWER_ON);
 #endif
 
 #if AUDIO_MICBIAS_5_ENABLE
+	AUDIO_CODEC_DisPAD(PAD_MICBIAS5);
 	AUDIO_CODEC_SetMicBiasPCUTMode(MICBIAS5, POWER_ON);
 #endif
 }
@@ -209,11 +214,8 @@ static void ameba_audio_stream_rx_adc_mic_configure(StreamConfig config)
 		HAL_AUDIO_VERBOSE("configure default adc");
 		uint32_t j = 1;
 		for (; j <= config.channels; j++) {
-			uint32_t adc_chn_idx = ameba_audio_stream_get_adc_chn_idx(j);
 			uint32_t adc_idx = ameba_audio_stream_get_adc_idx(j);
 
-			AUDIO_CODEC_EnableADC(adc_chn_idx, ENABLE);
-			AUDIO_CODEC_EnableADCFifo(adc_chn_idx, ENABLE);
 			AUDIO_CODEC_SetADCHPF(adc_idx, 3, ENABLE);
 			AUDIO_CODEC_SetADCMute(adc_idx, dc->mute_for_adc[j - 1] ? MUTE : UNMUTE);
 			AUDIO_CODEC_SetADCVolume(adc_idx, dc->volume_for_adc[j - 1]);
@@ -222,15 +224,20 @@ static void ameba_audio_stream_rx_adc_mic_configure(StreamConfig config)
 				AUDIO_CODEC_SetADCASRC(I2S1, adc_idx, ameba_audio_get_codec_rate(config.rate), ENABLE);
 			}
 		}
+
+		uint32_t adc_mask = 0;
+		for (uint32_t i = 0; i < config.channels; i++) {
+			adc_mask |= ((uint32_t)0x00000001 << i);
+		}
+		AUDIO_CODEC_EnableADCForMask(adc_mask);
+		AUDIO_CODEC_EnableADCFifoForMask(adc_mask);
+
 	} else {  // use adcs according to user customize
 		uint32_t k = 1;
 		for (; k <= MAX_AD_NUM; k++) {
 			if ((dc->adc_use_status >> (k - 1)) & 1) {
-				uint32_t adc_chn_idx = ameba_audio_stream_get_adc_chn_idx(k);
 				uint32_t adc_idx = ameba_audio_stream_get_adc_idx(k);
 
-				AUDIO_CODEC_EnableADC(adc_chn_idx, ENABLE);
-				AUDIO_CODEC_EnableADCFifo(adc_chn_idx, ENABLE);
 				AUDIO_CODEC_SetADCHPF(adc_idx, 3, ENABLE);
 				AUDIO_CODEC_SetADCMute(adc_idx, dc->mute_for_adc[k - 1] ? MUTE : UNMUTE);
 				AUDIO_CODEC_SetADCVolume(adc_idx, dc->volume_for_adc[k - 1]);
@@ -240,6 +247,10 @@ static void ameba_audio_stream_rx_adc_mic_configure(StreamConfig config)
 				}
 			}
 		}
+
+		AUDIO_CODEC_EnableADCForMask(dc->adc_use_status);
+		AUDIO_CODEC_EnableADCFifoForMask(dc->adc_use_status);
+
 	}
 
 	//enable amic/dmic
@@ -817,6 +828,7 @@ static void ameba_audio_stream_rx_start_in_irq_mode(Stream *stream)
 		}
 
 		AUDIO_SP_RXStart(cstream->stream.sport_dev_num, ENABLE);
+		cstream->stream.trigger_tstamp = ameba_audio_get_now_ns();
 
 		cstream->stream.start_gdma = true;
 	}
@@ -830,6 +842,8 @@ static void ameba_audio_stream_rx_start_in_irq_mode(Stream *stream)
 	}
 	ameba_audio_dump_codec_regs();
 #endif
+
+	HAL_AUDIO_INFO("rx start at:%lldns", cstream->stream.trigger_tstamp);
 
 }
 

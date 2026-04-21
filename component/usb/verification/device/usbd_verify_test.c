@@ -88,23 +88,22 @@ static const usbd_verify_cb_t cmd_usbd_verify_cb = {
 
 static usbd_config_t cmd_usbd_verify_cfg = {
 	.speed = USB_SPEED_HIGH,
-	.dma_enable = 1U,
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined(CONFIG_AMEBASMART)
 	/* EOPF for ISOC OUT */
-	.ext_intr_en = USBD_EOPF_INTR | USBD_EPMIS_INTR,
+	.ext_intr_enable = USBD_EOPF_INTR | USBD_EPMIS_INTR,
 	.nptx_max_epmis_cnt = 100U,
 	/*DFIFO total 1024 DWORD, resv 8 DWORD for DMA addr*/
 #elif defined (CONFIG_AMEBAGREEN2)
 	/*DFIFO total 1024 DWORD, resv 12 DWORD for DMA addr and EP0 fixed 32 DWORD*/
 	.rx_fifo_depth = 292U,
 	.ptx_fifo_depth = {16U, 256U, 32U, 256U, 128U, },
-	.ext_intr_en = USBD_EOPF_INTR,//for ISOC OUT
+	.ext_intr_enable = USBD_EOPF_INTR,//for ISOC OUT
 #elif defined (CONFIG_AMEBASMARTPLUS)
 	/*DFIFO total 1280 DWORD, resv 14 DWORD for DMA addr and EP0 fixed 32 DWORD*/
 	.rx_fifo_depth = 402U,
 	.ptx_fifo_depth = {256U, 256U, 32U, 256U, 32U},
-	//.ext_intr_en =  USBD_EOPF_INTR,
+	//.ext_intr_enable =  USBD_EOPF_INTR,
 #elif defined (CONFIG_AMEBAL2)
 	/*DFIFO total 1024 DWORD, resv 11 DWORD for DMA addr and EP0 fixed 32 DWORD*/
 	.rx_fifo_depth = 405U,
@@ -684,7 +683,6 @@ static void usbd_verify_xfer_dir(u8 *argv[])
 static void usbd_verify_usage(void)
 {
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Invalid arguments, usage:\n");
-	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd verify dma dis/en(default)\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd verify speed full/high_in_full/high(default)\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd verify ep_default <chiptype>\n");
 	RTK_LOGS(TAG, RTK_LOG_INFO, " usbd verify set_ep <addr_hex> <1:isoc/2:bulk/3:intr> <interval> <mps> <transsize>\n");
@@ -700,8 +698,8 @@ static void usbd_verify_usage(void)
 }
 
 int cmd_usbd_verify_test_entry(
-	IN  u16 argc,
-	IN  u8  *argv[])
+	u16 argc,
+	u8  *argv[])
 {
 	int status = HAL_OK;
 	const char *sub_cmd;
@@ -716,21 +714,12 @@ int cmd_usbd_verify_test_entry(
 	sub_cmd = (const char *)argv[1];
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Enter subcmd=%s\n", sub_cmd);
 	if (_stricmp(sub_cmd, "dump") == 0) {
-		RTK_LOGS(TAG, RTK_LOG_INFO, "DMA: %d\n", cmd_usbd_verify_cfg.dma_enable);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Speed: %d\n", cmd_usbd_verify_cfg.speed);
-		RTK_LOGS(TAG, RTK_LOG_INFO, "ExtIntr: %x\n", cmd_usbd_verify_cfg.ext_intr_en);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "ExtIntr: %x\n", cmd_usbd_verify_cfg.ext_intr_enable);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "BulkInLen: %d(%d-%d)\n", usbd_bulk_in_len, usbd_bulk_in_only, usbd_bulk_out_only);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "IntrInLen: %d(%d-%d)\n", usbd_intr_in_len, usbd_intr_in_only, usbd_intr_out_only);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "IsocInLen: %d(%d-%d)\n", usbd_isoc_in_len, usbd_isoc_in_only, usbd_isoc_out_only);
 		cmd_usbd_verify_ep_debug_dump();
-	} else if (_stricmp(sub_cmd, "dma") == 0) {
-		u8 dma_en = 0;
-		if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"en") == 0)) {
-			dma_en = 1;
-		} else if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"dis") == 0)) {
-			dma_en = 0;
-		}
-		cmd_usbd_verify_cfg.dma_enable = dma_en;
 	} else if (_stricmp(sub_cmd, "speed") == 0) {
 		u8 speed = (u8)USB_SPEED_HIGH;
 		if (argv[2] && (_stricmp((const char *)argv[2], (const char *)"full") == 0)) {

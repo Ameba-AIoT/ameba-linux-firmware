@@ -178,6 +178,7 @@ typedef enum {
 	RTK_BT_LE_GP_MESH_GENERIC_ONOFF_SERVER_MODEL,    /*!< LE mesh generic on off server model group */
 	RTK_BT_LE_GP_MESH_DATATRANS_MODEL,          /*!< LE mesh datatrans model group */
 	RTK_BT_LE_GP_MESH_REMOTE_PROV_CLIENT_MODEL,          /*!< LE mesh remote provisioning client model group */
+	RTK_BT_LE_GP_MESH_REMOTE_PROV_SERVER_MODEL,          /*!< LE mesh remote provisioning server model group */
 	RTK_BT_LE_GP_MESH_LIGHT_LIGHTNESS_CLIENT_MODEL,          /*!< LE mesh light lightness client model group */
 	RTK_BT_LE_GP_MESH_LIGHT_CTL_CLIENT_MODEL,          /*!< LE mesh light ctl client model group */
 	RTK_BT_LE_GP_MESH_LIGHT_HSL_CLIENT_MODEL,          /*!< LE mesh light hsl client model group */
@@ -411,6 +412,7 @@ typedef enum {
 	RTK_BT_GATTS_ACT_READ_RSP,
 	RTK_BT_GATTS_ACT_WRITE_RSP,
 	RTK_BT_GATTS_ACT_SERVICE_CHANGED_INDICATE,
+	RTK_BT_GATTS_ACT_GET_ATTR_HANDLE,
 	RTK_BT_GATTS_ACT_MAX,
 } rtk_bt_gatts_act_t;
 
@@ -777,11 +779,13 @@ typedef enum {
 	RTK_BT_BR_GAP_ACT_BOND_DELETE,
 	RTK_BT_BR_GAP_ACT_SET_PINCODE,
 	RTK_BT_BR_GAP_ACT_SET_RADIO_MODE,
+	RTK_BT_BR_GAP_ACT_SET_AUTO_SNIFF_MODE,
 	RTK_BT_BR_GAP_ACT_SET_SNIFF_MODE,
 	RTK_BT_BR_GAP_ACT_SET_LINK_QOS,
 	RTK_BT_BR_GAP_ACT_SET_COD,
 	RTK_BT_BR_GAP_ACT_SET_SUPV_TIMEOUT,
 	RTK_BT_BR_GAP_ACT_BOND_CLEAR,
+	RTK_BT_BR_GAP_ACT_READ_RSSI,
 	RTK_BT_BR_GAP_ACT_MAX,
 } rtk_bt_br_gap_act_t;
 
@@ -800,6 +804,9 @@ typedef enum {
 	RTK_BT_BR_GAP_ACL_DISCONN,
 	RTK_BT_BR_GAP_LINK_KEY_REQ,
 	RTK_BT_BR_GAP_LINK_KEY_INFO,
+	RTK_BT_BR_GAP_LINK_ROLE_MASTER,
+	RTK_BT_BR_GAP_LINK_ROLE_SLAVE,
+	RTK_BT_BR_GAP_LINK_RSSI_INFO,
 	RTK_BT_BR_GAP_EVT_MAX,
 } rtk_bt_br_gap_evt_t;
 

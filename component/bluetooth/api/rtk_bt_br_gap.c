@@ -329,13 +329,25 @@ uint16_t rtk_bt_br_gap_set_radio_mode(uint8_t radio_mode)
 	return ret;
 }
 
-uint16_t rtk_bt_br_gap_set_sniff_mode(uint8_t enable, uint8_t *bd_addr, uint16_t min_interval, uint16_t max_interval, uint16_t sniff_attempt,
+uint16_t rtk_bt_br_gap_set_auto_sniff_mode(uint8_t *bd_addr, bool enable)
+{
+	uint16_t ret = 0;
+	rtk_bt_br_auto_sniff_mode_t auto_sniff_mode_t = {0};
+
+	memcpy((void *)auto_sniff_mode_t.bd_addr, (void *)bd_addr, 6);
+	auto_sniff_mode_t.enable = enable;
+	ret = rtk_bt_send_cmd(RTK_BT_BR_GP_GAP, RTK_BT_BR_GAP_ACT_SET_AUTO_SNIFF_MODE, (void *)&auto_sniff_mode_t, sizeof(rtk_bt_br_auto_sniff_mode_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_br_gap_set_sniff_mode(uint8_t enter, uint8_t *bd_addr, uint16_t min_interval, uint16_t max_interval, uint16_t sniff_attempt,
 									  uint16_t sniff_timeout)
 {
 	uint16_t ret = 0;
 	rtk_bt_br_sniff_mode_t sniff_mode_t = {0};
 
-	sniff_mode_t.enable = enable;
+	sniff_mode_t.enter = enter;
 	memcpy((void *)sniff_mode_t.bd_addr, (void *)bd_addr, 6);
 	sniff_mode_t.min_interval = min_interval;
 	sniff_mode_t.max_interval = max_interval;
@@ -393,4 +405,17 @@ uint16_t rtk_bt_br_gap_set_supvisiontimeout(uint16_t *supv_timeout)
 	memcpy((void *)&supervision_timeout, (void *)supv_timeout, sizeof(uint16_t));
 
 	return RTK_BT_OK;
+}
+
+uint16_t rtk_bt_br_gap_read_rssi(uint8_t *bd_addr)
+{
+	uint16_t ret = 0;
+
+	if (!bd_addr) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	ret = rtk_bt_send_cmd(RTK_BT_BR_GP_GAP, RTK_BT_BR_GAP_ACT_READ_RSSI, (void *)bd_addr, 6);
+
+	return ret;
 }

@@ -37,8 +37,8 @@ Config the user-defined data header in User Payload field.
 
 The default PIN in the example is set as below, change them if necessary.
 ```
-#define UART_TX_PIN    PA_28
-#define UART_RX_PIN    PA_29
+#define UART_TX_PIN    PA_26
+#define UART_RX_PIN    PA_27
 ```
 The default baudrate is set to 1500000 bps, change it if necessary.
 ```
@@ -55,9 +55,11 @@ Choose one board as the sender and connect the user-defined serial port with PC 
 
 ### Step 3: Build & Flash
 
-Build and Download:
-   * Refer to the SDK Examples section of the online documentation to generate images.
-   * `Download` images to board by Ameba Image Tool(Download the image into flash for both sender and receiver).
+1. Disable wifi fast connection in component/soc/usrcfg/xxxx/ameba_wificfg.c
+    ```
+    wifi_user_config.fast_reconnect_en = 0;
+    ```
+2. Build images by command `./build.py -a wificast_security` and download images to board by Ameba Image Tool for both sender and receiver.
 
 ### Step 4: Run Sender and Receiver
 
@@ -68,7 +70,7 @@ Build and Download:
     ```
     * Output sample from the sender:
     ```
-    [11:02:07:691]wifi_cast scan
+    [11:02:11:691]wifi_cast scan
     [11:02:14:762][example_main-I] example_security_scan_task, scan info num: 1
     [11:02:14:988][example_main-I] example_security_scan_task, generate_keypair ok
     [11:02:14:988][WIFI CAST-I] wifi_cast_add_node, node: 00:e0:4c:00:03:c2, set encrypt: 0
@@ -76,6 +78,11 @@ Build and Download:
     [11:02:14:993][WIFI CAST-I] wifi_cast_get_mac_id, 00:e0:4c:00:03:c2, macid: 0
     [11:02:14:994][example_main-I] example_security_scan_task, send pubkey exchange to00:e0:4c:00:03:c2
     [11:02:15:279][example_main-I] example_security_pubkey_exchange_response_cb, recv pubkey exchange from00:e0:4c:00:03:c2
+    [11:02:15:378][example_main-I] shared_key:
+    [11:02:15:378][example_main-I] len: 32
+    [11:02:15:378]
+    [11:02:15:378]	CB 50 02 72 4C 9E D9 0B DD 00 5E 3C 40 6F C6 DE
+    [11:02:15:388]	83 02 90 78 DD 9E 6C AE F9 6C 0E 7C F1 81 A5 2C
     [11:02:15:398][WIFI CAST-I] wifi_cast_add_node, node: 00:e0:4c:00:03:c2, set encrypt: 1
     [11:02:15:401][WIFI CAST-I] wifi_cast_add_node, 00:e0:4c:00:03:c2 is already exist
     [11:02:15:401][WIFI CAST-I] wifi_cast_set_key add, mac:00:e0:4c:00:03:c2
@@ -90,6 +97,11 @@ Build and Download:
     [11:02:15:273][example_main-I] example_security_pubkey_exchange_request_cb, generate_keypair ok
     [11:02:15:273][WIFI CAST-I] wifi_cast_get_mac_id, 00:e0:4c:00:03:5d, macid: 0
     [11:02:15:273][example_main-I] example_security_pubkey_exchange_request_cb, send pubkey exchange to00:e0:4c:00:03:5d
+    [11:02:15:410][example_main-I] shared_key:
+    [11:02:15:410][example_main-I] len: 32
+    [11:02:15:410]
+    [11:02:15:412]	CB 50 02 72 4C 9E D9 0B DD 00 5E 3C 40 6F C6 DE
+    [11:02:15:412]	83 02 90 78 DD 9E 6C AE F9 6C 0E 7C F1 81 A5 2C
     [11:02:15:412][WIFI CAST-I] wifi_cast_add_node, node: 00:e0:4c:00:03:5d, set encrypt: 1
     [11:02:15:416][WIFI CAST-I] wifi_cast_add_node, 00:e0:4c:00:03:5d is already exist
     [11:02:15:416][WIFI CAST-I] wifi_cast_set_key add, mac:00:e0:4c:00:03:5d
