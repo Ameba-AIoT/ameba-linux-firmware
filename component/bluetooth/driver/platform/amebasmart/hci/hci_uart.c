@@ -1,8 +1,9 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <osif.h>
 #include <string.h>
 #include <stdbool.h>
@@ -11,7 +12,7 @@
 #include "bt_debug.h"
 #include "hal_platform.h"
 #include "hci_platform.h"
-#include "hci/hci_common.h"
+#include "hci_controller.h"
 
 #define HCI_UART_IDX             (3)
 #define HCI_UART_DEV             (UART3_DEV)
@@ -102,7 +103,7 @@ uint16_t hci_uart_send(uint8_t *buf, uint16_t len)
 	g_uart->tx_buf = buf;
 	g_uart->tx_len = len;
 
-	if (!HCI_BT_KEEP_WAKE) {
+	if (!HCI_BT_KEEP_AWAKE) {
 		/* acquire host wake bt */
 		set_reg_value(0x42008250, BIT13, 1); /* enable HOST_WAKE_BT */
 	}
@@ -116,7 +117,7 @@ uint16_t hci_uart_send(uint8_t *buf, uint16_t len)
 		}
 	}
 
-	if (!HCI_BT_KEEP_WAKE) {
+	if (!HCI_BT_KEEP_AWAKE) {
 		/* release host wake bt */
 		set_reg_value(0x42008250, BIT13, 0); /* disable HOST_WAKE_BT */
 	}
@@ -153,6 +154,7 @@ uint8_t hci_uart_open(void)
 
 	if (osif_sem_create(&g_uart->tx_done_sem, 0, 1) == false) {
 		BT_LOGE("g_uart->tx_done_sem create fail!\r\n");
+		osif_mem_free(g_uart);
 		return HCI_FAIL;
 	}
 

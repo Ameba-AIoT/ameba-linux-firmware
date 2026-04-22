@@ -97,7 +97,7 @@ int set_eap_ttls_method(void)
 
 void eap_send_eapol_start(u8 *dst_mac)
 {
-	u8 *dev_mac = LwIP_GetMAC(0);
+	u8 *dev_mac = LwIP_GetMAC(NETIF_WLAN_STA_INDEX);
 	struct wlan_ethhdr_t *eth_hdr;
 	struct lib1x_eapol *eapol;
 	u8 *buf = NULL;
@@ -416,7 +416,7 @@ void eap_supplicant_handle_recvd(u8 *rx_buf)
 	eap_send_packet(rx_buf, sendData);
 }
 
-//void eap_eapol_recvd(char *buf, int buf_len, int flags, void* handler_user_data )
+//void eap_eapol_recvd(char *buf, int buf_len, int flags)
 void eap_eapol_recvd(void *buf)
 {
 	struct lib1x_eapol_message_hdr *eapol_payload_hdr;
@@ -455,7 +455,6 @@ void eap_eapol_recvd(void *buf)
 			if (key_len < 1 || key == NULL) {
 				wpa_printf(MSG_INFO, "[EAP]4-way handshake key setting failed");
 			} else {
-				wpa_printf(MSG_INFO, "[EAP] key deriver done, key_len = %d\n", key_len);
 				rtw_psk_set_pmk_from_eap(key, (u8 *)buf + 6);
 				os_free(key, 0);
 			}
@@ -479,27 +478,30 @@ exit:
 	rtos_task_delete(eap_recvd_tsk.task);
 }
 
-void eap_eapol_recvd_hdl(u8 *buf, s32 buf_len, s32 flags, void *handler_user_data)
+__weak void eap_eapol_recvd_hdl(u8 *buf, s32 buf_len)
 {
-	(void)flags;
-	(void)handler_user_data;
-//	eap_eapol_recvd(buf, buf_len, flags, handler_user_data);
+//	eap_eapol_recvd(buf, buf_len, flags);
 
 	char *copy_buf = os_malloc(buf_len);
+
+	if (!copy_buf) {
+		wpa_printf(MSG_INFO, "EAP: malloc failed\n");
+		return;
+	}
+
 	memcpy(copy_buf, buf, buf_len);
 	if (rtos_task_create(&eap_recvd_tsk.task, "eap_recvd", (thread_func_t)eap_eapol_recvd, copy_buf, 4096, 1) != RTK_SUCCESS) {
 		DiagPrintf("\n\r%s eap_recvd failed\n", __FUNCTION__);
+		os_free(copy_buf, 0);
 	} else {
 		Rx_handle = rtos_task_handle_get();
 		rtos_task_suspend(NULL);
 	}
 }
 
-void eap_eapol_start_hdl(u8 *buf, s32 buf_len, s32 flags, void *handler_user_data)
+__weak void eap_eapol_start_hdl(u8 *evt_info)
 {
-	(void)buf_len;
-	(void)flags;
-	(void)handler_user_data;
-	u8 *dst_mac = buf;
-	eap_send_eapol_start(dst_mac);
+	struct rtw_event_wpa_eapol_start *eapol_start_info = (struct rtw_event_wpa_eapol_start *)evt_info;
+
+	eap_send_eapol_start(eapol_start_info->dst_mac);
 }

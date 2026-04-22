@@ -7,6 +7,14 @@
 #ifndef _AMEBA_ROM_PATCH_H_
 #define _AMEBA_ROM_PATCH_H_
 
+#ifdef CONFIG_ARM_CORE_CM4
+#include "ameba_secure_boot.h"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Exported constants --------------------------------------------------------*/
 /** @defgroup ROM_PATCH_Exported_Constants ROM_PATCH Exported Constants
   * @{
@@ -46,9 +54,10 @@ _LONG_CALL_ void AUDIO_SP_SetI2S3ExtCKPinmux(u32 state);
 _LONG_CALL_ void AUDIO_SP_SetI2S2Ext2DoutPinmux(u32 state);
 _LONG_CALL_ void AUDIO_SP_SetI2S2Ext2CKPinmux(u32 state);
 _LONG_CALL_ void AUDIO_SP_SetI2S2Ext1CKPinmux(u32 state);
+_LONG_CALL_ void FLASH_RxBasic(u8 cmd, u32 Address, u32 read_len, u8 *read_data);
+_LONG_CALL_ void FLASH_TxBasic(u8 cmd, u32 Address, u32 DataLen, u8 *TransmitData);
 
 #ifdef CONFIG_ARM_CORE_CM4
-#include "ameba_secure_boot.h"
 
 int SBOOT_GetMdType_B(u8 HashId, SHA2_TYPE *MdType, u8 *IsHmac);
 int SBOOT_Validate_Algorithm_B(u8 *AuthAlg, u8 *HashAlg, u8 ManiAuth, u8 ManiHash);
@@ -59,11 +68,11 @@ int SBOOT_SignatureVerify_B(u8 *PubKeyHash, Manifest_TypeDef *Manifest, SubImgIn
 
 int CRYPTO_SHA_Init_B(HAL_CRYPTO_ADAPTER *pIE);
 int CRYPTO_OTPKey_SHA_Init_B(u32 keynum, u32 status);
-int rtl_crypto_sha2_init_B(IN const SHA2_TYPE sha2type, hw_sha_context *ctx);
-int rtl_crypto_sha2_update_B(IN u8 *message, IN u32 msglen, hw_sha_context *ctx);
-int rtl_crypto_sha2_final_B(OUT u8 *pDigest, hw_sha_context *ctx);
-int rtl_crypto_hmac_sha2_update_B(IN u8 *message, IN u32 msglen, hw_sha_context *ctx);
-int rtl_crypto_hmac_sha2_final_B(OUT u8 *pDigest, hw_sha_context *ctx);
+int rtl_crypto_sha2_init_B(const SHA2_TYPE sha2type, hw_sha_context *ctx);
+int rtl_crypto_sha2_update_B(u8 *message, u32 msglen, hw_sha_context *ctx);
+int rtl_crypto_sha2_final_B(u8 *pDigest, hw_sha_context *ctx);
+int rtl_crypto_hmac_sha2_update_B(u8 *message, u32 msglen, hw_sha_context *ctx);
+int rtl_crypto_hmac_sha2_final_B(u8 *pDigest, hw_sha_context *ctx);
 
 int SBOOT_GetMdType_A(u8 HashId, SHA2_TYPE *MdType, u8 *IsHmac);
 int SBOOT_Validate_Algorithm_A(u8 *AuthAlg, u8 *HashAlg, u8 ManiAuth, u8 ManiHash);
@@ -74,11 +83,11 @@ int SBOOT_SignatureVerify_A(u8 *PubKeyHash, Manifest_TypeDef *Manifest, SubImgIn
 
 int CRYPTO_SHA_Init_A(HAL_CRYPTO_ADAPTER *pIE);
 int CRYPTO_OTPKey_SHA_Init_A(u32 keynum, u32 staAtus);
-int rtl_crypto_sha2_init_A(IN const SHA2_TYPE sha2type, hw_sha_context *ctx);
-int rtl_crypto_sha2_update_A(IN u8 *message, IN u32 msglen, hw_sha_context *ctx);
-int rtl_crypto_sha2_final_A(OUT u8 *pDigest, hw_sha_context *ctx);
-int rtl_crypto_hmac_sha2_update_A(IN u8 *message, IN u32 msglen, hw_sha_context *ctx);
-int rtl_crypto_hmac_sha2_final_A(OUT u8 *pDigest, hw_sha_context *ctx);
+int rtl_crypto_sha2_init_A(const SHA2_TYPE sha2type, hw_sha_context *ctx);
+int rtl_crypto_sha2_update_A(u8 *message, u32 msglen, hw_sha_context *ctx);
+int rtl_crypto_sha2_final_A(u8 *pDigest, hw_sha_context *ctx);
+int rtl_crypto_hmac_sha2_update_A(u8 *message, u32 msglen, hw_sha_context *ctx);
+int rtl_crypto_hmac_sha2_final_A(u8 *pDigest, hw_sha_context *ctx);
 #endif
 char *__real_strncpy(char *dst0, const char *src0, int count);
 char *__real_strcpy(char *s1, const char *s2);
@@ -86,5 +95,9 @@ long __real_strtol(const char *nptr, char **endptr, int base);
 /**
   * @}
   */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _AMEBA_ROM_PATCH_H_ */

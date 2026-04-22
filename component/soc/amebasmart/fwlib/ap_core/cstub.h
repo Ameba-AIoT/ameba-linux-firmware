@@ -1,8 +1,9 @@
 /*
- * Copyright (c) 2020 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
+
 #ifndef _CSTUB_H
 #define _CSTUB_H
 
@@ -15,8 +16,16 @@
 
 #ifndef _ASMLANGUAGE
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* HEAP_START, HEAP_END are set in the linker command file */
 extern caddr_t HEAP_START, HEAP_END;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* !_ASMLANGUAGE */
 

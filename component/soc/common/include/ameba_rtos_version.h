@@ -1,30 +1,20 @@
-/**
-  ******************************************************************************
-  * @file    ameba_rtos_version.h
-  * @author
-  * @version
-  * @date
-  * @brief
-  ******************************************************************************
-  * @attention
-  *
-  * This module is a confidential and proprietary property of RealTek and
-  * possession or use of this module requires written permission of RealTek.
-  *
-  * Copyright(c) 2024, Realtek Semiconductor Corporation. All rights reserved.
-  ******************************************************************************
-  */
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef AMEBA_RTOS_VERSION_H
 #define AMEBA_RTOS_VERSION_H
 
 /** Major version number (X.x.x) */
 #define AMEBA_RTOS_VERSION_MAJOR   1
 /** Minor version number (x.X.x) */
-#define AMEBA_RTOS_VERSION_MINOR   1
+#define AMEBA_RTOS_VERSION_MINOR   3
 /** Patch version number (x.x.X) */
-#define AMEBA_RTOS_VERSION_PATCH   1
+#define AMEBA_RTOS_VERSION_PATCH   0
 
-/* Doc Link: https://aiot.realmcu.com/en/v1.1/rtos/index.html */
+/* Doc Link: https://aiot.realmcu.com/en/latest/rtos/index.html */
 
 /**
  * Macro to convert version number into an integer

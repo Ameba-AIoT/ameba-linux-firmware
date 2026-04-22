@@ -1,4 +1,8 @@
-if(CONFIG_CORE_AS_AP)
+if(CONFIG_PLATFORM_ZEPHYR AND (CONFIG_WHC_HOST OR CONFIG_WHC_NONE))
+    return()
+endif()
+
+if(CONFIG_WLAN AND ((CONFIG_WHC_HOST OR CONFIG_WHC_NONE) OR CONFIG_WHC_DEV_TCPIP_KEEPALIVE))
     ameba_add_subdirectory(mqtt)
     ameba_add_subdirectory(httpc)
     ameba_add_subdirectory(httpd)
@@ -8,10 +12,11 @@ if(CONFIG_CORE_AS_AP)
     ameba_add_subdirectory(dnrd/src)
     ameba_add_subdirectory(coap)
     ameba_add_subdirectory(iperf3)
-    ameba_add_subdirectory(cJSON)
     ameba_add_subdirectory(httplite)
     ameba_add_subdirectory(iperf)
     ameba_add_subdirectory(ping)
     ameba_add_subdirectory(xml)
-
 endif()
+
+#OPTIMIZE: cJSON.h is always included in atcmd
+ameba_add_subdirectory(cJSON)

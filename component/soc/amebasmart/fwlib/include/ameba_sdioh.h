@@ -10,6 +10,10 @@
 #include "hal_platform.h"
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /** @addtogroup Ameba_Periph_Driver
   * @{
@@ -510,6 +514,14 @@ typedef struct {
   * @}
   */
 
+/** @defgroup SDHOST_DMA_ALIGN_ADDR
+  * @{
+  */
+#define SDIOH_DMA_ALIGN_SZ      8 // hw: 8byte aligned
+/**
+  * @}
+  */
+
 /**
   * @}
   */
@@ -564,6 +576,10 @@ _LONG_CALL_ u32 SDIOH_DebounceGet(void);
 /* Other definitions --------------------------------------------------------*/
 
 #undef SDIOH_SUPPORT_SD30
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

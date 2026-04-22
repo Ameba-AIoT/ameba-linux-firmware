@@ -93,9 +93,9 @@ s32 wifi_set_countrycode(u8 *cntcode)
 	return RTK_FAIL;
 }
 
-s32 wifi_get_countrycode(struct rtw_country_code_table *table)
+s32 wifi_get_countrycode(struct rtw_country_code_table *pinfo)
 {
-	UNUSED(table);
+	UNUSED(pinfo);
 	call_noused = __LINE__;
 	return RTK_FAIL;
 }
@@ -152,8 +152,9 @@ s32 wifi_csi_config(struct rtw_csi_action_parm *act_param)
 	return -1;
 }
 
-int wifi_set_wps_phase(unsigned char is_trigger_wps)
+int wifi_set_wps_phase(u8 wlan_idx, unsigned char is_trigger_wps)
 {
+	UNUSED(wlan_idx);
 	UNUSED(is_trigger_wps);
 	call_noused = __LINE__;
 	return -1;
@@ -173,8 +174,9 @@ int wifi_set_eap_method(unsigned char eap_method)
 	return -1;
 }
 
-u8 wifi_driver_is_mp(void)
+s32 wifi_driver_is_mp(u8 *is_mp)
 {
+	UNUSED(is_mp);
 	call_noused = __LINE__;
 	return 0;
 }
@@ -279,6 +281,22 @@ s32 wifi_set_lps_listen_interval(u8 interval)
 	return -1;
 }
 
+s32 wifi_set_lps_bcn_window(u8 enable, u8 bcn_ely_time, u8 rx_bcn_timeout)
+{
+	UNUSED(enable);
+	UNUSED(bcn_ely_time);
+	UNUSED(rx_bcn_timeout);
+	call_noused = __LINE__;
+	return -1;
+}
+
+s32 wifi_set_wowlan_rx_broadcast(u8 enable)
+{
+	UNUSED(enable);
+	call_noused = __LINE__;
+	return -1;
+}
+
 void wifi_wpa_pmksa_ops(struct rtw_pmksa_ops_t *pmksa_ops)
 {
 	UNUSED(pmksa_ops);
@@ -335,10 +353,16 @@ void wifi_wpa_4way_status_indicate(struct rtw_wpa_4way_status *rpt_4way)
 	call_noused = __LINE__;
 }
 
-void wifi_wpa_add_key(struct rtw_crypt_info *crypt)
+void wifi_dhcp_success_indicate(void)
+{
+	call_noused = __LINE__;
+}
+
+int wifi_wpa_add_key(struct rtw_crypt_info *crypt)
 {
 	UNUSED(crypt);
 	call_noused = __LINE__;
+	return -1;
 }
 
 void wifi_promisc_enable(u32 enable, struct rtw_promisc_para *para)
@@ -385,4 +409,51 @@ s32 wifi_set_tx_advanced_config(struct rtw_tx_advanced_cfg *tx_setting)
 	UNUSED(tx_setting);
 	call_noused = __LINE__;
 	return -1;
+}
+
+void wifi_rmesh_register_ota_callback(int (*ota_callback)(u8 *buf, u16 len))
+{
+	UNUSED(ota_callback);
+	call_noused = __LINE__;
+	return;
+}
+
+int wifi_rmesh_get_node_info(enum rtw_rmesh_node_type type, struct rtw_rmesh_node_info *node_info)
+{
+	UNUSED(type);
+	UNUSED(node_info);
+	call_noused = __LINE__;
+	return RTK_FAIL;
+}
+
+u8 wifi_rmesh_get_child_num(void)
+{
+	call_noused = __LINE__;
+	return 0;
+}
+
+int wifi_rmesh_get_child_info_list(u8 *child_num, struct rtw_rmesh_node_info *child_info_list)
+{
+	UNUSED(child_num);
+	UNUSED(child_info_list);
+	call_noused = __LINE__;
+	return RTK_FAIL;
+}
+
+int wifi_rmesh_update_node_ota_ver(u8 *ota_ver, u8 ota_ver_len, u8 ota_ongoing)
+{
+	UNUSED(ota_ver);
+	UNUSED(ota_ver_len);
+	UNUSED(ota_ongoing);
+	call_noused = __LINE__;
+	return RTK_FAIL;
+}
+
+int wifi_rmesh_check_node_ota_ver(u8 *ota_ver, u8 ota_ver_len, enum rtw_rmesh_node_type node_type)
+{
+	UNUSED(ota_ver);
+	UNUSED(ota_ver_len);
+	UNUSED(node_type);
+	call_noused = __LINE__;
+	return RTK_FAIL;
 }

@@ -23,6 +23,10 @@
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /* Exported types ------------------------------------------------------------*/
 /** @defgroup PSRAM_Exported_Types PSRAM Exported Types
@@ -152,6 +156,7 @@ typedef struct {
 	u32 Psram_Latency_Set;
 	u32 Psram_CSHI;			//cs high between cmd
 	u32 Psram_Resume_Cnt;	//for autogating phy resume
+	u32 Psram_Type;
 } PSRAMINFO_TypeDef;
 /**
   * @}
@@ -261,6 +266,10 @@ extern u8 APM_WR_INIT_LATENCY_SPEC[6];
 #define Psram_phy_Jmin			2
 
 extern PSRAMINFO_TypeDef PsramInfo;
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

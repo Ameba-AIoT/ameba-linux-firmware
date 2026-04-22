@@ -1,13 +1,17 @@
 /*
- * Copyright (c) 2021 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef CPU_H
 #define CPU_H
 
 #include "sys_io.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* ICC_xxx */
 #define __stringify_1(x...)		#x
@@ -55,5 +59,9 @@
 
 #define GET_MPIDR()				read_sysreg(SYS_MPIDR)
 #define MPIDR_TO_CORE(mpidr)	MPIDR_AFFLVL(mpidr, 1)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

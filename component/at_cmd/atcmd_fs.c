@@ -78,7 +78,7 @@ exit:
 
 int32_t at_fs_get_offset(const char *key, void *buffer, int32_t len, int32_t offset)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 	char *prefix = find_vfs_tag(g_cert_fs);
@@ -99,25 +99,25 @@ int32_t at_fs_get_offset(const char *key, void *buffer, int32_t len, int32_t off
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:AT/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		RTK_LOGE(TAG, "fopen failed\r\n");
 		goto exit;
 	}
 
 	if (offset > 0) {
-		res = fseek((FILE *)finfo, offset, SEEK_SET);
+		res = fseek(finfo, offset, SEEK_SET);
 		if (res < 0) {
 			RTK_LOGE(TAG, "fseek failed,err is %d!!\r\n", res);
 			goto exit;
 		}
 	}
 
-	res = fread(buffer, len, 1, (FILE *)finfo);
+	res = fread(buffer, len, 1, finfo);
 	if (res < 0) {
 		RTK_LOGE(TAG, "fread failed,err is %d!!\r\n", res);
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -129,7 +129,7 @@ exit:
 
 int32_t at_fs_set_offset(const char *key, const void *val, int32_t len, int32_t offset)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 	char *prefix = find_vfs_tag(g_cert_fs);
@@ -150,9 +150,9 @@ int32_t at_fs_set_offset(const char *key, const void *val, int32_t len, int32_t 
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:AT/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "wx");
+	finfo = fopen(path, "wx");
 	if (finfo == NULL) {
-		finfo = (vfs_file *)fopen(path, "+");
+		finfo = fopen(path, "+");
 		if (finfo == NULL) {
 			RTK_LOGE(TAG, "fopen failed\r\n");
 			goto exit;
@@ -160,18 +160,18 @@ int32_t at_fs_set_offset(const char *key, const void *val, int32_t len, int32_t 
 	}
 
 	if (offset > 0) {
-		res = fseek((FILE *)finfo, offset, SEEK_SET);
+		res = fseek(finfo, offset, SEEK_SET);
 		if (res < 0) {
 			RTK_LOGE(TAG, "fseek failed\r\n");
 			goto exit;
 		}
 	}
 
-	res = fwrite(val, len, 1, (FILE *)finfo);
+	res = fwrite(val, len, 1, finfo);
 	if (res != len) {
 		RTK_LOGE(TAG, "fwrite failed\r\n");
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -184,7 +184,7 @@ exit:
 int at_fs_list(char *buf, int32_t len)
 {
 	dirent *info;
-	DIR *dir;
+	void *dir;
 	char *path = NULL;
 	char *name_str = NULL;
 	char *prefix = find_vfs_tag(g_cert_fs);
@@ -202,7 +202,7 @@ int at_fs_list(char *buf, int32_t len)
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:AT", prefix);
 
-	dir = (DIR *)opendir(path);
+	dir = opendir(path);
 	if (dir == NULL) {
 		RTK_LOGE(TAG, "opendir failed\r\n");
 		goto exit;
@@ -217,7 +217,7 @@ int at_fs_list(char *buf, int32_t len)
 	u32 len_left = len - 1;
 	u8 fmt_len = 0;
 	while (1) {
-		info = readdir((void **)dir);
+		info = readdir(dir);
 		if (info == NULL) {
 			break;
 		} else if (strcmp(info->d_name, ".") != 0 && strcmp(info->d_name, "..") != 0) {
@@ -234,7 +234,7 @@ int at_fs_list(char *buf, int32_t len)
 		}
 	}
 
-	ret = closedir((void **)dir);
+	ret = closedir(dir);
 
 exit:
 	if (path) {
@@ -260,24 +260,21 @@ static void at_fs_help(void)
 
 //AT+FS=<operation>,<filename>,<offset>,<length>
 // operation: 0=list, 1=delete, 2=get size, 3=read, 4=write
-void at_fs(void *arg)
+void at_fs(u16 argc, char **argv)
 {
-	int argc = 0;
-	char *argv[MAX_ARGC] = {0};
 	u8 *buffer = NULL;
 	u8 operation = 0;
 	char *filename = NULL;
 	int offset = 0, length = 0;
 	u8 error_no = 0;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(TAG, "The parameters can not be ignored\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
-	if ((argc < 2) || (argc > 5)) {
+	if (argc < 2 || argc > 5) {
 		RTK_LOGW(TAG, "The parameters format ERROR\r\n");
 		error_no = 1;
 		goto end;
@@ -413,7 +410,7 @@ int atcmd_get_ssl_certificate_size(CERT_TYPE cert_type, int index)
 	}
 
 	char *prefix;
-	char *path = (char *)rtos_mem_zmalloc(PATH_MAX);
+	char *path = (char *)rtos_mem_zmalloc(VFS_PATH_MAX);
 
 	if (path == NULL) {
 		return -1;
@@ -428,22 +425,22 @@ int atcmd_get_ssl_certificate_size(CERT_TYPE cert_type, int index)
 
 	switch (cert_type) {
 	case CLIENT_CA:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_ca_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_ca_%d.crt", prefix, index);
 		break;
 	case CLIENT_CERT:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_cert_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_cert_%d.crt", prefix, index);
 		break;
 	case CLIENT_KEY:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_key_%d.key", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_key_%d.key", prefix, index);
 		break;
 	case SERVER_CA:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_ca_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_ca_%d.crt", prefix, index);
 		break;
 	case SERVER_CERT:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_cert_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_cert_%d.crt", prefix, index);
 		break;
 	case SERVER_KEY:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_key_%d.key", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_key_%d.key", prefix, index);
 		break;
 	default:
 		rtos_mem_free(path);
@@ -471,13 +468,13 @@ int atcmd_get_ssl_certificate(char *buffer, CERT_TYPE cert_type, int index)
 
 	int ret;
 	char *prefix;
-	char *path = (char *)rtos_mem_zmalloc(PATH_MAX);
+	char *path = (char *)rtos_mem_zmalloc(VFS_PATH_MAX);
 
 	if (path == NULL) {
 		return -1;
 	}
 
-	vfs_file *finfo;
+	FILE *finfo;
 	struct stat stat_buf;
 	prefix = find_vfs_tag(g_cert_fs);
 	if (prefix == NULL) {
@@ -487,22 +484,22 @@ int atcmd_get_ssl_certificate(char *buffer, CERT_TYPE cert_type, int index)
 
 	switch (cert_type) {
 	case CLIENT_CA:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_ca_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_ca_%d.crt", prefix, index);
 		break;
 	case CLIENT_CERT:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_cert_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_cert_%d.crt", prefix, index);
 		break;
 	case CLIENT_KEY:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/client_key_%d.key", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/client_key_%d.key", prefix, index);
 		break;
 	case SERVER_CA:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_ca_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_ca_%d.crt", prefix, index);
 		break;
 	case SERVER_CERT:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_cert_%d.crt", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_cert_%d.crt", prefix, index);
 		break;
 	case SERVER_KEY:
-		DiagSnPrintf(path, PATH_MAX, "%s:CERT/server_key_%d.key", prefix, index);
+		DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/server_key_%d.key", prefix, index);
 		break;
 	default:
 		rtos_mem_free(path);
@@ -515,15 +512,15 @@ int atcmd_get_ssl_certificate(char *buffer, CERT_TYPE cert_type, int index)
 		return 0;
 	}
 
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		rtos_mem_free(path);
 		return -1;
 	}
 
-	ret = fread(buffer, stat_buf.st_size, 1, (FILE *)finfo);
+	ret = fread(buffer, stat_buf.st_size, 1, finfo);
 
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 	rtos_mem_free(path);
 
@@ -538,23 +535,21 @@ static void at_cert_help(void)
 	RTK_LOGI(TAG, "\t<index>:\tcert index, start from 1\r\n");
 }
 
-void at_cert(void *arg)
+void at_cert(u16 argc, char **argv)
 {
-	int argc = 0, res;
-	char *argv[MAX_ARGC] = {0};
 	char *path = NULL;
 	char *prefix;
-	vfs_file *finfo;
+	FILE *finfo;
 	char *buffer = NULL;
 	u8 error_no = 0, role, index;
+	int res = -1;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(TAG, "The parameters can not be ignored\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if (argc != 3) {
 		RTK_LOGW(TAG, "Number of parameters is wrong\r\n");
 		error_no = 1;
@@ -564,8 +559,19 @@ void at_cert(void *arg)
 	role = atoi(argv[1]);
 	index = atoi(argv[2]);
 
-	path = (char *)rtos_mem_zmalloc(PATH_MAX);
+	if (role > 1 || index > 10) {
+		RTK_LOGW(TAG, "Parameters are invalid\r\n");
+		error_no = 1;
+		goto end;
+	}
+
+	path = (char *)rtos_mem_zmalloc(VFS_PATH_MAX);
 	buffer = (char *)rtos_mem_zmalloc(MAX_CERT_LEN + 1);
+	if (path == NULL || buffer == NULL) {
+		RTK_LOGW(TAG, "Memory allocation failed\r\n");
+		error_no = 2;
+		goto end;
+	}
 	memset(buffer, 0, sizeof(buffer));
 	prefix = find_vfs_tag(g_cert_fs);
 	if (prefix == NULL) {
@@ -574,45 +580,49 @@ void at_cert(void *arg)
 		goto end;
 	}
 
-	DiagSnPrintf(path, PATH_MAX, "%s:CERT/%s_ca_%d.crt", prefix, role == 0 ? "client" : "server", index);
+	DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/%s_ca_%d.crt", prefix, role == 0 ? "client" : "server", index);
 	at_printf("%s\r\n", path);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo != NULL) {
-		res = fread(buffer, MAX_CERT_LEN, 1, (FILE *)finfo);
+		res = fread(buffer, MAX_CERT_LEN, 1, finfo);
 		if (res < 0) {
 			RTK_LOGW(TAG, "%s read fail \r\n", path);
 		} else {
 			at_printf("%s", buffer);
 		}
-		fclose((FILE *)finfo);
+		fclose(finfo);
 	}
 	at_printf("\r\n");
 
-	DiagSnPrintf(path, PATH_MAX, "%s:CERT/%s_key_%d.key", prefix, role == 0 ? "client" : "server", index);
+	memset(buffer, 0, sizeof(buffer));
+
+	DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/%s_key_%d.key", prefix, role == 0 ? "client" : "server", index);
 	at_printf("%s\r\n", path);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo != NULL) {
-		res = fread(buffer, MAX_CERT_LEN, 1, (FILE *)finfo);
+		res = fread(buffer, MAX_CERT_LEN, 1, finfo);
 		if (res < 0) {
 			RTK_LOGW(TAG, "%s read fail \r\n", path);
 		} else {
 			at_printf("%s\r\n", buffer);
 		}
-		fclose((FILE *)finfo);
+		fclose(finfo);
 	}
 	at_printf("\r\n");
 
-	DiagSnPrintf(path, PATH_MAX, "%s:CERT/%s_cert_%d.crt", prefix, role == 0 ? "client" : "server", index);
+	memset(buffer, 0, sizeof(buffer));
+
+	DiagSnPrintf(path, VFS_PATH_MAX, "%s:CERT/%s_cert_%d.crt", prefix, role == 0 ? "client" : "server", index);
 	at_printf("%s\r\n", path);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo != NULL) {
-		res = fread(buffer, MAX_CERT_LEN, 1, (FILE *)finfo);
+		res = fread(buffer, MAX_CERT_LEN, 1, finfo);
 		if (res < 0) {
 			RTK_LOGW(TAG, "%s read fail \r\n", path);
 		} else {
 			at_printf("%s\r\n", buffer);
 		}
-		fclose((FILE *)finfo);
+		fclose(finfo);
 	}
 	at_printf("\r\n");
 
@@ -642,19 +652,16 @@ static void at_fs_region_help(void)
 	RTK_LOGI(TAG, "\t<fs region>:\t1=region1, 2=region2\r\n");
 }
 
-void at_fs_region(void *arg)
+void at_fs_region(u16 argc, char **argv)
 {
-	int argc = 0;
-	char *argv[MAX_ARGC] = {0};
 	u8 error_no = 0, region;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(TAG, "The parameters can not be ignored\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if (argc != 2) {
 		RTK_LOGW(TAG, "Number of parameters is wrong\r\n");
 		error_no = 1;
@@ -666,6 +673,10 @@ void at_fs_region(void *arg)
 		g_cert_fs = VFS_REGION_1;
 	} else if (region == 2) {
 		g_cert_fs = VFS_REGION_2;
+	} else if (region == 3) {
+		g_cert_fs = VFS_REGION_3;
+	} else if (region == 4) {
+		g_cert_fs = VFS_REGION_4;
 	} else {
 		RTK_LOGW(TAG, "Parameter value is wrong\r\n");
 		error_no = 1;
@@ -682,13 +693,9 @@ end:
 
 }
 
-log_item_t at_fs_items[] = {
-	{"+FS", at_fs, {NULL, NULL}},
-	{"+CERT", at_cert, {NULL, NULL}},
-	{"+FSRGN", at_fs_region, {NULL, NULL}},
+ATCMD_APONLY_TABLE_DATA_SECTION
+const log_item_t at_fs_items[] = {
+	{"+FS", at_fs},
+	{"+CERT", at_cert},
+	{"+FSRGN", at_fs_region},
 };
-
-void at_fs_init(void)
-{
-	atcmd_service_add_table(at_fs_items, sizeof(at_fs_items) / sizeof(at_fs_items[0]));
-}

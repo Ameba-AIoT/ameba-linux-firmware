@@ -20,10 +20,10 @@
 static const char *const TAG = "IPC";
 rtos_sema_t ipc_Semaphore[IPC_TX_CHANNEL_NUM];
 
-void (*ipc_delay)(uint32_t);
+void (*ipc_delay_func)(uint32_t);
 
-void (*ipc_enter)(u32);
-void (*ipc_exit)(u32);
+void (*ipc_enter_func)(u32);
+void (*ipc_exit_func)(u32);
 
 /**@}*/
 
@@ -147,12 +147,16 @@ u32 IPC_wait_idle(IPC_TypeDef *IPCx, u32 IPC_ChNum)
 			rtos_sema_create_binary(&ipc_Semaphore[IPC_ChNum]);
 		}
 
-		IPC_INTConfig(IPCx, IPC_ChNum, ENABLE);
+		/* clear pending interrupt status */
+		IPC_INTClear(IPCx, IPC_ChNum);
 
-		if (rtos_sema_take(ipc_Semaphore[IPC_ChNum], IPC_SEMA_MAX_DELAY) != RTK_SUCCESS) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, " IPC Get Semaphore Timeout\r\n");
+		/* if TX channel cleared during waiting then break waiting */
+		if (IPCx->IPC_TX_DATA & (BIT(IPC_ChNum))) {
+			IPC_INTConfig(IPCx, IPC_ChNum, ENABLE);
+			while (rtos_sema_take(ipc_Semaphore[IPC_ChNum], IPC_SEMA_MAX_DELAY) != RTK_SUCCESS) {
+				RTK_LOGS(TAG, RTK_LOG_ERROR, " IPC Get Semaphore Timeout\r\n");
+			}
 			IPC_INTConfig(IPCx, IPC_ChNum, DISABLE);
-			return IPC_SEMA_TIMEOUT;
 		}
 	}
 	return 0;
@@ -261,8 +265,8 @@ PIPC_MSG_STRUCT ipc_get_message(u32 IPC_Dir, u8 IPC_ChNum)
   */
 void IPC_patch_function(void (*pfunc1)(u32), void (*pfunc2)(u32))
 {
-	ipc_enter = pfunc1;
-	ipc_exit = pfunc2;
+	ipc_enter_func = pfunc1;
+	ipc_exit_func = pfunc2;
 }
 
 /**
@@ -277,8 +281,8 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 	/* Check the parameters */
 	assert_param(IS_IPC_VALID_SEMID(SEM_Idx));
 
-	if (ipc_enter) {
-		ipc_enter(RTOS_CRITICAL_SEMA);
+	if (ipc_enter_func) {
+		ipc_enter_func(RTOS_CRITICAL_SEMA);
 	}
 
 	if ((SYSCFG_RLVersion()) >= SYSCFG_CUT_VERSION_D) {
@@ -294,8 +298,8 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 				}
 
 				/* yield os for high priority thread*/
-				if (ipc_delay) {
-					ipc_delay(1);
+				if (ipc_delay_func) {
+					ipc_delay_func(1);
 				}
 			}
 
@@ -314,8 +318,8 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 				}
 
 				/* yield os for high priority thread*/
-				if (ipc_delay) {
-					ipc_delay(1);
+				if (ipc_delay_func) {
+					ipc_delay_func(1);
 				}
 				timeout--;
 
@@ -329,8 +333,8 @@ u32 IPC_SEMTake(u32 SEM_Idx, u32 timeout)
 	}
 
 fail:
-	if (ipc_exit) {
-		ipc_exit(RTOS_CRITICAL_SEMA);
+	if (ipc_exit_func) {
+		ipc_exit_func(RTOS_CRITICAL_SEMA);
 	}
 	return FALSE;
 }
@@ -353,8 +357,8 @@ u32 IPC_SEMFree(u32 SEM_Idx)
 		HAL_WRITE16(IPC_IPC_SEMA_BASE, 0x0, HAL_READ16(IPC_IPC_SEMA_BASE, 0x0) & (~ BIT(SEM_Idx)));
 	}
 
-	if (ipc_exit) {
-		ipc_exit(RTOS_CRITICAL_SEMA);
+	if (ipc_exit_func) {
+		ipc_exit_func(RTOS_CRITICAL_SEMA);
 	}
 
 	return TRUE;
@@ -368,7 +372,7 @@ u32 IPC_SEMFree(u32 SEM_Idx)
   */
 void IPC_SEMDelayStub(void (*pfunc)(uint32_t))
 {
-	ipc_delay = pfunc;
+	ipc_delay_func = pfunc;
 }
 /**@}*/
 /**@}*/

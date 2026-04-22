@@ -18,7 +18,10 @@
 #include <ble_wifimate_service.h>
 #include <wifi_api.h>
 #include <lwip_netconf.h>
-#include <ameba_soc.h>
+#include <mbedtls/aes.h>
+#if defined(CONFIG_RMESH_EN)
+#include "wtn_app_zrpp.h"
+#endif
 
 #define BLE_WIFIMATE_DECODE_KEY_LEN                             (16)
 
@@ -461,7 +464,9 @@ static uint16_t ble_wifimate_server_write_wifi_scan_hdl(uint16_t conn_handle, ui
 	uint16_t ret = RTK_BT_OK;
 	uint8_t enable = 0;
 	struct rtw_scan_result *scanned_AP_list = NULL;
+#if !defined(CONFIG_RMESH_EN)
 	uint8_t join_status = RTW_JOINSTATUS_UNKNOWN;
+#endif
 	int scan_network = 0;
 	uint32_t scanned_AP_num = 0;
 	struct rtw_scan_param scan_param;
@@ -487,9 +492,13 @@ static uint16_t ble_wifimate_server_write_wifi_scan_hdl(uint16_t conn_handle, ui
 	memset(wifi_scan_result, 0, sizeof(struct ble_wifimate_wifi_scan_result_t));
 	memset(&scan_param, 0, sizeof(struct rtw_scan_param));
 
+#if defined(CONFIG_RMESH_EN)
+	if (wtn_zrpp_sync_state_with_ble_config(ZRPP_CONTROL_PAUSE) == RTK_FAIL) {
+#else
 	wifi_get_join_status(&join_status);
 	BT_LOGD("%s join_status=%d\r\n", __func__, join_status);
 	if ((join_status > RTW_JOINSTATUS_UNKNOWN) && (join_status < RTW_JOINSTATUS_SUCCESS)) {
+#endif
 		BT_LOGE("[APP] WiFi Connecting now, forbid scanning, exit\r\n");
 		ret = RTK_BT_FAIL;
 		goto end;
@@ -666,6 +675,13 @@ static uint16_t ble_wifimate_wifi_connect(uint16_t conn_handle, struct wifi_conn
 	wifi_get_setting(STA_WLAN_INDEX, &setting);
 
 	ret = wifi_connect(&wifi, 1);
+#if defined(CONFIG_RMESH_EN)
+	if (ret == RTK_SUCCESS) {
+		wtn_zrpp_sync_state_with_ble_config(ZRPP_CONTROL_STOP);
+	} else {
+		wtn_zrpp_sync_state_with_ble_config(ZRPP_CONTROL_ALLOW);
+	}
+#endif
 	if (ret != RTK_SUCCESS) {
 		uint8_t err_code = ble_wifimate_wifi_conn_result_to_bwm_errcode(ret);
 		BT_LOGE("[APP] BLE WiFiMate server can't connect to AP, ret=%d err_code=%d\r\n", ret, err_code);
@@ -677,7 +693,7 @@ static uint16_t ble_wifimate_wifi_connect(uint16_t conn_handle, struct wifi_conn
 #if defined(CONFIG_LWIP_LAYER) && CONFIG_LWIP_LAYER
 	uint8_t DCHP_state;
 	/* Start DHCPClient */
-	DCHP_state = LwIP_DHCP(0, DHCP_START);
+	DCHP_state = LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX);
 
 	if (DCHP_state != DHCP_ADDRESS_ASSIGNED) {
 		BT_LOGE("[APP] BLE WiFiMate server DHCP fail, DHCP_state=%d\r\n", DCHP_state);
@@ -691,43 +707,61 @@ static uint16_t ble_wifimate_wifi_connect(uint16_t conn_handle, struct wifi_conn
 static uint16_t ble_wifimate_aes_ecb_decrypt(uint8_t src_len, uint8_t *src, uint8_t key_len,
 											 uint8_t *key, uint8_t *result_len, uint8_t *result)
 {
-	uint8_t key_le[key_len] ALIGNMTO(0x4);
-	uint32_t timeout = 0xFFFFFFFF;
+	mbedtls_aes_context ctx;
+	uint32_t key_bit = BLE_WIFIMATE_MBEDTLS_AES_KEY_BIT_128;
+	uint8_t key_le[key_len];
+	int i = 0;
 
 	if (!src || !key || !result_len || !result) {
 		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
-	if (CRYPTO_Init(NULL) != 0) {
-		BT_LOGE("crypto engine init failed\r\n");
-	} else {
-		BT_LOGA("init success\n");
-	}
-
-	/*take sema to obtain the right to crypto engine*/
-	while (IPC_SEMTake(IPC_SEM_CRYPTO, timeout) != TRUE) {
-		BT_LOGE("ipsec get hw sema fail\n");
-	}
-
 	/* use a software key, it needs to be converted to little-endian format.
-	    For example, the key is 00112233445566778899aabbccddeeff, the key array should like:
-	    uint8_t key1[32] = {
-	        0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00 };.*/
+	   For example, the key is 00112233445566778899aabbccddeeff, the key array should like:
+	   uint8_t key1[32] = {0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00 };. */
 	memcpy(key_le, key, key_len);
 	array_to_little_endian(key_le, key_len);
-	rtl_crypto_aes_ecb_init(key_le, key_len);
 
-	rtl_crypto_aes_ecb_decrypt(src, src_len, NULL, 0, result);
+	key_bit = ((key_len == 16) ? BLE_WIFIMATE_MBEDTLS_AES_KEY_BIT_128 :
+			   (key_len == 24) ? BLE_WIFIMATE_MBEDTLS_AES_KEY_BIT_192 : BLE_WIFIMATE_MBEDTLS_AES_KEY_BIT_256);
 
-	/*free sema to release the right to crypto engine*/
-	IPC_SEMFree(IPC_SEM_CRYPTO);
+	// initial AES
+	mbedtls_aes_init(&ctx);
 
+	// set AES decrypt key
+	if (mbedtls_aes_setkey_enc(&ctx, key_le, key_bit) != 0) {
+		BT_LOGE("%s: mbedtls AES key set fail\r\n", __func__);
+		return RTK_BT_FAIL;
+	}
+
+	uint8_t message_len = (uint8_t)ceil(src_len / 16.0) * 16;
+	uint8_t message[message_len];
+	uint8_t decrypted[message_len];
+
+	memset(message, 0, message_len);
+	memset(decrypted, 0, message_len);
+	memcpy(message, src, src_len);
+
+	// excute AES decrypt
+	for (i = 0; i < message_len; i += 16) {
+		if (mbedtls_aes_crypt_ecb(&ctx, MBEDTLS_AES_DECRYPT, message + i, decrypted + i) != 0) {
+			BT_LOGE("%s: mbedtls AES decryption failed, i=%d\r\n", __func__, i);
+			break;
+		}
+	}
+
+	if (i < message_len) {
+		return RTK_BT_FAIL;
+	}
+
+	memcpy(result, decrypted, message_len);
 	*result_len = strlen((char *)result);
 
 	BT_DUMPD("====decrypt key=====\r\n", key, key_len);
-	BT_DUMPD("====decrypt message=====\r\n", src, src_len);
-	BT_DUMPD("====decrypt result=====\r\n", result, src_len);
-	return 0;
+	BT_DUMPD("====decrypt message=====\r\n", message, message_len);
+	BT_DUMPD("====decrypt result=====\r\n", result, *result_len);
+
+	return RTK_BT_OK;
 }
 
 static uint16_t ble_wifimate_server_decrypt(uint8_t src_len, uint8_t *src, uint8_t *des_len, uint8_t *des)

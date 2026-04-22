@@ -15,13 +15,13 @@ ameba_list_append(c_GLOBAL_MCU_COMPILE_ASM_OPTIONS
     -mthumb
 )
 
-if(CONFIG_AMEBAD)
+if(CONFIG_AMEBAD OR CONFIG_AMEBAPRO3)
     ameba_list_append(c_GLOBAL_MCU_COMPILE_ASM_OPTIONS -march=armv8-m.main+dsp)
 elseif(CONFIG_AMEBADPLUS OR CONFIG_AMEBALITE)
     ameba_list_append(c_GLOBAL_MCU_COMPILE_ASM_OPTIONS -march=armv8.1-m.main+dsp)
-elseif(CONFIG_AMEBAGREEN2 OR CONFIG_AMEBAL2)
+elseif(CONFIG_AMEBAGREEN2 OR CONFIG_AMEBAL2 OR CONFIG_RTL8720F)
     ameba_list_append(c_GLOBAL_MCU_COMPILE_ASM_OPTIONS -march=armv8.1-m.main)
-elseif(CONFIG_AMEBASMART OR CONFIG_AMEBASMARTPLUS)
+elseif(CONFIG_AMEBASMART)
     ameba_list_append(c_GLOBAL_MCU_COMPILE_ASM_OPTIONS -march=armv8.1-m.main+mve)
 else()
     message(FATAL_ERROR "Unsupported soc type")

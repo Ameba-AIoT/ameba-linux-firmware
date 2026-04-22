@@ -1,7 +1,7 @@
 /*
- * Copyright (c) 2020 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef SHEIPA_H
@@ -32,6 +32,10 @@
 
 #ifndef _ASMLANGUAGE
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef uint32_t (*ISRCallback_t)(void *context);
 
 typedef struct InterruptTable {
@@ -44,7 +48,15 @@ extern volatile uint32_t ulFlashPG_Flag;
 void smp_init(void);
 void vPortSecondaryOff(void);
 void vPortGateOtherCore(void);
+void vPortEnableOtherCore(void);
 void vPortWakeOtherCore(void);
+void prvSetupHardware(void);
+void xlat_flash_region_device(void);
+void xlat_flash_region_xip(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* !_ASMLANGUAGE */
 

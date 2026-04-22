@@ -1,7 +1,7 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef _HCI_COMMON_H_
@@ -25,6 +25,7 @@
 
 /* hci event */
 #define BT_HCI_EVT_CMD_COMPLETE                 0x0e
+#define BT_HCI_EVT_CMD_STATUS                   0x0f
 #define BT_HCI_EVT_LE_META_EVENT                0x3e
 #define BT_HCI_EVT_LE_ADVERTISING_REPORT        0x02
 #define BT_HCI_EVT_LE_EXT_ADVERTISING_REPORT    0x0d
@@ -80,51 +81,20 @@ struct hci_evt_hdr {
                 ((uint64_t)(*((uint8_t *)(_array) + 7)) << 56);        \
     }
 
-#define PATCH_VERSION_INVALID   0
-#define PATCH_VERSION_V1        1
-#define PATCH_VERSION_V2        2
-#define PATCH_VERSION_V3        3
-
-/****** functions called by hci_process.c ******/
-void hci_patch_set_chipid(uint8_t chipid);
-void hci_set_work_baudrate(uint8_t *baudrate);
-void hci_get_baudrate(uint8_t *baudrate, bool use_default_rate);
-uint8_t hci_update_uart_baudrate(bool use_default_rate);
-uint8_t hci_patch_get_patch_version(uint8_t **pp_patch_buf, uint32_t *p_patch_len);
-/**********************************************/
-
-/****** functions called by hci_download_vx.c ******/
-uint8_t hci_patch_get_chipid(void);
-/**********************************************/
+#if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
+#if defined(CONFIG_MP_SHRINK) && CONFIG_MP_SHRINK
+#define hci_is_mp_mode()            true
+#else /* CONFIG_MP_SHRINK */
+#define hci_is_mp_mode              hci_check_mp
+#endif /* CONFIG_MP_SHRINK */
+#else /* CONFIG_MP_INCLUDED */
+#define hci_is_mp_mode()            false
+#endif /* CONFIG_MP_INCLUDED */
 
 void hci_set_mp(bool is_mp);
 bool hci_check_mp(void);
 void set_reg_value(uint32_t reg_address, uint32_t Mask, uint32_t val);
 uint8_t hci_get_hdr_len(uint8_t type);
 uint16_t hci_get_body_len(const void *hdr, uint8_t type);
-
-/********** APIs called by hci driver *********/
-bool hci_controller_enable(void);
-void hci_controller_disable(void);
-void hci_controller_free(void);
-bool hci_controller_is_enabled(void);
-/**********************************************/
-
-/********** APIs called by hci uart ***********/
-void hci_uart_rx_irq_handler(bool from_irq);
-/**********************************************/
-
-#if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
-#if defined(CONFIG_MP_SHRINK) && CONFIG_MP_SHRINK
-#define hci_is_mp_mode()            true
-#define hci_is_wifi_need_leave_ps() false    /* WiFi will not enter ps in MP shrink mode, no need to leave */
-#else /* CONFIG_MP_SHRINK */
-#define hci_is_mp_mode              hci_check_mp
-#define hci_is_wifi_need_leave_ps() true
-#endif /* CONFIG_MP_SHRINK */
-#else /* CONFIG_MP_INCLUDED */
-#define hci_is_mp_mode()            false
-#define hci_is_wifi_need_leave_ps() true
-#endif /* CONFIG_MP_INCLUDED */
 
 #endif /* _HCI_COMMON_H_ */

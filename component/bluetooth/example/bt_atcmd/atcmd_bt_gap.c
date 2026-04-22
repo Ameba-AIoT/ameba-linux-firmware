@@ -227,7 +227,13 @@ static const cmd_table_t gap_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_gap(int argc, char *argv[])
+void fBTGAP(u16 argc, char *argv[])
 {
-	return atcmd_bt_excute(argc, argv, gap_cmd_table, "[AT+BTGAP]");
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], gap_cmd_table, "[AT+BTGAP]");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }

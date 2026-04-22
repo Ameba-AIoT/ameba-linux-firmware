@@ -373,6 +373,27 @@ static int atcmd_ble_gap_set_rand_addr(int argc, char **argv)
 	return 0;
 }
 
+static int atcmd_ble_gap_gen_rand_addr(int argc, char **argv)
+{
+	(void)argc;
+	uint16_t ret = 0;
+	uint8_t addr[RTK_BD_ADDR_LEN] = {0};
+	char addr_str[20];
+	rtk_bt_le_rand_addr_type_t type;
+
+	type = str_to_int(argv[0]);
+	ret = rtk_bt_le_gap_gen_rand_addr(type, addr);
+	if (ret) {
+		BT_LOGE("GAP generate random address failed! err: 0x%x\r\n", ret);
+		return bt_at_rtk_err_to_at_err(ret);
+	}
+
+	rtk_bt_addr_val_to_str(addr, addr_str, sizeof(addr_str));
+	BT_LOGA("GAP generate random address success, addr: %s\r\n", addr_str);
+	BT_AT_PRINT("+BLEGAP:gen_rand_addr,%s\r\n", addr_str);
+
+	return 0;
+}
 
 static int atcmd_ble_gap_set_channel_map(int argc, char **argv)
 {
@@ -520,9 +541,9 @@ static int atcmd_ble_gap_get_adv_param(int argc, char **argv)
 	}
 
 	addr_val = adv_param.peer_addr.addr_val;
-	snprintf(addr_str, sizeof(addr_str), "%02x%02x%02x%02x%02x%02x",
-			 addr_val[5], addr_val[4], addr_val[3],
-			 addr_val[2], addr_val[1], addr_val[0]);
+	DiagSnPrintf(addr_str, sizeof(addr_str), "%02x%02x%02x%02x%02x%02x",
+				 addr_val[5], addr_val[4], addr_val[3],
+				 addr_val[2], addr_val[1], addr_val[0]);
 	BT_LOGA("GAP get adv param success, param: %d,%d,%d,%d,%s,%d,%d,%d\r\n",
 			adv_param.type, adv_param.own_addr_type, adv_param.filter_policy,
 			adv_param.peer_addr.type, addr_str, adv_param.interval_min,
@@ -1420,7 +1441,7 @@ static int atcmd_ble_gap_get_conn_rssi(int argc, char **argv)
 		return -1;
 	}
 
-	BT_LOGA("GAP read rssi, conn_hanlde: %d, value: %d\r\n", conn_handle, rssi_val);
+	BT_LOGA("GAP read rssi, conn_handle: %d, value: %d\r\n", conn_handle, rssi_val);
 	BT_AT_PRINT("+BLEGAP:conn_rssi,%d,%d\r\n", conn_handle, rssi_val);
 	return 0;
 }
@@ -1519,6 +1540,22 @@ static int atcmd_ble_gap_get_conn_info(int argc, char **argv)
 				"master" : ((conn_info.role == RTK_BT_LE_ROLE_SLAVE) ? "slave" : "unknown"),
 				bd_addr_str, conn_info.interval, conn_info.latency,
 				conn_info.supv_timeout, conn_info.tx_phy, conn_info.rx_phy);
+	return 0;
+}
+
+static int atcmd_ble_gap_read_remote_version(int argc, char **argv)
+{
+	(void)argc;
+	uint16_t ret = 0;
+	uint16_t conn_handle;
+
+	conn_handle = str_to_int(argv[0]);
+	if ((ret = rtk_bt_le_gap_read_remote_version(conn_handle) != RTK_BT_OK)) {
+		BT_LOGE("Gap read remote version failed! err: 0x%x\r\n", ret);
+		return -1;
+	}
+
+	BT_LOGA("Gap reading remote version ...\r\n");
 	return 0;
 }
 
@@ -1777,7 +1814,7 @@ static int atcmd_ble_gap_set_pairing_mode(int argc, char **argv)
 static int atcmd_ble_gap_set_security_param(int argc, char **argv)
 {
 	uint16_t ret = 0;
-	if (argc != 0 && argc != 7 && argc != 9) {
+	if (argc != 0 && argc != 7 && argc != 10) {
 		BT_LOGE("GAP set security paramters failed! wrong args num!\r\n");
 		return BT_AT_ERR_PARAM_INVALID;
 	}
@@ -1793,6 +1830,7 @@ static int atcmd_ble_gap_set_security_param(int argc, char **argv)
 			.use_fixed_key = 0,
 			.fixed_key = 000000,
 			.auto_sec_req = 0,
+			.sign_key_flag = 0,
 		};
 		ret = rtk_bt_le_sm_set_security_param(&def_sec_param);
 		if (ret) {
@@ -1813,11 +1851,11 @@ static int atcmd_ble_gap_set_security_param(int argc, char **argv)
 		sec_param.use_fixed_key = (uint8_t)str_to_int(argv[5]);
 		sec_param.fixed_key = (uint32_t)str_to_int(argv[6]);
 	}
-	if (argc > 8) {
+	if (argc > 9) {
 		sec_param.sec_pair_only_flag = (uint8_t)str_to_int(argv[7]);
 		sec_param.auto_sec_req = (uint8_t)str_to_int(argv[8]);
+		sec_param.sign_key_flag = (uint8_t)str_to_int(argv[9]);
 	}
-
 
 	ret = rtk_bt_le_sm_set_security_param(&sec_param);
 	if (ret) {
@@ -2739,6 +2777,7 @@ static const cmd_table_t le_gap_cmd_table[] = {
 	{"set_mtu",      atcmd_ble_gap_set_max_mtu_size,   2, 2},
 	{"pre_conn_param", atcmd_ble_gap_set_preferred_conn_param,     5, 5},
 	{"rand_addr",    atcmd_ble_gap_set_rand_addr,      2, 3},
+	{"gen_rand_addr", atcmd_ble_gap_gen_rand_addr,     2, 2},
 	{"adv_data",     atcmd_ble_gap_set_adv_data,       1, 2},
 	{"scan_rsp",     atcmd_ble_gap_set_scan_resp,      1, 2},
 	{"adv",          atcmd_ble_gap_op_adv,             2, 10},
@@ -2755,6 +2794,7 @@ static const cmd_table_t le_gap_cmd_table[] = {
 	{"tx_pending_num", atcmd_ble_gap_tx_pending_num,   2, 2},
 	{"conn_rssi",    atcmd_ble_gap_get_conn_rssi,      2, 2},
 	{"conn_info",    atcmd_ble_gap_get_conn_info,      2, 2},
+	{"remote_version", atcmd_ble_gap_read_remote_version, 2, 2},
 	{"conn_update",  atcmd_ble_gap_update_conn,        6, 6},
 #if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
 	{"conn_phy",     atcmd_ble_gap_set_conn_phy,       6, 6},
@@ -2768,7 +2808,7 @@ static const cmd_table_t le_gap_cmd_table[] = {
 	{"wl_remove",    atcmd_ble_gap_remove_whitelist,   3, 3},
 	{"wl_clear",     atcmd_ble_gap_clear_whitelist,    1, 1},
 	{"pair_mode",    atcmd_ble_gap_set_pairing_mode,   2, 2},
-	{"sec_param",    atcmd_ble_gap_set_security_param, 1, 10},
+	{"sec_param",    atcmd_ble_gap_set_security_param, 1, 11},
 	{"get_sec_param",    atcmd_ble_gap_get_security_param, 1, 1},
 	{"sec",          atcmd_ble_gap_security,           2, 2},
 	{"pair_cfm",     atcmd_ble_gap_confirm_pair,       3, 3},
@@ -2836,7 +2876,13 @@ static const cmd_table_t le_gap_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_le_gap(int argc, char *argv[])
+void fBLEGAP(u16 argc, char *argv[])
 {
-	return atcmd_bt_excute(argc, argv, le_gap_cmd_table, "[AT+BLEGAP]");
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], le_gap_cmd_table, "[AT+BLEGAP]");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }

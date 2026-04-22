@@ -18,7 +18,7 @@ endif
 ifndef PROJECT_DIR
 $(error error: PROJECT_DIR is not defined. Please specify it by running 'make PROJECT_DIR=xxx')
 endif
-# PROJECT_DIR = ../../../../amebasmartplus_gcc_project/project_ap
+# PROJECT_DIR = ../../../../amebasmart_gcc_project/project_ap
 
 # specify the build base directory
 ifndef BUILD_BASE
@@ -32,6 +32,12 @@ include .config
 # find the build/project_ap/.config_ca32
 include $(BUILD_BASE)/project_ap/.config_ca32
 include Formosa.mk
+
+ifeq ($(CONFIG_MATTER_SECURE_EN),y)
+BASEDIR           = ../../../..
+MATTER_DIR        = $(BASEDIR)/../ameba-rtos-matter
+MATTER_BUILDDIR   = $(MATTER_DIR)/project/cmake
+endif #CONFIG_MATTER_SECURE_EN
 
 # ifeq (${ASDK_VER},)
 # 	ASDK_VER = 10.3.1
@@ -558,7 +564,12 @@ include common/backtrace/backtrace.mk
 include ${MAKE_HELPERS_DIRECTORY}plat_helpers.mk
 
 # BUILD_BASE		:=	${PROJECT_DIR}/asdk/build
-BUILD_PLAT		:=	$(BUILD_BASE)/project_ap/asdk/make/atf
+BUILD_BASE_ASDK		:=	$(BUILD_BASE)/project_ap/asdk
+ifneq ($(wildcard $(BUILD_BASE_ASDK)),)
+	BUILD_PLAT		:=	$(BUILD_BASE)/project_ap/asdk/make/atf
+else
+	BUILD_PLAT		:=	$(BUILD_BASE)/project_ap/make/atf
+endif
 #${BUILD_BASE}/${PLAT}/${BUILD_TYPE}
 
 ifneq ($(ARCH),mips)
@@ -692,6 +703,14 @@ $(info Including ${AARCH32_SP_MAKE})
 include ${AARCH32_SP_MAKE}
 endif
 
+endif
+
+################################################################################
+# Include Matter Secure
+################################################################################
+
+ifeq ($(CONFIG_MATTER_SECURE_EN),y)
+include $(MATTER_BUILDDIR)/component/atf_mbedtls_secure/Makefile
 endif
 
 ################################################################################
@@ -870,6 +889,12 @@ ifneq (${GENERATE_COT},0)
         ifeq (${INCLUDE_TBBR_MK},1)
                 include make_helpers/tbbr/tbbr_tools.mk
         endif
+endif
+
+ifeq ($(CONFIG_CP_TEST_CA32),y)
+#  64KB alignment for the FIP image.
+FIP_ALIGN:=65536
+$(eval $(call add_define_val,CONFIG_CP_TEST_CA32,1))
 endif
 
 ifneq (${FIP_ALIGN},0)
@@ -1401,11 +1426,11 @@ cscope:
 
 image: fiptool fip
 ifeq ($(CONFIG_MP_INCLUDED),y)
-	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${PROJECT_DIR}/asdk/image_mp)
-	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${PROJECT_DIR}/asdk/image_mp)
+	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${BUILD_BASE}/project_ap/image_mp)
+	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${BUILD_BASE}/project_ap/image_mp)
 else
-	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${PROJECT_DIR}/asdk/image)
-	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${PROJECT_DIR}/asdk/image)
+	$(call SHELL_COPY,${BUILD_PLAT}/${FIP_NAME},${BUILD_BASE}/project_ap/image)
+	$(call SHELL_COPY,${BUILD_PLAT}/bl1*.bin,${BUILD_BASE}/project_ap/image)
 endif
 #	@#$(call boot/atf/image)
 

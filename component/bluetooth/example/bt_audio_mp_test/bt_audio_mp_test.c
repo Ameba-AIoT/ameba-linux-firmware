@@ -769,6 +769,12 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		break;
 	}
 
+	case RTK_BT_BR_GAP_INQUIRY_CMPL: {
+		rtk_bt_br_inquiry_cmpl_t *p_cmpl = (rtk_bt_br_inquiry_cmpl_t *)param;
+		BT_LOGA("[BR GAP] Inquiry completed, cause is 0x%x \r\n", p_cmpl->cause);
+		break;
+	}
+
 	case RTK_BT_BR_GAP_ACL_CONN_IND: {
 		uint8_t *bd_addr = (uint8_t *)param;
 		BT_LOGA("[BR GAP] ACL connection indication %02x:%02x:%02x:%02x:%02x:%02x \r\n",
@@ -833,6 +839,16 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 					p_acl_disc_event->bd_addr[3], p_acl_disc_event->bd_addr[2],
 					p_acl_disc_event->bd_addr[1], p_acl_disc_event->bd_addr[0],
 					p_acl_disc_event->cause);
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_ROLE_MASTER: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_MASTER \r\n");
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_ROLE_SLAVE: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_SLAVE \r\n");
 		break;
 	}
 
@@ -906,17 +922,13 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 				if (p_attr_t->attr[i].length) {
 					memset((void *)temp_buff, 0, 50);
 					uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
-					snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
+					DiagSnPrintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
 					BT_LOGA("[AVRCP] %s \r\n", temp_buff);
-					osif_mem_free(p_attr_t->attr[i].p_buf);
 				}
 			}
 		} else {
 			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-		}
-		if (p_attr_t->num_of_attr) {
-			osif_mem_free(p_attr_t->attr);
 		}
 		break;
 	}
@@ -931,7 +943,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
 			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
 				memset((void *)temp_buff, 0, 10);
-				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
+				DiagSnPrintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
 				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
 			}
 		}
@@ -961,7 +973,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
 			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
 				memset((void *)temp_buff, 0, 20);
-				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
+				DiagSnPrintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
 				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
 			}
 		}
@@ -1728,7 +1740,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_hfp_app_callback(uint8_t evt_code, void *param
 			hfp_task.run = 1;
 			if (false == osif_task_create(&hfp_task.hdl, "hfp_task",
 										  hfp_task_entry, NULL,
-										  4096, 4)) {
+										  6144, 4)) {
 				osif_sem_delete(hfp_task.sem);
 				return 1;
 			}
@@ -2333,7 +2345,7 @@ int bt_audio_mp_test_main(uint8_t enable)
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_GAP, br_gap_app_callback));
 		/* mix RTK_BT_DEV_NAME with bt mac address */
 		strcpy(dev_name, RTK_BT_DEV_NAME);
-		snprintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
+		DiagSnPrintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
 		BT_APP_PROCESS(rtk_bt_br_gap_set_device_name((const uint8_t *)dev_name));
 		/* Initilize SDP part */
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_SDP, rtk_bt_sdp_app_callback));

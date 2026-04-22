@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2024 Realtek Semiconductor Corp.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "ameba_soc.h"
 
@@ -29,6 +29,9 @@ RCC_ConfDef RCC_Config[] = {
 	{0xFFFFFFFF,			NULL,							ENABLE},
 };
 
+u32 Cert_PKHash_OTP_ADDR = SEC_PKKEY_PK1_0;
+
+#if defined (CONFIG_ARM_CORE_CM4)
 /*
 * @brif	CACHE and TCM share memory setting
 */
@@ -42,8 +45,6 @@ CACHETCM_TypeDef CACHETCM_Def[7] = {
 	{TCM_SIZE_80KB,		ENABLE, 		DISABLE, 	CACHE_WWR_1WAY,		CACHE_WWR_4WAY,		0x80000,		0x93fff},
 	{TCM_SIZE_96KB,		DISABLE, 		DISABLE, 	CACHE_WWR_4WAY,		CACHE_WWR_4WAY,		0x80000,		0x97fff},
 };
-
-u32 Cert_PKHash_OTP_ADDR = SEC_PKKEY_PK1_0;
 
 /**
 * @brif  TCM size select.
@@ -77,6 +78,7 @@ CACHEWRR_TypeDef CACHEWRR_Def[2] = {
 	{DISABLE,	CACHE_WWR_4WAY,		0x00000000,		0xffff0000},	//for ICache Setting
 	{DISABLE,	CACHE_WWR_4WAY,		0x00000000,		0xffff0000},	//for DCache Setting
 };
+#endif
 
 u8 Boot_AP_Enbale = ENABLE;
 
@@ -85,10 +87,13 @@ u8 Boot_MemSwr_Only = DISABLE;
 // for km4, max 333MHz under 1.0v, max 250MHz under 0.9v
 // for AP, max 1200MHz under 1.0v, max 920MHz under 0.9v
 // NP PLL can be 800MHz~1000MHz
-SocClk_Info_TypeDef SocClk_Info[] = {
+SocClk_Info_TypeDef SocClk_Info[1] = {
 	/* NPPLL_CLK,   APPLL_Clk,    Vol_Type,  KM4_CPU_CKD,  AP_CPU_CKD */
-	// {NPPLL_1000M,   APPLL_1200M,  VOL_10,    CLKDIV(3),    CLKDIV(1) | ISAPPLL}, //best porformance
+#ifdef CONFIG_LINUX_FW_EN
+	{NPPLL_1000M,   APPLL_1200M,  VOL_10,    CLKDIV(3),    CLKDIV(1) | ISAPPLL}, //best porformance
+#else
 	{NPPLL_920M, APPLL_NULL,   VOL_09,    CLKDIV(4),    CLKDIV(1) | ISNPPLL},
+#endif
 };
 
 /**

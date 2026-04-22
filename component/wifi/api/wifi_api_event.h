@@ -63,14 +63,17 @@ enum rtw_join_status {
   * @brief  Wi-Fi event identifiers.
   */
 enum rtw_event_id {
-	RTW_EVENT_STA_ASSOC = 0,          /**< SoftAP mode: Station associated */
-	RTW_EVENT_STA_DISASSOC,           /**< SoftAP mode: Station disassociated */
+	RTW_EVENT_AP_STA_ASSOC = 0,       /**< SoftAP mode: Station associated */
+	RTW_EVENT_AP_STA_DISASSOC,        /**< SoftAP mode: Station disassociated */
 	RTW_EVENT_JOIN_STATUS,	          /**< STA mode: Connection status change (see example_wifi_event.c) */
 	RTW_EVENT_CSI_DONE,               /**< CSI data ready (see example_wifi_csi.c) */
 	RTW_EVENT_WPA_STA_WPS_START,      /**< STA mode: WPS procedure started */
 	RTW_EVENT_WPA_WPS_FINISH,         /**< STA mode: WPS procedure completed */
 	RTW_EVENT_WPA_EAPOL_START,        /**< STA mode: WPA enterprise authentication started */
-	RTW_EVENT_WPA_EAPOL_RECVD,        /**< STA mode: EAPOL packet received during WPA enterprise authentication */
+	RTW_EVENT_WPA_EAPOL_RECVD,        /**< STA mode: EAPOL packet received during WPA enterprise authentication  */
+	RTW_EVENT_DHCP_STATUS,            /**< STA mode: DHCP status report (see @ref rtw_event_dhcp_status)  */
+	RTW_EVENT_RADAR_REPORT,           /**< Radar report ready (see example_wifi_radar.c) */
+
 	RTW_EVENT_MAX,
 };
 /** @} End of WIFI_Exported_Enumeration_Types group*/
@@ -78,93 +81,153 @@ enum rtw_event_id {
 /** @addtogroup WIFI_Exported_Structure_Types Structure Type
  * @{
  */
+
 /**
-  * @brief Data structure for @ref RTW_EVENT_JOIN_STATUS when flag is @ref RTW_JOINSTATUS_DISCONNECT.
-  */
-struct rtw_event_info_joinstatus_disconn {
-	u16 disconn_reason;      /**< Disconnect reason, refer to @ref rtw_disconn_reason. */
-	u8	bssid[6];            /**< MAC address of the AP.*/
+ * @brief  Wi-Fi event handle struct.
+ */
+struct rtw_event_hdl_func_t {
+	u16 evt_id;  /**< refer to @ref rtw_event_id */
+	void (*handler)(u8 *evt_info);
 };
 
 /**
-  * @brief Data structure for @ref RTW_EVENT_JOIN_STATUS when flag is @ref RTW_JOINSTATUS_FAIL
+  * @brief  Report info for event @ref RTW_EVENT_JOIN_STATUS
   */
-struct rtw_event_info_joinstatus_joinfail {
-	s32					fail_reason;           /**< Failure reason, refer to @ref RTK_FAIL, -@ref RTK_ERR_WIFI_CONN_INVALID_KEY, etc. */
-	u16					reason_or_status_code; /**< 802.11 reason code or status code from AP.*/
-	u8					bssid[6];              /**< MAC address of the AP.*/
+struct rtw_event_join_status_info {
+	/* private paras */
+	union {
+		struct rtw_event_authenticating {
+
+		} authenticating;  /* RTW_JOINSTATUS_AUTHENTICATING */
+		struct rtw_event_authenticated {
+			u16 reason_or_status_code;  /**< 802.11 reason code or status code from AP.*/
+		} authenticated;  /* RTW_JOINSTATUS_AUTHENTICATED */
+		struct rtw_event_associating {
+			u8 is_reassoc;
+		} associating;  /* RTW_JOINSTATUS_ASSOCIATING */
+		struct rtw_event_associated {
+			u16 reason_or_status_code;
+			u8 is_reassoc;
+		} associated;  /* RTW_JOINSTATUS_ASSOCIATED */
+		struct rtw_event_join_fail {
+			s32 fail_reason;  /**< Failure reason, refer to @ref RTK_FAIL, -@ref RTK_ERR_WIFI_CONN_INVALID_KEY, etc. */
+			u16 reason_or_status_code;
+		} fail;  /* RTW_JOINSTATUS_FAIL */
+		struct rtw_event_disconnect {
+			u16 disconn_reason;  /**< Disconnect reason, refer to @ref rtw_disconn_reason. */
+		} disconnect;  /* RTW_JOINSTATUS_DISCONNECT */
+	} priv;
+
+	/* common paras */
+	u8 status;  /**< refer to @ref rtw_join_status */
+	u8 channel;
+	u8 bssid[ETH_ALEN];
+	s8 rssi;
+	/* At the same time as reporting event info, frame content needs to be reported, which will be followed by event info. */
+	u32 frame_len;  /**< 0: there is no frame followed; larger than 0: there is frame_len bytes of frame followed*/
+	u8 frame[];  /**< if there is frame followed, point to head address */
 };
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_AP_STA_ASSOC
+  */
+struct rtw_event_ap_sta_assoc {
+	u8 sta_mac[ETH_ALEN];
+	u32 frame_len;
+	u8 frame[];
+};
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_AP_STA_DISASSOC
+  */
+struct rtw_event_ap_sta_disassoc {
+	u8 sta_mac[ETH_ALEN];
+};
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_WPA_EAPOL_START
+  */
+struct rtw_event_wpa_eapol_start {
+	u8 dst_mac[ETH_ALEN];
+};
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_WPA_STA_WPS_START
+  */
+struct rtw_event_wpa_sta_wps_start {
+	u8 peer_mac[ETH_ALEN];
+};
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_DHCP_STATUS
+  */
+struct rtw_event_dhcp_status {
+	u8 dhcp_status;		/**< only report DHCP_ADDRESS_ASSIGNED, DHCP_STOP, DHCP_TIMEOUT */
+};
+
+#pragma pack(1) /* csi report info should be 1 byte alignment */
+/**
+ * @brief  Layout of CSI report info.
+ */
+
+struct rtw_event_csi_report_info {
+	u16 csi_signature;          /**< Unique pattern (0xABCD) to detect a new CSI packet. */
+	u8 mac_addr[6];	            /**< MAC address of transmitter (Active CSI) or receiver (Passive CSI) for CSI triggering frame. */
+	u8 trig_addr[6];	        /**< MAC address of destination (Active CSI) or source (Passive CSI) for CSI triggering frame (Reserved in METHOD4). */
+	u32 hw_assigned_timestamp;  /**< CSI timestamp, unit: us. */
+	u32 csi_sequence;           /**< CSI data sequence number. */
+	u8 csi_valid;               /**< Indicates if current CSI raw data is valid. */
+	u8 channel;                 /**< Operation channel. */
+	u8 bandwidth;               /**< Operating bandwidth (0: 20MHz, 1: 40MHz). */
+	u8 rx_rate;                 /**< RX packet rate used to obtain CSI info. */
+	u8 protocol_mode;           /**< Protocol mode of response packet (0: OFDM, 1: HT, 2: VHT, 3: HE). */
+	u16 num_sub_carrier;        /**< Number of subcarriers in CSI raw data */
+	u8 num_bit_per_tone;        /**< CSI data word length (sum of I and Q). E.g., if using @ref RTW_CSI_ACCU_1BYTE accuracy (S(8,X)), num_bit_per_tone = 16. */
+	s8 rssi[2];                 /**< rssi[0]: dBm, rssi[1]: reserved */
+	s8 evm[2];                  /**< Error Vector Magnitude in dB (Reserved). */
+	u8 rxsc;                    /**< Sub-20MHz channel used for packet transmission. */
+	u8 n_rx;                    /**< Reserved. */
+	u8 n_sts;                   /**< Reserved. */
+	u8 trig_flag;               /**< CSI trigger source indicator (valid only in METHOD4, 0 if `trig_addr` valid) */
+	u8 rsvd[6];                 /**< Ensure the total sizes of struct is 4-byte alignment */
+	u32 csi_data_length;        /**< CSI raw data length, unit: byte. */
+	u8 csi_data[];              /**< CSI raw data head address */
+};
+#pragma pack()
+
+#pragma pack(1) /* radar report info should be 1 byte alignment */
+/**
+ * @brief  Layout of Radar report info.
+ */
+struct rtw_event_radar_report_info {
+	u8 rpt_type : 2;               /**< Radar report type (see @ref rtw_radar_type) */
+	u8 rpt_seg_start : 1;          /**< Instructions for segmented reporting, invalid after integration. */
+	u8 rpt_seg_end : 1;            /**< Instructions for segmented reporting, invalid after integration. */
+	u8 bw_idx : 2;                 /**< Operating bandwidth (0: 70MHz, 1: 40MHz, 2: 20M). */
+	u8 chirp_width : 2;            /**< 0:8us, 1:16us, 2:32us, 3:64us. */
+	u8 channel;                    /**< Operating central frequency. */
+	u8 frame_num;
+	u8 frame_interval;             /**< unit ms */
+	u8 fft_num_sub;
+	s16 fft_strt_idx;
+	u16 chirp_num;
+	u8 doppler_t2f_step[3];
+	s16 doppler_t2f_strt_idx[3];
+	s16 doppler_t2f_end_idx[3];
+	u16 doppler_sample_num;
+	float aagc_gain;
+	float dagc_gain_normal_mode[4];
+	u8 rsvd[6];                   /**< Ensure the total sizes of struct is 4-byte alignment */
+	u32 radar_data_length;        /**< radar raw data length, unit: byte. [segments report raw data len or complete repoprt raw data len] */
+	u8 radar_data[];              /**< radar raw data head address */
+};
+#pragma pack()
+
 /** @} End of WIFI_Exported_Structure_Types group*/
 /** @} End of WIFI_Exported_Types group*/
-
-/**********************************************************************************************
- *                                     Function Declarations
- *********************************************************************************************/
-/** @addtogroup WIFI_Exported_Functions Wi-Fi Exported Functions
- * @{
- */
-/** @addtogroup WIFI_Exported_Event_Functions Event Functions
-  * @{
-  */
-
-/**
- * @brief  Registers an event listener for specific Wi-Fi events.
- * @param[in] event_id : The events from the Wi-Fi driver to listen for:
- *                    - @ref RTW_EVENT_STA_ASSOC
- *                    - @ref RTW_EVENT_STA_DISASSOC
- *                    - @ref RTW_EVENT_JOIN_STATUS
- *                    - @ref RTW_EVENT_CSI_DONE
- *                    - @ref RTW_EVENT_WPA_STA_WPS_START
- *                    - @ref RTW_EVENT_WPA_WPS_FINISH
- *                    - @ref RTW_EVENT_WPA_EAPOL_START
- *                    - @ref RTW_EVENT_WPA_EAPOL_RECVD
- * @param[in] handler_func : The callback function to process the events. It has the following parameters:
- *                    - \b buf: Event data passed from the driver to the application layer.
- *                    - \b len: Length of the `buf`.
- *                    - \b flag: Flag set by Wi-Fi driver, used in conjunction with `buf`.
- *                         The content of `buf` and meaning of `flag` depend on the `event_id`:
- *                         <table>
- *                         <tr><th>event id</th><th>buf</th><th>flag</th></tr>
- *                         <tr><td>RTW_EVENT_JOIN_STATUS</td><td>rtw_event_info_joinstatus_joinfail</td><td>RTW_JOINSTATUS_FAIL</td></tr>
- *                         <tr><td>RTW_EVENT_JOIN_STATUS</td><td>rtw_event_info_joinstatus_disconn</td><td>RTW_JOINSTATUS_DISCONNECT</td></tr>
- *                         <tr><td>RTW_EVENT_JOIN_STATUS</td><td>NULL</td><td>Other join status in @ref rtw_join_status</td></tr>
- *                         <tr><td>RTW_EVENT_CSI_DONE</td><td>NULL</td><td>CSI header and raw data length</td></tr>
- *                         <tr><td>RTW_EVENT_STA_ASSOC</td><td>Association request frame</td><td>0</td></tr>
- *                         <tr><td>RTW_EVENT_STA_DISASSOC</td><td>STA's MAC SoftAP will disassoc</td><td>0</td></tr>
- *                         <tr><td>RTW_EVENT_WPA_STA_WPS_START</td><td>Source MAC of assoc response</td><td>0</td></tr>
- *                         <tr><td>RTW_EVENT_WPA_WPS_FINISH</td><td>NULL</td><td>0</td></tr>
- *                         <tr><td>RTW_EVENT_WPA_EAPOL_START</td><td>Source MAC of assoc response</td><td>0</td></tr>
- *                         <tr><td>RTW_EVENT_WPA_EAPOL_RECVD</td><td>EAPOL message</td><td>0</td></tr>
- *                         </table>
- *                    - \b user_data: User-provided data (see `handler_user_data`).
- * @param[in] handler_user_data :  Optional user-defined data passed to the callback function. Can be NULL.
- * @return  None.
- * @note  Re-registering an `event_id` with a NULL `handler_func` will unregister that event command.
- */
-void wifi_reg_event_handler(u32 event_id, void (*handler_func)(u8 *buf, s32 len, s32 flag, void *user_data), void *handler_user_data);
-
-/**
- * @brief  Unregisters an event listener for specific Wi-Fi events.
- * @param[in] event_id : The events from the WiFi driver to stop listening for:
- *                    - @ref RTW_EVENT_STA_ASSOC
- *                    - @ref RTW_EVENT_STA_DISASSOC
- *                    - @ref RTW_EVENT_JOIN_STATUS
- *                    - @ref RTW_EVENT_CSI_DONE
- *                    - @ref RTW_EVENT_WPA_STA_WPS_START
- *                    - @ref RTW_EVENT_WPA_WPS_FINISH
- *                    - @ref RTW_EVENT_WPA_EAPOL_START
- *                    - @ref RTW_EVENT_WPA_EAPOL_RECVD
- * @param[in] handler_func : The callback function previously registered for event processing.
- * @return None.
- */
-void wifi_unreg_event_handler(u32 event_id, void (*handler_func)(u8 *buf, s32 len, s32 flag, void *user_data));
-
-/** @} End of Event_Functions group*/
-/** @} End of WIFI_Exported_Functions group*/
 /** @} End of WIFI_API group*/
 #ifdef __cplusplus
 }
 #endif
 
 #endif //__WIFI_API_EVENT_H
-

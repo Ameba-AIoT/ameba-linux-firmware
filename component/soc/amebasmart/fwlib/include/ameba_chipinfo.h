@@ -7,6 +7,10 @@
 #ifndef _AMEBA_CHIPINFO_H_
 #define _AMEBA_CHIPINFO_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @defgroup CHIPINFO_MEMINFO_Structure_Type Structure Type
   * @{
   */
@@ -19,8 +23,7 @@ typedef struct {
 	uint16_t dqx          : 2;	/* PSRAM: DQ8, DQ16, others reserved
 								   DDR: DQ16 */
 	uint16_t rsvd         : 6;
-} DRAM_INFOTypeDef;//__PACKED
-
+} __PACKED DRAM_INFOTypeDef;
 typedef struct {
 	/* Memory type: Single-die, DDR, PSRAM, NOR, NAND */
 	uint16_t mem_type         : 6;	/* If multi-die exist, relevant bits are all set. */
@@ -30,10 +33,8 @@ typedef struct {
 	uint16_t rsvd0            : 4;
 	/* DDR/PSRAM information */
 	DRAM_INFOTypeDef dram_info;
-} MCM_MemTypeDef;//__PACKED
-
+} __PACKED MCM_MemTypeDef;
 Compile_Assert(sizeof(MCM_MemTypeDef) == 4, "MCM_MemInfo size shall be 4");
-
 /** * @}  */
 typedef struct {
 	u8 sub_num;
@@ -307,6 +308,7 @@ _LONG_CALL_ u8 EFUSE_GetBDNum(void);
 _LONG_CALL_ u8 EFUSE_GetChipVersion(void);
 _LONG_CALL_ u8 EFUSE_GetESFlag(void);
 _LONG_CALL_ void EFUSE_GetUUID(u32 *UUID);
+
 _LONG_CALL_ u8 ChipInfo_Get(void);
 _LONG_CALL_ u16 ChipInfo_BDNum(void);
 _LONG_CALL_ MCM_MemTypeDef ChipInfo_MCMInfo(void);
@@ -315,10 +317,14 @@ _LONG_CALL_ u32 ChipInfo_PsramBoundary(void);
 _LONG_CALL_ u8 ChipInfo_DDRType(void);
 _LONG_CALL_ u8 ChipInfo_ChipPackage(void);
 _LONG_CALL_ u8 EFUSE_Get_Info(u32 FuncID);
-_LONG_CALL_ void ChipInfo_GetSocName_ToBuf(char *buf, size_t buflen);
+_LONG_CALL_ u32 ChipInfo_GetSocName_ToBuf(void);
 
 /**
   * @}
   */
 /* MANUAL_GEN_END */
+#ifdef __cplusplus
+}
+#endif
+
 #endif

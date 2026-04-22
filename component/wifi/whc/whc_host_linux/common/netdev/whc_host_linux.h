@@ -20,6 +20,7 @@
 
 #ifdef CONFIG_NAN
 #define CONFIG_NAN_PAIRING
+// #define NAN_CUSTOMER_NANDOW
 #endif
 
 /******************************************************************/
@@ -78,7 +79,8 @@
 #include <net/cfg80211.h>
 #include <linux/of_gpio.h>
 
-/* fullmac headers. */
+/* whc headers. */
+#include "autoconf.h"
 #include "whc_host_wiphy.h"
 #include "wifi_api_types.h"
 #include "wifi_api_event.h"
@@ -86,14 +88,14 @@
 #include "whc_host_trx.h"
 #include "ameba_wificfg_common.h"
 
-#ifdef CONFIG_FULLMAC_HCI_IPC
+#ifdef CONFIG_WHC_HCI_IPC
 /* ipc driver. */
 #include <linux/ameba/ameba_ipc.h>
 #include "whc_ipc.h"
-#include "whc_fullmac_ipc_host_msg.h"
-#include "whc_fullmac_ipc_host_ops.h"
-#include "whc_fullmac_ipc_host_mem.h"
-#elif defined(CONFIG_FULLMAC_HCI_SDIO)
+#include "whc_ipc_host_msg.h"
+#include "whc_ipc_host_ops.h"
+#include "whc_ipc_host_mem.h"
+#elif defined(CONFIG_WHC_HCI_SDIO)
 #include <linux/mmc/sdio_func.h>
 #include <linux/mmc/sdio_ids.h>
 #include "whc_dev.h"
@@ -101,31 +103,36 @@
 #ifdef CONFIG_BT_INIC
 #include "rtb_sdio.h"
 #endif
-#elif defined(CONFIG_FULLMAC_HCI_SPI)
+#elif defined(CONFIG_WHC_HCI_SPI)
 #include <linux/spi/spi.h>
 #include "whc_dev.h"
 #include "whc_spi_host.h"
 #ifdef CONFIG_BT_INIC
 #include "rtb_spi.h"
 #endif
-#elif defined(CONFIG_FULLMAC_HCI_USB)
+#elif defined(CONFIG_WHC_HCI_USB)
 #include <linux/usb.h>
 #include "whc_dev.h"
 #include "whc_usb_host.h"
 #endif
 
-#if !defined(CONFIG_WHC_BRIDGE) && !defined(CONFIG_FULLMAC_HCI_IPC)
-#include "whc_fullmac_host_ioctl.h"
-#include "whc_fullmac_host_cust_evt.h"
+#ifdef NAN_CUSTOMER_NANDOW
+#include "WFPAL.h"
 #endif
 
-#ifndef CONFIG_WHC_BRIDGE
-#include "whc_fullmac_host_regd.h"
-#include "whc_fullmac_host_cfgvendor.h"
-#include "whc_fullmac_host_proc.h"
-#include "whc_fullmac_host_acs.h"
-#include "whc_fullmac_host_promisc.h"
+#if !defined(CONFIG_WHC_HCI_IPC)
+#include "whc_host_ioctl.h"
+#include "whc_host_cust_evt.h"
 #endif
+
+#include "whc_host_regd.h"
+#ifdef CONFIG_IEEE80211R
+#include "whc_host_ft.h"
+#endif
+#include "whc_host_cfgvendor.h"
+#include "whc_host_proc.h"
+#include "whc_host_acs.h"
+#include "whc_host_promisc.h"
 
 #include "whc_host_event.h"
 #include "whc_host_drv_probe.h"
@@ -133,6 +140,7 @@
 #include "whc_host_ethtool_ops.h"
 #include "whc_host_hci.h"
 #include "whc_host_function.h"
+
 
 /******************************************************************/
 /********** Definitions between Linux and FULLMAC. **************/
@@ -142,13 +150,10 @@
 #define FUNC_NDEV_FMT			"%s(%s)"
 #define FUNC_NDEV_ARG(ndev)		__func__, ndev->name
 #define WHC_HOST_NAME "whc_fullmac"
-#if defined(CONFIG_WHC_BRIDGE)
-#define WHC_HOST_PORT_NAME "eth_sta%d"
-#else
-#define WHC_HOST_PORT_NAME "wlan%d"
-#endif
 
-#ifdef CONFIG_FULLMAC_HCI_SDIO
+#define WHC_HOST_PORT_NAME "wlan%d"
+
+#ifdef CONFIG_WHC_HCI_SDIO
 #define CONFIG_WOWLAN
 #endif
 
@@ -202,19 +207,15 @@ struct wps_str {
 #define WIFI_CIPHER_SUITE_BIP_GMAC_256	0x000FAC0C
 #define WIFI_CIPHER_SUITE_BIP_CMAC_256	0x000FAC0D
 
-/* SECCAM sec_type define */
-#define _NO_PRIVACY_	0x0
-#define _WEP40_		0x1
-#define _TKIP_		0x2
-#define _TKIP_WTMIC_	0x3
-#define _AES_		0x4	//_CCMP_128_
-#define _WEP104_	0x5
-#define _SMS4_		0x6	//_WAPI_
-#define _GCMP_		0x7
-#define _GCMP_256_	(_GCMP_ | BIT(3))
-#define _CCMP_256_	(_AES_ | BIT(3))
-#define _GCM_WAPI_	(_SMS4_ | BIT(3))		//_GCM_WAPI_
-#define _BIP_		0x8
+enum ENCRYP_PROTOCOL_E {
+	ENCRYP_PROTOCOL_OPENSYS,   //open system
+	ENCRYP_PROTOCOL_WEP,       //WEP
+	ENCRYP_PROTOCOL_WPA,       //WPA
+	ENCRYP_PROTOCOL_WPA2,      //WPA2
+	ENCRYP_PROTOCOL_WPA_WPA2,  //WPA & WPA2
+	ENCRYP_PROTOCOL_WAPI,      //WAPI: Not support in this version
+	ENCRYP_PROTOCOL_MAX
+};
 
 /******************************************************************/
 /***************** inline functions for fullmac. *****************/
@@ -277,6 +278,66 @@ static inline u8 *rtw_get_ie(const u8 *pbuf, int element_id, int *element_len, i
 		}
 	}
 	return NULL;
+}
+
+static inline unsigned char *rtw_get_wpa2_ie(unsigned char *pie, u32 *rsn_ie_len, int limit)
+{
+	return rtw_get_ie(pie, WLAN_EID_RSN, rsn_ie_len, limit);
+}
+
+static inline unsigned char *rtw_get_wpa_ie(unsigned char *pie, u32 *wpa_ie_len, int limit)
+{
+	u32 len;
+	u16 val16;
+	u8 *pbuf = pie;
+	int limit_new = limit;
+	const u8 RTW_WPA_OUI_TYPE[] = { 0x00, 0x50, 0xf2, 1 };
+
+	while (1) {
+		pbuf = rtw_get_ie(pbuf, WLAN_EID_WPA, &len, limit_new);
+
+		if (pbuf) {
+
+			//check if oui matches...
+			if (memcmp((pbuf + 2), (void *)RTW_WPA_OUI_TYPE, sizeof(RTW_WPA_OUI_TYPE)) != 0) {
+
+				goto check_next_ie;
+			}
+
+			//check version...
+			memcpy((u8 *)&val16, (pbuf + 6), sizeof(val16));
+
+			val16 = le16_to_cpu(val16);
+			if (val16 != 0x0001) {
+				goto check_next_ie;
+			}
+
+			*wpa_ie_len = *(pbuf + 1);
+
+			return pbuf;
+
+		} else {
+
+			*wpa_ie_len = 0;
+			return NULL;
+		}
+
+check_next_ie:
+
+		limit_new = limit - (pbuf - pie) - 2 - len;
+
+		if (limit_new <= 0) {
+			break;
+		}
+
+		pbuf += (2 + len);
+
+	}
+
+	*wpa_ie_len = 0;
+
+	return NULL;
+
 }
 
 static inline u8 rtw_get_pmf_option(const u8 *ie, u32 ie_len)

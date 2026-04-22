@@ -1,5 +1,15 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <stdio.h>
 #include "ameba_soc.h"
+
+#ifdef CONFIG_TEST_NEWLIB_API
+extern int test_newlib_write_hook(char *ptr, int len);
+#endif
 
 int _write(int file, char *ptr, int len)
 {
@@ -9,6 +19,14 @@ int _write(int file, char *ptr, int len)
 	if (file != 1 && file != 2) {
 		return -1;
 	}
+
+#ifdef CONFIG_TEST_NEWLIB_API
+	int handled_len = test_newlib_write_hook(ptr, len);
+	if (handled_len >= 0) {
+		return handled_len;
+	}
+#endif
+
 	for (/*Empty */; len > 0; --len) {
 		DiagPutChar(*ptr++);
 		++nChars;

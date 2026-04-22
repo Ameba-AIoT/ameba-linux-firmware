@@ -7,6 +7,10 @@
 #ifndef _AMEBA_IPC_API_H
 #define _AMEBA_IPC_API_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @addtogroup IPC
   * @{
   */
@@ -41,7 +45,7 @@ typedef struct ipc_msg_struct {
 #define IPC_REQ_TIMEOUT  2
 #define IPC_SEND_SUCCESS 0
 #define IPC_SEND_TIMEOUT 1
-#define IPC_SEMA_MAX_DELAY			0xFFFFFFFF
+#define IPC_SEMA_MAX_DELAY 0x10000 // 65536ms
 /** @} */
 
 /** @} */
@@ -60,5 +64,9 @@ void IPC_TXHandler(void *Data, u32 IrqStatus, u32 ChanNum);
 /** @} */
 
 extern IPC_IRQ_FUN IPC_IrqHandler[IPC_CHANNEL_NUM];
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

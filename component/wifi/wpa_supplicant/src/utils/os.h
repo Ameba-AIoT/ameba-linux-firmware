@@ -479,7 +479,7 @@ int os_snprintf(char *str, size_t size, const char *format, ...);
 
 #else /* OS_NO_C_LIB_DEFINES */
 
-#if !defined(CONFIG_AMEBASMART) && !defined(CONFIG_AMEBADPLUS) && !defined(CONFIG_AMEBASMARTPLUS)
+#if !defined(CONFIG_AMEBASMART) && !defined(CONFIG_AMEBADPLUS)
 #ifndef os_malloc
 #define os_malloc(sz) rtos_mem_malloc(sz)
 #endif
@@ -567,8 +567,16 @@ extern char *os_strdup(const char *string_copy_from);
 #ifdef _MSC_VER
 #define os_snprintf _snprintf
 #else
-#define os_snprintf snprintf
+#define os_snprintf DiagSnPrintf
 #endif
+#endif
+
+#ifndef os_sscanf
+#define os_sscanf _sscanf_ss
+#endif
+
+#ifndef os_sprintf
+#define os_sprintf DiagSPrintf
 #endif
 
 #endif /* OS_NO_C_LIB_DEFINES */

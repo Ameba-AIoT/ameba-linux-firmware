@@ -26,45 +26,22 @@
 #include "ethernetif.h"
 #endif
 #include "ameba_soc.h"
+#ifdef CONFIG_PLATFORM_ZEPHYR
+#include"wifi_intf_drv_to_zephyr.h"
+#endif
 
 extern void eap_autoreconnect_hdl(u8 method_id);
 
 #if CONFIG_AUTO_RECONNECT
 struct rtw_auto_reconn_t  rtw_reconn;
 
-void rtw_reconn_join_status_hdl(u8 *buf, s32 flags)
+void rtw_reconn_timer_start(void)
 {
-	u8 join_status = (u8)flags;
-	static u8 join_status_last = RTW_JOINSTATUS_SUCCESS;
-	int disconn_reason = -1;
-	u8 need_reconn = 0;
-
-	if ((join_status_last == join_status) && (join_status_last > RTW_JOINSTATUS_4WAY_HANDSHAKING)) {
-		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "same joinstaus: %d\n", join_status);/*just for debug, delete when stable*/
-	}
-	join_status_last = join_status;
-
 	if (rtw_reconn.b_enable == 0) {
 		return;
 	}
 
-	if (join_status == RTW_JOINSTATUS_SUCCESS) {
-		rtw_reconn.cnt = 0;
-		return;
-	}
-
-	if (join_status == RTW_JOINSTATUS_FAIL) {
-		disconn_reason = ((struct rtw_event_info_joinstatus_joinfail *)buf)->reason_or_status_code;
-	} else if (join_status == RTW_JOINSTATUS_DISCONNECT) {
-		disconn_reason = ((struct rtw_event_info_joinstatus_disconn *)buf)->disconn_reason;
-	}
-
-	if (disconn_reason >= 0 && !(disconn_reason > RTW_DISCONN_RSN_APP_BASE &&
-								 disconn_reason < RTW_DISCONN_RSN_APP_BASE_END)) {/*disconnect by APP no need do reconnect*/
-		need_reconn = 1;
-	}
-
-	if (need_reconn == 0) {
+	if (rtw_reconn.b_disconn_by_app == 1) {
 		return;
 	}
 
@@ -84,11 +61,51 @@ void rtw_reconn_join_status_hdl(u8 *buf, s32 flags)
 	if (rtw_reconn.cnt > wifi_user_config.auto_reconnect_count) {
 		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "auto reconn max times\n");
 		at_printf_indicate("wifi reconnect done\r\n");
+#ifdef CONFIG_PLATFORM_ZEPHYR
+		rtw_reconn.cnt = 0;
+#endif
+		if (rtw_reconn.pwd_buf) {
+			rtw_reconn.conn_param.password = NULL;
+			rtos_mem_free(rtw_reconn.pwd_buf);
+			rtw_reconn.pwd_buf = NULL;
+		}
 	} else {
 		rtw_reconn.b_waiting = 1;
-		rtw_wakelock_timeout(wifi_user_config.auto_reconnect_interval * 1000 + 10);
 		rtos_timer_start(rtw_reconn.timer, 1000);
+		rtw_wakelock_timeout(wifi_user_config.auto_reconnect_interval * 1000 + 10);
 	}
+}
+
+void rtw_reconn_dhcp_status_hdl(u8 *evt_info)
+{
+	(void)evt_info;
+#ifndef CONFIG_PLATFORM_ZEPHYR
+	struct rtw_event_dhcp_status *dhcp_info = (struct rtw_event_dhcp_status *)evt_info;
+	u8 dhcp_state = dhcp_info->dhcp_status;
+
+	if (DHCP_ADDRESS_ASSIGNED == dhcp_state) {
+		rtw_reconn.cnt = 0;
+		return;
+	}
+#endif
+	rtw_reconn_timer_start();
+}
+
+void rtw_reconn_join_status_hdl(u8 *evt_info)
+{
+	int disconn_reason = -1;
+	struct rtw_event_join_status_info *join_status_info = (struct rtw_event_join_status_info *)evt_info;
+	u8 join_status = join_status_info->status;
+
+	if (join_status == RTW_JOINSTATUS_DISCONNECT) {
+		disconn_reason = join_status_info->priv.disconnect.disconn_reason;
+	}
+
+	if ((join_status < RTW_JOINSTATUS_FAIL) || (disconn_reason == RTW_DISCONN_RSN_APP_CONN_WITHOUT_DISCONN)) {
+		return;
+	}
+
+	rtw_reconn_timer_start();
 }
 
 void rtw_reconn_task_hdl(void *param)
@@ -96,7 +113,9 @@ void rtw_reconn_task_hdl(void *param)
 	(void) param;
 	int ret = RTK_FAIL;
 
+	rtw_reconn.b_ongoing = 1;
 	ret = wifi_connect(&rtw_reconn.conn_param, 1);
+	rtw_reconn.b_ongoing = 0;
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "reconn fail:-0x%x", -ret);
 		if ((ret == -RTK_ERR_WIFI_CONN_INVALID_KEY)) {
@@ -111,9 +130,16 @@ void rtw_reconn_task_hdl(void *param)
 
 #ifdef CONFIG_LWIP_LAYER
 	if (ret == RTK_SUCCESS) {
-		LwIP_DHCP(0, DHCP_START);
+		LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX);
 	}
 #endif
+
+#ifdef CONFIG_PLATFORM_ZEPHYR
+	if (ret == RTK_SUCCESS) {
+		ameba_wifi_handle_connect_event();
+	}
+#endif
+
 	rtos_task_delete(NULL);
 }
 
@@ -144,9 +170,13 @@ void rtw_reconn_new_conn(struct rtw_network_info *connect_param)
 		rtw_reconn.conn_param.pscan_option = 0;
 
 		if (connect_param->password_len) {
-			memcpy(&rtw_reconn.pwd, connect_param->password, connect_param->password_len);
-			rtw_reconn.pwd[connect_param->password_len] = '\0';
-			rtw_reconn.conn_param.password = rtw_reconn.pwd;
+			if (rtw_reconn.pwd_buf != NULL) {
+				rtos_mem_free(rtw_reconn.pwd_buf);
+			}
+			rtw_reconn.pwd_buf = rtos_mem_zmalloc(sizeof(u8) * (connect_param->password_len + 1));
+			memcpy(rtw_reconn.pwd_buf, connect_param->password, connect_param->password_len);
+			rtw_reconn.pwd_buf[connect_param->password_len] = '\0';
+			rtw_reconn.conn_param.password = rtw_reconn.pwd_buf;
 		} else {
 			rtw_reconn.conn_param.password = NULL;
 		}
@@ -154,6 +184,7 @@ void rtw_reconn_new_conn(struct rtw_network_info *connect_param)
 		rtos_timer_stop(rtw_reconn.timer, 1000);/*cancel ongoing reconnect*/
 		rtw_reconn.b_waiting = 0;
 		rtw_reconn.cnt = 0;
+		rtw_reconn.b_disconn_by_app = 0;
 	}
 }
 
@@ -163,6 +194,12 @@ int wifi_stop_autoreconnect(void)
 		rtos_timer_stop(rtw_reconn.timer, 1000);
 		rtw_reconn.b_waiting = 0;
 		rtw_reconn.cnt = 0;
+		rtw_reconn.b_disconn_by_app = 1;
+		if (rtw_reconn.pwd_buf) {
+			rtw_reconn.conn_param.password = NULL;
+			rtos_mem_free(rtw_reconn.pwd_buf);
+			rtw_reconn.pwd_buf = NULL;
+		}
 	}
 	return RTK_SUCCESS;
 }
@@ -179,8 +216,8 @@ s32 wifi_set_autoreconnect(u8 enable)
 		rtw_reconn.b_waiting = 0;
 		rtw_reconn.b_enable = 0;
 	} else if ((enable != 0) && (rtw_reconn.b_enable == 0)) {
-		if (rtos_timer_create(&(rtw_reconn.timer), "rtw_reconn_timer", NULL, wifi_user_config.auto_reconnect_interval * 1000, FALSE,
-							  rtw_reconn_timer_hdl) != RTK_SUCCESS) {
+		if (rtos_timer_create_static(&(rtw_reconn.timer), "rtw_reconn_timer", NULL, wifi_user_config.auto_reconnect_interval * 1000, FALSE,
+									 rtw_reconn_timer_hdl) != RTK_SUCCESS) {
 			RTK_LOGS(NOTAG, RTK_LOG_ERROR, "rtw_reconn_timer create fail\n");
 			return RTK_FAIL;
 		}
@@ -209,5 +246,14 @@ s32 wifi_get_autoreconnect(u8 *enable)
 #else
 	*enable = 0;
 	return RTK_FAIL;
+#endif
+}
+
+u8 wifi_is_autoreconnect_ongoing(void)
+{
+#if CONFIG_AUTO_RECONNECT
+	return rtw_reconn.b_ongoing;
+#else
+	return 0;
 #endif
 }

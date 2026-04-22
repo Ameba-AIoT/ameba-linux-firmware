@@ -7,6 +7,10 @@
 #ifndef _AMEBA_PMC_H_
 #define _AMEBA_PMC_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @addtogroup AmebaD_Platform
   * @{
   */
@@ -181,18 +185,6 @@ enum SLEEP_TYPE {
   * @}
   */
 
-typedef struct {
-	u8 km0_tickles_debug; /* open km0 tickles log, it will encrease power consumption */
-	u8 km0_pg_enable;
-	u8 km0_pll_off;
-	u8 km0_audio_vad_on;
-	u8 km0_config_psram; /* false for keep active while true for sleep mode for psram device */
-	u8 km0_sleep_withM4; /* false for M0 keep active, true for M0 sleep with M4 */
-	u8 keep_OSC4M_on; /* false for keep OSC4M off during sleep, true for keep OSC4M on during sleep */
-	u8 xtal_mode_in_sleep; /* set xtal mode during sleep */
-	u8 swr_mode_in_sleep;
-} PSCFG_TypeDef;
-
 extern u32 np_sleep_type;
 extern u32 np_sleep_timeout;
 
@@ -217,6 +209,9 @@ void SOCPS_SleepCG_LIB(void);
 #if defined (CONFIG_ARM_CORE_CM4)
 void SOCPS_WakeFromPG_HP(void);
 void SOCPS_DeepSleep(void);
+#endif
 
+#ifdef __cplusplus
+}
 #endif
 #endif //_AMEBA_PMC_H_

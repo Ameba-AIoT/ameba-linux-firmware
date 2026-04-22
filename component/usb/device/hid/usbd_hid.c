@@ -14,6 +14,17 @@
 /* Private types -------------------------------------------------------------*/
 
 /* Private macros ------------------------------------------------------------*/
+// HID request
+#define USBD_HID_GET_REPORT						0x01
+#define USBD_HID_GET_IDLE						0x02
+#define USBD_HID_GET_PROTOCOL					0x03
+#define USBD_HID_SET_REPORT						0x09
+#define USBD_HID_SET_IDLE						0x0a
+#define USBD_HID_SET_PROTOCOL					0x0b
+
+// wValue of HID report request
+#define USBD_HID_DESC							0x21
+#define USBD_HID_REPORT_DESC					0x22
 
 /* Private function prototypes -----------------------------------------------*/
 
@@ -23,7 +34,7 @@ static int hid_clear_config(usb_dev_t *dev, u8 config);
 static int hid_handle_ep_data_in(usb_dev_t *dev, u8 ep_addr, u8 status);
 static u16 hid_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf);
 #if USBD_HID_DEVICE_TYPE == USBD_HID_KEYBOARD_DEVICE
-static int hid_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u16 len);
+static int hid_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u32 len);
 static int hid_handle_ep0_data_out(usb_dev_t *dev);
 #endif
 static void hid_status_changed(usb_dev_t *dev, u8 old_status, u8 status);
@@ -358,9 +369,7 @@ static usbd_hid_t hid_device;
 static int usbd_hid_receive(void)
 {
 	usbd_hid_t *hid = &hid_device;
-	usbd_ep_receive(hid->dev, &hid->ep_intr_out);
-
-	return HAL_OK;
+	return usbd_ep_receive(hid->dev, &hid->ep_intr_out);
 }
 
 static int hid_handle_ep0_data_out(usb_dev_t *dev)
@@ -378,7 +387,7 @@ static int hid_handle_ep0_data_out(usb_dev_t *dev)
 	return ret;
 }
 
-static int hid_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u16 len)
+static int hid_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u32 len)
 {
 	usbd_hid_t *hid = &hid_device;
 	usbd_ep_t *ep_intr_out = &hid->ep_intr_out;
@@ -404,14 +413,8 @@ static int hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 	usbd_ep_t *ep0_out = &dev->ep0_out;
 	int ret = HAL_OK;
 	u16 len = 0;
-	u16 report_len;
+	u16 report_len = 0;
 	u8 *buf = NULL;
-
-#if USBD_HID_DEVICE_TYPE == USBD_HID_MOUSE_DEVICE
-	report_len = sizeof(hid_mouse_report_desc);
-#else
-	report_len = sizeof(hid_keyboard_report_desc);
-#endif
 
 	switch (req->bmRequestType & USB_REQ_TYPE_MASK) {
 	case USB_REQ_TYPE_STANDARD:
@@ -441,6 +444,11 @@ static int hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			}
 			break;
 		case USB_REQ_GET_DESCRIPTOR:
+#if USBD_HID_DEVICE_TYPE == USBD_HID_MOUSE_DEVICE
+			report_len = sizeof(hid_mouse_report_desc);
+#else
+			report_len = sizeof(hid_keyboard_report_desc);
+#endif
 			if (USB_HIGH_BYTE(req->wValue) == USBD_HID_REPORT_DESC) {
 				/* HID Report Descriptor */
 #if USBD_HID_DEVICE_TYPE == USBD_HID_MOUSE_DEVICE
@@ -484,6 +492,13 @@ static int hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			ep0_in->xfer_len = 1U;
 			usbd_ep_transmit(dev, ep0_in);
 			break;
+
+		case USBD_HID_GET_REPORT:
+			/* send an empty report */
+			memset(ep0_in->xfer_buf, 0x0, req->wLength);
+			ep0_in->xfer_len = req->wLength;
+			usbd_ep_transmit(dev, ep0_in);
+			break;
 		case USBD_HID_SET_REPORT:
 			if ((req->wLength) && (!(req->bmRequestType & 0x80U))) {
 				usb_os_memcpy((void *)&hid->ctrl_req, (void *)req, sizeof(usb_setup_req_t));
@@ -492,6 +507,7 @@ static int hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			}
 			ret = HAL_OK;
 			break;
+
 		case USBD_HID_SET_IDLE:
 			hid->idle_rate = USB_HIGH_BYTE(req->wValue);
 			break;
@@ -703,7 +719,7 @@ static void hid_status_changed(usb_dev_t *dev, u8 old_status, u8 status)
 
 /* Exported functions --------------------------------------------------------*/
 
-int usbd_hid_init(u16 tx_buf_len, usbd_hid_usr_cb_t *cb)
+int usbd_hid_init(u32 tx_buf_len, usbd_hid_usr_cb_t *cb)
 {
 	int ret = HAL_OK;
 	usbd_hid_t *hid = &hid_device;
@@ -790,7 +806,7 @@ int usbd_hid_deinit(void)
 	return HAL_OK;
 }
 
-int usbd_hid_send_data(u8 *data, u16 len)
+int usbd_hid_send_data(u8 *data, u32 len)
 {
 	int ret = HAL_ERR_HW;
 	usbd_hid_t *hid = &hid_device;
@@ -813,8 +829,7 @@ int usbd_hid_send_data(u8 *data, u16 len)
 			usb_os_memcpy((void *)ep_intr_in->xfer_buf, (void *)data, len);
 			if (dev->is_ready) { // In case deinit when plug out
 				ep_intr_in->xfer_len = len;
-				usbd_ep_transmit(hid->dev, ep_intr_in);
-				ret = HAL_OK;
+				ret = usbd_ep_transmit(hid->dev, ep_intr_in);
 			} else {
 				ep_intr_in->xfer_state = 0U;
 			}

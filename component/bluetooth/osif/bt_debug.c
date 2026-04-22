@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <basic_types.h>
@@ -90,7 +96,7 @@ void rtk_bt_log_dumphex(const char *str, void *buf, uint16_t len, bool reverse)
 
 void rtk_bt_fw_log_open(void)
 {
-#if !(defined(CONFIG_PLATFORM_AMEBAPRO3) && CONFIG_PLATFORM_AMEBAPRO3)
+#if !(defined(CONFIG_AMEBAD) && CONFIG_AMEBAD)
 	LOGUART_Relay_InitTypeDef LOGUART_Relay_InitStruct;
 
 	LOGUART_AGGCmd(LOGUART_DEV, ENABLE);
@@ -106,7 +112,7 @@ void rtk_bt_fw_log_open(void)
 
 void rtk_bt_fw_log_close(void)
 {
-#if !(defined(CONFIG_PLATFORM_AMEBAPRO3) && CONFIG_PLATFORM_AMEBAPRO3)
+#if !(defined(CONFIG_AMEBAD) && CONFIG_AMEBAD)
 	LOGUART_Relay_RxCmd(LOGUART_DEV, DISABLE);
 	LOGUART_WaitTxComplete();
 	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_5, DISABLE);
@@ -115,12 +121,16 @@ void rtk_bt_fw_log_close(void)
 
 void rtk_bt_trace_log_open(void)
 {
+#if !(defined(CONFIG_AMEBAD) && CONFIG_AMEBAD)
 	LOGUART_AGGCmd(LOGUART_DEV, ENABLE);
 	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_3, ENABLE);
+#endif
 }
 
 void rtk_bt_trace_log_close(void)
 {
+#if !(defined(CONFIG_AMEBAD) && CONFIG_AMEBAD)
 	LOGUART_WaitTxComplete();
 	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_3, DISABLE);
+#endif
 }

@@ -57,6 +57,11 @@ int rtos_task_create(rtos_task_t *pp_handle, const char *p_name, void (*p_routin
 					 void *p_param, size_t stack_size_in_byte, uint16_t priority)
 {
 	BaseType_t ret;
+
+	if (p_routine == NULL) {
+		return RTK_FAIL;
+	}
+
 #if defined (CONFIG_HEAP_PROTECTOR)
 	/* if enable heap trace, we need to increase heap size */
 	stack_size_in_byte += 1024;
@@ -97,6 +102,11 @@ int rtos_task_yield(void)
 rtos_task_t rtos_task_handle_get(void)
 {
 	return (rtos_task_t)xTaskGetCurrentTaskHandle();
+}
+
+char *rtos_task_name_get(rtos_task_t p_handle)
+{
+	return pcTaskGetName((TaskHandle_t)p_handle);
 }
 
 uint32_t rtos_task_priority_get(rtos_task_t p_handle)

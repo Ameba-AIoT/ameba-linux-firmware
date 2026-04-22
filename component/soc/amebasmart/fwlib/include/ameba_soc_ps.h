@@ -7,6 +7,10 @@
 #ifndef _AMEBA_SOCPS_H_
 #define _AMEBA_SOCPS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum wakeup_mask {
 	WAKEUP_NULL	= 0,
 	WAKEUP_LP	= 1,
@@ -32,10 +36,16 @@ typedef struct {
 	u32 Status;
 } PWRCFG_TypeDef;
 
-typedef struct {
+struct PSCFG_TypeDef {
+	u8 km0_audio_vad_on;
+	u8 keep_osc4m_on; 		/* keep OSC4M on or off for sleep and dslp*/
+	u8 xtal_mode_in_sleep;  /* set xtal mode during sleep mode*/
+};
+
+struct WakeEvent_TypeDef {
 	u32 Module;
 	enum wakeup_mask wakeup;
-} WakeEvent_TypeDef;
+};
 
 extern PWRCFG_TypeDef sleep_sram_config[];
 
@@ -46,24 +56,13 @@ extern void SOCPS_SleepInit(void);
 extern void SOCPS_Hsram_Setting(void);
 
 extern u32 SOCPS_DsleepWakeStatusGet(void);
-
-extern void SOCPS_SetNPWakeEvent_MSK0_HP(u32 Option, u32 NewStatus);
-extern void SOCPS_SetNPWakeEvent_MSK1_HP(u32 Option, u32 NewStatus);
-
 extern int SOCPS_AONWakeReason(void);
-
 
 extern void SOCPS_MMUReFill(void);
 
-extern void SOCPS_SetLPWakeEvent_MSK0(u32 Option, u32 NewStatus);
-extern void SOCPS_SetLPWakeEvent_MSK1(u32 Option, u32 NewStatus);
-extern void SOCPS_SetLPWakeEvent(u32 Option, u32 Group, u32 NewStatus);
-extern void SOCPS_SetNPWakeEvent_MSK0(u32 Option, u32 NewStatus);
-extern void SOCPS_SetNPWakeEvent_MSK1(u32 Option, u32 NewStatus);
-extern void SOCPS_SetNPWakeEvent(u32 Option, u32 Group, u32 NewStatus);
-extern void SOCPS_SetAPWakeEvent_MSK0(u32 Option, u32 NewStatus);
-extern void SOCPS_SetAPWakeEvent_MSK1(u32 Option, u32 NewStatus);
-extern void SOCPS_SetAPWakeEvent(u32 Option, u32 Group, u32 NewStatus);
+extern void SOCPS_SetLPWakeEvent(u32 Option, u32 NewStatus);
+extern void SOCPS_SetNPWakeEvent(u32 Option, u32 NewStatus);
+extern void SOCPS_SetAPWakeEvent(u32 Option, u32 NewStatus);
 
 extern void SOCPS_SWRLDO_Suspend(u32 new_status);
 extern void SOCPS_SleepCG_RAM(void);
@@ -74,4 +73,9 @@ extern void SOCPS_LPWHP_ipc_int(void *Data, u32 IrqStatus, u32 ChanNum);
 extern void SOCPS_WakeEvent_Init(void);
 extern void SOCPS_SetPowerCut_Time(u32 time);
 extern void SOCPS_SetReguOCP(u8 state);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif  //_AMEBA_SOCPS_H_

@@ -1,11 +1,8 @@
 /*
-*  Routines to access hardware
-*
-*  Copyright (c) 2013 Realtek Semiconductor Corp.
-*
-*  This module is a confidential and proprietary property of RealTek and
-*  possession or use of this module requires written permission of RealTek.
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include <sys/lock.h>
 #include "FreeRTOS.h"
@@ -13,16 +10,18 @@
 #include "task.h"
 #include "os_wrapper.h"
 #include "log.h"
+#include <sys/reent.h>
 
-StaticSemaphore_t __lock___sinit_recursive_mutex;
-StaticSemaphore_t __lock___sfp_recursive_mutex;
-StaticSemaphore_t __lock___atexit_recursive_mutex;
-StaticSemaphore_t __lock___at_quick_exit_mutex;
-StaticSemaphore_t __lock___malloc_recursive_mutex;
-StaticSemaphore_t __lock___env_recursive_mutex;
-StaticSemaphore_t __lock___tz_mutex;
-StaticSemaphore_t __lock___dd_hash_mutex;
-StaticSemaphore_t __lock___arc4random_mutex;
+/* Refer to stdlib.h, stdio.h, time.h */
+StaticSemaphore_t __lock___sinit_recursive_mutex; // newlib 4.1.0 still use
+StaticSemaphore_t __lock___sfp_recursive_mutex; // e.g. __sinit, called by vfprintf
+StaticSemaphore_t __lock___atexit_recursive_mutex; // e.g. called by atexit
+StaticSemaphore_t __lock___env_recursive_mutex; // e.g. called by getenv, setenv
+StaticSemaphore_t __lock___tz_mutex; // e.g. called by mktime, localtime
+
+#ifdef CONFIG_ARM_CORE_CA32
+extern volatile uint32_t uxPortSchedulerStart[CONFIG_CPUS_NUM];
+#endif
 
 static const char *const TAG = "LOCKS";
 
@@ -41,65 +40,44 @@ static void init_retarget_locks(void)
 	xSemaphoreCreateRecursiveMutexStatic(&__lock___sinit_recursive_mutex);
 	xSemaphoreCreateRecursiveMutexStatic(&__lock___sfp_recursive_mutex);
 	xSemaphoreCreateRecursiveMutexStatic(&__lock___atexit_recursive_mutex);
-	xSemaphoreCreateMutexStatic(&__lock___at_quick_exit_mutex);
-	//    xSemaphoreCreateRecursiveMutexStatic(&__lock___malloc_recursive_mutex);  // see below
 	xSemaphoreCreateRecursiveMutexStatic(&__lock___env_recursive_mutex);
 	xSemaphoreCreateMutexStatic(&__lock___tz_mutex);
-	xSemaphoreCreateMutexStatic(&__lock___dd_hash_mutex);
-	xSemaphoreCreateMutexStatic(&__lock___arc4random_mutex);
+#endif
+#ifdef CONFIG_ARM_CORE_CA32
+	for (uint32_t i = 0; i < CONFIG_CPUS_NUM; ++i) {
+		extern struct _reent xPrimaryCoreReenat[CONFIG_CPUS_NUM];
+		_REENT_INIT_PTR(&xPrimaryCoreReenat[i]);
+	}
 #endif
 }
 
-// Special case for malloc/free. Without this, the full
-// malloc_recursive_mutex would be used, which is much slower.
-//
-// void __malloc_lock(struct _reent *r)
-// {
-// 	(void)r;
-// 	rtos_critical_enter(RTOS_CRITICAL_SOC);
-// }
-
-// void __malloc_unlock(struct _reent *r)
-// {
-// 	(void)r;
-// 	rtos_critical_exit(RTOS_CRITICAL_SOC);
-// }
-
 void __retarget_lock_init(_LOCK_T *lock_ptr)
 {
-	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-		return;
-	}
-
 	if (*lock_ptr) {
 		/* Lock already initialized */
-		RTK_LOGS(TAG, RTK_LOG_INFO, "%s, lock_ptr %p is already initialized!!!\n", __func__, *lock_ptr);
+		RTK_LOGS(TAG, RTK_LOG_WARN, "%p inited\n", *lock_ptr);
 		return;
 	}
 
 	*lock_ptr = (_LOCK_T)xSemaphoreCreateMutex();
 
 	if (*lock_ptr == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock_ptr create failed!!!\n", __func__);
+		rtk_assert(*lock_ptr);
 	}
 }
 
 void __retarget_lock_init_recursive(_LOCK_T *lock_ptr)
 {
-	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-		return;
-	}
-
 	if (*lock_ptr) {
 		/* Lock already initialized */
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock_ptr %p is already initialized!!!\n", __func__, *lock_ptr);
+		RTK_LOGS(TAG, RTK_LOG_WARN, "%p inited\n", *lock_ptr);
 		return;
 	}
 
 	*lock_ptr = (_LOCK_T)xSemaphoreCreateRecursiveMutex();
 
 	if (*lock_ptr == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock_ptr create failed!!!\n", __func__);
+		rtk_assert(*lock_ptr);
 	}
 }
 
@@ -113,9 +91,8 @@ void __retarget_lock_close(_LOCK_T lock)
 void __retarget_lock_close_recursive(_LOCK_T lock)
 {
 	if (lock) {
-		if (xSemaphoreGetMutexHolder((QueueHandle_t)lock) == NULL) {
-			vSemaphoreDelete(lock);
-		}
+		rtk_assert(xSemaphoreGetMutexHolder((QueueHandle_t)lock) == NULL);
+		vSemaphoreDelete(lock);
 	}
 }
 
@@ -124,25 +101,26 @@ void __retarget_lock_acquire(_LOCK_T lock)
 	BaseType_t ret;
 	BaseType_t task_woken = pdFALSE;
 
-	if (!lock) {
-		if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-			return;
-		}
-		__retarget_lock_init(&lock);
-		rtk_assert(lock);
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+#else
+	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+#endif
+		return;
 	}
+
+	rtk_assert(lock);
 
 	if (rtos_critical_is_in_interrupt()) {
 		ret = xSemaphoreTakeFromISR(lock, &task_woken);
 		if (ret != pdTRUE) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p acquire from isr failed!!!\n", __func__, lock);
 			rtk_assert(0);
 		}
 		portEND_SWITCHING_ISR(task_woken);
 	} else {
 		ret = xSemaphoreTake((QueueHandle_t)lock, portMAX_DELAY);
 		if (ret != pdTRUE) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p acquire failed!!!\n", __func__, lock);
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "%p acq failed\n", lock);
 		}
 	}
 }
@@ -151,14 +129,15 @@ void __retarget_lock_acquire_recursive(_LOCK_T lock)
 {
 	BaseType_t ret;
 
-	if (!lock) {
-		if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-			// DiagPrintf("scheduler not start\n");
-			return;
-		}
-		__retarget_lock_init_recursive(&lock);
-		rtk_assert(lock);
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+#else
+	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+#endif
+		return;
 	}
+
+	rtk_assert(lock);
 
 	if (rtos_critical_is_in_interrupt()) {
 		rtk_assert(0);
@@ -166,7 +145,7 @@ void __retarget_lock_acquire_recursive(_LOCK_T lock)
 
 	ret = xSemaphoreTakeRecursive((QueueHandle_t)lock, portMAX_DELAY);
 	if (ret != pdTRUE) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p acquire failed!!!\n", __func__, lock);
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "%p acq recur failed\n", lock);
 	}
 }
 
@@ -175,13 +154,15 @@ int __retarget_lock_try_acquire(_LOCK_T lock)
 	BaseType_t ret;
 	BaseType_t task_woken = pdFALSE;
 
-	if (!lock) {
-		if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-			return 0;
-		}
-		__retarget_lock_init(&lock);
-		rtk_assert(lock);
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+#else
+	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+#endif
+		return 0;
 	}
+
+	rtk_assert(lock);
 
 	if (rtos_critical_is_in_interrupt()) {
 		ret = xSemaphoreTakeFromISR(lock, &task_woken);
@@ -191,7 +172,7 @@ int __retarget_lock_try_acquire(_LOCK_T lock)
 	} else {
 		ret = xSemaphoreTake((QueueHandle_t)lock, 0);
 		if (ret != pdTRUE) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p acquire failed!!!\n", __func__, lock);
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "%p try acq failed\n", lock);
 		}
 	}
 
@@ -202,13 +183,15 @@ int __retarget_lock_try_acquire_recursive(_LOCK_T lock)
 {
 	BaseType_t ret;
 
-	if (!lock) {
-		if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
-			return 0;
-		}
-		__retarget_lock_init_recursive(&lock);
-		rtk_assert(lock);
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+#else
+	if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+#endif
+		return 0;
 	}
+
+	rtk_assert(lock);
 
 	if (rtos_critical_is_in_interrupt()) {
 		rtk_assert(0);
@@ -216,7 +199,7 @@ int __retarget_lock_try_acquire_recursive(_LOCK_T lock)
 
 	ret = xSemaphoreTakeRecursive((QueueHandle_t)lock, 0);
 	if (ret != pdTRUE) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p acquire failed!!!\n", __func__, lock);
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "%p try acq recur failed\n", lock);
 	}
 	return (ret == pdTRUE) ? 0 : -1;
 }
@@ -225,6 +208,12 @@ void __retarget_lock_release(_LOCK_T lock)
 {
 	BaseType_t ret;
 	BaseType_t task_woken = pdFALSE;
+
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+		return;
+	}
+#endif
 
 	if (!lock) {
 		return;
@@ -238,7 +227,7 @@ void __retarget_lock_release(_LOCK_T lock)
 	} else {
 		ret = xSemaphoreGive(lock);
 		if (ret != pdTRUE) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p release failed!!!\n", __func__, lock);
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "%p rls failed\n", lock);
 		}
 	}
 }
@@ -246,6 +235,12 @@ void __retarget_lock_release(_LOCK_T lock)
 void __retarget_lock_release_recursive(_LOCK_T lock)
 {
 	BaseType_t ret;
+
+#ifdef CONFIG_ARM_CORE_CA32
+	if (uxPortSchedulerStart[portGET_CORE_ID()] == pdFALSE) {
+		return;
+	}
+#endif
 
 	if (!lock) {
 		return;
@@ -257,7 +252,7 @@ void __retarget_lock_release_recursive(_LOCK_T lock)
 
 	ret = xSemaphoreGiveRecursive((QueueHandle_t)lock);
 	if (ret != pdTRUE) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "%s, lock %p release failed!!!\n", __func__, lock);
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "%p rls recur failed\n", lock);
 	}
 }
 

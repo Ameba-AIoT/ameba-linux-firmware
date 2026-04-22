@@ -24,18 +24,23 @@
 /*
  * we select different Mbedtls configuration files according to different target.
  */
-#if defined(CONFIG_WPAN_THREAD_EN) && CONFIG_WPAN_THREAD_EN
-#include "mbedtls/config_thread.h"
-#else
-
-#if defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_AMEBAL2)
+#if defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_AMEBAL2) || defined(CONFIG_AMEBAPRO3)
 #include "ameba.h"
 #include "mbedtls/mbedtls_config_green2.h"
+#elif defined(CONFIG_RTL8720F)
+#include "ameba.h"
+#include "mbedtls/mbedtls_config_rtl8720f.h"
 #elif defined(CONFIG_AMEBALITE) || defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBADPLUS)
 #include "mbedtls/mbedtls_config_legacy.h"
 #else
 #include "mbedtls/mbedtls_config.h"
 #endif
+
+#if defined(CONFIG_MBEDTLS_THREADING)
+#define MBEDTLS_THREADING_C
+#define MBEDTLS_THREADING_ALT
+#endif
+
 /*
  * enable the support for TLS 1.3.
  */
@@ -47,5 +52,9 @@
 #else
 #undef MBEDTLS_SSL_PROTO_TLS1_3
 #endif
+
+#if defined(CONFIG_WPAN_THREAD_EN) && CONFIG_WPAN_THREAD_EN
+#include "mbedtls/config_thread.h"
 #endif
+
 #endif

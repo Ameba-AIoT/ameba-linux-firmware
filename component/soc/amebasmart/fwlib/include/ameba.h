@@ -15,11 +15,13 @@
 #include "rand.h"
 #include "diag.h"
 #include "hal_platform.h"
+#include "cmsis_cpu.h"
+#include "mpu_config.h"
 #include "ameba_vector.h"
 #include "ameba_loguart.h"
 #include "ameba_soc_ps.h"
-#include "shell.h"
-#include "monitor_rom.h"
+#include "ameba_shell.h"
+#include "ameba_monitor.h"
 #include "ameba_syscfg.h"
 #include "ameba_pmc.h"
 #include "ameba_clk.h"
@@ -46,54 +48,7 @@
 #include "ameba_ipc_api.h"
 #endif
 
-
-
-/* ===========================  Configuration of the ARM ARMV8MBL Processor and Core Peripherals  ============================ */
-
-#if defined (CONFIG_ARM_CORE_CM4)
-#define __CM3_REV                      0x0200    /**< Core revision r0p0 */
-#define __MPU_PRESENT                  1         /**< Defines if an MPU is present or not */
-#define __NVIC_PRIO_BITS               3         /**< Number of priority bits implemented in the NVIC */
-#define __Vendor_SysTickConfig         1         /**< Vendor specific implementation of SysTickConfig is defined *///see vPortSetupTimerInterrupt
-#define __SAUREGION_PRESENT            1        /*!< SAU present or not                                                        */
-#define DCACHE_4WAY
-
-#define __FPU_PRESENT             1       /*!< FPU present                                   */
-#define __VFP_FP__	1
-#define __DSP_PRESENT             1
-
-#define __PMU_PRESENT             1
-#define __PMU_NUM_EVENTCNT        4       /*!< __PMU_NUM_EVENTCNT range is [2, 31]           */
-
-#ifndef __ARM_FEATURE_CMSE
-#define __ARM_FEATURE_CMSE	3
-#endif
-#include <arm_cmse.h>   /* Use CMSE intrinsics */
-#include "core_armv81mml.h"
-#include "core_cache.h"
-#elif defined (CONFIG_ARM_CORE_CM0)
-#define __ARMV8MBL_REV                 0x0000U  /*!< ARMV8MBL Core Revision                                                    */
-#define __NVIC_PRIO_BITS               2        /*!< Number of Bits used for Priority Levels                                   */
-#define __Vendor_SysTickConfig         0        /*!< Set to 1 if different SysTick Config is used                              */
-#define __VTOR_PRESENT                 1        /*!< Set to 1 if CPU supports Vector Table Offset Register                     */
-#define __SAU_REGION_PRESENT           0        /*!< SAU present or not                                                        */
-
-#define __MPU_PRESENT                  1         /**< Defines if an MPU is present or not */
-#include "core_armv8mbl.h"
-#include "core_cache.h"
-#elif defined (CONFIG_ARM_CORE_CA32)
-#include <string.h>
-#include <stdlib.h>
-
-#define __FPU_PRESENT			1
-#define __CORTEX_A				7
-#include "core_ca.h"
-#include "cmsis_cp15.h"
-#include "irq_ctrl.h"
-#endif
 #include "ameba_trustzone.h"
-#include "mpu_config.h"
-
 #include "ameba_gdma.h"
 #include "ameba_pwmtimer.h"
 #include "ameba_gpio.h"
@@ -142,6 +97,14 @@
 #include "log.h"
 #include "sscanf_minimal.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* APP image pattern, can't be modified */
+#define APP_IMAGE_PATTERN_1 	0x35393138U
+#define APP_IMAGE_PATTERN_2 	0x31313738U
+
 #define IMAGE_HEADER_LEN		0x20
 typedef struct {
 	u32 signature[2];
@@ -152,6 +115,18 @@ typedef struct {
 	u32 sb_header;
 	u32 reserved[3];
 } IMAGE_HEADER;
+
+/* cert and manifest common header typedef */
+typedef struct {
+	u8 Pattern[8];
+	u8 Rsvd1[8];
+	u8 Ver;
+	u8 ImgID;
+	u8 AuthAlg;
+	u8 HashAlg;
+	u16 MajorKeyVer;
+	u16 MinorKeyVer;
+} AuthHeader_TypeDef;
 
 typedef enum  _HAL_Status {
 	HAL_OK            = 0x00,
@@ -182,5 +157,9 @@ __NO_RETURN void io_assert_failed(uint8_t *file, uint32_t line);
 #else
 #define assert_param(expr) ((void)0)
 #endif /* USE_FULL_ASSERT */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_HAL_AMEBA_H_

@@ -63,6 +63,10 @@
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 typedef struct {
 	__IO u32 IDAU_BARx;		/*!< ,	Address offset: 0x00 */
@@ -157,8 +161,8 @@ typedef enum {
   */
 #define SAU_INIT_CTRL_ALLNS  0
 
-#define SAU_ENTRYS_NUM			8
-#define MPC_ENTRYS_NUM			8
+#define SAU_ENTRY_NUM			8
+#define MPC_ENTRY_NUM			8
 
 #define MPC_CNT					2
 
@@ -204,7 +208,7 @@ void TZ_ConfigSlaveSecurity(PPC_PeripheralId Perip, u32 Status);
 */
 __STATIC_INLINE u32 TrustZone_IsSecure(void)
 {
-#if defined (CONFIG_ARM_CORE_CM4)
+#if defined(__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
 	cmse_address_info_t cmse_address_info = cmse_TT((void *)DiagPrintf);
 	return cmse_address_info.flags.secure;
 #else
@@ -212,6 +216,10 @@ __STATIC_INLINE u32 TrustZone_IsSecure(void)
 #endif
 }
 
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

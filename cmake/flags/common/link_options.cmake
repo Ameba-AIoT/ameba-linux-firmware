@@ -33,7 +33,6 @@ set(
     # "SHELL:-Wl,-wrap,sprintf" # only allowed for ROM code
     # "SHELL:-Wl,-wrap,printf"
 )
-#TODO: maybe remove LINK_OPTIONS_ROM_WRAP later
 ameba_list_append(c_GLOBAL_COMMON_LINK_OPTIONS ${LINK_OPTIONS_ROM_WRAP})
 
 # wrap function are defined in gcc_wrap.c
@@ -50,7 +49,8 @@ ameba_list_append(c_GLOBAL_COMMON_LINK_OPTIONS
 )
 
 # wrap function are defined in vfs_wrap.c
-ameba_list_append_if(CONFIG_CORE_AS_AP c_GLOBAL_COMMON_LINK_OPTIONS
+if (CONFIG_WHC_HOST OR CONFIG_WHC_NONE OR CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
+ameba_list_append(c_GLOBAL_COMMON_LINK_OPTIONS
     "SHELL:-Wl,-wrap,fopen"
     "SHELL:-Wl,-wrap,fclose"
     "SHELL:-Wl,-wrap,fread"
@@ -78,4 +78,5 @@ ameba_list_append_if(CONFIG_CORE_AS_AP c_GLOBAL_COMMON_LINK_OPTIONS
     "SHELL:-Wl,-wrap,rmdir"
     "SHELL:-Wl,-wrap,closedir"
 )
+endif()
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #

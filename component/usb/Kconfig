@@ -2,7 +2,7 @@ menu "CONFIG USB"
 
     config USB_OTG_EN_MENU
         bool "Enable USB"
-        select USB_OTG_EN if CORE_AS_AP
+        select USB_OTG_EN if WHC_HOST || WHC_NONE
 
     if USB_OTG_EN_MENU
         choice
@@ -10,15 +10,15 @@ menu "CONFIG USB"
             default USB_DEVICE_EN_MENU
             config USB_DEVICE_EN_MENU
                 bool "Device"
-                select USB_DEVICE_EN if CORE_AS_AP
+                select USB_DEVICE_EN if WHC_HOST || WHC_NONE
             config USB_HOST_EN_MENU
                 bool "Host"
                 depends on !SUPPORT_USB_DEVICE_ONLY
-                select USB_HOST_EN if CORE_AS_AP
+                select USB_HOST_EN if WHC_HOST || WHC_NONE
             config USB_DRD_EN_MENU
                 bool "DRD"
                 depends on !SUPPORT_USB_DEVICE_ONLY
-                select USB_DRD_EN if CORE_AS_AP
+                select USB_DRD_EN if WHC_HOST || WHC_NONE
         endchoice
     endif
 
@@ -33,6 +33,8 @@ menu "CONFIG USB"
     endif
 
     config USB_OTG_EN
+        bool
+    config USB_HAL_LIB
         bool
     config USB_DEVICE_EN
         bool
@@ -75,6 +77,8 @@ menu "CONFIG USB"
         bool
     config USBD_VENDOR
         bool
+    config USBD_UVC
+        bool
 
     config USBH_CDC_ACM
         bool
@@ -91,6 +95,8 @@ menu "CONFIG USB"
     config USBH_COMPOSITE_HID_UAC
         bool
     config USBH_COMPOSITE_HID_UAC1
+        bool
+    config USBH_COMPOSITE_ACM_ECM
         bool
     config USBH_MSC
         bool

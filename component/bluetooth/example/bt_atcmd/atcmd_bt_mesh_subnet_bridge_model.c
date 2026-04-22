@@ -193,10 +193,15 @@ static const cmd_table_t mesh_sbr_client_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_mesh_sbr(int argc, char *argv[])
+void fBLEMESHSBR(u16 argc, char *argv[])
 {
-	atcmd_bt_excute(argc, argv, mesh_sbr_client_cmd_table, "AT+BLEMESHSBR");
-	return 0;
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], mesh_sbr_client_cmd_table, "AT+BLEMESHSBR");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }
 
 

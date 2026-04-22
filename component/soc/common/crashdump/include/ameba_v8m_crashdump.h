@@ -1,14 +1,15 @@
 /*
- * Copyright(c) 2020, Realtek Semiconductor Corp. All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: CTC PSP Software
- *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef _AMEBA_V8M_CRASHDUMP_H_
 #define _AMEBA_V8M_CRASHDUMP_H_
 
-extern struct cmb_hard_fault_regs regs;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef uint32_t (*crash_on_task)(uint32_t *reg, uint32_t src);
 
@@ -39,6 +40,8 @@ extern uint32_t vTaskStatus(uint32_t src);
 
 extern uint32_t vTaskCrashCallback(uint32_t *reg, uint32_t src);
 
-extern void fault_diagnosis(struct cmb_hard_fault_regs *regs);
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -444,6 +444,7 @@ int
 iperf_client_end(struct iperf_test *test)
 {
 	struct iperf_stream *sp;
+	int ret = 0;
 
 	/* Close all stream sockets */
 	SLIST_FOREACH(sp, &test->streams, streams) {
@@ -453,19 +454,20 @@ iperf_client_end(struct iperf_test *test)
 	/* show final summary */
 	test->reporter_callback(test);
 
+	if (g_client_terminate) {
+		i_errno = IESTOP;
+	} else {
+		if (iperf_set_send_state(test, IPERF_DONE) != 0) {
+			ret = -1;
+		}
+	}
+
 	/* Close control socket */
 	if (test->ctrl_sck >= 0) {
 		close(test->ctrl_sck);
 	}
 
-	if (g_client_terminate) {
-		i_errno = IESTOP;
-	} else {
-		if (iperf_set_send_state(test, IPERF_DONE) != 0) {
-			return -1;
-		}
-	}
-	return 0;
+	return ret;
 }
 
 
@@ -621,8 +623,13 @@ iperf_run_client(struct iperf_test *test)
 cleanup_and_fail:
 	iperf_client_end(test);
 	if (test->json_output) {
-		IPERF3_DBG("cleanup_and_fail,test->json_output:%d\n", test->json_output);
-		cJSON_AddStringToObject(test->json_top, "error", iperf_strerror(i_errno));
+		char *err_buf = malloc(MSG_BUF_SIZE);
+		if (err_buf) {
+			iperf_strerror(i_errno, err_buf, MSG_BUF_SIZE);
+			IPERF3_DBG("cleanup_and_fail,test->json_output:%d\n", test->json_output);
+			cJSON_AddStringToObject(test->json_top, "error", err_buf);
+			free(err_buf);
+		}
 		iperf_json_finish(test);
 		iflush(test);
 		// Return 0 and not -1 since all terminating function were done here.

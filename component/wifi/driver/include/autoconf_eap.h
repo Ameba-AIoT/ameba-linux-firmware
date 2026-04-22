@@ -19,6 +19,7 @@
 #define AUTOCONF_EAP_H
 
 #define CONFIG_EAP
+
 /************************ For EAP auth configurations *************************/
 /* DO NOT change the below config of EAP */
 #ifdef CONFIG_EAP
@@ -31,7 +32,7 @@
 #define CONFIG_TLS  0
 #define CONFIG_PEAP 0
 #define CONFIG_TTLS 0
-#endif /* CONFIG_EAP*/
+#endif /* CONFIG_EAP */
 
 /*******************************************************************************/
 

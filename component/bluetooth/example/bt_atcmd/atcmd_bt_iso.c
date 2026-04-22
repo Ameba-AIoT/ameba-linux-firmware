@@ -208,10 +208,22 @@ static const cmd_table_t iso_bis_receiver_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_iso_cmd(int argc, char *argv[])
+void fBLEISO(u16 argc, char *argv[])
 {
 	int ret = 0;
 	char tag[80] = "[AT+BLEISO]";
+
+	if (argc < 3) {
+		BT_LOGE("[%s]Error: Atcmd has too few params!!!\r\n", __func__);
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+		ret = BT_AT_ERR_PARAM_INVALID;
+#endif
+		goto exit;
+	}
+
+	argc -= 1;
+	argv = &argv[1];
+
 	if (strcmp(argv[0], "bis") == 0) {
 		if (strcmp(argv[1], "broadcaster") == 0) {
 			BT_LOGA("Set iso bis broadcaster\r\n");
@@ -223,7 +235,9 @@ int atcmd_bt_iso_cmd(int argc, char *argv[])
 			ret = atcmd_bt_excute(argc - 2, &argv[2], iso_bis_receiver_cmd_table, tag);
 		} else {
 			BT_LOGE("[%s]Error: iso bis has no role %s\r\n", __func__, argv[1]);
-			ret = -1;
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+			ret = BT_AT_ERR_PARAM_INVALID;
+#endif
 		}
 	} else if (strcmp(argv[0], "cis") == 0) {
 		if (strcmp(argv[1], "initiator") == 0) {
@@ -236,12 +250,22 @@ int atcmd_bt_iso_cmd(int argc, char *argv[])
 			ret = atcmd_bt_excute(argc - 2, &argv[2], iso_cis_acceptor_cmd_table, tag);
 		} else {
 			BT_LOGE("[%s]Error: iso cis has no role %s\r\n", __func__, argv[1]);
-			ret = -1;
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+			ret = BT_AT_ERR_PARAM_INVALID;
+#endif
 		}
 	} else {
 		BT_LOGE("[%s]Error: do not support %s\r\n", __func__, argv[0]);
-		ret = -1;
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+		ret = BT_AT_ERR_PARAM_INVALID;
+#endif
 	}
-	return ret;
+
+exit:
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }
 #endif

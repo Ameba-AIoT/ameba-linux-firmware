@@ -29,21 +29,17 @@
 #include "os_wrapper.h"
 #include "wifi_api.h"
 #include "wifi_intf_drv_to_app_internal.h"
+#ifdef CONFIG_WIFI_TUNNEL
+#include "wifi_api_wtn.h"
+#endif
 #endif
 /* -------------------------------- Defines --------------------------------- */
 /*msg q task*/
 #define CONFIG_INIC_IPC_MSG_Q_PRI	(6)
-#if defined(CONFIG_AS_INIC_AP)
-#define WIFI_STACK_SIZE_INIC_MSG_Q	(608 + 128 + CONTEXT_SAVE_SIZE) /* max 600 in smart */
-#elif defined(CONFIG_AS_INIC_NP)
-#define WIFI_STACK_SIZE_INIC_MSG_Q	(688 + 128 + CONTEXT_SAVE_SIZE) /* max 688 in smart */
-#endif
 
 /*host api task*/
 #define CONFIG_INIC_IPC_HOST_API_PRIO 3
 #define CONFIG_INIC_IPC_HOST_EVT_API_PRIO 3
-#define WIFI_STACK_SIZE_INIC_IPC_HST_API (400 + 128 + CONTEXT_SAVE_SIZE)	// for psp overflow when update group key: jira: https://jira.realtek.com/browse/RSWLANQC-1027
-#define WIFI_STACK_SIZE_INIC_IPC_HST_EVT_API (3096 + 128 + CONTEXT_SAVE_SIZE)
 #define CONFIG_INIC_IPC_HOST_EVT_Q_DEPTH 10
 
 #define whc_dev_init                                     whc_ipc_dev_init
@@ -64,6 +60,7 @@
 #define whc_host_init                                    whc_ipc_host_init
 #define whc_host_api_message_send                        whc_ipc_host_api_message_send
 #define whc_host_init_skb                                whc_ipc_host_init_skb
+#define whc_host_wifi_indication_enqueue                 whc_ipc_host_wifi_indication_enqueue
 #endif
 
 #ifdef CONFIG_NAN
@@ -73,12 +70,9 @@
 #define whc_dev_cfg80211_cfgvendor_send_cmd_reply        whc_ipc_dev_cfg80211_cfgvendor_send_cmd_reply
 #endif
 
-#ifdef CONFIG_P2P
-#define whc_dev_cfg80211_indicate_channel_ready          whc_ipc_dev_cfg80211_indicate_channel_ready
-#endif
-
 #ifdef CONFIG_WIFI_TUNNEL
 #define whc_dev_wtn_rnat_ap_init                         whc_ipc_dev_wtn_rnat_ap_init
+#define whc_dev_wtn_ota_callback_indicate                whc_ipc_dev_wtn_ota_callback_indicate
 #ifdef CONFIG_WTN_SOCKET_APP
 #define whc_dev_wtn_socket_send                          whc_ipc_dev_wtn_socket_send
 #define whc_dev_wtn_socket_init                          whc_ipc_dev_wtn_socket_init
@@ -149,7 +143,7 @@ struct whc_ipc_host_unblk_api_node {
 struct ipc_host_unblk_api_func_t {
 	u32 host_evt_id;
 	void (*func)(struct whc_ipc_host_unblk_api_node *p_unblk_api_node);
-	u8 free_idx;	/* indicate whether there are buffers that need to free, 0xFF means no need free */
+	u16 free_bitmap;	/* indicate whether there are buffers that need to free, each bit indicate buf index, 0x0 means no need free */
 };
 #endif
 
@@ -159,6 +153,7 @@ struct ipc_host_unblk_api_func_t {
 void whc_ipc_host_init(void);
 void whc_ipc_host_trx_int_hdl(void *Data, u32 IrqStatus, u32 ChanNum);
 void whc_ipc_host_heap_statistics(u8 start);
+void whc_ipc_host_wifi_indication_enqueue(u32 event, u8 *evt_info, s32 evt_len);
 
 /*for ipc host api*/
 void whc_ipc_host_api_init(void);
@@ -174,16 +169,17 @@ void whc_ipc_dev_trx_int_hdl(void *Data, u32 IrqStatus, u32 ChanNum);
 /*for ipc dev api*/
 void whc_ipc_dev_api_init(void);
 void whc_ipc_dev_api_int_hdl(void *Data, u32 IrqStatus, u32 ChanNum);
-void whc_ipc_dev_wifi_event_indicate(u32 event_cmd, u8 *buf, s32 buf_len, s32 flags);
+void whc_ipc_dev_wifi_event_indicate(u32 event_cmd, u8 *evt_info, s32 evt_len);
 void whc_ipc_dev_scan_user_callback_indicate(unsigned int ap_num, void *user_data);
 void whc_ipc_dev_acs_info_indicate(struct rtw_acs_mntr_rpt *acs_mntr_rpt);
-void whc_ipc_dev_scan_each_report_user_callback_indicate(struct rtw_scan_result *scanned_ap_info, void *user_data);
+void whc_ipc_dev_scan_each_report_user_callback_indicate(struct rtw_scan_result *scanned_ap_info, void *user_data, u8 *ies, u32 ie_len);
 u8 whc_ipc_dev_promisc_callback_indicate(struct rtw_rx_pkt_info *pkt_info);
 void whc_ipc_dev_ap_ch_switch_callback_indicate(unsigned char channel, s8 ret);
 void whc_ipc_dev_update_regd_event_indicate(struct rtw_country_code_table *table);
 int whc_ipc_dev_set_netif_info(int idx_wlan, unsigned char *dev_addr);
 int whc_dev_get_lwip_info(u32 type, unsigned char *input, int index);
 u64 whc_ipc_host_api_get_wifi_tsf(unsigned char port_id);
+s32 whc_ipc_host_api_get_wifi_latched_tsf_i2s(struct rtw_speaker_read_latch_req *req, struct rtw_speaker_read_latch_rpt *rpt);
 int whc_ipc_host_api_get_txbuf_pkt_num(void);
 void whc_ipc_dev_cfg80211_indicate_scan_report(u32 channel, u32 frame_is_bcn, s32 rssi, u8 *mac_addr, u8 *IEs, u32 ie_len);
 void whc_ipc_host_init_skb(void);
@@ -198,8 +194,8 @@ void whc_ipc_dev_cfg80211_indicate_channel_ready(void *scan_userdata);
 #endif
 int whc_ipc_dev_ip_in_table_indicate(u8 gate, u8 ip);
 #ifdef CONFIG_WIFI_TUNNEL
-int whc_ipc_host_api_wtn_identity_key_calc(u8 *password, u32 password_len);
 void whc_ipc_dev_wtn_rnat_ap_init(u8 enable);
+int whc_ipc_dev_wtn_ota_callback_indicate(u8 *buf, u16 len);
 #ifdef CONFIG_WTN_SOCKET_APP
 int whc_ipc_dev_wtn_socket_send(u8 *buf, u32 len);
 void whc_ipc_dev_wtn_socket_init(u8 enable, u8 rnat_ap_start);

@@ -378,7 +378,7 @@
  *            digests and ciphers instead.
  *
  */
-#define MBEDTLS_AES_ALT
+//#define MBEDTLS_AES_ALT
 //#define MBEDTLS_ARIA_ALT
 //#define MBEDTLS_CAMELLIA_ALT
 //#define MBEDTLS_CCM_ALT
@@ -395,8 +395,8 @@
 //#define MBEDTLS_RIPEMD160_ALT
 //#define MBEDTLS_RSA_ALT
 //#define MBEDTLS_SHA1_ALT
-#define MBEDTLS_SHA256_ALT
-#define MBEDTLS_SHA512_ALT
+//#define MBEDTLS_SHA256_ALT
+//#define MBEDTLS_SHA512_ALT
 
 /*
  * When replacing the elliptic curve module, please consider, that it is
@@ -4188,7 +4188,7 @@
  *
  * The value below is only an example, not the default.
  */
-//#define MBEDTLS_SSL_CIPHERSUITES MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+// #define MBEDTLS_SSL_CIPHERSUITES MBEDTLS_TLS_RSA_WITH_AES_128_GCM_SHA256
 
 /**
  * \def MBEDTLS_SSL_MAX_EARLY_DATA_SIZE

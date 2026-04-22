@@ -1,16 +1,11 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "ameba_soc.h"
 #include "log.h"
-
-#ifdef CONFIG_ARM_CORE_CA32
-/* include apcore/spinlock.h for padding a cache line fully*/
-#include "spinlock.h"
-/**
- * @brief The CA32 has two cores that need to be locked
- * when printing to avoid interrupting each other
- */
-static spinlock_t print_lock;
-#endif
 
 static const char *const TAG = "LOG";
 /* Define default log-display level*/
@@ -20,6 +15,10 @@ rtk_log_level_t rtk_log_default_level = RTK_LOG_DEFAULT_LEVEL;
 rtk_log_tag_t rtk_log_tag_array[LOG_TAG_CACHE_ARRAY_SIZE] = {0};
 /* Count cache array usage */
 static volatile uint32_t rtk_log_entry_count = 0;
+
+#ifdef CONFIG_ARM_CORE_CA32
+rtos_mutex_t log_mutex = NULL;
+#endif
 
 /***
 *  @brief	Print the modules' tag/level set by the rtk_log_level_set()
@@ -267,7 +266,12 @@ void rtk_log_write(rtk_log_level_t level, const char *tag, const char letter, co
 			return;
 		}
 #ifdef CONFIG_ARM_CORE_CA32
-		u32 isr_status = spin_lock_irqsave(&print_lock);
+		/* The CA32 has two cores that need to be locked when printing to avoid interrupting each other */
+		if (log_mutex == NULL) {
+			rtos_mutex_create(&log_mutex);
+		}
+
+		rtos_mutex_take(log_mutex, RTOS_MAX_DELAY);
 #endif
 		if (tag[0] != '#') {
 			DiagPrintf("[%s-%c] ", tag, letter);
@@ -276,7 +280,7 @@ void rtk_log_write(rtk_log_level_t level, const char *tag, const char letter, co
 		DiagVprintf(fmt, ap);
 		va_end(ap);
 #ifdef CONFIG_ARM_CORE_CA32
-		spin_unlock_irqrestore(&print_lock, isr_status);
+		rtos_mutex_give(log_mutex);
 #endif
 	}
 }
@@ -290,7 +294,12 @@ void rtk_log_write_nano(rtk_log_level_t level, const char *tag, const char lette
 			return;
 		}
 #ifdef CONFIG_ARM_CORE_CA32
-		u32 isr_status = spin_lock_irqsave(&print_lock);
+		/* The CA32 has two cores that need to be locked when printing to avoid interrupting each other */
+		if (log_mutex == NULL) {
+			rtos_mutex_create(&log_mutex);
+		}
+
+		rtos_mutex_take(log_mutex, RTOS_MAX_DELAY);
 #endif
 		if (tag[0] != '#') {
 			DiagPrintfNano("[%s-%c] ", tag, letter);
@@ -299,7 +308,7 @@ void rtk_log_write_nano(rtk_log_level_t level, const char *tag, const char lette
 		DiagVprintfNano(fmt, ap);
 		va_end(ap);
 #ifdef CONFIG_ARM_CORE_CA32
-		spin_unlock_irqrestore(&print_lock, isr_status);
+		rtos_mutex_give(log_mutex);
 #endif
 	}
 }

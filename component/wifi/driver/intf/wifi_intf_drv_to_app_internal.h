@@ -20,12 +20,13 @@
 #define __WIFI_CONF_INTERNAL_H
 
 #include "wifi_api_types.h"
+#ifndef CONFIG_FULLMAC
+#include "lwip_netconf.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define SCAN_LONGEST_WAIT_TIME	(12000) /**< Scan longest wait time. */
 
 #define RTW_SEND_AND_WAIT_ACK 				2
 #define RTW_SEND_BY_HIGH_RATE				4 // IEEE80211_OFDM_RATE_54MB
@@ -53,36 +54,39 @@ enum {
   */
 enum  {
 	/* only internal used */
-	RTW_EVENT_INTERNAL_BASE		 	    = 100,
+	RTW_EVENT_INTERNAL_BASE				= 100,
 	RTW_EVENT_RX_MGNT					= 101,
 	RTW_EVENT_RX_MGNT_AP				= 102,
-	RTW_EVENT_EXTERNAL_AUTH_REQ		    = 103,
+	RTW_EVENT_EXTERNAL_AUTH_REQ			= 103,
 
 	RTW_EVENT_WPA_STA_4WAY_START		= 104,
-	RTW_EVENT_WPA_AP_4WAY_START		    = 105,
-	RTW_EVENT_WPA_STA_4WAY_RECV		    = 106,
+	RTW_EVENT_WPA_AP_4WAY_START			= 105,
+	RTW_EVENT_WPA_STA_4WAY_RECV			= 106,
 	RTW_EVENT_WPA_AP_4WAY_RECV			= 107,
 	RTW_EVENT_WPA_SET_PSK_INFO			= 108,
 
 	RTW_EVENT_OWE_START_CALC			= 109,
-	RTW_EVENT_OWE_PEER_KEY_RECV		    = 110,
+	RTW_EVENT_OWE_PEER_KEY_RECV			= 110,
 
-#if defined(CONFIG_IEEE80211V) || defined(CONFIG_IEEE80211K) || defined(CONFIG_IEEE80211R)
 	RTW_EVENT_KVR_CAP_UPDATE			= 111,
-#if defined(CONFIG_IEEE80211V) || defined(CONFIG_IEEE80211K)
 	RTW_EVENT_NB_RESP_RECV				= 112,
-#endif
-#ifdef CONFIG_IEEE80211V
 	RTW_EVENT_BTM_REQ_RECV				= 113,
-	RTW_EVENT_BTM_DEBUG_CMD			    = 114,
-#endif
-#ifdef CONFIG_IEEE80211R
-	RTW_EVENT_FT_AUTH_START			    = 115,
+	RTW_EVENT_BTM_DEBUG_CMD				= 114,
+	RTW_EVENT_FT_AUTH_START				= 115,
 	RTW_EVENT_FT_RX_MGNT				= 116,
-#endif
-#endif
 
-	RTW_EVENT_DEAUTH_INFO_FLASH		    = 117,
+	RTW_EVENT_DEAUTH_INFO_FLASH			= 117,
+
+	RTW_EVENT_SME_AUTH_TIMEOUT			= 118,
+	RTW_EVENT_SME_ASSOC_TIMEOUT			= 119,
+	RTW_EVENT_SME_RX_MLME_MGNT			= 120,
+	RTW_EVENT_SME_TX_MLME_MGNT			= 121,
+	RTW_EVENT_SME_RX_ASSOC_RESP			= 122,
+	RTW_EVENT_SME_RX_UNPROT_MLME_MGMT	= 123,
+
+	RTW_EVENT_WPA_P2P_CHANNEL_RDY		= 124, /**< STA mode: inform host channel switch ready */
+	RTW_EVENT_WTN_ZRPP_GET_AP_INFO		= 125,
+
 	RTW_EVENT_INTERNAL_MAX,
 };
 
@@ -156,6 +160,7 @@ struct wpa_sae_param_t {
 	unsigned char 		self_mac[6];
 	u8					h2e;  /**< A flag indicating the use of Hash-to-Element (H2E) optimization in SAE. */
 	u8					sae_reauth_limit;
+	u8					rsn_auth_key_mgmt[4];
 };
 
 /**
@@ -182,10 +187,46 @@ struct rtw_kvr_param_t {
 	u8 ft_cap;
 	u8 privacy;
 	u32 grp_privacy;
-	u8 ie[5 + MAX_WPA_IE_LEN + MAX_FT_IE_LEN]; /**<  1.NP->AP: rsnie; 2.AP->NP: mdie+rsnie+ftie*/
+	u8 ie[5 + MAX_WPA_IE_LEN + MAX_FT_IE_LEN + RSNXE_MAX_LEN]; /**<  1.NP->AP: rsnie + rsnxe_ie; 2.AP->NP: mdie+rsnie+ftie*/
 	u32 ielen;
 #endif
 #endif
+};
+
+struct rtw_event_deauth_info_flash {
+	struct deauth_info *deauth_data;
+	u32 deauth_date_len;
+	u8 flash_operation;  /* FLASH_READ or FLASH_WRITE */
+};
+
+struct rtw_event_sme_auth_timeout {
+	u8 bssid[6];
+};
+
+/* Structs for events which need report both info and frame at the same time */
+struct rtw_event_sme_rx_assoc_resp {
+	u8 uapsd_ac_enable;
+	u32 frame_len;
+	u8 frame[];
+};
+
+struct rtw_event_rx_mgnt {
+	u8 channel;
+	u8 frame_type;
+	u32 frame_len;
+	u8 frame[];
+};
+
+struct rtw_event_nb_resp_recv {
+	u8 from_btm;
+	u32 frame_len;
+	u8 frame[];
+};
+
+/* Structs for events which only need report frame */
+struct rtw_event_report_frame {
+	u32 frame_len;
+	u8 frame[];
 };
 
 #ifndef CONFIG_FULLMAC
@@ -216,7 +257,7 @@ struct _Rltk_wlan_t {
 	unsigned char		enable;
 	rtos_sema_t			netif_rx_sema;	/**<  Prevent race condition on .skb in rltk_netif_rx(). */
 };
-extern struct _Rltk_wlan_t rltk_wlan_info[NET_IF_NUM];
+extern struct _Rltk_wlan_t rltk_wlan_info[WLAN_NET_IF_NUM];
 
 #define netdev_priv(dev)		dev->priv
 #define rtw_is_netdev_enable(idx)	(rltk_wlan_info[idx].enable)
@@ -231,6 +272,56 @@ struct _raw_data_desc_t {
 	unsigned char		*buf;          /**< Poninter of buf where raw data is stored.*/
 	unsigned short		buf_len;      /**< The length of raw data.*/
 	unsigned short		flags;        /**< Send options.*/
+};
+
+#ifdef CONFIG_NAN
+#define MAX_MATCHING_FILTERS           (16)
+#define MAX_MATCHING_FILTER_LEN        (32)
+/**
+ * @brief Describes a NAN function Rx / Tx filter.
+ */
+struct rtw_nan_func_filter {
+	u8 filter[MAX_MATCHING_FILTER_LEN]; /**  the content of the filter. */
+	u8 len; /** the length of the filter. */
+};
+
+/**
+ * @brief Describes a NAN function corresponding to struct cfg80211_nan_func.
+ */
+struct rtw_nan_func_t {
+	u8 type;
+	u8 service_id[6];
+	u8 publish_type;
+	bool close_range;
+	bool publish_bcast;
+	bool subscribe_active;
+	u8 followup_id;
+	u8 followup_reqid;
+	struct rtw_mac followup_dest;
+	u32 ttl;
+	const u8 *serv_spec_info;
+	u8 serv_spec_info_len;
+	bool srf_include;
+	const u8 *srf_bf;
+	u8 srf_bf_len;
+	u8 srf_bf_idx;
+	struct rtw_mac *srf_macs;
+	int srf_num_macs;
+	struct rtw_nan_func_filter *rx_filters;
+	struct rtw_nan_func_filter *tx_filters;
+	u8 num_tx_filters;
+	u8 num_rx_filters;
+	u8 instance_id;
+	u64 cookie;
+};
+#endif
+
+/**
+  * @brief  the parameters for edcca test, only used for driver internal to set the edcca.
+  */
+struct rtw_edcca_param_t {
+	unsigned int edcca_mode; /**< 0: normal; 1: ETSI; 2 Janpan; 9: Disable */
+	int edcca_th; /**< EDCCA threshold, unit is dBm, the scope is [-128, 127], and the minimum step is 1.*/
 };
 
 /**
@@ -248,9 +339,11 @@ int wifi_set_mac_address(int idx, unsigned char *mac, u8 efuse);
 /**
  * @brief  for wifi certification of ETSI mode
  * @param[in]  edcca_mode: 0: normal; 1: ETSI; 2 Janpan; 9: Disable
+ * @param[in]  edcca_th: EDCCA threshold, unit is dBm, the scope is
+ *	[-60, -80], and the minimum step is 1.
  * @return  null.
  */
-void wifi_set_edcca_mode(u8 edcca_mode);
+void wifi_set_edcca_param(struct rtw_edcca_param_t *param);
 
 /**
  * @brief  Set global variable wifi_wpa_mode.
@@ -280,11 +373,18 @@ int wifi_set_pmf_mode(u8 pmf_mode);
 void wifi_wpa_4way_status_indicate(struct rtw_wpa_4way_status *rpt_4way);
 
 /**
- * @brief  for wpa to set key to driver
- * @param[in]  rtw_crypt_info
+ * @brief  notify wifi driver the ip address is successfully obtained
+ * @param[in] None
  * @return  null.
  */
-void wifi_wpa_add_key(struct rtw_crypt_info *crypt);
+void wifi_dhcp_success_indicate(void);
+
+/**
+ * @brief  for wpa to set key to driver
+ * @param[in]  rtw_crypt_info
+ * @return  0:success  -1:fail.
+ */
+int wifi_wpa_add_key(struct rtw_crypt_info *crypt);
 
 /**
  * @brief  for wpa to set/del/flush pmksa
@@ -368,7 +468,7 @@ int wifi_set_pmk_cache_enable(unsigned char value);
  * 	is_trigger_wps value should only be 0 or 1
  * @return  RTK_SUCCESS or RTK_FAIL
  */
-int wifi_set_wps_phase(unsigned char is_trigger_wps);
+int wifi_set_wps_phase(u8 wlan_idx, unsigned char is_trigger_wps);
 
 /**
  * @brief  Set the eap phase to wifi driver
@@ -379,11 +479,12 @@ int wifi_set_eap_phase(unsigned char is_trigger_eap);
 
 /**
  * @brief  get the current eap phase from wifi driver
- * @param[in]  None
- * @return  1: eap_phase is equal to 1, indicate 802.1X EAP is triggered
- * @return  0: eap_phase is equal to 0, indicate 802.1X EAP is not triggered
+ * @param[in]  eap_phase: Pointer to store the eap phase
+ * 1: indicate 802.1X EAP is triggered
+ * 0: indicate 802.1X EAP is not triggered
+ * @return    RTK_SUCCESS or RTK_FAIL
  */
-unsigned char wifi_get_eap_phase(void);
+int wifi_get_eap_phase(u8 *eap_phase);
 
 /**
  * @brief  Set the current eap authentication method to wifi driver
@@ -409,6 +510,12 @@ int wifi_if_send_eapol(unsigned char wlan_idx, char *buf, u16 buf_len, u16 flags
   * @return  RTK_SUCCESS or RTK_FAIL.
   */
 int wifi_wake_pll_rdy_in_ps_state(u8 need);
+
+/**
+  * @brief  for bt on to disable/enable ips/lps function
+  * @param[in] enable [DISABLE-disable and leave ips/lps; ENABLE-Release the control of BT ON over IPS/LPS]
+  */
+void wifi_ps_en_by_bt_state(u8 enable);
 
 /**
  * @brief  Enable Wi-Fi interface-2.
@@ -442,11 +549,11 @@ int _wifi_off_ap(void);
 int wifi_set_gen_ie(unsigned char wlan_idx, char *buf, u16 buf_len, u16 flags);
 
 void wifi_event_init(void);
-void wifi_indication(u32 event, u8 *buf, s32 buf_len, s32 flags);
-
+void wifi_indication(u32 event, u8 *evt_info, s32 evt_len);
+void wifi_indication_ext(u32 event, u8 *info_buf, s32 info_len, u8 *frame_buf, s32 frame_len);
+int wifi_event_handle(u32 event_cmd, u8 *evt_info);
 #ifdef __cplusplus
 }
 #endif
 
 #endif
-

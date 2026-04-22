@@ -62,9 +62,8 @@ static uint8_t src_a2dp_credits = RTK_BT_A2DP_SRC_STREAM_MAX_CREDITS;
 static uint16_t src_a2dp_send_data_size = 0; // unit is sizeof(int16_t)
 static rtk_bt_audio_codec_conf_t audio_codec_conf = {0};
 static uint32_t demo_in_rate = 48000;
-static uint8_t demo_in_channels = 2;
+static uint32_t demo_in_channels = 2;
 #if !defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) || !CONFIG_BT_AUDIO_SOURCE_OUTBAND
-static rtk_bt_audio_biquad_t bq_t = {0};
 static rtk_bt_audio_resample_t *g_audio_resample_t = NULL;
 static uint32_t resample_out_frames, resample_in_frames;
 #endif
@@ -845,32 +844,37 @@ static void app_a2dp_src_send_data(void)
 	static rtk_bt_a2dp_stream_data_send_t data_send_t = {0};
 	struct enc_codec_buffer *penc_codec_buffer_t = NULL;
 	short *pdata = NULL;
-	uint32_t out_frames = 0;
+	uint32_t input_frames = 0;
+	uint8_t index = 0;
 
+	if (!g_audio_resample_t) {
+		BT_LOGE("[A2DP] g_audio_resample_t is NULL \r\n");
+		return;
+	}
 	if (src_a2dp_credits) {
 		if (pcm_offset < (birds_sing_size / 2)) {
 			pdata = (short *)(birds_sing + pcm_offset);
-			if ((pcm_offset + (demo_read_size / 2)) < birds_sing_size / 2) {
-				out_frames = rtk_bt_audio_resample_entry(g_audio_resample_t, &bq_t,
-														 (uint8_t *)pdata,
-														 resample_in_frames,
-														 (uint8_t *)out_frame_buf,
-														 demo_in_rate,
-														 sbc_codec_t.encoder_t.sample_rate);
-				pcm_offset += (demo_read_size / 2);
-			} else {
-				memset((void *)in_frame_buf, 0, demo_read_size);
-				memcpy((void *)in_frame_buf, (void *)pdata, ((birds_sing_size / 2) - pcm_offset) * 2);
-				out_frames = rtk_bt_audio_resample_entry(g_audio_resample_t, &bq_t,
-														 (uint8_t *)in_frame_buf,
-														 resample_in_frames,
-														 (uint8_t *)out_frame_buf,
-														 demo_in_rate,
-														 sbc_codec_t.encoder_t.sample_rate);
-				pcm_offset = 0;
-			}
+			/* feed resample input data */
+			do {
+				if (index == 1) {
+					BT_LOGA("Do double feed avaibale data is %d \r\n", rtk_bt_audio_resample_available_data(g_audio_resample_t));
+				}
+				if ((pcm_offset + (demo_read_size / 2)) < birds_sing_size / 2) {
+					input_frames = rtk_bt_audio_resample_feed(g_audio_resample_t, (uint8_t *)pdata, resample_in_frames);
+					pcm_offset += input_frames * g_audio_resample_t->in_channels;
+				} else {
+					memset((void *)in_frame_buf, 0, demo_read_size);
+					memcpy((void *)in_frame_buf, (void *)pdata, ((birds_sing_size / 2) - pcm_offset) * 2);
+					input_frames = rtk_bt_audio_resample_feed(g_audio_resample_t, (uint8_t *)in_frame_buf, resample_in_frames);
+					pcm_offset = 0;
+				}
+				index ++;
+			} while (rtk_bt_audio_resample_available_data(g_audio_resample_t) < resample_out_frames * g_audio_resample_t->out_channels * (16 / 8));
+			/* read resample output data */
+			rtk_bt_audio_resample_read(g_audio_resample_t, (void *)out_frame_buf, resample_out_frames * g_audio_resample_t->out_channels * (16 / 8));
+			/* do encode func */
 			penc_codec_buffer_t = rtk_bt_audio_data_encode(RTK_BT_AUDIO_CODEC_SBC, a2dp_demo_codec_entity, (int16_t *)out_frame_buf,
-														   out_frames * g_audio_resample_t->out_frame_size);
+														   resample_out_frames * g_audio_resample_t->out_channels * (16 / 8));
 			if (penc_codec_buffer_t) {
 				memcpy((void *)data_send_t.bd_addr, (void *)remote_bd_addr, 6);
 				data_send_t.seq_num = a2dp_demo_send_data_seq++;
@@ -1128,6 +1132,12 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		break;
 	}
 
+	case RTK_BT_BR_GAP_INQUIRY_CMPL: {
+		rtk_bt_br_inquiry_cmpl_t *p_cmpl = (rtk_bt_br_inquiry_cmpl_t *)param;
+		BT_LOGA("[BR GAP] Inquiry completed, cause is 0x%x \r\n", p_cmpl->cause);
+		break;
+	}
+
 	case RTK_BT_BR_GAP_REMOTE_NAME_RSP: {
 		rtk_bt_br_remote_name_rsp_t *p_name_rsp = (rtk_bt_br_remote_name_rsp_t *)param;
 		if (a2dp_demo_bond_info_flush) {
@@ -1258,6 +1268,16 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		break;
 	}
 
+	case RTK_BT_BR_GAP_LINK_ROLE_MASTER: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_MASTER \r\n");
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_ROLE_SLAVE: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_SLAVE \r\n");
+		break;
+	}
+
 	default:
 		BT_LOGE("%s, Unknown GAP RTK_BLE_EVT: %d\r\n", __func__, evt_code);
 		break;
@@ -1340,18 +1360,14 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 						continue;
 					} else {
 						uint16_t len = p_attr_t->attr[i].length + strlen(attr[p_attr_t->attr[i].attribute_id]) + 1;
-						snprintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
+						DiagSnPrintf((char *)temp_buff, len, "%s%s\r\n", attr[p_attr_t->attr[i].attribute_id], p_attr_t->attr[i].p_buf);
 						BT_LOGA("[AVRCP] %s \r\n", temp_buff);
 					}
-					osif_mem_free(p_attr_t->attr[i].p_buf);
 				}
 			}
 		} else {
 			BT_LOGA("[AVRCP] Get element attr information fail from %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 					p_attr_t->bd_addr[5], p_attr_t->bd_addr[4], p_attr_t->bd_addr[3], p_attr_t->bd_addr[2], p_attr_t->bd_addr[1], p_attr_t->bd_addr[0]);
-		}
-		if (p_attr_t->num_of_attr) {
-			osif_mem_free(p_attr_t->attr);
 		}
 		break;
 	}
@@ -1366,7 +1382,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 					p_list_t->bd_addr[5], p_list_t->bd_addr[4], p_list_t->bd_addr[3], p_list_t->bd_addr[2], p_list_t->bd_addr[1], p_list_t->bd_addr[0]);
 			for (uint8_t i = 0; i < p_list_t->num_of_attr; i ++) {
 				memset((void *)temp_buff, 0, 10);
-				snprintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
+				DiagSnPrintf((char *)temp_buff, len, "%s\r\n", attr[p_list_t->p_attr_id[i]]);
 				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
 			}
 		}
@@ -1396,7 +1412,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 					p_rsp_t->bd_addr[5], p_rsp_t->bd_addr[4], p_rsp_t->bd_addr[3], p_rsp_t->bd_addr[2], p_rsp_t->bd_addr[1], p_rsp_t->bd_addr[0]);
 			for (uint8_t i = 0; i < p_rsp_t->num_of_attr; i ++) {
 				memset((void *)temp_buff, 0, 20);
-				snprintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
+				DiagSnPrintf((char *)temp_buff, len, "%s 0x%x\r\n", attr[p_rsp_t->p_app_setting[i].attr], p_rsp_t->p_app_setting[i].value);
 				BT_LOGA("[AVRCP] %s \r\n", temp_buff);
 			}
 		}
@@ -1592,7 +1608,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
 
 		BT_LOGA("[AVRCP]: Play req \r\n");
-		/* fro a2dp source */
+		/* for a2dp source */
 		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_PLAYING);
 		rtk_bt_a2dp_start(p_command_t->bd_addr);
 		break;
@@ -1602,7 +1618,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
 
 		BT_LOGA("[AVRCP]: Pause req \r\n");
-		/* fro a2dp source */
+		/* for a2dp source */
 		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_PAUSED);
 		rtk_bt_a2dp_suspend(p_command_t->bd_addr);
 		break;
@@ -1612,7 +1628,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_avrcp_app_callback(uint8_t evt_code, void *par
 		rtk_bt_avrcp_digital_interface_command_t *p_command_t = (rtk_bt_avrcp_digital_interface_command_t *)param;
 
 		BT_LOGA("[AVRCP]: Stop req \r\n");
-		/* fro a2dp source */
+		/* for a2dp source */
 		rtk_bt_avrcp_play_status_change_req(p_command_t->bd_addr, RTK_BT_AVRCP_STATUS_STOPPED);
 		rtk_bt_a2dp_suspend(p_command_t->bd_addr);
 		break;
@@ -1867,28 +1883,26 @@ static uint16_t rtk_bt_a2dp_sbc_parse_encoder_struct(rtk_bt_a2dp_codec_t *pa2dp_
 // }
 
 #if !defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) || !CONFIG_BT_AUDIO_SOURCE_OUTBAND
-static uint16_t app_bt_pcm_data_resample_engine_alloc(rtk_bt_audio_resample_t **pp_sample_t, uint32_t sample_rate_in, uint8_t in_channels,
-													  uint32_t sample_rate_out, uint8_t out_channels)
+static rtk_bt_audio_resample_t *app_bt_pcm_data_resample_engine_alloc(uint32_t sample_rate_in, uint32_t in_channels, uint32_t sample_rate_out,
+																	  uint32_t out_channels)
 {
-	double sample_ratio;
-
-	sample_ratio = (double)sample_rate_out / (double)sample_rate_in;
-	//calculate the expected input and output according to the sample rate
+	rtk_bt_audio_resample_t *p_bt_resample = NULL;
 	/* resample out frames should be matched with the sbc encode size */
 	resample_out_frames = (sbc_codec_t.encoder_t.blocks * sbc_codec_t.encoder_t.subbands * out_channels * sbc_codec_t.encoder_t.sbc_pkt_num) * 2 /
 						  (16 / 8 * out_channels);
 	resample_in_frames = (uint32_t)(resample_out_frames * (float)sample_rate_in / (float)sample_rate_out);
-	/* init bq filter */
-	rtk_bt_audio_bq_config(&bq_t, RTK_BT_AUDIO_LPF, 1.0, (unsigned long)((1.0 / sample_ratio / 2) * (double)sample_rate_in),
-						   (unsigned long)sample_rate_in, 0.2);
 	/* init sinc resample */
-	*pp_sample_t = rtk_bt_audio_resample_alloc((float)sample_rate_in, (float)sample_rate_out, in_channels, out_channels, resample_in_frames);
-	demo_read_size = resample_in_frames * in_channels * 16 / 8;
+	p_bt_resample = rtk_bt_audio_resample_alloc((uint32_t)sample_rate_in, (uint32_t)sample_rate_out, in_channels, out_channels, resample_in_frames);
+	if (!p_bt_resample) {
+		BT_LOGE("%s rtk_bt_audio_resample_alloc fail \r\n", __func__);
+		return NULL;
+	}
+	demo_read_size = resample_in_frames * in_channels * (16 / 8);
 	BT_LOGA("[A2DP] Resample allocate: rate in is %d, channel is %d, rate out is %d, channel is %d \r\n", sample_rate_in, in_channels, sample_rate_out,
 			out_channels);
 	BT_LOGA("[A2DP] resample_out_frames is %d, resample_in_frames is %d, demo_read_size is %d \r\n", resample_out_frames, resample_in_frames, demo_read_size);
 
-	return RTK_BT_OK;
+	return p_bt_resample;
 }
 
 static uint16_t app_bt_pcm_data_resample_engine_destroy(rtk_bt_audio_resample_t **pp_sample_t)
@@ -1929,9 +1943,11 @@ static void rtk_bt_a2dp_demo_src_send_data_control(bool enable)
 		}
 		if (!bt_a2dp_demo_src_send_timer.handler) {
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-			a2dp_src_data_send_interval_us = (src_a2dp_send_data_size * 2 * 1000) / (demo_in_rate * demo_in_channels * (16 / 8) / 1000) + 1;
+			a2dp_src_data_send_interval_us = (src_a2dp_send_data_size * 2 * 1000) / (demo_in_rate * demo_in_channels * (16 / 8) / 1000);
 #else
-			a2dp_src_data_send_interval_us = ((resample_in_frames * demo_in_channels * 16 / 8) * 1000) / (demo_in_rate * demo_in_channels * (16 / 8) / 1000) + 1;
+			if (g_audio_resample_t) {
+				a2dp_src_data_send_interval_us = 1000 * (resample_out_frames * 1000 / g_audio_resample_t->out_rate);
+			}
 #endif
 			BT_LOGA("[A2DP Demo] rtk_bt_a2dp_demo_src_send_data_control send interval(us) is %d \r\n", a2dp_src_data_send_interval_us);
 			if (bt_a2dp_demo_src_send_timer.handler == NULL) {
@@ -1945,7 +1961,7 @@ static void rtk_bt_a2dp_demo_src_send_data_control(bool enable)
 			return;
 		}
 		bt_a2dp_demo_src_send_data_enable = false;
-		if (bt_a2dp_demo_src_send_timer.handler == NULL) {
+		if (bt_a2dp_demo_src_send_timer.handler) {
 			gtimer_stop(&bt_a2dp_demo_src_send_timer);
 			gtimer_deinit(&bt_a2dp_demo_src_send_timer);
 			bt_a2dp_demo_src_send_timer.handler = NULL;
@@ -1965,7 +1981,7 @@ static void rtk_bt_a2dp_demo_src_send_data_control(bool enable)
 	return;
 
 fail:
-	if (bt_a2dp_demo_src_send_timer.handler == NULL) {
+	if (bt_a2dp_demo_src_send_timer.handler) {
 		gtimer_stop(&bt_a2dp_demo_src_send_timer);
 		gtimer_deinit(&bt_a2dp_demo_src_send_timer);
 		bt_a2dp_demo_src_send_timer.handler = NULL;
@@ -2029,7 +2045,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 			rtk_bt_a2dp_demo_src_send_data_control(false);
 			rtk_bt_avrcp_play_status_change_req(disconn_ind->bd_addr, RTK_BT_AVRCP_STATUS_STOPPED);
 #if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL
-			RTAudioService_SetDeviceState(RTDEVICE_OUT_A2DP, RTAUDIO_DEVICE_STATE_UNAVAILABLE, "rtk_bt_a2dp", NULL);
+			AudioService_SetDeviceState(DEVICE_OUT_A2DP, AUDIO_DEVICE_STATE_UNAVAILABLE, "rtk_bt_a2dp", NULL);
 #endif
 		}
 		rtk_bt_audio_codec_remove(audio_codec_conf.codec_index, a2dp_demo_codec_entity);
@@ -2089,12 +2105,12 @@ audio_codec_conf.param_len = sizeof(aac_codec_t);
 			}
 #if defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL
 			{
-				RTAudioDeviceConfig config;
+				AudioDeviceConfig config;
 				config.rate = sbc_codec_t.encoder_t.sample_rate;
 				config.channels = (sbc_codec_t.encoder_t.channel_mode == SBC_CHANNEL_MODE_MONO) ? 1 : 2;
-				config.format = RTAUDIO_FORMAT_PCM_16_BIT;
+				config.format = AUDIO_FORMAT_PCM_16_BIT;
 				BT_LOGA("A2dp set device state avail");
-				RTAudioService_SetDeviceState(RTDEVICE_OUT_A2DP, RTAUDIO_DEVICE_STATE_AVAILABLE, "rtk_bt_a2dp", &config);
+				AudioService_SetDeviceState(DEVICE_OUT_A2DP, AUDIO_DEVICE_STATE_AVAILABLE, "rtk_bt_a2dp", &config);
 			}
 #endif
 		}
@@ -2131,8 +2147,8 @@ audio_codec_conf.param_len = sizeof(aac_codec_t);
 										  sbc_codec_t.encoder_t.channel_mode == 0) ? 1 : 2);
 #if !defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) || !CONFIG_BT_AUDIO_SOURCE_OUTBAND
 			/* default audio stream source is 48000 sample rate, 2 channels */
-			app_bt_pcm_data_resample_engine_alloc(&g_audio_resample_t, demo_in_rate, demo_in_channels, sbc_codec_t.encoder_t.sample_rate,
-												  ((sbc_codec_t.encoder_t.channel_mode != 0) ? 2 : 1));
+			g_audio_resample_t = app_bt_pcm_data_resample_engine_alloc(demo_in_rate, demo_in_channels, sbc_codec_t.encoder_t.sample_rate,
+																	   ((sbc_codec_t.encoder_t.channel_mode != 0) ? 2 : 1));
 #endif
 			BT_LOGA("[A2DP] sbc_pkt_num is update to %d, src_a2dp_send_data_size is %d \r\n", sbc_codec_t.encoder_t.sbc_pkt_num, src_a2dp_send_data_size);
 		}
@@ -2337,7 +2353,7 @@ int bt_a2dp_main(uint8_t role, uint8_t enable)
 			BT_LOGE("demo_usb_init failed\r\n");
 		}
 #elif defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_AUDIO_HAL
-		RTAudioService_Init(); // no need deinit
+		AudioService_Init(); // no need deinit
 #elif defined(RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_UART) && RTK_BT_AUDIO_SOURCE_OUTBAND_FROM_UART
 		demo_uart_init();
 #endif
@@ -2346,7 +2362,7 @@ int bt_a2dp_main(uint8_t role, uint8_t enable)
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_GAP, br_gap_app_callback));
 		/* mix RTK_BT_DEV_NAME with bt mac address */
 		strcpy(dev_name, RTK_BT_DEV_NAME);
-		snprintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
+		DiagSnPrintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
 		BT_APP_PROCESS(rtk_bt_br_gap_set_device_name((const uint8_t *)dev_name));
 		/* Initilize SDP part */
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_SDP, rtk_bt_sdp_app_callback));

@@ -101,20 +101,48 @@ void hang_seednode(struct _node *main_node, struct _node *seed_node)
 	return;
 }
 
+void delete_seednode(struct _node *main_node, struct _node *seed_node)
+{
+	struct _node *n = main_node;
+	SYS_ARCH_DECL_PROTECT(lev);
+	SYS_ARCH_PROTECT(lev);
+
+	if (seed_node->ssl) {
+		mbedtls_ssl_free(seed_node->ssl);
+	}
+
+	close(seed_node->sockfd);
+
+	if (seed_node->ssl) {
+		rtos_mem_free(seed_node->ssl);
+	}
+
+	while (n->nextseed != seed_node) {
+		n = n->nextseed;
+	}
+	n->nextseed = seed_node->nextseed;
+
+	memset(seed_node, 0, sizeof(struct _node));
+	seed_node->sockfd = INVALID_SOCKET_ID;
+	seed_node->link_id = INVALID_LINK_ID;
+
+	SYS_ARCH_UNPROTECT(lev);
+	return;
+}
+
 
 //AT+SKTCFG=[<so_sndtimeo>],[<so_rcvtimeo>],[<tcp_nodelay>],[<so_keepalive>],[<tcp_keepidle>],[<tcp_keepintvl>],[<tcp_keepcnt>]
-void at_sktcfg(void *arg)
+void at_sktcfg(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0;
 	int so_sndtimeo = 0, so_rcvtimeo = 0, input_tcp_nodelay = 0, so_keepalive = 0, tcp_keepidle = 0, tcp_keepintvl = 0, tcp_keepcnt = 0;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktcfg] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
-	argc = parse_param(arg, argv);
+
 	if ((argc < 2) || (argc > 8)) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktcfg] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -208,11 +236,12 @@ void print_global_socket_config(void)
 
 
 //AT+SKTQUERY
-void at_sktquery(void *arg)
+void at_sktquery(u16 argc, char **argv)
 {
+	UNUSED(argv);
 	int error_no = 0;
 
-	if (arg != NULL) {
+	if (argc != 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktquery] No need input parameter\r\n");
 		error_no = 1;
 		goto end;
@@ -570,8 +599,9 @@ void socket_server_tcp_auto_rcv_client_and_data(void *param)
 							RTK_LOGI(AT_SOCKET_TAG, "[socket_server_tcp_auto_rcv_client_and_data] Failed to read() = %d\r\n", actual_bytes_received);
 						}
 						FD_CLR(seednode->sockfd, &read_fds);
-						close(seednode->sockfd);
-						seednode->sockfd = INVALID_SOCKET_ID;
+						at_printf_indicate("[SKT][EVENT]: A client[link_id:%d,seed,tcp,dst_address:%s,dst_port:%d] disconnected from server[link_id:%d]\r\n",
+										   seednode->link_id, inet_ntoa(node_pool[seednode->link_id].dst_ip), seednode->dst_port, current_node->link_id);
+						delete_seednode(current_node, seednode);
 					}
 				}
 				seednode = seednode->nextseed;
@@ -809,11 +839,9 @@ void socket_server_tls_auto_rcv_client_and_data(void *param)
 							RTK_LOGI(AT_SOCKET_TAG, "[socket_server_tls_auto_rcv_client_and_data] Failed to mbedtls_ssl_read() = -0x%04x\r\n", -actual_bytes_received);
 						}
 						FD_CLR(seednode->sockfd, &read_fds);
-						mbedtls_ssl_free(seednode->ssl);
-						close(seednode->sockfd);
-						seednode->sockfd = INVALID_SOCKET_ID;
-						rtos_mem_free(seednode->ssl);
-						seednode->ssl = NULL;
+						at_printf_indicate("[SKT][EVENT]: A client[link_id:%d,seed,tls,dst_address:%s,dst_port:%d] disconnected from server[link_id:%d]\r\n",
+										   seednode->link_id, inet_ntoa(node_pool[seednode->link_id].dst_ip), seednode->dst_port, current_node->link_id);
+						delete_seednode(current_node, seednode);
 					}
 				}
 				seednode = seednode->nextseed;
@@ -1073,19 +1101,18 @@ int create_socket_server(struct _node *current_node)
 
 
 //AT+SKTSERVER=<link_id>,<conn_type>[,<cert_index>],<src_port>,<auto_rcv>
-void at_sktserver(void *arg)
+void at_sktserver(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0;
 	int link_id = 0, conn_type = 0, cert_index = 0, src_port = 0, auto_rcv = 0;
 	uint8_t *local_ip = NULL;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktserver] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
-	argc = parse_param(arg, argv);
+
 	if (argc != 6) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktserver] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -1160,7 +1187,7 @@ void at_sktserver(void *arg)
 	node_pool[link_id].auto_rcv = auto_rcv;
 	node_pool[link_id].protocol = conn_type;
 	node_pool[link_id].src_port = src_port;
-	local_ip = LwIP_GetIP(0);
+	local_ip = LwIP_GetIP(NETIF_WLAN_STA_INDEX);
 	node_pool[link_id].src_ip = *((u32_t *)local_ip);
 
 	error_no = create_socket_server(&node_pool[link_id]);
@@ -1816,22 +1843,21 @@ int create_socket_client(struct _node *current_node)
 
 
 //AT+SKTCLIENT=<link_id>,<conn_type>[,<cert_index>],<dst_host>,<dst_port>[,<src_port>],<auto_rcv>
-void at_sktclient(void *arg)
+void at_sktclient(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0;
 	int link_id = 0, conn_type = 0, cert_index = 0, dst_port = 0, src_port = 0, auto_rcv = 0;
 	struct in_addr dst_ipaddr;
 #if LWIP_DNS
 	struct hostent *server_host = NULL;
 #endif
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktclient] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
-	argc = parse_param(arg, argv);
+
 	if (argc != 8) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktclient] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -2052,24 +2078,21 @@ end:
 
 
 //AT+SKTSENDRAW=<link_id>,<data_size>[,<dst_ip>,<dst_port>]
-void at_sktsendraw(void *arg)
+void at_sktsendraw(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0, ret = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0, ret = 0;
 	int link_id = INVALID_LINK_ID;
 	struct _node *curnode = NULL;
 	int data_sz = 0;
 	struct sockaddr_in dst_addr;
 	int dst_port = 0;
 
-
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsendraw] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param_advance(arg, argv);
 	if ((argc != 3) && (argc != 5)) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsendraw] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -2155,24 +2178,21 @@ end:
 
 
 //AT+SKTSEND=<link_id>,<data_size>[,<dst_ip>,<dst_port>],<data>
-void at_sktsend(void *arg)
+void at_sktsend(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0, ret = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0, ret = 0;
 	int link_id = INVALID_LINK_ID;
 	struct _node *curnode = NULL;
 	int data_sz = 0;
 	struct sockaddr_in dst_addr;
 	int dst_port = 0;
 
-
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsend] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param_advance(arg, argv);
 	if (argc != 6) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsend] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -2199,8 +2219,8 @@ void at_sktsend(void *arg)
 	}
 
 	data_sz = atoi(argv[2]);
-	if ((data_sz <= 0) || (data_sz >= UART_LOG_CMD_BUFLEN)) {
-		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsend] The range of <data_size> is [1, UART_LOG_CMD_BUFLEN-1]\r\n");
+	if ((data_sz <= 0) || (data_sz >= CMD_BUFLEN)) {
+		RTK_LOGI(AT_SOCKET_TAG, "[at_sktsend] The range of <data_size> is [1, CMD_BUFLEN-1]\r\n");
 		error_no = 1;
 		goto end;
 	}
@@ -2348,10 +2368,9 @@ end:
 
 
 //AT+SKTREAD=<link_id>,<data_size>
-void at_sktread(void *arg)
+void at_sktread(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0;
 	int link_id = INVALID_LINK_ID;
 	int wanted_recv_size = 0, actual_recv_size = 0;
 	struct _node *curnode = NULL;
@@ -2360,13 +2379,12 @@ void at_sktread(void *arg)
 	u16_t udp_dstport = 0;
 	u8 *rx_buffer = NULL;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktread] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if (argc != 3) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktread] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -2443,12 +2461,13 @@ end:
 
 
 //AT+SKTSTATE
-void at_sktstate(void *arg)
+void at_sktstate(u16 argc, char **argv)
 {
 	struct _node *n = NULL;
 	struct in_addr addr;
 
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
 	for (int i = 0; i < MEMP_NUM_NETCONN; i++) {
 		n = &node_pool[i];
@@ -2633,18 +2652,17 @@ void close_and_free_node(struct _node *freenode)
 
 
 //AT+SKTDEL=<link_id>
-void at_sktdel(void *arg)
+void at_sktdel(u16 argc, char **argv)
 {
-	int argc = 0, error_no = 0;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = 0;
 	int link_id = INVALID_LINK_ID;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktdel] Input parameter is NULL\r\n");
 		error_no = 1;
 		goto end;
 	}
-	argc = parse_param(arg, argv);
+
 	if (argc != 2) {
 		RTK_LOGI(AT_SOCKET_TAG, "[at_sktdel] Invalid number of parameters\r\n");
 		error_no = 1;
@@ -2678,18 +2696,17 @@ end:
 	}
 }
 
-
-
-log_item_t at_socket_items[ ] = {
-	{"+SKTCFG", at_sktcfg, {NULL, NULL}},
-	{"+SKTQUERY", at_sktquery, {NULL, NULL}},
-	{"+SKTSERVER", at_sktserver, {NULL, NULL}},
-	{"+SKTCLIENT", at_sktclient, {NULL, NULL}},
-	{"+SKTSENDRAW", at_sktsendraw, {NULL, NULL}},
-	{"+SKTSEND", at_sktsend, {NULL, NULL}},
-	{"+SKTREAD", at_sktread, {NULL, NULL}},
-	{"+SKTSTATE", at_sktstate, {NULL, NULL}},
-	{"+SKTDEL", at_sktdel, {NULL, NULL}},
+ATCMD_APONLY_TABLE_DATA_SECTION
+const log_item_t at_socket_items[ ] = {
+	{"+SKTCFG", at_sktcfg},
+	{"+SKTQUERY", at_sktquery},
+	{"+SKTSERVER", at_sktserver},
+	{"+SKTCLIENT", at_sktclient},
+	{"+SKTSENDRAW", at_sktsendraw},
+	{"+SKTSEND", at_sktsend},
+	{"+SKTREAD", at_sktread},
+	{"+SKTSTATE", at_sktstate},
+	{"+SKTDEL", at_sktdel},
 };
 
 void print_socket_at(void)
@@ -2705,8 +2722,6 @@ void print_socket_at(void)
 void at_socket_init(void)
 {
 	init_node_pool();
-
-	atcmd_service_add_table(at_socket_items, sizeof(at_socket_items) / sizeof(at_socket_items[0]));
 }
 
 #endif /* CONFIG_ATCMD_SOCKET */

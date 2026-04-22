@@ -1,7 +1,7 @@
 /*
- * Copyright (c) 2020 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef ARCH_TIMER_H
@@ -101,6 +101,14 @@ static inline char arm_arch_timer_check_enable(void) /*check CNTV_CTL: virtual t
 }
 #endif /* !_ASMLANGUAGE */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint64_t vGetGenericTimerFreq(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

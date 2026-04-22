@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef _PSCI_H
 #define _PSCI_H
 
@@ -100,6 +106,10 @@
 
 #ifndef _ASMLANGUAGE
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t psci_get_version(void);
 int psci_cpu_suspend(uint32_t state, unsigned long entry_point);
 int psci_cpu_off(uint32_t state);
@@ -110,6 +120,10 @@ void psci_sys_reset(void);
 void psci_sys_poweroff(void);
 
 int psci_init(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* !_ASMLANGUAGE */
 

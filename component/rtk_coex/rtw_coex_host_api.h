@@ -157,6 +157,7 @@ enum rtk_coex_custom_product_id {
 	RTK_COEX_CUSTOM_PID_UNDEF = 0,
 	/* Add from here*/
 	RTK_COEX_CUSTOM_PID_GAMEPAD,			/* 1 */
+	RTK_COEX_CUSTOM_PID_GAMEPAD_5G_WL_PRI,	/* 2 */
 	RTK_COEX_CUSTOM_PID_MAX = 0xFF
 };
 
@@ -204,8 +205,13 @@ enum bt_rfk_type {
 	BT_RX_DCK       = 0,
 	BT_LOK          = 1,
 	BT_LOK_RES      = 2,
-	BT_DAC_DCK     = 3,
-	BT_ADC_DCK     = 4,
+	BT_DAC_DCK      = 3,
+	BT_ADC_DCK      = 4,
+	BT_DCK          = 5,
+	BT_IQK          = 6,
+	BT_FLATK        = 7,
+	BT_IQK_TX		= 8,
+	BT_IQK_RX		= 9,
 };
 /**
  * @struct   bt_rfk_param
@@ -282,6 +288,7 @@ enum PORT_e {
 	PAD_PORT_A = 0,
 	PAD_PORT_B = 1,
 	PAD_PORT_C = 2,
+	PAD_PORT_F = 5,
 };
 /**
  * @struct   port_pin_t

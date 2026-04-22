@@ -250,7 +250,7 @@ static void do_audio_sync_flow(rtk_bt_audio_track_t *track, uint8_t packet_index
 					track->expt_sdu_frc += (int64_t)track->sdu_interval;
 					track->frc_cal_flag = false;
 					BT_LOGD("[BT AUDIO] %s: controller_free_run_clock not overflow \r\n", __func__);
-					//printf("[BT AUDIO] (track %p) expt_sdu_frc:%lld \r\n", track->audio_track_hdl, track->expt_sdu_frc);
+					// BT_LOGD("[BT AUDIO] (track %p) expt_sdu_frc:%lld \r\n", track->audio_track_hdl, track->expt_sdu_frc);
 				} else {
 					track->expt_sdu_frc = (int64_t)track->frc_drift + (int64_t)ts_us;
 					track->frc_cal_flag = true;
@@ -260,11 +260,11 @@ static void do_audio_sync_flow(rtk_bt_audio_track_t *track, uint8_t packet_index
 				track->expt_sdu_frc = (int64_t)track->frc_drift + (int64_t)ts_us;
 				track->frc_cal_flag = true;
 			}
-			//printf("[BT AUDIO] frc_drift: %lld, free_run_clock:%lld, ts_us:%lu \r\n", (int64_t)track->frc_drift,(int64_t)track->controller_free_run_clock, ts_us);
+			// BT_LOGD("[BT AUDIO] frc_drift: %lld, free_run_clock:%lld, ts_us:%lu \r\n", (int64_t)track->frc_drift,(int64_t)track->controller_free_run_clock, ts_us);
 		} else {
 			track->expt_sdu_frc += (int64_t)track->sdu_interval;
 			delta = (uint32_t)audio_delta(track->expt_sdu_frc, ((int64_t)track->frc_drift + (int64_t)ts_us));
-			// printf("expt sdu frc is %lld, actual frc is %lld, ts_us is %u, drift is %lld, delta is %ld \r\n",
+			// BT_LOGD("[BT AUDIO] expt sdu frc is %lld, actual frc is %lld, ts_us is %u, drift is %lld, delta is %ld \r\n",
 			//     track->expt_sdu_frc, (int64_t)track->frc_drift + (int64_t)ts_us, (unsigned int)ts_us, track->frc_drift, delta);
 			/* 10000 for 10 ms */
 			if (delta > 10000) {
@@ -278,7 +278,7 @@ static void do_audio_sync_flow(rtk_bt_audio_track_t *track, uint8_t packet_index
 	}
 	if (track->pre_drop_cnt_left) {
 		uint32_t cnt_drop;
-		/* RTAUDIO_FORMAT_PCM_16_BIT -> 2bytes */
+		/* AUDIO_FORMAT_PCM_16_BIT -> 2bytes */
 		cnt_drop = track->pre_drop_cnt_left;
 		if (cnt_drop > data_size) {
 			track->pre_drop_cnt_left = cnt_drop - data_size;
@@ -338,10 +338,10 @@ static void bt_audio_parsing_recv_stream(uint32_t type, rtk_bt_audio_track_t *tr
 		BT_LOGE("[BT AUDIO] Codec entity not match \r\n");
 		goto exit;
 	}
-	while (size) {
+	do {
 		/* param frame number and frame size */
 		if (bt_audio_handle_media_data_packet(entity, data, size, &frame_size, &frame_num, &codec_header_flag, &param)) {
-			DBG_BAD("%s: media packet dismatch codec type %d ! \r\n", __func__, (int)type);
+			BT_LOGE("%s: media packet dismatch codec type %d ! \r\n", __func__, (int)type);
 			goto exit;
 		}
 		DBG_BAD("%s: frame_size %d, frame_num %d, %d ! \r\n", __func__, (int)frame_size, (int)frame_num, (int)type);
@@ -423,7 +423,7 @@ static void bt_audio_parsing_recv_stream(uint32_t type, rtk_bt_audio_track_t *tr
 		data += frame_size * frame_num;
 		size -= frame_size * frame_num;
 		handle_media_frame_num += frame_num;
-	}
+	} while (size);
 
 exit:
 	DBG_BAD("%s: Complete Frame num %d ! \r\n", __func__, handle_media_frame_num);
@@ -597,7 +597,7 @@ static uint16_t bt_audio_codec_init(rtk_bt_audio_codec_conf_t *paudio_codec_conf
 		return err;
 	}
 
-#if defined(CONFIG_BT_AUDIO_CODEC_SBC) && CONFIG_BT_AUDIO_CODEC_SBC
+#if defined(CONFIG_BT_AUDIO_CODEC_SBC_SUPPORT) && CONFIG_BT_AUDIO_CODEC_SBC_SUPPORT
 	/* sbc codec */
 	if (RTK_BT_AUDIO_CODEC_SBC == paudio_codec_conf->codec_index) {
 		BT_LOGE("[BT_AUDIO] sbc codec init  \r\n");
@@ -609,21 +609,21 @@ static uint16_t bt_audio_codec_init(rtk_bt_audio_codec_conf_t *paudio_codec_conf
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_mSBC, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_AAC) && CONFIG_BT_AUDIO_CODEC_AAC
+#if defined(CONFIG_BT_AUDIO_CODEC_AAC_SUPPORT) && CONFIG_BT_AUDIO_CODEC_AAC_SUPPORT
 	/* aac codec */
 	if (RTK_BT_AUDIO_CODEC_AAC == paudio_codec_conf->codec_index) {
 		BT_LOGE("[BT_AUDIO] aac codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_AAC, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_LC3) && CONFIG_BT_AUDIO_CODEC_LC3
+#if defined(CONFIG_BT_AUDIO_CODEC_LC3_SUPPORT) && CONFIG_BT_AUDIO_CODEC_LC3_SUPPORT
 	/* lc3 codec */
 	if (RTK_BT_AUDIO_CODEC_LC3 == paudio_codec_conf->codec_index) {
 		BT_LOGE("[BT_AUDIO] lc3 codec init  \r\n");
 		err = bt_audio_register_codec(RTK_BT_AUDIO_CODEC_LC3, paudio_codec_conf->param, paudio_codec_conf->param_len, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_CVSD) && CONFIG_BT_AUDIO_CODEC_CVSD
+#if defined(CONFIG_BT_AUDIO_CODEC_CVSD_SUPPORT) && CONFIG_BT_AUDIO_CODEC_CVSD_SUPPORT
 	/* cvsd codec */
 	if (RTK_BT_AUDIO_CODEC_CVSD == paudio_codec_conf->codec_index) {
 		BT_LOGE("[BT_AUDIO] cvsd codec init  \r\n");
@@ -642,7 +642,7 @@ static uint16_t bt_audio_codec_deinit(uint32_t codec_index, PAUDIO_CODEC_ENTITY 
 		BT_LOGE("[BT_AUDIO] Codec entity is empty \r\n");
 		return err;
 	}
-#if defined(CONFIG_BT_AUDIO_CODEC_SBC) && CONFIG_BT_AUDIO_CODEC_SBC
+#if defined(CONFIG_BT_AUDIO_CODEC_SBC_SUPPORT) && CONFIG_BT_AUDIO_CODEC_SBC_SUPPORT
 	/* sbc codec */
 	if (RTK_BT_AUDIO_CODEC_SBC == codec_index) {
 		BT_LOGE("[BT_AUDIO] sbc codec deinit  \r\n");
@@ -654,21 +654,21 @@ static uint16_t bt_audio_codec_deinit(uint32_t codec_index, PAUDIO_CODEC_ENTITY 
 		err = bt_audio_unregister_codec(RTK_BT_AUDIO_CODEC_mSBC, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_AAC) && CONFIG_BT_AUDIO_CODEC_AAC
+#if defined(CONFIG_BT_AUDIO_CODEC_AAC_SUPPORT) && CONFIG_BT_AUDIO_CODEC_AAC_SUPPORT
 	/* aac codec */
 	if (RTK_BT_AUDIO_CODEC_AAC == codec_index) {
 		BT_LOGE("[BT_AUDIO] aac codec deinit  \r\n");
 		err = bt_audio_unregister_codec(RTK_BT_AUDIO_CODEC_AAC, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_LC3) && CONFIG_BT_AUDIO_CODEC_LC3
+#if defined(CONFIG_BT_AUDIO_CODEC_LC3_SUPPORT) && CONFIG_BT_AUDIO_CODEC_LC3_SUPPORT
 	/* lc3 codec */
 	if (RTK_BT_AUDIO_CODEC_LC3 == codec_index) {
 		BT_LOGE("[BT_AUDIO] lc3 codec deinit  \r\n");
 		err = bt_audio_unregister_codec(RTK_BT_AUDIO_CODEC_LC3, pentity);
 	}
 #endif
-#if defined(CONFIG_BT_AUDIO_CODEC_CVSD) && CONFIG_BT_AUDIO_CODEC_CVSD
+#if defined(CONFIG_BT_AUDIO_CODEC_CVSD_SUPPORT) && CONFIG_BT_AUDIO_CODEC_CVSD_SUPPORT
 	/* cvsd codec */
 	if (RTK_BT_AUDIO_CODEC_CVSD == codec_index) {
 		BT_LOGE("[BT_AUDIO] cvsd codec deinit  \r\n");
@@ -1097,7 +1097,6 @@ uint16_t rtk_bt_audio_track_sync_restart(rtk_bt_audio_track_t *track)
 		track->trans_bytes = 0;
 		osif_mutex_give(track->audio_sync_mutex);
 		rtk_bt_audio_track_resume(track->audio_track_hdl);
-		BT_LOGA("%s: rtk_bt_audio_track_resume \r\n", __func__);
 		BT_LOGA("%s: RTK_BT_AUDIO_TRACK_PRES_INIT \r\n", __func__);
 	}
 
@@ -1180,7 +1179,7 @@ uint16_t rtk_bt_audio_get_iso_ref_ap(rtk_bt_audio_track_t *track, uint16_t iso_c
 	/* ts overflow before Group_Anchor_Point, and ts overflow trigger get new clock drift in do_audio_sync_flow() */
 	if (ref_ap_host_time > 0xFFFFFFFF) {
 		BT_LOGA("[BT AUDIO] %s: ref_ap_host_time overflow \r\n", __func__);
-		// printf("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
+		// BT_LOGD("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
 		//      delt_time, cur_host_time, ref_ap_host_time, info.Group_Anchor_Point, track->frc_drift);
 		*sync_ref_ap = info.Group_Anchor_Point;
 		return 0;
@@ -1188,7 +1187,7 @@ uint16_t rtk_bt_audio_get_iso_ref_ap(rtk_bt_audio_track_t *track, uint16_t iso_c
 	if (delt_time >= 0) {
 		if (delt_time > ((uint32_t)iso_interval / info.Sdu_Interval) * 6000) {
 			BT_LOGE("[BT AUDIO] %s: no enough time for BT controller \r\n", __func__);
-			// printf("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
+			// BT_LOGD("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
 			//      delt_time, cur_host_time, ref_ap_host_time, info.Group_Anchor_Point, track->frc_drift);
 			return 1;
 		}
@@ -1196,11 +1195,24 @@ uint16_t rtk_bt_audio_get_iso_ref_ap(rtk_bt_audio_track_t *track, uint16_t iso_c
 	} else {
 		if (-delt_time > (int64_t)iso_interval) {
 			BT_LOGE("[BT AUDIO] %s: no enough time for BT controller \r\n", __func__);
-			// printf("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
+			// BT_LOGD("[BT AUDIO] delt_time:%lld, cur_host_time:%lu, ref_ap_host_time:%lld, Group_Anchor_Point: %lu, frc_drift:%lld \r\n",
 			//      delt_time, cur_host_time, ref_ap_host_time, info.Group_Anchor_Point, track->frc_drift);
 			return 1;
 		}
-		controller_anchor_point = info.Group_Anchor_Point;
+		/* This time zone is ambiguous, BT Host cannot guarantee that the SDU will be sent out on time*/
+		if (-delt_time >= 4000 && -delt_time <= 6000) {
+			BT_LOGE("[BT AUDIO] %s: anchor point not valid, do re sync! \r\n", __func__);
+			return 1;
+		}
+		if ((uint32_t)iso_interval > info.Sdu_Interval) {
+			if (-delt_time > 5000) {
+				controller_anchor_point = info.Group_Anchor_Point;
+			} else {
+				controller_anchor_point = info.Group_Anchor_Point + iso_interval;
+			}
+		} else {
+			controller_anchor_point = info.Group_Anchor_Point;
+		}
 	}
 
 	*sync_ref_ap = controller_anchor_point;

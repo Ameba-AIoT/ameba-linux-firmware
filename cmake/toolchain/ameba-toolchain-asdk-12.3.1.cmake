@@ -3,11 +3,11 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 
 # set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 set(ToolChainVerMajor asdk-${ASDK_VER})
-set(ToolChainVerMinor 4190)
+set(ToolChainVerMinor 4568)
 if(USE_ALIYUN_URL)
-set(TOOLCHAINURL https://rs-wn.oss-cn-shanghai.aliyuncs.com/)
+set(TOOLCHAINURL https://aiot.realmcu.com/download/toolchain)
 else()
-set(TOOLCHAINURL https://github.com/Ameba-AIoT/ameba-toolchain/releases/download/12.3.1/)
+set(TOOLCHAINURL https://github.com/Ameba-AIoT/ameba-toolchain/releases/download/12.3.1_v3/)
 endif()
 
 set(TOOLCHAINDIR)
@@ -29,15 +29,17 @@ if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL Linux)
 		set(TOOLCHAINDIR /opt/rtk-toolchain)
 		message("Default toolchain path: ${TOOLCHAINDIR}")
 	endif()
-	set(SDK_TOOLCHAIN ${TOOLCHAINDIR}/${ToolChainVerMajor}/linux/newlib) # Note: server needs to be updated, ${ToolChainVerMajor}-${ToolChainVerMinor}
+	set(SDK_TOOLCHAIN ${TOOLCHAINDIR}/${ToolChainVerMajor}-${ToolChainVerMinor}/linux/newlib) # Note: server needs to be updated, ${ToolChainVerMajor}-${ToolChainVerMinor}
 	set(TOOLCHAINNAME ${ToolChainVerMajor}-linux-newlib-build-${ToolChainVerMinor}-x86_64.tar.bz2)
 elseif(${CMAKE_HOST_SYSTEM_NAME} STREQUAL Windows)
 	if(NOT TOOLCHAINDIR)
 		set(TOOLCHAINDIR C:/rtk-toolchain)
 		message("Default toolchain path: ${TOOLCHAINDIR}")
 	endif()
-	set(SDK_TOOLCHAIN ${TOOLCHAINDIR}/${ToolChainVerMajor}/mingw32/newlib) # Note: server needs to be updated, ${ToolChainVerMajor}-${ToolChainVerMinor}
+	set(SDK_TOOLCHAIN ${TOOLCHAINDIR}/${ToolChainVerMajor}-${ToolChainVerMinor}/mingw32/newlib) # Note: server needs to be updated, ${ToolChainVerMajor}-${ToolChainVerMinor}
 	set(TOOLCHAINNAME ${ToolChainVerMajor}-mingw32-newlib-build-${ToolChainVerMinor}-x86_64.zip)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "") # disable ccache
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "")
 else()
 	message(FATAL_ERROR "unknown host platform ")
 endif()

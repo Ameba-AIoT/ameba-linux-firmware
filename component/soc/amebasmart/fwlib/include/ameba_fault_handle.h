@@ -1,5 +1,15 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef _AMEBA_FAULT_HANDLE_H_
 #define _AMEBA_FAULT_HANDLE_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define HARDFAULT_ID    0
 #define USAGEFAULT_ID   1
@@ -22,5 +32,8 @@ void Fault_Handler(uint32_t mstack[], uint32_t pstack[], uint32_t lr_value, uint
 
 void Fault_Hanlder_Redirect(crash_on_task crash_on_task_func);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

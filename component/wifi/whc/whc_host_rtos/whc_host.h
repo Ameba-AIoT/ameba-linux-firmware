@@ -18,14 +18,23 @@
 #ifdef CONFIG_WHC_INTF_SPI
 #include "whc_spi_host.h"
 #include "whc_spi_host_trx.h"
+#elif defined(CONFIG_WHC_INTF_SDIO)
+#include "whc_sdio_host.h"
+#include "whc_sdio_host_trx.h"
+#include "rtw_sdio_drvio.h"
+#elif defined(CONFIG_WHC_INTF_UART)
+#include "whc_uart_host.h"
+#include "whc_uart_host_trx.h"
+#include "serial_api.h"
 #endif
+
 #ifdef CONFIG_LWIP_LAYER
 #include <lwip_netconf.h>
 #include <dhcp/dhcps.h>
 #endif
 
-#ifdef CONFIG_WHC_BRIDGE_HOST
-#include "whc_bridge_host_app.h"
+#if defined(CONFIG_WHC_CMD_PATH) && defined(CONFIG_WHC_HOST)
+#include "whc_host_app.h"
 #endif
 
 #include "bt_inic_defs.h"
@@ -37,6 +46,7 @@ enum WHC_WIFI_CTRL_TYPE {
 	WHC_WIFI_EVT_API_CALL,
 	WHC_WIFI_EVT_API_RETURN,
 	WHC_WIFI_EVT_BRIDGE,
+	WHC_WIFI_EVT_FLOWCTRL,
 	WHC_WIFI_EVT_MAX,
 	WHC_CUST_EVT, /* the ID to transmit data for the customer. */
 
@@ -57,17 +67,18 @@ struct whc_cust_hdr {
 
 struct whc_msg_info {
 	u32	event;
-	u32	wlan_idx;
+	u8	wlan_idx: 2;
+	u8	flow_ctrl_en: 1;
+	u8	rsvd1 : 5;
+	u8	rsvd2[3];
 	u32	data_len;
 	u32	pad_len;
 };
 
-#if defined(CONFIG_WHC_BRIDGE_HOST)
-struct whc_bridge_hdr {
+struct whc_cmd_path_hdr {
 	u32	event;
 	u32	len;
 };
-#endif
 
 struct event_func_t {
 	u32 api_id;

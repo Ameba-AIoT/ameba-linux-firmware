@@ -421,6 +421,10 @@ typedef struct {
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 //Please add your defination here
 
@@ -651,12 +655,15 @@ _LONG_CALL_ u32 SSI_ReadData(SPI_TypeDef *spi_dev);
 _LONG_CALL_ u32 SSI_ReceiveData(SPI_TypeDef *spi_dev, void *RxData, u32 Length);
 _LONG_CALL_ u32 SSI_SendData(SPI_TypeDef *spi_dev, void *TxData, u32 Length, u32 Role);
 _LONG_CALL_ u32 SSI_GetRawIsr(SPI_TypeDef *spi_dev);
+_LONG_CALL_ u32 SPI_GetINTConfig(SPI_TypeDef *spi_dev);
 _LONG_CALL_ u32 SSI_GetSlaveEnable(SPI_TypeDef *spi_dev);
 _LONG_CALL_ u32 SSI_GetDataFrameSize(SPI_TypeDef *spi_dev);
+_LONG_CALL_ u32 SSI_GetDataFrameNumber(SPI_TypeDef *spi_dev);
 _LONG_CALL_ void SSI_SetSampleDelay(SPI_TypeDef *spi_dev, u32 SampleDelay);
 _LONG_CALL_ void SSI_Init(SPI_TypeDef *spi_dev, SSI_InitTypeDef *SSI_InitStruct);
 _LONG_CALL_ void SSI_StructInit(SSI_InitTypeDef *SSI_InitStruct);
 _LONG_CALL_ void SSI_SetDataFrameSize(SPI_TypeDef *spi_dev, u32 DataFrameSize);
+_LONG_CALL_ void SSI_SlaveOutputEnable(SPI_TypeDef *spi_dev, u32 Status);
 _LONG_CALL_ void SSI_SetSSTogglePhase(SPI_TypeDef *spi_dev, u32 TogglePhase);
 _LONG_CALL_ void SSI_SetDataSwap(SPI_TypeDef *spi_dev, u32 SwapStatus, u32 newState);
 _LONG_CALL_ void SSI_SetBaud(SPI_TypeDef *SPIx, u32 BaudRate, u32 IpClk);
@@ -677,6 +684,10 @@ _LONG_CALL_ void SSI_SetDmaLevel(SPI_TypeDef *spi_dev, u32 TxLeve, u32 RxLevel);
 /* Other Definitions --------------------------------------------------------*/
 
 extern const SPI_DevTable SPI_DEV_TABLE[2];
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

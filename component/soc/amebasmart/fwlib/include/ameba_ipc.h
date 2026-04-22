@@ -152,6 +152,10 @@ typedef struct {
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 //Please add your defination here
 
@@ -195,6 +199,9 @@ typedef enum {
 	IPC_SEM_FLASH,
 	IPC_SEM_OTP,
 	IPC_SEM_CRYPTO,
+	IPC_SEM_DIAGNOSE,
+	IPC_SEM_SYSON,
+	IPC_SEM_GDMA,
 	IPC_SEM_MAX = 16,			/* can't be this value, total 16 ipc semaphores*/
 } IPC_SEM_IDX;
 /** @} */
@@ -337,28 +344,18 @@ typedef enum {
 #define IPC_A2N_WIFI_API_TRAN					1	/*!<  AP -->  NP WIFI API Message Exchange */
 #define IPC_A2N_FLASHPG_REQ						2	/*!<  AP -->  NP Flash Program Request*/
 #define IPC_A2N_COEX_API_TRAN					3	/*!<  AP -->  NP COEX API Exchange */
-#define IPC_A2N_BT_DRC_TRAN						4	/*!<  AP -->  NP BT DATA Message Exchange */
-#define IPC_A2N_802154_TRAN						5
+#define IPC_A2N_DIAGNOSE							4	/*!<  AP -->  NP Diagnose API Message Exchange */
+//#define IPC_A2N_Channel5						5
+// #define IPC_A2N_BT_DRC_TRAN						4	/*!<  Recycled: AP -->  NP BT DATA Message Exchange */
+// #define IPC_A2N_802154_TRAN						5 /*!<  Recycled */
 #define IPC_A2N_OTP_RX_TRAN						6
 #define IPC_A2N_LOGUART_RX_SWITCH				7	/*!<  AP -->  NP Loguart Message Exchange for Linux*/
 #define IPC_A2N_IMQ_TRX_TRAN					7	/*!<  AP -->  NP IMQ Message Exchange for RTOS*/
-#if (defined(CONFIG_ARM_CORE_CA32) && defined(CONFIG_AS_AP)) || \
-	(defined(CONFIG_ARM_CORE_CM4) && defined(CONFIG_AS_NP))
 
-#define IPC_CH_WIFI_FW_CTRL		IPC_N2L_Channel1
-#define IPC_DIR_WIFI_FW_CTRL		IPC_NP_TO_LP
-
-#elif (defined(CONFIG_ARM_CORE_CM4) && defined(CONFIG_AS_AP)) || \
-	(defined(CONFIG_ARM_CORE_CA32) && defined(CONFIG_AS_NP))
-
-#define IPC_CH_WIFI_FW_CTRL		IPC_A2L_Channel1
-#define IPC_DIR_WIFI_FW_CTRL		IPC_AP_TO_LP
-
-#elif (defined(CONFIG_ARM_CORE_CM0))
+#if (defined(CONFIG_ARM_CORE_CM0))
 #define IPC_CH_WIFI_FW_CTRL			1
 #define IPC_FW_CA2LP_CHNUM			17
 #define IPC_FW_KM2LP_CHNUM			25
-
 #endif
 /** @} */
 
@@ -393,7 +390,10 @@ void IPC_patch_function(void (*pfunc1)(u32), void (*pfunc2)(u32));
 
 extern const IPC_INIT_TABLE  ipc_init_config[];
 
+#ifdef __cplusplus
+}
+#endif
+
 /* MANUAL_GEN_END */
 
 #endif
-

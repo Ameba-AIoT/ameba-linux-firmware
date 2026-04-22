@@ -1,2 +1,0 @@
-ameba_add_subdirectory_if_exist(benchmark)
-ameba_add_subdirectory_if(CONFIG_DEMO_UI_EN demoui)

@@ -302,6 +302,10 @@ typedef struct {
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /* Exported constants --------------------------------------------------------*/
 
@@ -343,10 +347,6 @@ typedef struct {
 
 /** @} */
 /** @} */
-
-#define OTPC_PHY_ROM_PATCH_ZONE					((u32)0x00000001 << 2)
-#define ROM_PATCH_LENGTH							0x200
-
 
 //Please add your defination here
 enum OTP_OPMode {
@@ -400,7 +400,6 @@ enum OTP_OPMode {
 #define OTP_SUPPERPATCH_BASE						0x40000000
 #define OTP_SUPPERPATCH_END						0x50000000
 #define OTP_IS_SUPPERPATCH(x)						((x >= OTP_SUPPERPATCH_BASE) && (x < OTP_SUPPERPATCH_END))
-
 #define OTP_RTKPATCH_BASE							0x500
 #define OTP_RTKPATCH_END							0x6FC
 
@@ -409,13 +408,22 @@ enum OTP_OPMode {
 //OTPC_OTP_PARAM
 #define OTPC_BIT_BUSY								BIT8
 
+#define OTP_CRC0_BASE								0x370
+#define OTP_CRC1_BASE								0x374
+#define OTP_CRC2_BASE								0x378
+#define OTP_CRC3_BASE								0x37C
 
-extern int OTP_LogicalMap_Read(u8 *pbuf, u32 addr, u32 len);
+extern int OTP_LogicalRead(u8 *pbuf, u32 addr, u32 len);
 extern int OTP_Read8(u32 Addr, u8 *Data);
+extern int OTP_Read32(u32 Addr, u32 *Data);
 extern int OTP_Write8(u32 Addr, u8 Data);
-extern int OTP_LogicalMap_Write(u32 addr, u32 cnts, u8 *data);
-extern u32 otp_logical_remain(void);
+extern int OTP_LogicalWrite(u32 addr, u32 cnts, u8 *data);
+extern u32 OTP_LogicalGetRemain(void);
 extern u32 OTPGetCRC(void);
+extern int OTP_SetCRC(void);
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

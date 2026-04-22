@@ -7,6 +7,10 @@
 #ifndef _AMEBA_BOOT_H_
 #define _AMEBA_BOOT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern u8 __image1_validate_code__[];
 extern u8 __image1_bss_start__[];
 extern u8 __image1_bss_end__[];
@@ -23,7 +27,8 @@ extern u8 __ram_nocache_start__[];
 extern u8 __ram_nocache_end__[];
 extern u8 __image3_bss_start__[];
 extern u8 __image3_bss_end__[];
-extern u8 __ram_image2_text_start__[];
+extern u8 __image3_heap_start__[];
+extern u8 __image3_heap_size__[];
 extern u8 __ram_image2_text_end__[];
 
 extern u8 __ipc_table_start__[];
@@ -55,13 +60,16 @@ extern u8  __rom_entry_ns_start__[];
 extern u8 __retention_entry_func__[];
 
 extern u8 __km0_flash_text_start__[];
+extern u8 __km0_flash_text_end__[];
 extern u8 __km0_ipc_memory_start__[];
 extern u8 __km4_flash_text_start__[];
+extern u8 __km4_flash_text_end__[];
 extern u8 __km0_image2_entry_func__[];
 extern u8 __km4_image2_entry_func__[];
 extern u8 __km4_audio_buf_start__[];
 extern u8 __ca32_fip_dram_start__[];
 extern u8 __ca32_flash_text_start__[];
+extern u8 __ca32_flash_text_end__[];
 extern u8 __ca32_bl1_dram_start__[];
 
 extern u8 __psram_heap_buffer_start__[];
@@ -69,6 +77,11 @@ extern u8 __psram_heap_buffer_size__[];
 extern u8 __psram_heap_extend_start__[];
 extern u8 __psram_heap_extend_size__[];
 extern u8 __non_secure_psram_end__[]; /* if psram is 8MB, than write 0x60800000 will write 0x60000000 */
+
+#if defined (CONFIG_UNITY_TEST) && CONFIG_UNITY_TEST
+extern u8 __unity_table_start__[];
+extern u8 __unity_table_end__[];
+#endif
 
 /* sym for stdlib rom */
 extern u8 __rom_stdlib_bss_start__[];
@@ -109,25 +122,6 @@ typedef struct {
 	u8(*loguart_getchar)(bool PullMode);
 	u32(*diagprintf)(const char *fmt, ...);
 } ROM_SECURE_CALL_NS_ENTRY;
-
-enum _REG_CONFIG_SEQ_ {
-	/*use these command means do not care the index,
-		use these cmd if do not care excute location*/
-	CPU_PWRSEQ_CMD_READ = 0xFFFFFF00,
-	CPU_PWRSEQ_CMD_WRITE  = 0xFFFFFF01,
-	CPU_PWRSEQ_CMD_POLLING   = 0xFFFFFF02,
-	CPU_PWRSEQ_CMD_DELAY   = 0xFFFFFF03,
-	CPU_PWRSEQ_CMD_LOGE   = 0xFFFFFF08,
-	CPU_PWRSEQ_CMD_END   = 0xFFFFFFFF,
-
-	/*newly add command,use if care the seq excute location*/
-	REG_CONFIG_CMD_READ = 0x00,
-	REG_CONFIG_CMD_WRITE  = 0x01,
-	REG_CONFIG_CMD_POLLING   = 0x02,
-	REG_CONFIG_CMD_DELAY   = 0x03,
-	REG_CONFIG_CMD_LOGE   = 0x08,
-	REG_CONFIG_CMD_END   = 0xFF,
-};
 
 typedef struct {
 	u32 address; /*!< Specifies the register going to config.
@@ -300,16 +294,8 @@ extern u32 HUK_Derive_En;
 #define IS_HS_SRAM_S_ADDR(addr)		((addr >= HS_SRAM_S_ADDR_START) && (addr <= HS_SRAM_S_ADDR_END))
 #define IS_LS_SRAM_ADDR(addr)		((addr >= LS_SRAM_ADDR_START) && (addr <= LS_SRAM_ADDR_END))
 
-/* BOOT_OTA_INFO */
-/* BIT 31 for bootcnt > 3 , means default version cannot work */
-/* BIT 30 for boot version, 0 for OTA1, 1 for OTA2 */
-/* BIT 0:7 for bootcnt */
-/* User should set BOOT_OTA_INFO to zero when bootloader img can work normally */
-#define BOOT_OTA_INFO			0x420080E0
-#define BOOT_CNT_ERR			BIT31
-#define BOOT_VER_NUM			BIT30
-#define BOOT_CNT_MASK			0xFF
-#define BOOT_CNT_TOTAL_LIMIT	0x6
-#define BOOT_CNT_TRY_LIMIT		0x4
+#ifdef __cplusplus
+}
+#endif
 
 #endif   //_AMEBA_BOOT_H_

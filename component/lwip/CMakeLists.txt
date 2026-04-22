@@ -27,13 +27,10 @@ ameba_global_include(${public_includes})
 ameba_global_define(${public_definitions})
 ameba_global_library(${public_libraries}) #default: whole-archived
 
-if(NOT (CONFIG_WLAN AND CONFIG_CORE_AS_AP))
+if(NOT (CONFIG_LWIP_LAYER))
     return()
 endif()
 
-if (CONFIG_MP_SHRINK)
-    return()
-endif()
 ##########################################################################################
 ## * This part defines private part of the component
 ## * Private part is used to build target of current component
@@ -100,8 +97,14 @@ ameba_list_append(private_sources
     lwip_${v_LWIP_VER}/src/api/api_lib.c
     lwip_${v_LWIP_VER}/src/api/netifapi.c
     lwip_${v_LWIP_VER}/src/apps/mdns/mdns.c
+    lwip_${v_LWIP_VER}/src/apps/sntp/sntp.c
 )
 
+#WARNING: For toolchain version 12.3.1, code like this will cause a warning:
+#  ip_addr_isany(&cpcb->local_ip)
+ameba_list_append(private_compile_options
+    -Wno-address
+)
 
 # Component private part, user config end
 #------------------------------#
@@ -119,5 +122,9 @@ ameba_add_internal_library(lwip
     p_COMPILE_OPTIONS
         ${private_compile_options}
 )
+if (CONFIG_AMEBAGREEN2)
+ameba_library_section_prefix(${c_CURRENT_TARGET_NAME} .lwip.cache.efficient) #fix lwip section to cache efficient area
+endif()
 ##########################################################################################
 ameba_add_subdirectory(lwip_${v_LWIP_VER}/src/core/ipv4/ip_nat)
+ameba_add_subdirectory(lwip_${v_LWIP_VER}/src/core/ipv6/ip6_rlocal)

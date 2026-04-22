@@ -1,7 +1,7 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef _HCI_PLATFORM_H_
@@ -23,8 +23,9 @@
 
 #define HCI_BT_COEX_ENABLE         1
 #define HCI_BT_COEX_SW_MAILBOX     0
+#define HCI_BT_COEX_BR_EDR_SUPPORT   1
 
-#define HCI_BT_KEEP_WAKE           0
+#define HCI_BT_KEEP_AWAKE          0
 
 /**
 * @typedef   bt_ant_t
@@ -43,8 +44,9 @@ uint8_t hci_platform_record_chipid(uint8_t chipid);
 
 bool rtk_bt_pre_enable(void);
 void rtk_bt_post_enable(void);
-uint8_t hci_platform_init(void);
-void hci_platform_deinit(void);
+uint8_t hci_platform_open(void);
+void hci_platform_close(void);
+void hci_platform_free(void);
 
 void hci_platform_debug_enable(void);
 

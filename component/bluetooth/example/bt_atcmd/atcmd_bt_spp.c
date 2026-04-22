@@ -160,7 +160,13 @@ static const cmd_table_t spp_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_spp_cmd(int argc, char *argv[])
+void fBTSPP(u16 argc, char *argv[])
 {
-	return atcmd_bt_excute(argc, argv, spp_cmd_table, "[AT+BTSPP]");
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], spp_cmd_table, "[AT+BTSPP]");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }

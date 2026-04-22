@@ -324,7 +324,7 @@ static size_t xPortCanaryCheck(BlockLink_t *pxBlock)
 /*-----------------------------------------------------------*/
 
 #if ( ( !defined CONFIG_HEAP_CORRUPTION_DETECT_LITE ) )
-void *pvPortMalloc(size_t xWantedSize)
+void *pvPortMallocBase(size_t xWantedSize, uint32_t startAddr)
 {
 	BlockLink_t *pxBlock, * pxPreviousBlock, * pxNewBlockLink;
 	void *pvReturn = NULL;
@@ -369,7 +369,7 @@ void *pvPortMalloc(size_t xWantedSize)
 				pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
 				heapVALIDATE_BLOCK_POINTER(pxBlock);
 
-				while ((pxBlock->xBlockSize < xWantedSize) && (pxBlock->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER(NULL))) {
+				while (((pxBlock->xBlockSize < xWantedSize) || ((uint32_t)pxBlock + xHeapStructSize) < startAddr ) && (pxBlock->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER(NULL))) {
 					pxPreviousBlock = pxBlock;
 					pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
 					heapVALIDATE_BLOCK_POINTER(pxBlock);
@@ -462,7 +462,7 @@ void *pvPortMalloc(size_t xWantedSize)
 	return pvReturn;
 }
 #else /* !defined CONFIG_HEAP_CORRUPTION_DETECT_LITE */
-void *pvPortMalloc(size_t xWantedSize)
+void *pvPortMallocBase(size_t xWantedSize, uint32_t startAddr)
 {
 	BlockLink_t *pxBlock, * pxPreviousBlock, * pxNewBlockLink;
 	void *pvReturn = NULL;
@@ -516,8 +516,7 @@ void *pvPortMalloc(size_t xWantedSize)
 				pxBlock = heapPROTECT_BLOCK_POINTER(xStart.pxNextFreeBlock);
 				heapVALIDATE_BLOCK_POINTER(pxBlock);
 
-				while ((pxBlock->xBlockSize < xWantedSize) && (pxBlock->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER(NULL))) {
-					pxPreviousBlock = pxBlock;
+				while (((pxBlock->xBlockSize < xWantedSize) || ((uint32_t)pxBlock + xHeapStructSize) < startAddr ) && (pxBlock->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER(NULL))) {					pxPreviousBlock = pxBlock;
 					pxBlock = heapPROTECT_BLOCK_POINTER(pxBlock->pxNextFreeBlock);
 					heapVALIDATE_BLOCK_POINTER(pxBlock);
 				}
@@ -634,6 +633,12 @@ void *pvPortMalloc(size_t xWantedSize)
 	return pvReturn;
 }
 #endif /* defined CONFIG_HEAP_CORRUPTION_DETECT_LITE */
+
+void *pvPortMalloc(size_t xWantedSize)
+{
+	return pvPortMallocBase(xWantedSize, 0);
+}
+
 /*-----------------------------------------------------------*/
 
 #if (defined CONFIG_HEAP_CORRUPTION_DETECT_LITE)
@@ -1146,7 +1151,8 @@ void vPortGetTaskHeapInfo(void)
 #endif
 #endif
 
-void* pvPortReAlloc( void *pv,  size_t xWantedSize )
+
+void* pvPortReAllocBase( void *pv,  size_t xWantedSize, uint32_t startAddr)
 {
 	BlockLink_t *pxLink;
 	unsigned char *puc = ( unsigned char * ) pv;
@@ -1163,7 +1169,7 @@ void* pvPortReAlloc( void *pv,  size_t xWantedSize )
 			return NULL;
 		}
 
-		void *newArea = pvPortMalloc( xWantedSize );
+		void *newArea = pvPortMallocBase( xWantedSize, startAddr);
 		if( newArea )
 		{
 			/* The memory being freed will have an xBlockLink structure immediately
@@ -1173,8 +1179,10 @@ void* pvPortReAlloc( void *pv,  size_t xWantedSize )
 #else
 			puc -= xHeapStructSize;
 #endif
+
 			/* This casting is to keep the compiler from issuing warnings. */
 			pxLink = ( void * ) puc;
+
 #if( defined CONFIG_HEAP_CORRUPTION_DETECT_LITE)
 			size_t oldSize =  (pxLink->xBlockSize & ~xBlockAllocatedBit) - (xHeapStructSize + xHeadCanarySize + xTailCanarySize);
 #else
@@ -1187,6 +1195,7 @@ void* pvPortReAlloc( void *pv,  size_t xWantedSize )
 			xBlockToFillSize = (pxLink->xBlockSize & ~xBlockAllocatedBit) - xHeapStructSize;
 			_memset(pucBlockToFree, xFillFreed, xBlockToFillSize);
 #endif
+
 			vTaskSuspendAll();
 			{
 				/* Add this block to the list of free blocks. */
@@ -1199,11 +1208,16 @@ void* pvPortReAlloc( void *pv,  size_t xWantedSize )
 		}
 	}
 	else if( xWantedSize )
-		return pvPortMalloc( xWantedSize );
+		return pvPortMallocBase( xWantedSize, startAddr);
 	else
 		return NULL;
 
 	return NULL;
+}
+
+void* pvPortReAlloc( void *pv,  size_t xWantedSize )
+{
+	return pvPortReAllocBase(pv, xWantedSize, 0);
 }
 
 void *pvPortCalloc(size_t xWantedCnt, size_t xWantedSize)
@@ -1219,6 +1233,9 @@ void *pvPortCalloc(size_t xWantedCnt, size_t xWantedSize)
 	return p;
 }
 
+/* Use global variables to reduce stack usage. */
+static HeapStats_t FailHookHeapStats;
+__attribute__((optimize("O0")))
 void vApplicationMallocFailedHook(size_t xWantedSize)
 {
 	char *pcCurrentTask = "NoTsk";
@@ -1235,18 +1252,26 @@ void vApplicationMallocFailedHook(size_t xWantedSize)
 	if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
 		pcCurrentTask = pcTaskGetName(NULL);
 	}
-	
+
 	/* amebasmart use portGET_TASK_LOCK in xTaskGetSchedulerState */
 	taskENTER_CRITICAL();
 
 	/* 1. Basic info: Task name / Free Heap Size / WantedSize */
-	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "Malloc failed. Core:[%s], Task:[%s], [free heap size: %d] [xWantedSize:%d]\r\n",
-			core_name, pcCurrentTask, xPortGetFreeHeapSize(), xWantedSize);
+	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "Malloc failed. Core:[%s], Task:[%s], ", core_name, pcCurrentTask);
+	/* Use two lines of printing to reduce stack usage. */
+	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "[xWantedSize:%u]\r\n", xWantedSize);
 
-#if defined (CONFIG_HEAP_PROTECTOR) && (CONFIG_HEAP_PROTECTOR== 1)
-	rtos_heap_stats stats;
 	/* 2. Full heap status */
-    heap_get_stats(&stats);
+	/* Avoid calling heap_get_stats to reduce stack usage. */
+	vPortGetHeapStats(&FailHookHeapStats);
+	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "AvailHeap: %u, MaxFreeBlock: %u, ",
+			FailHookHeapStats.xAvailableHeapSpaceInBytes,
+			FailHookHeapStats.xSizeOfLargestFreeBlockInBytes);
+	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "Allocs: %u, Frees: %u\r\n",
+			FailHookHeapStats.xNumberOfSuccessfulAllocations,
+			FailHookHeapStats.xNumberOfSuccessfulFrees);
+	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "MinEverFree: %u\r\n",
+			FailHookHeapStats.xMinimumEverFreeBytesRemaining);
 
 #if defined (CONFIG_HEAP_TRACE) && (CONFIG_HEAP_TRACE == 1)
 	/* 3. Task heap useage */
@@ -1271,7 +1296,6 @@ void vApplicationMallocFailedHook(size_t xWantedSize)
 	RTK_LOGS(NOTAG, RTK_LOG_ERROR, "\r\n");
 #endif /* CONFIG_ARM_CORE_CM4 || CONFIG_RSICV_CORE_KR4 */
 #endif /* CONFIG_HEAP_TRACE */
-#endif /* CONFIG_HEAP_PROTECTOR */
 	for (;;);
 }
 

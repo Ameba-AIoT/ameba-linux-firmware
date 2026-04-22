@@ -7,6 +7,10 @@
 #ifndef _RTL8721D_BACKUP_REG_H_
 #define _RTL8721D_BACKUP_REG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @addtogroup AmebaD_Platform
   * @{
   */
@@ -119,6 +123,19 @@ _LONG_CALL_ void BKUP_Clear(u32 DwordIdx, u32 BitMask);
 #define BKUP_BIT_UARTBURN_BOOT				BIT(9)	/*!<  this is SW set bit before reboot, for uart download */
 
 #define BKUP_MASK_UARTBURN_BOOT				0
+
+/* BOOT_OTA_INFO */
+/* BIT 31 for bootcnt > 3 , means default version cannot work */
+/* BIT 30 for boot version, 0 for OTA1, 1 for OTA2 */
+/* BIT 0:7 for bootcnt */
+/* User should set BOOT_OTA_INFO to zero when bootloader img can work normally */
+#define BOOT_OTA_INFO			0x420080E0
+#define BOOT_CNT_ERR			BIT31
+#define BOOT_VER_NUM			BIT30
+#define BOOT_CNT_MASK			0xFF
+#define BOOT_CNT_TOTAL_LIMIT	0x6
+#define BOOT_CNT_TRY_LIMIT		0x4
+
 /** @} */
 /** @} */
 
@@ -129,5 +146,9 @@ _LONG_CALL_ void BKUP_Clear(u32 DwordIdx, u32 BitMask);
 /**
   * @}
   */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_RTL8710B_BACKUP_REG_H_

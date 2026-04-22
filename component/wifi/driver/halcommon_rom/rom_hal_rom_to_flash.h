@@ -106,7 +106,7 @@ struct _wifi_rom_to_flash_func_map {
 	int(*wifi_hal_mgnt_xmit)(u8 iface_type, struct xmit_frame *pmgntframe);
 	int(*wifi_hal_xmit)(u8 iface_type, struct xmit_frame *pxmitframe);
 	void(*wifi_hal_txdesc_fill)(struct xmit_frame *pxmitframe, u8 *pmem);
-	int(*rtw_mgmt_xmitframe_coalesce)(u8 iface_type, struct security_priv *psecuritypriv, struct xmit_frame *pxmitframe);
+	int(*rtw_mgmt_xmitframe_coalesce)(u8 iface_type, struct security_priv *psecuritypriv, struct xmit_frame *pxmitframe, u8 b_swenc);
 	void (*rtw_recv_validate_mgnt_frame)(u8 iface_type, union recv_frame **pprecv_frame);
 	int (*rtw_enqueue_cmd)(u8 iface_type, u8 *parmbuf, int(*cmd_hdl)(u8 iface_type, struct cmd_obj *pcmd), u32 parm_nobuf);
 	int(*wifi_hal_xmitframe_dump_sc)(u8 iface_type, struct sk_buff *pkt, struct sta_mlme_priv *psta_mlmepriv, int idx, u8 UserPriority);
@@ -121,7 +121,7 @@ struct _wifi_rom_to_flash_func_map {
 	void (*rtw_hal_btc_sec_key_exchange_notify)(u8 iface_type, u8 b_start, u8 b_grp_key_update);
 	bool (*halbb_set_bss_color)(u8 bss_color, enum phl_phy_idx phy_idx);
 	void (*wifi_hal_ra_update_support_rate)(struct sta_mlme_priv *psta_mlmepriv);
-	void (*wifi_indication)(u32 event, u8 *buf, s32 buf_len, s32 flags); //data type of buf in rom is char *
+	void (*wifi_indication)(u32 event, u8 *evt_info, s32 evt_len); //data type of buf in rom is char *
 	u8(*rtw_is_adapter_up)(u8 iface_type);
 	/* nan */
 	u8(*rtw_is_nan_frame)(union recv_frame *precv_frame);

@@ -30,11 +30,15 @@ LE Audio Config:
 GCC menuconfig 
 ~~~~~~~~~~~
 1. BT Related:
-    ./menuconfig.py --> CONFIG BT --> BT Example Demo --> BT A2DP HFP and LE Audio PBP
-                                  --> BT Example Demo --> BLE Audio --> BLE Audio Public Broadcast Profile
+    Enter the SDK root directory, execute in order:
+    source env.sh
+    ./ameba.py soc RTL8730E
+    ./ameba.py menuconfig --> CONFIG BT --> BT Example Demo --> BT A2DP HFP and LE Audio PBP
+                                        --> BT Example Demo --> BLE Audio --> BLE Audio Public Broadcast Profile (optional)
 2. Audio Related:
-    ./menuconfig.py --> CONFIG Application --> Audio Config --> Select Audio Interfaces (Mixer)
-3. GCC : use CMD "./build.py" to compile example
+    ./ameba.py menuconfig --> CONFIG Application --> Audio Config --> Select Audio Interfaces (Mixer)
+                                                 --> Audio Config --> Third Party Lib --> Speex
+3. GCC : use CMD "./ameba.py build" to compile example
 
 Test ATCMD
 ~~~~~~~~~~~
@@ -44,8 +48,8 @@ If user want to open audio local play fuction, must change the following Maros b
     3.change the VENDOR_CMD_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT      to     1   in bt_vendor_config.h
     4.change the RTK_BT_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT          to     1   in bt_api_config.h
     5.change kPrimaryAudioConfig in ameba_audio_mixer_usrcfg.cpp:
-         change from   kPrimaryAudioConfig = {1024, 4, RTAUDIO_OUT_MIN_FRAMES_STAGE1};
-                to     kPrimaryAudioConfig = {240, 4, RTAUDIO_OUT_MIN_FRAMES_STAGE2};
+         change from   kPrimaryAudioConfig = {1024, 4, AUDIO_OUT_MIN_FRAMES_STAGE1};
+                to     kPrimaryAudioConfig = {240, 4, AUDIO_OUT_MIN_FRAMES_STAGE2};
     6.  unmask the following code in bt_audio_track_api.c
        from  //track_buf_size = 22608;
         to    track_buf_size = 22608;

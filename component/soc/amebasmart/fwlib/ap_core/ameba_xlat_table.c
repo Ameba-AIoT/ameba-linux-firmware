@@ -6,6 +6,7 @@
 
 #include "xlat_tables_v2.h"
 #include "basic_types.h"
+#include "section_config.h"
 
 extern unsigned char __ram_nocache_start__[];
 extern unsigned char __ram_nocache_end__[];
@@ -45,6 +46,10 @@ void setupMMUTable(int coreID)
 		/* NOTE: For RW Normal Memory, default XN. For RO Normal Memory, it can be EXC/XN */
 //		mmap_add_region(0x00000000, 0x00000000, 0x00100000, MT_CODE | MT_NS); // Non-Secure CPU do not need it
 		mmap_add_region(0x08000000, 0x08000000, 0x10000000 - 0x08000000, MT_CODE | MT_NS);
+
+		// RETENTION_RAM_BASE
+		mmap_add_region(0x23020000, 0x23020000, 0x23021000 - 0x23020000, MT_NON_CACHEABLE | MT_RW | MT_NS);
+
 		mmap_add_region(0x20000000, 0x20000000, 0x40000000 - 0x20000000, MT_MEMORY | MT_RW | MT_NS);
 		mmap_add_region(0x40000000, 0x40000000,	0x60000000 - 0x40000000, MT_DEVICE | MT_RW | MT_NS);
 
@@ -59,11 +64,23 @@ void setupMMUTable(int coreID)
 		}
 		mmap_add_region(0x60000000, 0x60000000,	0x80000000 - 0x60000000, MT_MEMORY | MT_RW | MT_NS);
 
-		mmap_add_region(0x80000000, 0x80000000,	0x80000000, MT_DEVICE | MT_RW | MT_NS);
+		mmap_add_region(0x80000000, 0x80000000,	0xC0000000 - 0x80000000, MT_DEVICE | MT_RW | MT_NS);
 
 		init_xlat_tables();
 
 	}
 	/* core0 & 1: set BBT0 */
 	enable_mmu_svc_mon(0);
+}
+
+SRAMDRAM_ONLY_TEXT_SECTION
+void xlat_flash_region_device(void)
+{
+	xlat_update_mem_attributes(0x08000000, 0x10000000 - 0x08000000, MT_DEVICE | MT_RO | MT_NS);
+}
+
+SRAMDRAM_ONLY_TEXT_SECTION
+void xlat_flash_region_xip(void)
+{
+	xlat_update_mem_attributes(0x08000000, 0x10000000 - 0x08000000, MT_CODE | MT_NS);
 }

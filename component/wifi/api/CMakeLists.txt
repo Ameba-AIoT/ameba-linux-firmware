@@ -13,9 +13,13 @@ set(TARGET_LIB wifi_api)
 # You may use if-else condition to set or update predefined variable above
 ameba_list_append(public_includes
     ${CMAKE_CURRENT_SOURCE_DIR}
+)
+if(NOT (CONFIG_WHC_BRIDGE AND CONFIG_WPA_STD))
+ameba_list_append(public_includes
     ${c_CMPT_WIFI_DIR}/wpa_supplicant/src
 )
-if(CONFIG_ZEPHYR_SDK AND CONFIG_SINGLE_CORE_WIFI)
+endif()
+if(CONFIG_PLATFORM_ZEPHYR)
     ameba_list_append(public_libraries
         ${c_SDK_LIB_APPLICATION_DIR}/lib_${TARGET_LIB}.a
     )
@@ -50,34 +54,33 @@ ameba_list_append(private_sources
     ${c_CMPT_USRCFG_DIR}/ameba_wificfg.c
 )
 
-if(CONFIG_AS_INIC_AP)
+if(CONFIG_WHC_HOST)
     ameba_list_append(private_sources
         ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_eap_config.c
-        ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_p2p_config.c
         ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_wps_config.c
         ${c_CMPT_WIFI_DIR}/wpa_supplicant/src/crypto/tls_polarssl.c
     )
-elseif(CONFIG_SINGLE_CORE_WIFI)
-    ameba_list_append(private_sources
-        ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_eap_config.c
-        ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_p2p_config.c
-        ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_wps_config.c
-        ${c_CMPT_WIFI_DIR}/wpa_supplicant/src/crypto/tls_polarssl.c
-    )
+elseif(CONFIG_WHC_NONE)
+    if(NOT (CONFIG_WHC_BRIDGE AND CONFIG_WPA_STD))
+        ameba_list_append(private_sources
+            ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_eap_config.c
+            ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant/wifi_wps_config.c
+            ${c_CMPT_WIFI_DIR}/wpa_supplicant/src/crypto/tls_polarssl.c
+        )
+    endif()
 endif()
 
-if(NOT CONFIG_AS_INIC_AP)
+if(NOT CONFIG_WHC_HOST)
     ameba_list_append(private_sources
         ${c_CMPT_USRCFG_DIR}/ameba_wifi_power_table_usrcfg.c
         ${c_CMPT_USRCFG_DIR}/ameba_wifi_country_code_table_usrcfg.c
     )
-    ameba_list_append_if(CONFIG_AMEBADPLUS private_sources
+    ameba_list_append_if(CONFIG_WIFI_POWER_TABLE_USRCFG_1v8 private_sources
         ${c_CMPT_USRCFG_DIR}/ameba_wifi_power_table_usrcfg_1v8.c
-        ${c_CMPT_USRCFG_DIR}/ameba_wifi_power_table_usrcfg_3v3_1v25.c
     )
 
-    ameba_list_append_if(CONFIG_AMEBAD private_sources
-        ${c_CMPT_USRCFG_DIR}/ameba_wifi_power_table_usrcfg_1v8.c
+    ameba_list_append_if(CONFIG_WIFI_POWER_TABLE_USRCFG_3v3_1v25 private_sources
+        ${c_CMPT_USRCFG_DIR}/ameba_wifi_power_table_usrcfg_3v3_1v25.c
     )
     if(EXISTS ${c_BASEDIR}/tools/scripts/check_gen_txpower_tool_ver.py)
         execute_process(COMMAND_ERROR_IS_FATAL ANY
@@ -92,7 +95,7 @@ endif()
 
 #WARNING: Select right API based on your component's release/not-release/standalone
 
-if(CONFIG_ZEPHYR_SDK AND CONFIG_SINGLE_CORE_WIFI)
+if(CONFIG_PLATFORM_ZEPHYR)
 ###NOTE: For closed-source component, only build before release and libs are packaged into lib/application
     ameba_add_external_app_library(${TARGET_LIB}
         p_SOURCES

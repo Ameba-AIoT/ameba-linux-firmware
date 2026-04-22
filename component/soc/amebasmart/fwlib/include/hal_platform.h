@@ -248,6 +248,7 @@
  *****************************************************************************/
 #define DDR_BASE                 0x60000000        /* ID:HSLV-2, Inter. Type:AXI-128, Top Address:0x6FFFFFFF, Size(KB):256M, Clk Domain:DDR_CLK */
 #define PSRAM_BASE               0x60000000        /* ID:HSLV-2, Inter. Type:AXI-32(psram_spic_automode), Top Address:0x6FFFFFFF, Size(KB):256M, Clk Domain:PSRAM_CLK */
+#define SRAM_BASE                0x20000000        /* ID:HSLV-3, Inter. Type:AXI-64, Top Address:0x20FFFFFF, Size(KB):16M, Clk Domain:HS_AXI_CLK */
 #define HP_SRAM0_BASE            0x20000000        /* ID:HSLV-3, Inter. Type:AXI-64, Top Address:0x20FFFFFF, Size(KB):16M, Clk Domain:HS_AXI_CLK */
 #define HP_SRAM_EXT_BASE         0x22000000        /* ID:HSLV-5, Inter. Type:AXI, Top Address:0x22FFFFFF, Size(KB):16M, Clk Domain:HS_APB_CLK */
 #define SPI_FLASH_CTRL_BASE      0x44000000        /* ID:HSLV-7, Inter. Type:AXI, Top Address:0x440FFFFF, Size(KB):1M, Clk Domain:SPIC_CLK */
@@ -590,16 +591,17 @@ typedef struct {
 /*WiFi share mem with system */
 #define SHARE_MEM_WL_ADDRESS			(HP_SRAM_EXT_BASE + 0x100000) /*40KB*/
 
-/* margin 512 for lite and 1024 for CA32 */
 #if defined(CONFIG_RSICV_CORE_KR4)
-#define CONTEXT_SAVE_SIZE	(320)	/* portCONTEXT_SIZE:66*4 = 288 roundup to 64B aligned */
+#define CONTEXT_SAVE_SIZE	(268)	/*  portCONTEXT_SIZE 67 * 4 = 268B */
 #elif defined(CONFIG_ARM_CORE_CA32)
-#define CONTEXT_SAVE_SIZE	(320 + 1024) /* 15*4 + 32*8: general reg and floating reg */
+#define CONTEXT_SAVE_SIZE	(328) /* basic (68) + D0-D31 (256) + FPSCR (4) = 328B */
 #elif defined(CONFIG_ARM_CORE_CM4)
-#define CONTEXT_SAVE_SIZE	192 /* 15*4 + 16*8: s16~s31 if use float */
+#define CONTEXT_SAVE_SIZE	212 /* hw (25 + 1 rsvd) * 4 + sw 108 = 212B */
 #elif defined(CONFIG_ARM_CORE_CM0)
-#define CONTEXT_SAVE_SIZE	172	/* not support hw float, 15*4 */
+#define CONTEXT_SAVE_SIZE	80	/* hw (8 + 1 rsvd) *4 + sw 32 = 80B */
 #endif
+
+#define CONTEXT_SAVE_SIZE_WITH_MARGIN		(CONTEXT_SAVE_SIZE + 64)
 
 /** @} End of group AmebaD_Outline */
 #endif //_HAL_PLATFORM_

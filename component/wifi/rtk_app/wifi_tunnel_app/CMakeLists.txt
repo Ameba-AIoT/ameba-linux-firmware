@@ -41,9 +41,14 @@ set(private_compile_options)         #private compile_options
 #------------------------------#
 # Component private part, user config begin
 
-ameba_list_append_if(CONFIG_AS_INIC_AP private_sources
+ameba_list_append_if(CONFIG_WHC_HOST private_sources
     wtn_app_socket.c
     wtn_app_rnat.c
+    wtn_app_zrpp.c
+)
+
+ameba_list_append(private_sources
+    wtn_app_ota.c
 )
 
 # Component private part, user config end
@@ -62,5 +67,7 @@ ameba_add_internal_library(wifi_tunnel_app
         ${private_definitions}
     p_COMPILE_OPTIONS
         ${private_compile_options}
+    p_DEPENDENCIES
+        ${c_BUILD_INFO} #REVIEW: build_info.h is REQUIRED by wtn_app_socket.c
 )
 ##########################################################################################

@@ -1,10 +1,7 @@
 /*
- *  Routines to access hardware
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- *  Copyright (c) 2013 Realtek Semiconductor Corp.
- *
- *  This module is a confidential and proprietary property of RealTek and
- *  possession or use of this module requires written permission of RealTek.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "ameba_soc.h"
@@ -20,7 +17,6 @@ extern volatile UART_LOG_CTL		shell_ctl;
 rtos_sema_t	shell_sema = NULL;
 
 #ifdef CONFIG_SUPPORT_ATCMD
-char atcmd_buf[UART_LOG_CMD_BUFLEN];
 extern int atcmd_service(char *line_buf);
 extern void atcmd_service_init(void);
 #endif
@@ -54,7 +50,7 @@ static void shell_give_sema(void)
 	}
 }
 
-static u32 shell_cmd_exec_ram(u8 *pbuf)
+__attribute__((noinline)) static u32 shell_cmd_exec_ram(u8 *pbuf)
 {
 	monitor_cmd_handler cmd_handler = NULL;
 	u8 argc = shell_get_argc((const u8 *) pbuf);
@@ -198,10 +194,8 @@ static void shell_task_ram(void *Data)
 		shell_loguartRx_dispatch();
 
 		if (shell_ctl.ExecuteCmd) {
-#if (defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_CORE_AS_AP)
-			shell_array_init((u8 *)atcmd_buf, sizeof(atcmd_buf), '\0');
-			strcpy(atcmd_buf, (const char *)pUartLogBuf->UARTLogBuf);
-			ret = atcmd_service(atcmd_buf);
+#if ((defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE)) || (defined CONFIG_ARM_CORE_CM4)
+			ret = atcmd_service((char *)pUartLogBuf->UARTLogBuf);
 
 #ifdef CONFIG_MP_INCLUDED
 			if (ret == FALSE) {
@@ -225,7 +219,7 @@ static void shell_task_ram(void *Data)
 
 void shell_init_ram(void)
 {
-#if (defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_CORE_AS_AP)
+#if (defined CONFIG_SUPPORT_ATCMD) && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE)
 	atcmd_service_init();
 #endif
 

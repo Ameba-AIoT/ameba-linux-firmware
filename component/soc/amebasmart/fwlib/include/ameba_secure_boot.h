@@ -3,8 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #ifndef _AMEBA_SECURITY_BOOT_H_
 #define _AMEBA_SECURITY_BOOT_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define SBOOT_ERR_AUTH_NOT_SUPPORT					-1
 #define SBOOT_ERR_PK_HASH_INVALID					-2
@@ -24,8 +29,8 @@
 
 /*ImgID_TypeDef*/
 #define IMGID_BOOT	0
-#define IMGID_NSPE	1
-#define IMGID_SPE	2
+#define IMGID_APP	1
+#define IMGID_DSP	2
 #define IMGID_BL1	3
 
 /*AuthAlg_TypeDef*/
@@ -98,6 +103,10 @@ int SBOOT_Validate_PubKey(u8 AuthAlg, u8 *Pk, u8 *Hash);
 int SBOOT_Validate_Signature(u8 AuthAlg, u8 HashAlg, u8 *Pk, u8 *Msg, u32 Len, u8 *Sig);
 int SBOOT_Validate_ImgHash(u8 HashAlg, u8 *ImgHash, SubImgInfo_TypeDef *SubImgInfo, u8 Num);
 int SBOOT_SignatureVerify(u8 *PubKeyHash, Manifest_TypeDef *Manifest, SubImgInfo_TypeDef *SubImgInfo, u8 SubImgCnt);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

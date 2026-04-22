@@ -1,27 +1,28 @@
-if WLAN_MENU 
+if WLAN_MENU
     menu "CONFIG COEX"
         config COEX_MENU
             bool "Enable Coex" if !AMEBA_RLS
-            default y if !AMEBAL2
+            default y if !AMEBAD && !AMEBAL2
+
         if COEX_MENU
             config BT_COEXIST
-                bool 
+                bool
                 # AP core, Follow different scenario
-                default y if (CORE_AS_AP && WHC_INTF_IPC)
+                default y if (WHC_HOST && WHC_INTF_IPC)
                 # NP core, Follow WLAN
-                default y if (CORE_AS_NP)
-            
-                select COEXIST_HOST if (CORE_AS_AP && WHC_INTF_IPC)
-                select COEXIST_DEV if (CORE_AS_NP)
+                default y if (WHC_DEV || WHC_NONE)
+
+                select COEXIST_HOST if (WHC_HOST && WHC_INTF_IPC)
+                select COEXIST_DEV if (WHC_DEV || WHC_NONE)
 
             config COEXIST_HOST
-                bool            
+                bool
             config COEXIST_DEV
                 bool
         endif
 
         config COEXIST_EXT_MENU
-            depends on (COEX_MENU && (!MP_SHRINK))
+            depends on (COEX_MENU && (!MP_SHRINK) && (!AMEBAD))
             bool "Enable Ext Coex Support"
             default n
             select COEX_EXT_CHIP_SUPPORT
@@ -77,15 +78,15 @@ if WLAN_MENU
 
             config EXT_PRI_DET_TIME
                 int "Priority Det Time"
-                range 0 254 
+                range 0 254
                 # 2 for RTL8771H; 0 for Silicon Thread RCP
-                default 2 
+                default 2
 
             config EXT_TRX_DET_TIME
                 int "TRX Det Time"
-                range 0 254 
+                range 0 254
                 # 8 for RTL8771H; 20 for Silicon Thread RCP
-                default 8    
+                default 8
 
             # PTA PINMUX PIN set
             config EXT_PTA_PIN_REQ
@@ -94,6 +95,8 @@ if WLAN_MENU
                 default "PA_15" if AMEBALITE
                 default "PB_0" if AMEBADPLUS
                 default "PA_21" if AMEBAGREEN2
+                default "PA_26" if AMEBAD
+                default "PF_12" if AMEBAPRO3
 
             config EXT_PTA_PIN_PRI
                 string "Pin PTA Priority"
@@ -101,6 +104,8 @@ if WLAN_MENU
                 default "PA_17" if AMEBALITE
                 default "PB_2" if AMEBADPLUS
                 default "PA_18" if AMEBAGREEN2
+                default "PB_1" if AMEBAD
+                default "PF_13" if AMEBAPRO3
 
             config EXT_PTA_PIN_GNT
                 string "Pin PTA Gnt"
@@ -108,10 +113,12 @@ if WLAN_MENU
                 default "PA_16" if AMEBALITE
                 default "PB_1" if AMEBADPLUS
                 default "PA_19" if AMEBAGREEN2
+                default "PA_27" if AMEBAD
+                default "PF_11" if AMEBAPRO3
 
             config COEX_EXT_CHIP_SUPPORT
                 bool
-        
+
         endif
     endmenu
 

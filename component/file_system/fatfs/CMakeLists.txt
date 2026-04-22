@@ -44,9 +44,14 @@ set(private_compile_options)         #private compile_options
 #NOTE: User defined section, add your private build configures here
 # You may use if-else condition to set these predefined variable
 
+ameba_list_append(private_compile_options
+    -Wno-implicit-fallthrough
+)
 
-ameba_list_append_if(CONFIG_SUPPORT_FATFS_USB private_sources
-    disk_if/src/usbdisk.c
+ameba_list_append(private_includes
+    ${c_CMPT_USB_DIR}/common
+    ${c_CMPT_USB_DIR}/host/core
+    ${c_CMPT_USB_DIR}/host/msc
 )
 
 ameba_list_append(private_sources
@@ -61,6 +66,7 @@ ameba_list_append(private_sources
     fatfs_flash_api.c
     fatfs_sdcard.c
     fatfs_sdcard_api.c
+    fatfs_usbh_api.c
 )
 
 # Component private part, user config end(DO NOT remove this line)

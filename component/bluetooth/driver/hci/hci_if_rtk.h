@@ -1,7 +1,7 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef _HCI_IF_RTK_H_
@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
-#include "hci/hci_common.h"
+#include "hci_common.h"
 
 void     hci_if_cfg_bdaddr(uint8_t *bdaddr);
 
@@ -25,11 +25,11 @@ uint8_t  hci_if_close(void);
 #define HCI_RX_SCO_PKT_BUF_OFFSET      (20 + 3*(sizeof(void*)-4))
 #define HCI_TX_SCO_PKT_BUF_OFFSET      (0)
 
-#define HCI_H4_RX_ACL_PKT_BUF_OFFSET   (HCI_RX_ACL_PKT_BUF_OFFSET)
-#define HCI_H4_TX_ACL_PKT_BUF_OFFSET   (8)
+#define HCI_IF_RX_ACL_PKT_BUF_OFFSET   (HCI_RX_ACL_PKT_BUF_OFFSET)
+#define HCI_IF_TX_ACL_PKT_BUF_OFFSET   (8)
 
-#define HCI_H4_RX_SCO_PKT_BUF_OFFSET   (HCI_RX_SCO_PKT_BUF_OFFSET)
-#define HCI_H4_TX_SCO_PKT_BUF_OFFSET   (HCI_TX_SCO_PKT_BUF_OFFSET)
+#define HCI_IF_RX_SCO_PKT_BUF_OFFSET   (HCI_RX_SCO_PKT_BUF_OFFSET)
+#define HCI_IF_TX_SCO_PKT_BUF_OFFSET   (HCI_TX_SCO_PKT_BUF_OFFSET)
 
 typedef enum {
 	HCI_IF_EVT_OPENED,     /* hci I/F open completed */

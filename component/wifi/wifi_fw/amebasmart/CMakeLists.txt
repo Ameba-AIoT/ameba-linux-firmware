@@ -1,6 +1,10 @@
 set(DIR ${WIFIFWDIR}/amebasmart/ram)
 
-set(TARGET_LIB wifi_fw)
+if(CONFIG_MP_INCLUDED AND CONFIG_MP_EXPAND)
+    set(TARGET_LIB wifi_fw_mp)
+else()
+    set(TARGET_LIB wifi_fw)
+endif()
 
 if(CONFIG_WIFI_FW_EN)
     set(
@@ -22,6 +26,7 @@ if(CONFIG_WIFI_FW_EN)
         ${DIR}/wififw_ra_new.c
         ${DIR}/wififw_btcoex.c
         ${DIR}/wififw_txrpt.c
+        ${DIR}/wififw_mp_debug.c
     )
 
     include(${WIFIFWDIR}/common/wififw_common.cmake)
@@ -44,13 +49,11 @@ set(public_libraries)               #public libraries(files), NOTE: linked with 
 
 # You may use if-else condition to set or update predefined variable above
 
-if(CONFIG_AMEBASMART OR CONFIG_AMEBASMARTPLUS)
-    if("${c_MCU_PROJECT_NAME}" STREQUAL "lp")
-        #WARNING: for lp, lib_wifi_fw.a is required even CONFIG_WLAN is unset
-        ameba_list_append(public_libraries
-            ${c_SDK_LIB_APPLICATION_DIR}/lib_wifi_fw.a
-        )
-    endif()
+if("${c_MCU_PROJECT_NAME}" STREQUAL "lp")
+    #WARNING: for lp, lib_wifi_fw.a is required even CONFIG_WLAN is unset
+    ameba_list_append_if(CONFIG_WIFI_FW_EN public_libraries
+        ${c_SDK_LIB_APPLICATION_DIR}/lib_${TARGET_LIB}.a
+    )
 endif()
 
 # Component public part, user config end
@@ -96,5 +99,6 @@ ameba_add_external_app_library(${TARGET_LIB} #target name, will be part of outpu
         ${private_definitions}
     p_COMPILE_OPTIONS
         ${private_compile_options}
+    p_DROP_IF_NO_SOURCES
 )
 ##########################################################################################

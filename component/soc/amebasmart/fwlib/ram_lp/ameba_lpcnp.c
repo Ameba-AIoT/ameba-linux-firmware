@@ -10,125 +10,8 @@ static const char *const TAG = "LPCNP";
 u32 NPSleepTick = 0;
 u32 np_sleep_type;
 u32 np_sleep_timeout = 0xffffffff;
-u32 np_flash_dummy = 0;
-u32 np_flash_phase_shift_idx = 0;
-u32 np_flash_FLASH_rd_sample_phase_cal = 0;
-u32 np_flash_FLASH_rd_sample_phase = 0;
 //u32 mem_type = 0;
 u32 np_dslp_en = 0;
-
-SRAM_ONLY_TEXT_SECTION
-u32 FLASH_CalibrationNewCmd(u32 NewStatus)
-{
-	u32 temp = 0;
-	PLL_TypeDef *PLL = (PLL_TypeDef *)PLL_BASE;
-
-	/* set PLL 600M phase shift enable */
-	temp = PLL->PLL_PS;
-	if (NewStatus == ENABLE) {
-		temp |= PLL_BIT_EN_CK600M_PS;
-	} else {
-		temp &= ~PLL_BIT_EN_CK600M_PS;
-	}
-	PLL->PLL_PS = temp;
-
-	/* set phase calibration enable */
-	temp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_SPIC_CTRL);
-
-	if (NewStatus == ENABLE) {
-		temp |= HSYS_BIT_FLASH_CAL_EN;
-	} else {
-		temp &= ~HSYS_BIT_FLASH_CAL_EN;
-	}
-
-	HAL_WRITE32(SYSTEM_CTRL_BASE_HP, REG_HSYS_SPIC_CTRL, temp);
-
-	return TRUE;
-}
-
-SRAM_ONLY_TEXT_SECTION
-void FLASH_ClockSwitch(u32 Source, u32 Protection)
-{
-	/* To avoid gcc warnings */
-	(void) Source;
-	(void) Protection;
-	u32 Temp = 0;
-	u32 timeout = 20;
-	SPIC_TypeDef *spi_flash = SPIC;
-
-	Temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-	Temp &= (LSYS_MASK_CKSL_SPIC);
-
-	if (Source == Temp) {
-		return;
-	}
-
-	if (Protection) {
-		asm volatile("cpsid i" : : : "memory");
-		//asm volatile ("cpsid f" : : : "memory");
-		SysTick->CTRL &= ~SysTick_CTRL_ENABLE_Msk;
-	}
-
-	if (Source == BIT_LSYS_CKSL_SPIC_XTAL) {
-		/* 1. clock source switch to XTAL */
-		Temp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Temp &= ~(LSYS_MASK_CKSL_SPIC);
-		Temp |= LSYS_CKSL_SPIC(Source);
-		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Temp);
-		DelayUs(10);
-
-		np_flash_dummy = GET_IN_PHYSICAL_CYC(spi_flash->AUTO_LENGTH);
-
-		/* set phase calibration disable */
-		FLASH_CalibrationNewCmd(DISABLE);
-
-		/* user read need to switch to onebit mode */
-		flash_init_para.phase_shift_idx = 0;
-		flash_init_para.FLASH_rd_sample_phase = SPIC_LOWSPEED_SAMPLE_PHASE;
-
-		spi_flash->AUTO_LENGTH &= (~MASK_IN_PHYSICAL_CYC);
-
-	} else  if (Source == BIT_LSYS_CKSL_SPIC_PLL) {
-
-		FLASH_CalibrationNewCmd(ENABLE);
-		Temp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_SPIC_CTRL);
-		Temp |= (HSYS_BIT_FLASH_PS_DIV_EN | HSYS_BIT_FLASH_DIV_EN); /* enable clock ps div & enable clock div*/
-		HAL_WRITE32(SYSTEM_CTRL_BASE_HP, REG_HSYS_SPIC_CTRL, Temp);
-
-		while (timeout > 0) {
-			timeout--;
-			Temp = HAL_READ32(SYSTEM_CTRL_BASE, REG_HSYS_SPIC_CTRL);
-			if ((Temp & HSYS_BIT_FLASH_PS_DIV_RDY) && (Temp & HSYS_BIT_FLASH_DIV_RDY)) {
-				break;
-			}
-		}
-
-		/* 2. clock source switch */
-		Temp =  HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Temp &= ~(LSYS_MASK_CKSL_SPIC);
-		Temp |= LSYS_CKSL_SPIC(Source);
-		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Temp);
-		DelayUs(10);
-
-		/* 3. SPIC Dummy to high speed dummy */
-		Temp = spi_flash->AUTO_LENGTH;
-		Temp &= (~MASK_IN_PHYSICAL_CYC);
-		Temp |= IN_PHYSICAL_CYC(np_flash_dummy);
-		spi_flash->AUTO_LENGTH = Temp;
-
-		/* 4. refill flash para for user mode */
-		flash_init_para.phase_shift_idx = np_flash_phase_shift_idx;
-		flash_init_para.FLASH_rd_sample_phase = np_flash_FLASH_rd_sample_phase;
-		flash_init_para.FLASH_rd_sample_phase_cal = np_flash_FLASH_rd_sample_phase_cal;
-
-	}
-
-	if (Protection) {
-		SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
-		asm volatile("cpsie i" : : : "memory");
-		//asm volatile ("cpsie f" : : : "memory");
-	}
-}
 
 _OPTIMIZE_NONE_
 void np_set_ddr_sre(void)
@@ -210,7 +93,7 @@ void np_set_ddr_sre(void)
 
 	ddrc->DDRC_CCR = DDRC_DPIT(ENABLE);
 	while ((ddrc->DDRC_CCR & DDRC_BIT_DPIT) != DDRC_BIT_DPIT);
-	if (dummy_value != 0x35393138) {
+	if (dummy_value != APP_IMAGE_PATTERN_1) {
 		RTK_LOGI(TAG, "DDR Check error \r\n");
 	}
 
@@ -315,6 +198,7 @@ void np_set_psram_sleep_mode(u32 State)
 		np_set_psram_cmd(0xc0, 0x4, 2, mr4);
 
 		PSRAM_AutoGating(ENABLE, Psram_IDLETIME, 0);
+
 	}
 }
 
@@ -399,29 +283,22 @@ void np_power_gate_ctrl(void)
 	RCC_PeriphClockCmd(APBPeriph_THM, APBPeriph_THM_CLOCK, DISABLE);
 	RCC_PeriphClockCmd(APBPeriph_TRNG, APBPeriph_TRNG_CLOCK, DISABLE);
 
-	if (ps_config.km0_pll_off == TRUE) {
-		/*switch HIPC clk to  to LPON clk*/
+
+	/*switch HIPC clk to  to LPON clk*/
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp |= (LSYS_BIT_CKSL_HIPC);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
+		/* 1. clock source switch to XTAL */
 		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp |= (LSYS_BIT_CKSL_HIPC);
+		Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
+		Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_XTAL);
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
-			/* 1. clock source switch to XTAL */
-			Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-			Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
-			Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_XTAL);
-			HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-			DelayUs(10);
-		} else {
-			/* 0. backup flash para */
-			np_flash_phase_shift_idx = flash_init_para.phase_shift_idx;
-			np_flash_FLASH_rd_sample_phase_cal = flash_init_para.FLASH_rd_sample_phase_cal;
-			np_flash_FLASH_rd_sample_phase = flash_init_para.FLASH_rd_sample_phase;
-
-			/* switch clock to XTAL, disable dummy cycle and diable cal */
-			FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_XTAL, 1);
-
-		}
+		DelayUs(10);
+	} else {
+		/* switch clock to XTAL, disable dummy cycle and diable cal */
+		FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_XTAL, 1);
 	}
 
 	if (ps_config.km0_audio_vad_on == TRUE) {
@@ -439,17 +316,15 @@ void np_power_gate_ctrl(void)
 	Rtemp &= (~(APBPeriph_NP | APBPeriph_HPLFM));
 	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_FEN_GRP0, Rtemp);
 
-	if (ps_config.km0_pll_off == TRUE) {
-		/* if NP PLL/ AP PLL/ADC  all power off, need to close BandGap */
-		PLL->PLL_NPPLL_CTRL0 &= ~(PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
-		PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_PLL;
-		PLL->PLL_PS &= (~(PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS));
-		PLL->PLL_PS &= ~PLL_BIT_POW_CKGEN;
+	/* if NP PLL/ AP PLL/ADC  all power off, need to close BandGap */
+	PLL->PLL_NPPLL_CTRL0 &= ~(PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
+	PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_PLL;
+	PLL->PLL_PS &= (~(PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS));
+	PLL->PLL_PS &= ~PLL_BIT_POW_CKGEN;
 
-		PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_ERC;
-		PLL->PLL_AUX_BG &= ~(PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-		PLL->PLL_AUX_BG |= PLL_BIT_POW_I;
-	}
+	PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_ERC;
+	PLL->PLL_AUX_BG &= ~(PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+	PLL->PLL_AUX_BG |= PLL_BIT_POW_I;
 
 	if (ps_config.km0_audio_vad_on == TRUE) {
 		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
@@ -497,17 +372,14 @@ void np_power_wake_ctrl(void)
 	SWR_PFM_MODE_Set(DISABLE);
 
 	if (rram->MEM_TYPE == MCM_TYPE_PSRAM) {
-
-		// enable BG here to save time
-		if (ps_config.km0_pll_off == TRUE) {
-			//Check BandGap power on
-			if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
-				PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-				DelayUs(20);
-				PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
-				DelayUs(40);
-			}
+		//Check BandGap power on
+		if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
+			PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+			DelayUs(20);
+			PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
+			DelayUs(40);
 		}
+
 
 		/* Enable HP Platform */
 		Rtemp = HAL_READ16(SYSTEM_CTRL_BASE_LP, REG_LSYS_PWC);
@@ -526,14 +398,12 @@ void np_power_wake_ctrl(void)
 		Rtemp |= (LSYS_BIT_POR_HP_PLAT);
 		HAL_WRITE16(SYSTEM_CTRL_BASE_LP, REG_LSYS_POR, Rtemp);
 	} else {
-		if (ps_config.km0_pll_off == TRUE) {
-			//Check BandGap power on
-			if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
-				PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-				DelayUs(20);
-				PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
-				DelayUs(40);
-			}
+		//Check BandGap power on
+		if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
+			PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+			DelayUs(20);
+			PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
+			DelayUs(40);
 		}
 
 		//switch swr_mem to PWM mode
@@ -569,48 +439,45 @@ void np_power_wake_ctrl(void)
 	Rtemp |= (APBPeriph_HPLFM_CLOCK | APBPeriph_HPON_CLOCK);
 	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKE_GRP0, Rtemp);
 
-	if (ps_config.km0_pll_off == TRUE) {
-
 //together with enable hplat, save about 100us+
 #if 0
-		//Check BandGap power on
-		if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
-			PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-			DelayUs(20);
-			PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
-			DelayUs(140);
-		}
+	//Check BandGap power on
+	if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
+		PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+		DelayUs(20);
+		PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
+		DelayUs(140);
+	}
 #endif
-		// erc enable
-		PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_ERC;
-		DelayUs(1);
+	// erc enable
+	PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_ERC;
+	DelayUs(1);
 
-		// PLL power on
-		PLL->PLL_PS |= PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS;
-		PLL->PLL_PS |= PLL_BIT_POW_CKGEN;
-		PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_PLL;
-		PLL->PLL_NPPLL_CTRL0 |= (PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
+	// PLL power on
+	PLL->PLL_PS |= PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS;
+	PLL->PLL_PS |= PLL_BIT_POW_CKGEN;
+	PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_PLL;
+	PLL->PLL_NPPLL_CTRL0 |= (PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
 
-		// Wait ready
-		while (!(PLL->PLL_STATE & PLL_BIT_CKRDY_NP));
+	// Wait ready
+	while (!(PLL->PLL_STATE & PLL_BIT_CKRDY_NP));
 
-		/* switch HIPC clk to  to HAPB clk, or ipc isr can't be cleared */
+	/* switch HIPC clk to  to HAPB clk, or ipc isr can't be cleared */
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp &= (~LSYS_BIT_CKSL_HIPC);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
+		/* 2. clock source switch */
 		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp &= (~LSYS_BIT_CKSL_HIPC);
+		Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
+		Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_PLL);
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
-			/* 2. clock source switch */
-			Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-			Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
-			Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_PLL);
-			HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-			DelayUs(10);
-		} else {
-			/* may user write, need backto pll  */
-			/* 2. clock source switch, enable dummy cycle and cal */
-			FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_PLL, 1);
-		}
+		DelayUs(10);
+	} else {
+		/* may user write, need backto pll  */
+		/* 2. clock source switch, enable dummy cycle and cal */
+		FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_PLL, 1);
 	}
 
 	if (ps_config.km0_audio_vad_on == TRUE) {
@@ -674,9 +541,8 @@ void np_clk_gate_ctrl(void)
 	} else if (rram->MEM_TYPE == MCM_TYPE_PSRAM) {
 
 		/* MP ECO */
-		if (ps_config.km0_config_psram) {
-			np_set_psram_sleep_mode(ENABLE);
-		}
+		np_set_psram_sleep_mode(ENABLE);
+
 		RCC_PeriphClockCmd(APBPeriph_NULL, APBPeriph_PSRAM_CLOCK, DISABLE);
 
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098, (HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_DUMMY_098)  & (~LSYS_BIT_PWDPAD15N_DQ)));
@@ -694,33 +560,26 @@ void np_clk_gate_ctrl(void)
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1, HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_AIP_CTRL1) & (~LSYS_BIT_BG_PWR));
 	}
 
-	if (ps_config.km0_pll_off == TRUE) {
-		/*switch HIPC clk to  to LPON clk*/
+	/*switch HIPC clk to  to LPON clk*/
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp |= (LSYS_BIT_CKSL_HIPC);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	/* switch hplatform and np(for sram) clk to xtal */
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp &= ~(LSYS_BIT_CKSL_NP);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
+		/* 1. clock source switch to XTAL */
 		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp |= (LSYS_BIT_CKSL_HIPC);
+		Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
+		Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_XTAL);
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		/* switch hplatform and np(for sram) clk to xtal */
-		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp &= ~(LSYS_BIT_CKSL_NP);
-		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		if (SYSCFG_CHIPType_Get() == CHIP_TYPE_FPGA) {
-			/* 1. clock source switch to XTAL */
-			Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-			Rtemp &= ~(LSYS_MASK_CKSL_SPIC);
-			Rtemp |= LSYS_CKSL_SPIC(BIT_LSYS_CKSL_SPIC_XTAL);
-			HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-			DelayUs(10);
-		} else {
-			/* 0. backup flash para */
-			np_flash_phase_shift_idx = flash_init_para.phase_shift_idx;
-			np_flash_FLASH_rd_sample_phase_cal = flash_init_para.FLASH_rd_sample_phase_cal;
-			np_flash_FLASH_rd_sample_phase = flash_init_para.FLASH_rd_sample_phase;
-
-			/* switch clock to XTAL, disable dummy cycle and diable cal */
-			FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_XTAL, 1);
-		}
+		DelayUs(10);
+	} else {
+		/* switch clock to XTAL, disable dummy cycle and diable cal */
+		FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_XTAL, 1);
 	}
 
 	/* Disable KM4/HPlatform clock */
@@ -734,22 +593,19 @@ void np_clk_gate_ctrl(void)
 		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
 	}
 
-	if (ps_config.km0_pll_off == TRUE) {
-		/* if NP PLL/ AP PLL/ADC  all power off, need to close BandGap */
-		PLL->PLL_NPPLL_CTRL0 &= ~(PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
-		PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_PLL;
-		PLL->PLL_PS &= (~(PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS));
-		PLL->PLL_PS &= ~PLL_BIT_POW_CKGEN;
+	/* if NP PLL/ AP PLL/ADC  all power off, need to close BandGap */
+	PLL->PLL_NPPLL_CTRL0 &= ~(PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
+	PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_PLL;
+	PLL->PLL_PS &= (~(PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS));
+	PLL->PLL_PS &= ~PLL_BIT_POW_CKGEN;
 
-		PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_ERC;
-		PLL->PLL_AUX_BG &= ~(PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-		PLL->PLL_AUX_BG |= PLL_BIT_POW_I;
-	}
+	PLL->PLL_NPPLL_CTRL0 &= ~PLL_BIT_NPLL_POW_ERC;
+	PLL->PLL_AUX_BG &= ~(PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+	PLL->PLL_AUX_BG |= PLL_BIT_POW_I;
 
 	if (!SWR_In_BST_MODE()) {
 		/* sys req pfm mode when only km0 an in normal mode*/
 		SWR_PFM_MODE_Set(ENABLE);
-
 	}
 }
 
@@ -768,40 +624,40 @@ void np_clk_wake_ctrl(void)
 	Rtemp |= (APBPeriph_HPLFM_CLOCK);
 	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKE_GRP0, Rtemp);
 
-	if (ps_config.km0_pll_off == TRUE) {
-		//Check BandGap power on
-		if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
-			PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
-			DelayUs(20);
-			PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
-			DelayUs(140);
-		}
 
-		// erc enable
-		PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_ERC;
-		DelayUs(1);
-
-		// PLL power on
-		PLL->PLL_PS |= PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS;
-		PLL->PLL_PS |= PLL_BIT_POW_CKGEN;
-		PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_PLL;
-		PLL->PLL_NPPLL_CTRL0 |= (PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
-
-		// Wait ready
-		while (!(PLL->PLL_STATE & PLL_BIT_CKRDY_NP));
-
-		/* switch HIPC clk to  to HAPB clk, or ipc isr can't be cleared */
-		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp &= (~LSYS_BIT_CKSL_HIPC);
-		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
-		Rtemp |= (LSYS_BIT_CKSL_NP);
-		HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
-
-		/* 2. may user write, need backto pll  */
-		FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_PLL, 1);
+	//Check BandGap power on
+	if ((PLL->PLL_AUX_BG & PLL_BG_POW_MASK) == 0) {
+		PLL->PLL_AUX_BG |= (PLL_BIT_POW_BG | PLL_BIT_POW_MBIAS);
+		DelayUs(20);
+		PLL->PLL_AUX_BG &= (~PLL_BIT_POW_I);
+		DelayUs(140);
 	}
+
+	// erc enable
+	PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_ERC;
+	DelayUs(1);
+
+	// PLL power on
+	PLL->PLL_PS |= PLL_BIT_EN_CK600M | PLL_BIT_EN_CK600M_PS;
+	PLL->PLL_PS |= PLL_BIT_POW_CKGEN;
+	PLL->PLL_NPPLL_CTRL0 |= PLL_BIT_NPLL_POW_PLL;
+	PLL->PLL_NPPLL_CTRL0 |= (PLL_BIT_NPLL_CK_EN | PLL_BIT_NPLL_CK_EN_D4);
+
+	// Wait ready
+	while (!(PLL->PLL_STATE & PLL_BIT_CKRDY_NP));
+
+	/* switch HIPC clk to  to HAPB clk, or ipc isr can't be cleared */
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp &= (~LSYS_BIT_CKSL_HIPC);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
+	Rtemp |= (LSYS_BIT_CKSL_NP);
+	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0, Rtemp);
+
+	/* 2. may user write, need backto pll  */
+	FLASH_ClockSwitch(BIT_LSYS_CKSL_SPIC_PLL, 1);
+
 
 	if (ps_config.km0_audio_vad_on == TRUE) {
 		Rtemp = HAL_READ32(SYSTEM_CTRL_BASE_LP, REG_LSYS_CKSL_GRP0);
@@ -814,9 +670,7 @@ void np_clk_wake_ctrl(void)
 		/* MP ECO */
 		RCC_PeriphClockCmd(APBPeriph_PSRAM, APBPeriph_PSRAM_CLOCK, ENABLE);
 
-		if (ps_config.km0_config_psram) {
-			np_set_psram_sleep_mode(DISABLE);
-		}
+		np_set_psram_sleep_mode(DISABLE);
 
 	} else if (rram->MEM_TYPE == MCM_TYPE_DDR) {
 		//switch swr_mem to PWM mode
@@ -883,9 +737,8 @@ void np_power_gate(void)
 		return;
 	}
 
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPG\n");
-	}
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPG\n");
+
 	/* poll KM4 clock gate */
 	while (1) {
 		temp = HAL_READ32(SYSTEM_CTRL_BASE_HP, REG_HSYS_HPLAT_STATUS);	/*get KM4 sleep status*/
@@ -925,9 +778,8 @@ void np_power_wake(void)
 
 	np_power_wake_ctrl();
 
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPW\n");
-	}
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPPW\n");
+
 }
 
 void np_clock_gate(void)
@@ -948,35 +800,30 @@ void np_clock_gate(void)
 
 	np_clk_gate_ctrl();
 
-
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGS(TAG, RTK_LOG_DEBUG, "NPCG\n");
-	}
+	RTK_LOGS(TAG, RTK_LOG_DEBUG, "NPCG\n");
 
 	pmu_release_wakelock(PMU_KM4_RUN);
-	if (ps_config.km0_sleep_withM4) {
-		pmu_release_wakelock(PMU_OS);
-	}
+	pmu_release_wakelock(PMU_OS);
 
 }
 
 void np_clock_on(void)
 {
-	if (ps_config.km0_sleep_withM4) {
-		u32 i = 0;
 
-		/* hs sram option init */
-		for (i = 0;;) {
-			/*  Check if search to end */
-			if (sleep_sram_config[i].Module == 0xFFFFFFFF) {
-				break;
-			}
+	u32 i = 0;
 
-			SOCPS_ResMemMode(sleep_sram_config[i].Module);
-
-			i++;
+	/* hs sram option init */
+	for (i = 0;;) {
+		/*  Check if search to end */
+		if (sleep_sram_config[i].Module == 0xFFFFFFFF) {
+			break;
 		}
+
+		SOCPS_ResMemMode(sleep_sram_config[i].Module);
+
+		i++;
 	}
+
 
 	pmu_acquire_wakelock(PMU_KM4_RUN);
 
@@ -985,9 +832,7 @@ void np_clock_on(void)
 	/* tell KM4 wake */
 	asm volatile("sev");
 
-	if (ps_config.km0_tickles_debug) {
-		RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPCW\n");
-	}
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "NPCW\n");
 }
 
 u32 ap_clk_status_on(void)
@@ -1079,7 +924,7 @@ void np_tickless_ipc_int(UNUSED_WARN_DIS void *Data, UNUSED_WARN_DIS u32 IrqStat
 	//set dlps
 	if (pmu_ready_to_dsleep()) {
 		RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
-		if (psleep_param->sleep_time) {
+		if (psleep_param->sleep_time != PMU_SLEEP_FOREVER) {
 			AONTimer_ClearINT();
 			AONTimer_Setting(psleep_param->sleep_time);
 			AONTimer_INT(ENABLE);

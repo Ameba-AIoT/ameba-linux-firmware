@@ -3,7 +3,11 @@ ameba_add_subdirectory(bt_atcmd)
 ameba_add_subdirectory(gatt_service/client)
 ameba_add_subdirectory(gatt_service/server)
 
-ameba_add_subdirectory_if(CONFIG_BT_LE_AUDIO
+ameba_add_subdirectory_if(CONFIG_BT_APP_AUDIO_DATA_SUPPORT
+    bt_app_audio_data
+)
+
+ameba_add_subdirectory_if(CONFIG_BT_LE_AUDIO_SUPPORT
     ble_audio
 )
 
@@ -17,6 +21,10 @@ ameba_add_subdirectory_if(CONFIG_BT_A2DP_PBP
 
 ameba_add_subdirectory_if(CONFIG_BT_A2DP_HFP_PBP
     bt_a2dp_hfp_pbp
+)
+
+ameba_add_subdirectory_if(CONFIG_BT_A2DP_HFP_PBP_PERIPHERAL
+    bt_a2dp_hfp_pbp_peripheral
 )
 
 ameba_add_subdirectory_if(CONFIG_BT_A2DP_TMAP
@@ -33,6 +41,10 @@ ameba_add_subdirectory_if(CONFIG_BT_ISO_TEST
 
 ameba_add_subdirectory_if(CONFIG_BT_HOGP
     ble_hogp_gamepad
+)
+
+ameba_add_subdirectory_if(CONFIG_BT_HOGP_ULL
+    ble_hogp_ull
 )
 
 ameba_add_subdirectory_if(CONFIG_BT_MESH_DEVICE
@@ -93,8 +105,8 @@ ameba_add_subdirectory_if(CONFIG_BT_A2DP_SCATTERNET
     bt_a2dp_scatternet
 )
 
-ameba_add_subdirectory_if(CONFIG_BT_APP_AUDIO_DATA
-    bt_app_audio_data
+ameba_add_subdirectory_if(CONFIG_BT_FUZZ_TEST
+    bt_fuzz_test
 )
 
 ameba_add_subdirectory_if(CONFIG_BT_AUDIO_MP_TEST
@@ -110,8 +122,7 @@ ameba_add_subdirectory_if(CONFIG_BT_HID
 )
 
 ameba_add_subdirectory_if(CONFIG_BT_INIC_HOST
-    bt_host
-)
+    bt_host/rtos_driver)
 
 ameba_add_subdirectory_if(CONFIG_BT_PTS
     bt_pts
@@ -122,6 +133,10 @@ ameba_add_subdirectory_if(CONFIG_BT_RFC
 )
 ameba_add_subdirectory_if(CONFIG_BT_SPP
     bt_spp
+)
+
+ameba_add_subdirectory_if(CONFIG_BLE_MATTER_ADAPTER
+    ble_matter_adapter_peripheral
 )
 
 if(CONFIG_BT_WIFIMATE_DEVICE OR CONFIG_BT_WIFIMATE_CONFIGURATOR)

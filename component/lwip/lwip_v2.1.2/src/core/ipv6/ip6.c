@@ -60,6 +60,12 @@
 #include "lwip/debug.h"
 #include "lwip/stats.h"
 
+/* Added by Realtek start */
+#if defined(CONFIG_IP6_RLOCAL) && (CONFIG_IP6_RLOCAL == 1)
+#include "lwip/lwip_ip6_rlocal.h"
+#endif
+/* Added by Realtek end */
+
 #ifdef LWIP_HOOK_FILENAME
 #include LWIP_HOOK_FILENAME
 #endif
@@ -678,6 +684,12 @@ netif_found:
     IP6_STATS_INC(ip6.drop);
     goto ip6_input_cleanup;
   }
+
+/* Added by Realtek start */
+#if defined(CONFIG_IP6_RLOCAL) && (CONFIG_IP6_RLOCAL == 1)
+    handle_ip6(p, ip6hdr, inp);
+#endif
+/* Added by Realtek end */
 
   /* packet not for us? */
   if (netif == NULL) {

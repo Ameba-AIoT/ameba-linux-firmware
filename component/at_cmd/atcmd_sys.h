@@ -11,25 +11,6 @@
 #define ATCMD_SUBVERSION       4       /* ATCMD MINOR VERSION, NEW COMMAND ADDED OR DELETED */
 #define ATCMD_REVISION         2       /* ATCMD FIX BUG REVISION */
 
-typedef struct {
-	u8 Pattern[8];
-	u8 Rsvd1[8];
-	u8 Ver;
-	u8 ImgID;
-	u8 AuthAlg;
-	u8 HashAlg;
-	u16 MajorKeyVer;
-	u16 MinorKeyVer;
-} Certificate_TypeDef;
-
-typedef enum atcmd_log_type_e {
-	atcmd_log_type_get = 0,
-	atcmd_log_type_set = 1,
-	atcmd_log_type_print_all = 2,
-	atcmd_log_type_clear_all = 3,
-	atcmd_log_type_invalid
-} atcmd_log_type;
-
 typedef enum atcmd_cpuload_type_e {
 	atcmd_cpuload_type_update = 0,
 	atcmd_cpuload_type_sema = 1,

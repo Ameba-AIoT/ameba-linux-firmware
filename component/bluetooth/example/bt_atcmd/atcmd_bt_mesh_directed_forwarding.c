@@ -1008,10 +1008,15 @@ static const cmd_table_t mesh_df_client_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_mesh_df(int argc, char *argv[])
+void fBLEMESHDF(u16 argc, char *argv[])
 {
-	atcmd_bt_excute(argc, argv, mesh_df_client_cmd_table, "AT+BLEMESHDF");
-	return 0;
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], mesh_df_client_cmd_table, "AT+BLEMESHDF");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }
 
 

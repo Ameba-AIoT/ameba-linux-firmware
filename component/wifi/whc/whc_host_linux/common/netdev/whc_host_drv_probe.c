@@ -30,27 +30,27 @@ static int rtw_inetaddr_notifier_call(struct notifier_block *nb, unsigned long a
 
 	ndev = ifa->ifa_dev->dev;
 	if (rtw_netdev_label(ndev) != WIFI_FULLMAC_LABEL) {
-		dev_dbg(global_idev.fullmac_dev, "%s is not fullmac dev\n", ifa->ifa_label);
+		dev_dbg(global_idev.pwhc_dev, "%s is not whc dev\n", ifa->ifa_label);
 		return NOTIFY_DONE;
 	}
 
 	switch (action) {
 	case NETDEV_UP:
 		memcpy(global_idev.ip_addr, &ifa->ifa_address, RTW_IP_ADDR_LEN);
-		dev_dbg(global_idev.fullmac_dev, "%s[%s]: up IP: [%pI4]\n", __func__, ifa->ifa_label, global_idev.ip_addr);
+		dev_dbg(global_idev.pwhc_dev, "%s[%s]: up IP: [%pI4]\n", __func__, ifa->ifa_label, global_idev.ip_addr);
 		break;
 	case NETDEV_DOWN:
 		memset(global_idev.ip_addr, 0, RTW_IP_ADDR_LEN);
-		dev_dbg(global_idev.fullmac_dev, "%s[%s]: down IP: [%pI4]\n", __func__, ifa->ifa_label, global_idev.ip_addr);
+		dev_dbg(global_idev.pwhc_dev, "%s[%s]: down IP: [%pI4]\n", __func__, ifa->ifa_label, global_idev.ip_addr);
 		break;
 	default:
-		dev_dbg(global_idev.fullmac_dev, "%s: default action\n", __func__);
+		dev_dbg(global_idev.pwhc_dev, "%s: default action\n", __func__);
 		break;
 	}
 	return NOTIFY_DONE;
 }
 
-#ifdef CONFIG_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 static int rtw_inet6addr_notifier_call(struct notifier_block *nb, unsigned long action, void *data)
 {
 	struct inet6_ifaddr *inet6_ifa = (struct inet6_ifaddr *)data;
@@ -62,21 +62,22 @@ static int rtw_inet6addr_notifier_call(struct notifier_block *nb, unsigned long 
 
 	ndev = inet6_ifa->idev->dev;
 	if (rtw_netdev_label(ndev) != WIFI_FULLMAC_LABEL) {
-		dev_dbg(global_idev.fullmac_dev, "Not fullmac dev\n");
+		dev_dbg(global_idev.pwhc_dev, "Not whc dev\n");
 		return NOTIFY_DONE;
 	}
 
 	switch (action) {
 	case NETDEV_UP:
 		memcpy(global_idev.ipv6_addr, &inet6_ifa->addr, RTW_IPv6_ADDR_LEN);
-		dev_dbg(global_idev.fullmac_dev, "%s: up IP: [%pI6]\n", __func__, global_idev.ipv6_addr);
+		global_idev.ipv6_addr_updated = 1;
+		dev_dbg(global_idev.pwhc_dev, "%s: up IP: [%pI6]\n", __func__, global_idev.ipv6_addr);
 		break;
 	case NETDEV_DOWN:
 		memset(global_idev.ipv6_addr, 0, RTW_IPv6_ADDR_LEN);
-		dev_dbg(global_idev.fullmac_dev, "%s: down IP: [%pI6]\n", __func__, global_idev.ipv6_addr);
+		dev_dbg(global_idev.pwhc_dev, "%s: down IP: [%pI6]\n", __func__, global_idev.ipv6_addr);
 		break;
 	default:
-		dev_dbg(global_idev.fullmac_dev, "%s: default action\n", __func__);
+		dev_dbg(global_idev.pwhc_dev, "%s: default action\n", __func__);
 		break;
 	}
 	return NOTIFY_DONE;
@@ -87,7 +88,7 @@ static struct notifier_block rtw_inetaddr_notifier = {
 	.notifier_call = rtw_inetaddr_notifier_call
 };
 
-#ifdef CONFIG_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 static struct notifier_block rtw_inet6addr_notifier = {
 	.notifier_call = rtw_inet6addr_notifier_call
 };
@@ -96,7 +97,7 @@ static struct notifier_block rtw_inet6addr_notifier = {
 void rtw_inetaddr_notifier_register(void)
 {
 	register_inetaddr_notifier(&rtw_inetaddr_notifier);
-#ifdef CONFIG_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 	register_inet6addr_notifier(&rtw_inet6addr_notifier);
 #endif
 }
@@ -104,7 +105,7 @@ void rtw_inetaddr_notifier_register(void)
 void rtw_inetaddr_notifier_unregister(void)
 {
 	unregister_inetaddr_notifier(&rtw_inetaddr_notifier);
-#ifdef CONFIG_IPV6
+#if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&rtw_inet6addr_notifier);
 #endif
 }
@@ -116,60 +117,64 @@ int rtw_netdev_probe(struct device *pdev)
 	memset(&global_idev, 0, sizeof(struct whc_device));
 
 	/* Initialize axi_priv */
-	global_idev.fullmac_dev = pdev;
+	global_idev.pwhc_dev = pdev;
 
-	dev_dbg(global_idev.fullmac_dev, "rtw_dev_probe start\n");
+	dev_dbg(global_idev.pwhc_dev, "rtw_dev_probe start\n");
 
-#if !defined(CONFIG_WHC_BRIDGE)
+#if defined(CONFIG_WHC_WIFI_API_PATH)
 	/*step1: alloc and init wiphy */
 	ret = rtw_wiphy_init();
 	if (ret == false) {
-		dev_err(global_idev.fullmac_dev, "wiphy init fail");
+		dev_err(global_idev.pwhc_dev, "wiphy init fail");
 		goto exit;
 	}
 
 	/*step3: register wiphy */
 	if (wiphy_register(global_idev.pwiphy_global) != 0) {
-		dev_err(global_idev.fullmac_dev, "wiphy register fail");
+		dev_err(global_idev.pwhc_dev, "wiphy register fail");
 		goto os_ndevs_deinit;
 	}
 #endif
 	/*step4: register netdev */
 	ret = rtw_ndev_alloc();
 	if (ret < 0) {
-		dev_err(global_idev.fullmac_dev, "ndev alloc fail");
+		dev_err(global_idev.pwhc_dev, "ndev alloc fail");
 		goto os_ndevs_deinit;
 	}
 
 	ret = whc_host_init();
 	if (ret < 0) {
-		dev_err(global_idev.fullmac_dev, "llhw init fail");
+		dev_err(global_idev.pwhc_dev, "llhw init fail");
 		goto os_ndevs_deinit;
 	}
 
 	ret = rtw_ndev_register();
 	if (ret < 0) {
-		dev_err(global_idev.fullmac_dev, "ndev register fail");
+		dev_err(global_idev.pwhc_dev, "ndev register fail");
 		goto os_ndevs_deinit;
 	}
 
-#if !defined(CONFIG_WHC_BRIDGE)
-	rtw_regd_init();
+#if defined(CONFIG_WHC_WIFI_API_PATH)
+	whc_host_regd_init();
 	rtw_drv_proc_init();
+#ifdef CONFIG_IEEE80211R
+	whc_host_ft_init();
 #endif
 
 #ifdef CONFIG_WAR_OFFLOAD
 	rtw_proxy_init();
 #endif
-#if defined(CONFIG_WHC_BRIDGE)
-	whc_bridge_host_register_genl_family();
+#endif
+
+#if defined(CONFIG_WHC_CMD_PATH)
+	whc_host_register_genl_family();
 #endif
 
 	return 0; /* probe success */
 
 os_ndevs_deinit:
 	rtw_ndev_unregister();
-#if !defined(CONFIG_WHC_BRIDGE)
+#if defined(CONFIG_WHC_WIFI_API_PATH)
 	rtw_wiphy_deinit();
 
 exit:
@@ -179,32 +184,32 @@ exit:
 
 int rtw_netdev_remove(struct device *pdev)
 {
-	dev_dbg(global_idev.fullmac_dev, "%s start.", __func__);
+	dev_dbg(global_idev.pwhc_dev, "%s start.", __func__);
 
-#if !defined(CONFIG_WHC_BRIDGE)
+#if defined(CONFIG_WHC_WIFI_API_PATH)
 	rtw_drv_proc_deinit();
 #endif
 	rtw_ndev_unregister();
-	dev_dbg(global_idev.fullmac_dev, "unregister netdev done.");
-#if !defined(CONFIG_WHC_BRIDGE)
+	dev_dbg(global_idev.pwhc_dev, "unregister netdev done.");
+#if defined(CONFIG_WHC_WIFI_API_PATH)
 	wiphy_unregister(global_idev.pwiphy_global);
 
 	rtw_wiphy_deinit();
 #endif
-	dev_dbg(global_idev.fullmac_dev, "unregister and deinit wiphy done.");
+	dev_dbg(global_idev.pwhc_dev, "unregister and deinit wiphy done.");
 
 	whc_host_deinit();
-	dev_dbg(global_idev.fullmac_dev, "remove llhw done.");
+	dev_dbg(global_idev.pwhc_dev, "remove llhw done.");
 
 	pr_info("%s done\n", __func__);
 	memset(&global_idev, 0, sizeof(struct whc_device));
-#if defined(CONFIG_WHC_BRIDGE)
-	whc_bridge_host_unregister_genl_family();
+#if defined(CONFIG_WHC_CMD_PATH)
+	whc_host_unregister_genl_family();
 #endif
 	return 0;
 }
 
-#ifdef CONFIG_FULLMAC_HCI_IPC
+#ifdef CONFIG_WHC_HCI_IPC
 static void platform_device_init(struct platform_device *pdev)
 {
 	unsigned long pmem_len = 0;
@@ -290,17 +295,25 @@ static int rtw_dev_probe(struct platform_device *pdev)
 	return err;
 }
 
+#if (KERNEL_VERSION(6, 18, 0) <= LINUX_VERSION_CODE)
+static void rtw_dev_remove(struct platform_device *pdev)
+#else
 static int rtw_dev_remove(struct platform_device *pdev)
+#endif
 {
 	rtw_netdev_remove(&pdev->dev);
 	platform_device_deinit(pdev);
 
+#if (KERNEL_VERSION(6, 18, 0) <= LINUX_VERSION_CODE)
+	return;
+#else
 	return 0;
+#endif
 }
 
 static void rtw_dev_shutdown(struct platform_device *pdev)
 {
-	dev_dbg(global_idev.fullmac_dev, "%s", __func__);
+	dev_dbg(global_idev.pwhc_dev, "%s", __func__);
 	rtw_dev_remove(pdev);
 }
 
@@ -308,7 +321,7 @@ static int rtw_dev_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	u32 ret = 0;
 
-	dev_dbg(global_idev.fullmac_dev, "%s", __func__);
+	dev_dbg(global_idev.pwhc_dev, "%s", __func__);
 
 	if (rtw_netdev_priv_is_on(global_idev.pndev[1])) {
 		/* AP is up, stop to suspend */
@@ -316,9 +329,9 @@ static int rtw_dev_suspend(struct platform_device *pdev, pm_message_t state)
 	}
 
 	/* staion mode */
-	if (whc_fullmac_host_wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) {
+	if (whc_host_wifi_get_join_status() == RTW_JOINSTATUS_SUCCESS) {
 		/* wowlan */
-		ret = whc_fullmac_host_update_ip_addr();
+		ret = whc_host_update_ip_addr();
 		if (ret == 0) {
 			/* update ip address success, to suspend */
 			/* set wowlan_state, to not schedule rx work */
@@ -334,7 +347,7 @@ static int rtw_dev_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int rtw_dev_resume(struct platform_device *pdev)
 {
-	dev_dbg(global_idev.fullmac_dev, "%s", __func__);
+	dev_dbg(global_idev.pwhc_dev, "%s", __func__);
 
 	netif_tx_start_all_queues(global_idev.pndev[0]);
 	netif_tx_wake_all_queues(global_idev.pndev[0]);
@@ -376,17 +389,17 @@ int __init rtw_drv_entry(void)
 	}
 
 exit:
-	pr_info("Fullmac module init ret=%d\n", ret);
+	pr_info("WHC module init ret=%d\n", ret);
 	return ret;
 }
 
 void __exit rtw_drv_halt(void)
 {
-	pr_info("Fullmac module exit start\n");
-	dev_dbg(global_idev.fullmac_dev, "%s", __func__);
+	pr_info("WHC module exit start\n");
+	dev_dbg(global_idev.pwhc_dev, "%s", __func__);
 	platform_driver_unregister(&axi_drvpriv.rtw_axi_drv);
 	rtw_inetaddr_notifier_unregister();
-	pr_info("Fullmac module exit success\n");
+	pr_info("WHC module exit success\n");
 }
 
 module_init(rtw_drv_entry);

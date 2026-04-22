@@ -12,7 +12,6 @@ set(public_libraries)               #public libraries(files), NOTE: linked with 
 # You may use if-else condition to set or update predefined variable above
 ameba_list_append(public_includes
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ../driver/dtm
 )
 
 # Component public part, user config end
@@ -46,13 +45,34 @@ ameba_list_append(private_sources
 )
 
 ameba_list_append_if(CONFIG_AMEBADPLUS private_sources
-	bt_fast_mp_common.c
-	bt_fast_mp_dplus.c
+	bt_fast_mp/bt_fast_mp_api.c
+	bt_fast_mp/bt_fast_mp_common.c
+	bt_fast_mp/bt_fast_mp_dplus.c
+	bt_fast_mp/hci_if_dtm.c
+)
+
+ameba_list_append_if(CONFIG_AMEBAGREEN2 private_sources
+	bt_eqc/bt_eqc_api.c
+	bt_eqc/bt_eqc_common.c
+	bt_eqc/bt_eqc_amebagreen2.c
+	bt_eqc/hci_if_eqc.c
 )
 
 ameba_list_append(private_includes
 	${c_CMPT_BLUETOOTH_DIR}/driver/platform/${c_SOC_TYPE}/inc
 	${c_CMPT_BLUETOOTH_DIR}/driver/inc/hci
+)
+
+ameba_list_append_if(CONFIG_SDN_BT private_includes
+    ${c_COMPONENT_DIR}/sdn/platform/${c_SOC_TYPE}/intf
+)
+
+ameba_list_append_if(CONFIG_AMEBADPLUS private_includes
+	bt_fast_mp
+)
+
+ameba_list_append_if(CONFIG_AMEBAGREEN2 private_includes
+	bt_eqc
 )
 
 # Component private part, user config end

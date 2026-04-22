@@ -16,7 +16,7 @@
   */
 #include "ameba_soc.h"
 #ifdef CONFIG_WLAN
-#if defined(CONFIG_AS_INIC_AP) && defined(CONFIG_WHC_HOST)  && CONFIG_WHC_HOST
+#if defined(CONFIG_WHC_HOST) && !defined(CONFIG_WHC_INTF_IPC)
 #include "whc_host_api.h"
 #elif defined(CONFIG_WHC_INTF_IPC)
 #include "whc_ipc.h"
@@ -27,9 +27,8 @@
 #endif
 #include "wifi_intf_drv_to_upper.h"
 
-#if defined(CONFIG_WHC_BRIDGE)
-#include "whc_dev_bridge.h"
-#include "whc_bridge_dev_api.h"
+#if defined(CONFIG_WHC_CMD_PATH) && !defined(CONFIG_WHC_HOST)
+#include "whc_dev_api.h"
 #endif
 
 //todo clarify
@@ -37,11 +36,7 @@
 #if defined(CONFIG_WHC_HOST)
 #include "whc_sdio_host.h"
 #endif
-#if defined(CONFIG_WHC_BRIDGE)
-#include "whc_bridge_sdio_dev.h"
-#else
-#include "whc_fullmac_sdio_dev.h"
-#endif
+#include "whc_sdio_dev.h"
 #elif defined(CONFIG_WHC_INTF_SPI)
 #if defined(CONFIG_WHC_HOST)
 #include "whc_spi_host.h"
@@ -50,6 +45,12 @@
 #endif
 #elif defined(CONFIG_WHC_INTF_USB)
 #include "whc_usb_dev.h"
+#elif defined(CONFIG_WHC_INTF_UART)
+#if defined(CONFIG_WHC_HOST)
+#include "whc_uart_host.h"
+#else
+#include "whc_uart_dev.h"
+#endif
 #endif
 
 #define WIFI_STACK_SIZE_INIT ((512 + 768) * 4)
@@ -57,7 +58,7 @@
 /**********************************************************************************************
  *                                WHC host performs wifi init
  *********************************************************************************************/
-#if defined(CONFIG_AS_INIC_AP)
+#if defined(CONFIG_WHC_HOST)
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
@@ -67,10 +68,10 @@ void wifi_init_thread(void *param)
 
 	whc_host_init();
 
-#ifndef CONFIG_WHC_BRIDGE_HOST
+#ifdef CONFIG_WHC_WIFI_API_PATH
 	wifi_on(RTW_MODE_STA);
 
-	RTK_LOGI(TAG_WLAN_DRV, "Available heap after wifi init %d\n", rtos_mem_get_free_heap_size() + WIFI_STACK_SIZE_INIT);
+	RTK_LOGS(TAG_WLAN_DRV, RTK_LOG_INFO, "Available heap after wifi init %d\n", rtos_mem_get_free_heap_size() + WIFI_STACK_SIZE_INIT);
 #endif
 
 	rtos_task_delete(NULL);
@@ -79,11 +80,18 @@ void wifi_init_thread(void *param)
 /**********************************************************************************************
  *                                 WHC Device performs wifi init
  *********************************************************************************************/
-#elif defined(CONFIG_AS_INIC_NP)
+#elif defined(CONFIG_WHC_DEV)
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
 
+#if defined(CONFIG_LWIP_LAYER) && defined(CONFIG_WHC_DEV_TCPIP_KEEPALIVE)
+	LwIP_Init();
+#endif
+
+#ifdef CONFIG_WHC_CMD_PATH
+	whc_dev_init_cmd_path_task();
+#endif
 	whc_dev_init();
 	rtos_task_delete(NULL);
 }
@@ -91,7 +99,7 @@ void wifi_init_thread(void *param)
 /**********************************************************************************************
  *                               Single core mode performs wifi init
  *********************************************************************************************/
-#elif defined(CONFIG_SINGLE_CORE_WIFI)/*Single core processor do wifi init*/
+#elif defined(CONFIG_WHC_NONE)/*Single core processor do wifi init*/
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
@@ -103,18 +111,9 @@ void wifi_init_thread(void *param)
 	LwIP_Init();
 #endif
 
-#if defined(CONFIG_WHC_BRIDGEB)
-	whc_dev_init();
-#endif
-
-#ifdef CONFIG_WHC_BRIDGE
-	whc_dev_init_cmd_path_task();
-	whc_dev_init_lite();
-#endif
-
 	wifi_on(RTW_MODE_STA);
 
-	RTK_LOGI(TAG_WLAN_DRV, "Available heap after wifi init %d\n", rtos_mem_get_free_heap_size() + WIFI_STACK_SIZE_INIT);
+	RTK_LOGS(TAG_WLAN_DRV, RTK_LOG_INFO, "Available heap after wifi init %d\n", rtos_mem_get_free_heap_size() + WIFI_STACK_SIZE_INIT);
 
 	/* Kill init thread after all init tasks done */
 	rtos_task_delete(NULL);
@@ -126,7 +125,7 @@ void wifi_init(void)
 {
 	wifi_set_rom2flash();
 	if (rtos_task_create(NULL, ((const char *)"wifi_init_thread"), wifi_init_thread, NULL, WIFI_STACK_SIZE_INIT, 5) != RTK_SUCCESS) {
-		RTK_LOGE(TAG_WLAN_DRV, "wifi_init failed\n");
+		RTK_LOGS(TAG_WLAN_DRV, RTK_LOG_ERROR, "wifi_init failed\n");
 	}
 }
 #endif

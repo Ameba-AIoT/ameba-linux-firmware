@@ -4,7 +4,9 @@
 #                                                                                #
 ##################################################################################
 
-Configure the following Macros in bt_api_config.h
+Compile config 
+~~~~~~~~~~~
+1.Configure the following Macros in bt_api_config.h
     RTK_BLE_AUDIO_VCP_VOLUME_CONTROLLER_SUPPORT         to                1
     RTK_BLE_AUDIO_VCP_VOLUME_RENDERER_SUPPORT           to                1
     RTK_BLE_AUDIO_MICP_MIC_CONTROLLER_SUPPORT           to                1
@@ -16,13 +18,20 @@ Configure the following Macros in bt_api_config.h
     RTK_BLE_AUDIO_CSIP_SET_COORDINATOR_SUPPORT          to                1
     RTK_BLE_AUDIO_CSIP_SET_MEMBER_SUPPORT               to                1
 
+2. change kPrimaryAudioConfig in ameba_audio_mixer_usrcfg.cpp:
+    change from   kPrimaryAudioConfig = {1024, 4, AUDIO_OUT_MIN_FRAMES_STAGE1};
+        to        kPrimaryAudioConfig = {240, 4, AUDIO_OUT_MIN_FRAMES_STAGE2};
+
 GCC menuconfig 
 ~~~~~~~~~~~
 1. BT Related:
-    ./menuconfig.py --> CONFIG BT --> BT Example Demo --> BLE Audio --> BLE Audio Generic Demo
+    Enter the SDK root directory, execute in order:
+    source env.sh
+    ./ameba.py soc RTL8730E
+    ./ameba.py menuconfig --> CONFIG BT --> BT Example Demo --> BLE Audio --> BLE Audio Generic Demo
 2. Audio Related:
-    ./menuconfig.py --> CONFIG Application --> Audio Config --> Select Audio Interfaces (Mixer)
-3. GCC : use CMD "./build.py" to compile example
+    ./ameba.py --> CONFIG Application --> Audio Config --> Select Audio Interfaces (Mixer)
+3. GCC : use CMD "./ameba.py build" to compile example
 4. To Config Media Source (component/bluetooth/api/include/rtk_bt_le_audio_def.h)
      4.1 Config RTK_BLE_AUDIO_BIRDS_SING_PCM_SUPPORT to 1 for enabling birds thing audio stream
      4.2 Config RTK_BLE_AUDIO_RECORD_SUPPORT to 1 for enabling microphone audio stream

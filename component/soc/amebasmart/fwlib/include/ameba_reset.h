@@ -13,6 +13,10 @@
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 //Please add your defination here
 /**************************************************************************//**
@@ -90,6 +94,7 @@ enum CPU_ID {
 
 
 extern void CHIPEN_WorkMode(enum CHIPEN_WORK_MODE mode);
+extern u8 CHIPEN_WorkModeGet(void);
 extern void CHIPEN_DebounceSet(u32 Debounce);
 extern bool CHIPEN_IsPress(void);
 extern void CHIPEN_ThresHoldSet(u32 Thres_LP, u32 Thres_SP);
@@ -114,6 +119,10 @@ __STATIC_INLINE u32 SYS_CPUID(void)
 
 	return LSYS_GET_HW_CPU_ID(temp);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

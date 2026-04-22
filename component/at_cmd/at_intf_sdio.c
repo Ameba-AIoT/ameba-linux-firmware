@@ -18,7 +18,7 @@ static const char *const TAG = "AT_SDIO-D";
 #define SDIO_RX_BD_NUM	10
 #define SDIO_RX_BUFSZ	(SPDIO_RX_BUFSZ_ALIGN(2048+24)) //n*64, must be rounded to 64, extra 24 bytes for spdio header info
 
-struct spdio_t spdio_dev;
+struct spdio_t spdio_dev = {0};
 
 rtos_sema_t atcmd_sdio_rx_sema;
 rtos_sema_t atcmd_sdio_tx_sema;
@@ -32,6 +32,7 @@ u8 g_sdio_device_ready = 0;
 
 extern volatile UART_LOG_CTL shell_ctl;
 extern UART_LOG_BUF shell_rxbuf;
+extern int atcmd_service(char *line_buf);
 
 char ex_spdio_tx(u8 *pdata, u16 size, u8 type)
 {
@@ -78,6 +79,14 @@ char ex_spdio_rx_done_cb(void *priv, void *pbuf, u8 *pdata, u16 size, u8 type)
 	u32 space;
 
 	if (g_tt_mode) {
+		if (size > RingBuffer_Size(atcmd_tt_mode_rx_ring_buf)) {
+			g_tt_mode_stop_flag = 1;
+			g_tt_mode_stop_char_cnt = 0;
+			rtos_sema_give(atcmd_tt_mode_sema);
+			RTK_LOGE(TAG, "recv_len is larger than tt mode buffer size\n");
+			goto exit;
+		}
+
 		space = RingBuffer_Space(atcmd_tt_mode_rx_ring_buf);
 
 		if (g_tt_mode_check_watermark) {
@@ -130,12 +139,13 @@ char ex_spdio_rx_done_cb(void *priv, void *pbuf, u8 *pdata, u16 size, u8 type)
 		}
 	}
 
+exit:
 	// manage rx_buf here
 	rtos_mem_free((char *)rx_buf->buf_allocated);
 
 	// assign new buffer for SPDIO RX
-	rx_buf->buf_allocated = (u32)rtos_mem_malloc(obj->rx_bd_bufsz + SPDIO_DMA_ALIGN_4);
-	rx_buf->size_allocated = obj->rx_bd_bufsz + SPDIO_DMA_ALIGN_4;
+	rx_buf->buf_allocated = (u32)rtos_mem_malloc(obj->device_rx_bufsz + SPDIO_DMA_ALIGN_4);
+	rx_buf->size_allocated = obj->device_rx_bufsz + SPDIO_DMA_ALIGN_4;
 
 	// this buffer must be 4 byte alignment
 	rx_buf->buf_addr = (u32)N_BYTE_ALIGMENT((u32)(rx_buf->buf_allocated), SPDIO_DMA_ALIGN_4);
@@ -164,29 +174,28 @@ void ex_spdio_thread(void *param)
 	u32 i;
 
 	spdio_dev.priv = NULL;
-	spdio_dev.rx_bd_num = SDIO_RX_BD_NUM;
-	spdio_dev.tx_bd_num = SDIO_TX_BD_NUM;
-	spdio_dev.rx_bd_bufsz = SDIO_RX_BUFSZ;
+	spdio_dev.host_tx_bd_num = SDIO_RX_BD_NUM;
+	spdio_dev.host_rx_bd_num = SDIO_TX_BD_NUM;
+	spdio_dev.device_rx_bufsz = SDIO_RX_BUFSZ;
 
-	spdio_dev.rx_buf = (struct spdio_buf_t *)rtos_mem_malloc(spdio_dev.rx_bd_num * sizeof(struct spdio_buf_t));
+	spdio_dev.rx_buf = (struct spdio_buf_t *)rtos_mem_malloc(spdio_dev.host_tx_bd_num * sizeof(struct spdio_buf_t));
 	if (!spdio_dev.rx_buf) {
 		RTK_LOGE(TAG, "malloc failed for spdio buffer structure!\n");
 		return;
 	}
 
-	for (i = 0; i < spdio_dev.rx_bd_num; i++) {
-		spdio_dev.rx_buf[i].buf_allocated = (u32)rtos_mem_malloc(spdio_dev.rx_bd_bufsz + SPDIO_DMA_ALIGN_4);
+	for (i = 0; i < spdio_dev.host_tx_bd_num; i++) {
+		spdio_dev.rx_buf[i].buf_allocated = spdio_dev.rx_buf[i].buf_addr = (u32)rtos_mem_malloc(spdio_dev.device_rx_bufsz);
 		if (!spdio_dev.rx_buf[i].buf_allocated) {
 			RTK_LOGE(TAG, "malloc failed for spdio buffer!\n");
 			return;
 		}
-		spdio_dev.rx_buf[i].size_allocated = spdio_dev.rx_bd_bufsz + SPDIO_DMA_ALIGN_4;
-		// this buffer must be 4 byte alignment
-		spdio_dev.rx_buf[i].buf_addr = (u32)N_BYTE_ALIGMENT((u32)(spdio_dev.rx_buf[i].buf_allocated), SPDIO_DMA_ALIGN_4);
+		spdio_dev.rx_buf[i].size_allocated = spdio_dev.rx_buf[i].buf_size = spdio_dev.device_rx_bufsz;
 	}
 
-	spdio_dev.rx_done_cb = ex_spdio_rx_done_cb;
-	spdio_dev.tx_done_cb = ex_spdio_tx_done_cb;
+	spdio_dev.pSDIO = SDIO_WIFI;
+	spdio_dev.device_rx_done_cb = ex_spdio_rx_done_cb;
+	spdio_dev.device_tx_done_cb = ex_spdio_tx_done_cb;
 
 	spdio_init(&spdio_dev);
 	RTK_LOGI(TAG, "SDIO device ready!\n");
@@ -194,11 +203,12 @@ void ex_spdio_thread(void *param)
 	rtos_task_delete(NULL);
 }
 
-
 void atcmd_sdio_input_handler_task(void)
 {
 	PUART_LOG_BUF pShellRxBuf = &shell_rxbuf;
+	PUART_LOG_BUF pCmdLogBuf = shell_ctl.pTmpLogBuf;
 	u32 i = 0, actual_len = 0;
+	u32 ret = FALSE;
 	while (1) {
 		pShellRxBuf->BufCount = 0;
 		i = 0;
@@ -206,26 +216,46 @@ void atcmd_sdio_input_handler_task(void)
 		rtos_sema_take(atcmd_sdio_rx_sema, 0xFFFFFFFF);
 
 		actual_len = RingBuffer_Available(at_sdio_rx_ring_buf);
-		RingBuffer_Read(at_sdio_rx_ring_buf, pShellRxBuf->UARTLogBuf, actual_len);
+		if (actual_len == 0) {
+			continue;
+		}
 
-		pShellRxBuf->BufCount = actual_len;
+		if (actual_len > CMD_BLOCK_SIZE) {
+			RingBuffer_Read(at_sdio_rx_ring_buf, pShellRxBuf->UARTLogBuf, CMD_BLOCK_SIZE);
+			pShellRxBuf->BufCount = CMD_BLOCK_SIZE;
+		} else {
+			RingBuffer_Read(at_sdio_rx_ring_buf, pShellRxBuf->UARTLogBuf, actual_len);
+			pShellRxBuf->BufCount = actual_len;
+		}
 
 recv_again:
 		if (shell_cmd_chk(pShellRxBuf->UARTLogBuf[i++], (UART_LOG_CTL *)&shell_ctl, ENABLE) == 2) {
-			if (shell_ctl.pTmpLogBuf != NULL) {
-				shell_ctl.ExecuteCmd = TRUE;
-
-				if (shell_ctl.shell_task_rdy) {
-					shell_ctl.GiveSema();
+			if (pCmdLogBuf != NULL) {
+				if (RingBuffer_Available(at_sdio_rx_ring_buf) > 0) {
+					RingBuffer_Reset(at_sdio_rx_ring_buf);
 				}
+
+				ret = atcmd_service((char *)(pCmdLogBuf->UARTLogBuf));
+				if (ret == FALSE) {
+					RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "\r\nunknown command '%s'", pCmdLogBuf->UARTLogBuf);
+					RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "\r\n\n#\r\n");
+				}
+
+				memset((u8 *)pCmdLogBuf->UARTLogBuf, CMD_BUFLEN, '\0');
+				pCmdLogBuf->BufCount = 0;
+				continue;
 			} else {
-				shell_array_init((u8 *)shell_ctl.pTmpLogBuf->UARTLogBuf, UART_LOG_CMD_BUFLEN, '\0');
+				memset((u8 *)pCmdLogBuf->UARTLogBuf, CMD_BUFLEN, '\0');
 			}
 		}
 
 		/* recv all data one time */
 		if ((pShellRxBuf->BufCount != i) && (pShellRxBuf->BufCount != 0)) {
 			goto recv_again;
+		}
+
+		if (actual_len > CMD_BLOCK_SIZE) {
+			rtos_sema_give(atcmd_sdio_rx_sema);
 		}
 	}
 }
@@ -269,6 +299,7 @@ void atio_sdio_output(char *buf, int len)
 		} else if (space > 0) {
 			RingBuffer_Write(at_sdio_tx_ring_buf, (u8 *)buf, space);
 			send_len -= space;
+			buf += space;
 		}
 
 		rtos_time_delay_ms(1);
@@ -299,7 +330,7 @@ int atio_sdio_init(void)
 		RTK_LOGE(TAG, "rtos_task_create(ex_spdio_thread) failed\n");
 	}
 
-	if (rtos_task_create(NULL, ((const char *)"atcmd_sdio_input_handler_task"), (rtos_task_t)atcmd_sdio_input_handler_task, NULL, 1024, 5) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, ((const char *)"atcmd_sdio_input_handler_task"), (rtos_task_t)atcmd_sdio_input_handler_task, NULL, 4096, 5) != RTK_SUCCESS) {
 		RTK_LOGE(TAG, "\n\r%s rtos_task_create(atcmd_sdio_input_handler_task) failed", __FUNCTION__);
 		return -1;
 	}
@@ -311,4 +342,3 @@ int atio_sdio_init(void)
 
 	return 0;
 }
-

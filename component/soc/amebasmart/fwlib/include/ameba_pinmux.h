@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2024 Realtek Semiconductor Corp.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef _AMEBA_PINMUX_H_
 #define _AMEBA_PINMUX_H_
@@ -206,6 +206,10 @@
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 //Please add your defination here
 /* Exported Types --------------------------------------------------------*/
@@ -391,6 +395,10 @@ void APAD_InputCtrl(u8 PinName, u32 NewState)
 /** @} */
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

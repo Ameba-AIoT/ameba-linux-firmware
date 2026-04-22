@@ -36,10 +36,6 @@ extern u8 rtw_join_status;
 
 struct internal_block_param *scan_abort_block_param = NULL;
 
-#ifdef CONFIG_LWIP_LAYER
-extern struct netif xnetif[NET_IF_NUM];
-#endif
-
 void (*p_ap_channel_switch_callback)(u8 channel, s8 ret) = NULL;
 
 
@@ -99,6 +95,16 @@ s32 wifi_set_countrycode(u8 *cntcode)
 	return ret;
 }
 
+s32 wifi_get_countrycode(struct rtw_country_code_table *pinfo)
+{
+	if (pinfo == NULL) {
+		return -1;
+	}
+	whc_host_api_message_send(WHC_API_WIFI_GET_COUNTRY_CODE, NULL, 0, (u8 *)&pinfo, sizeof(struct rtw_country_code_table));
+
+	return 0;
+}
+
 int wifi_set_chplan(u8 chplan)
 {
 	int ret = 0;
@@ -109,7 +115,7 @@ int wifi_set_chplan(u8 chplan)
 	return ret;
 }
 
-s32 wifi_get_channel_list(struct rtw_channel_list *ch_list);
+s32 wifi_get_channel_list(struct rtw_channel_list *ch_list)
 {
 	int ret = 0;
 
@@ -117,6 +123,13 @@ s32 wifi_get_channel_list(struct rtw_channel_list *ch_list);
 	return ret;
 }
 
+int wifi_start_join_cmd(void)
+{
+	int ret = 0;
+	whc_host_api_message_send(WHC_API_WIFI_START_JOIN_CMD, NULL, 0, (u8 *)ret, sizeof(ret));
+
+	return ret;
+}
 //----------------------------------------------------------------------------//
 
 _OPTIMIZE_NONE_
@@ -207,11 +220,17 @@ int wifi_set_mac_address(int idx, unsigned char *mac, u8 efuse)
 	return ret;
 }
 //----------------------------------------------------------------------------//
-u8 wifi_driver_is_mp(void)
+s32 wifi_driver_is_mp(u8 *is_mp)
 {
 	int ret = 0;
 
 	whc_host_api_message_send(WHC_API_WIFI_DRIVE_IS_MP, NULL, 0, (u8 *)&ret, sizeof(ret));
+	if (ret < 0) {
+		*is_mp = 0;
+	} else {
+		*is_mp = ret;
+		ret = 0;
+	}
 	return ret;
 }
 
@@ -265,6 +284,11 @@ s32 wifi_get_setting(u8 wlan_idx, struct rtw_wifi_setting *psetting)
 	whc_host_api_message_send(WHC_API_WIFI_GET_SETTING, (u8 *)param_buf, 4, (u8 *)psetting, sizeof(struct rtw_wifi_setting));
 
 	return ret;
+}
+
+void wifi_set_dbg_dp_log(char *buf)
+{
+	UNUSED(buf);
 }
 
 int wifi_set_ips_internal(u8 enable)
@@ -427,15 +451,21 @@ int wifi_set_eap_phase(unsigned char is_trigger_eap)
 #endif
 }
 
-unsigned char wifi_get_eap_phase(void)
+int wifi_get_eap_phase(u8 *eap_phase)
 {
 #ifdef CONFIG_EAP
-	unsigned char eap_phase = 0;
+	int ret = 0;
 
-	whc_host_api_message_send(WHC_API_WIFI_GET_EAP_PHASE, NULL, 0, &eap_phase, sizeof(eap_phase));
-	return eap_phase;
+	whc_host_api_message_send(WHC_API_WIFI_GET_EAP_PHASE, NULL, 0, (u8 *)&ret, sizeof(ret));
+	if (ret < 0) {
+		*eap_phase = 0;
+	} else {
+		*eap_phase = ret;
+		ret = 0;
+	}
+	return ret;
 #else
-	return 0;
+	return -1;
 #endif
 }
 
@@ -483,6 +513,11 @@ void wifi_wpa_4way_status_indicate(struct rtw_wpa_4way_status *rpt_4way)
 		whc_host_api_message_send(WHC_API_WPA_4WAY_REPORT, (u8 *)param_buf, size, NULL, 0);
 		rtos_mem_free(param_buf);
 	}
+}
+
+void wifi_dhcp_success_indicate(void)
+{
+	whc_host_api_message_send(WHC_API_WIFI_DHCP_SUCCESS_IND, NULL, 0, NULL, 0);
 }
 
 //----------------------------------------------------------------------------//
@@ -719,13 +754,17 @@ int wifi_set_pmf_mode(u8 pmf_mode)
 	return ret;
 }
 
-void wifi_wpa_add_key(struct rtw_crypt_info *crypt)
+int wifi_wpa_add_key(struct rtw_crypt_info *crypt)
 {
 	char *param_buf = rtos_mem_zmalloc(sizeof(struct rtw_crypt_info));
+	int ret = 0;
+
 	memcpy(param_buf, (void *)crypt, sizeof(struct rtw_crypt_info));
 
-	whc_host_api_message_send(WHC_API_WIFI_ADD_KEY, (u8 *)param_buf, sizeof(struct rtw_crypt_info), NULL, 0);
+	whc_host_api_message_send(WHC_API_WIFI_ADD_KEY, (u8 *)param_buf, sizeof(struct rtw_crypt_info), (u8 *)&ret, sizeof(ret));
 	rtos_mem_free(param_buf);
+
+	return ret;
 }
 
 void wifi_wpa_pmksa_ops(struct rtw_pmksa_ops_t *pmksa_ops)

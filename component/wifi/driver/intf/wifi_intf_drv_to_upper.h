@@ -68,20 +68,20 @@ extern int wifi_hal_iwpriv_command(unsigned char wlan_idx, char *cmd, int show_m
 #ifdef CONFIG_NAN
 int rtw_nan_intfs_init(void);
 void rtw_nan_intfs_deinit(void);
-void rtw_nan_start_api(u8 master_pref, u8 band_support);
+void rtw_nan_start_api(u8 master_pref, u8 band_support, u8 nan_cmd_type);
 void rtw_nan_stop_api(void);
-void rtw_nan_func_set_parameter(void *func_param, void **nan_func_pointer);
-int rtw_nan_func_add(void *func_param, void *nan_func_pointer);
+int rtw_nan_func_add(struct rtw_nan_func_t *func_param, u64 nan_func_pointer);
 int rtw_nan_func_del(u64 cookie);
 void rtw_cfgvendor_cmd_process(u16 vendor_cmd, void *data, u32 len);
 #endif
 #ifdef CONFIG_P2P
 void rtw_p2p_set_role(enum rtw_p2p_role role);
+u8 rtw_p2p_check_role(enum rtw_p2p_role role);
 int rtw_p2p_remain_on_ch(u8 wlan_idx, u8 enable);
 #endif
-#ifdef WHC_SKIP_NP_MSG_TASK
+
 void rtw_single_thread_wakeup(void);
-#endif
+
 
 int rtw_wltunnel_command(char *cmd);
 #ifdef CONFIG_WIFI_TUNNEL

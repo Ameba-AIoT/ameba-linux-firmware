@@ -74,10 +74,13 @@ bool rtk_ble_mesh_scan_enable_flag = false;
 #include <gap_credit_based_conn.h>
 #endif
 
+#define GAP_CONN_STATE_SLAVE_CONNECTING   0xFF
+
 typedef struct {
 	uint8_t is_pairing_initiator;
 	uint8_t is_active;
-	T_GAP_CONN_STATE conn_state;
+	uint8_t conn_state; /* 0x0-0x3: ref T_GAP_CONN_STATE;
+                           0xFF: ref GAP_CONN_STATE_SLAVE_CONNECTING, specific used for slave connecting.  */
 	T_GAP_REMOTE_ADDR_TYPE bd_type;
 	uint8_t peer_addr[GAP_BD_ADDR_LEN];
 	T_GAP_ROLE role;
@@ -108,7 +111,6 @@ typedef struct {
 
 extern void bt_stack_gatts_evt_indicate_mtu_exchange(uint8_t conn_id, uint16_t mtu);
 extern void bt_stack_gattc_evt_indicate_mtu_exchange(uint8_t conn_id, uint16_t mtu);
-extern rtk_bt_le_link_role_t convert_rtk_link_role(T_GAP_ROLE role);
 
 static T_GAP_DEV_STATE le_gap_dev_state = {0};
 static bt_stack_le_link_info_t bt_stack_le_link_tbl[RTK_BLE_GAP_MAX_LINKS] = {0};
@@ -157,7 +159,7 @@ static void privacy_handle_resolv_list(bool indicate);
 static void privacy_handle_bond_modify_msg(T_LE_BOND_MODIFY_TYPE type, T_LE_KEY_ENTRY *p_entry);
 #endif
 
-rtk_bt_le_link_role_t convert_rtk_link_role(T_GAP_ROLE role)
+static rtk_bt_le_link_role_t convert_rtk_link_role(T_GAP_ROLE role)
 {
 	switch (role) {
 	case GAP_LINK_ROLE_MASTER:
@@ -694,6 +696,7 @@ static T_APP_RESULT bt_stack_le_gap_callback(uint8_t type, void *data)
 			memcpy(scan_res->addr.addr_val, p_info->bd_addr, RTK_BD_ADDR_LEN);
 			scan_res->direct_addr.type = (rtk_bt_le_addr_type_t)p_info->direct_addr_type;
 			memcpy(scan_res->direct_addr.addr_val, p_info->direct_addr, RTK_BD_ADDR_LEN);
+			scan_res->data_status = p_info->data_status;
 			scan_res->len = p_info->data_len;
 			memcpy(scan_res->data, p_info->p_data, p_info->data_len);
 			scan_res->rssi = p_info->rssi;
@@ -720,8 +723,7 @@ static T_APP_RESULT bt_stack_le_gap_callback(uint8_t type, void *data)
 #endif
 
 	case GAP_MSG_LE_CONN_UPDATE_IND: {
-		/* Connection parameters update request by remote:
-		    LE Remote Connection Parameter Request Event */
+		/* Connection parameters update request by remote */
 		T_APP_RESULT app_res = (T_APP_RESULT)0;
 		uint8_t cb_ret = 0;
 		p_evt = rtk_bt_event_create(RTK_BT_LE_GP_GAP,
@@ -822,6 +824,22 @@ static T_APP_RESULT bt_stack_le_gap_callback(uint8_t type, void *data)
 		}
 	}
 	break;
+#endif
+
+#if defined(F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT) && F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT
+	case GAP_MSG_LE_READ_REMOTE_VERSION: {
+		p_evt = rtk_bt_event_create(RTK_BT_LE_GP_GAP,
+									RTK_BT_LE_GAP_EVT_READ_REMOTE_VERSION_IND,
+									sizeof(rtk_bt_le_read_remote_version_ind_t));
+		rtk_bt_le_read_remote_version_ind_t *rmt_ver = (rtk_bt_le_read_remote_version_ind_t *)p_evt->data;
+		rmt_ver->err = p_data->p_le_read_remote_version_rsp->cause;
+		rmt_ver->conn_handle = le_get_conn_handle(p_data->p_le_read_remote_version_rsp->conn_id);
+		rmt_ver->version = p_data->p_le_read_remote_version_rsp->version;
+		rmt_ver->company_id = p_data->p_le_read_remote_version_rsp->manufacturer_name;
+		rmt_ver->subversion = p_data->p_le_read_remote_version_rsp->subversion;
+		rtk_bt_evt_indicate(p_evt, NULL);
+		break;
+	}
 #endif
 
 	case GAP_MSG_LE_BOND_MODIFY_INFO: {
@@ -1361,6 +1379,12 @@ static T_APP_RESULT bt_stack_le_gap_callback(uint8_t type, void *data)
 	}
 #endif
 #endif /* F_BT_LE_4_0_DTM_SUPPORT */
+
+	case GAP_MSG_LE_GAP_STATE_MSG: {
+		T_IO_MSG *io_msg = (T_IO_MSG *)p_data->p_gap_state_msg;
+		bt_stack_le_gap_handle_io_msg(io_msg->subtype, &io_msg->u.param);
+		break;
+	}
 	default:
 		break;
 	}
@@ -1396,6 +1420,9 @@ void bt_stack_le_gap_set_config(void *app_conf)
 		le_bond_set_param(GAP_PARAM_BOND_SET_LOCAL_IRK, GAP_KEY_LEN, papp_conf->irk);
 	}
 #endif
+	if (papp_conf->min_enc_key_size) {
+		le_bond_set_param(GAP_PARAM_BOND_MIN_KEY_SIZE, sizeof(uint8_t), &papp_conf->min_enc_key_size);
+	}
 }
 
 void bt_stack_le_gap_ext_adv_init(void)
@@ -2128,6 +2155,7 @@ uint16_t bt_stack_le_gap_init(void *gap_conf)
 		return RTK_BT_ERR_NO_RESOURCE;
 	}
 
+	le_gap_msg_info_way(false);
 	bt_stack_le_gap_ext_adv_init();
 
 	bt_stack_le_gap_set_config(gap_conf);
@@ -2290,16 +2318,19 @@ static void bt_stack_le_gap_handle_conn_state_evt(T_LE_GAP_MSG *p_gap_msg)
 	rtk_bt_le_conn_ind_t *p_conn_ind;
 	rtk_bt_le_disconn_ind_t *p_disconn_ind;
 	T_GAP_CONN_INFO conn_info = {(T_GAP_CONN_STATE)0, (T_GAP_ROLE)0, {0}, 0};
+	T_GAP_DEV_STATE dev_state;
+	T_GAP_CAUSE cause;
 
 	/* always update conn_state */
-	bt_stack_le_link_tbl[conn_id].conn_state = (T_GAP_CONN_STATE)new_state;
+	bt_stack_le_link_tbl[conn_id].conn_state = new_state;
 
 	// BT_LOGD("----------------------------> bt_stack_le_gap_handle_conn_state_evt \r\n");
 	switch (new_state) {
 	case GAP_CONN_STATE_DISCONNECTED:
 		if (GAP_CONN_STATE_DISCONNECTING == prev_state ||
-			GAP_CONN_STATE_CONNECTED == prev_state) {
-			BT_LOGD("[conn_state_evt]: disconnect success, conn_id: %d, disconnect reason: 0x%x\r\n",
+			GAP_CONN_STATE_CONNECTED == prev_state ||
+			GAP_CONN_STATE_SLAVE_CONNECTING == prev_state) {
+			BT_LOGD("[conn_state_evt]: disconnected, conn_id: %d, disconnect reason: 0x%x\r\n",
 					conn_id, disc_cause);
 
 			p_evt = rtk_bt_event_create(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_EVT_DISCONN_IND,
@@ -2309,12 +2340,21 @@ static void bt_stack_le_gap_handle_conn_state_evt(T_LE_GAP_MSG *p_gap_msg)
 			}
 
 			p_disconn_ind = (rtk_bt_le_disconn_ind_t *)p_evt->data;
-
 			p_disconn_ind->reason = disc_cause;
-			p_disconn_ind->conn_handle = bt_stack_le_conn_handle[conn_id]; //le_get_conn_handle() returns 0xFFFF when disconnected;
-			p_disconn_ind->role = convert_rtk_link_role(bt_stack_le_link_tbl[conn_id].role);
-			p_disconn_ind->peer_addr.type = (rtk_bt_le_addr_type_t)bt_stack_le_link_tbl[conn_id].bd_type;
-			memcpy(p_disconn_ind->peer_addr.addr_val, &bt_stack_le_link_tbl[conn_id].peer_addr, RTK_BD_ADDR_LEN);
+			if (GAP_CONN_STATE_SLAVE_CONNECTING == prev_state) {
+				p_disconn_ind->conn_handle = le_get_conn_handle(conn_id);
+				if (!le_get_conn_info(conn_id, &conn_info)) {
+					BT_LOGE("le_get_conn_info failed\r\n");
+				}
+				p_disconn_ind->role = convert_rtk_link_role(conn_info.role);
+				p_disconn_ind->peer_addr.type = (rtk_bt_le_addr_type_t)conn_info.remote_bd_type;
+				memcpy(p_disconn_ind->peer_addr.addr_val, conn_info.remote_bd, RTK_BD_ADDR_LEN);
+			} else {
+				p_disconn_ind->conn_handle = bt_stack_le_conn_handle[conn_id];
+				p_disconn_ind->role = convert_rtk_link_role(bt_stack_le_link_tbl[conn_id].role);
+				p_disconn_ind->peer_addr.type = (rtk_bt_le_addr_type_t)bt_stack_le_link_tbl[conn_id].bd_type;
+				memcpy(p_disconn_ind->peer_addr.addr_val, &bt_stack_le_link_tbl[conn_id].peer_addr, RTK_BD_ADDR_LEN);
+			}
 
 			memset(&bt_stack_le_link_tbl[conn_id], 0, sizeof(bt_stack_le_link_info_t));
 			if (RTK_BT_LE_ROLE_SLAVE == p_disconn_ind->role && bt_stack_profile_check(RTK_BT_PROFILE_GATTS)) {
@@ -2353,7 +2393,7 @@ static void bt_stack_le_gap_handle_conn_state_evt(T_LE_GAP_MSG *p_gap_msg)
 		break;
 
 	case GAP_CONN_STATE_CONNECTED:
-		BT_LOGD("[conn_state_evt]: connected success, conn_id: %d\r\n", conn_id);
+		BT_LOGD("[conn_state_evt]: connected, conn_id: %d\r\n", conn_id);
 		p_evt = rtk_bt_event_create(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_EVT_CONNECT_IND,
 									sizeof(rtk_bt_le_conn_ind_t));
 		if (!p_evt) {
@@ -2422,6 +2462,15 @@ exit:
 
 	case GAP_CONN_STATE_CONNECTING:
 		BT_LOGD("[conn_state_evt]: connecting \r\n");
+		cause = le_get_gap_param(GAP_PARAM_DEV_STATE, &dev_state);
+		if (cause) {
+			BT_LOGE("GAP get dev state failed, cause: %d\r\n", cause);
+		}
+		if (dev_state.gap_conn_state != GAP_CONN_DEV_STATE_INITIATING) {
+			/* The connecting state is not caused by master create connection, when slave device
+			was connected, it will also report the connecting state. */
+			bt_stack_le_link_tbl[conn_id].conn_state = GAP_CONN_STATE_SLAVE_CONNECTING;
+		}
 		break;
 
 	case GAP_CONN_STATE_DISCONNECTING:
@@ -2521,9 +2570,28 @@ static bool bt_stack_le_sm_pairing_get_ltk(uint8_t conn_id, uint8_t *dev_ltk_len
 	return false;
 }
 
+static rtk_bt_le_sec_level_t convert_security_level(T_GAP_SEC_LEVEL sec_level)
+{
+	switch (sec_level) {
+	case GAP_SEC_LEVEL_UNAUTHEN:
+		__attribute__((fallthrough));
+	case GAP_SEC_LEVEL_SC_UNAUTHEN:
+		return RTK_BT_LE_SEC_LEVEL_UNAUTHEN;
+	case GAP_SEC_LEVEL_AUTHEN:
+		return RTK_BT_LE_SEC_LEVEL_AUTHEN;
+	case GAP_SEC_LEVEL_SC_AUTHEN:
+		return RTK_BT_LE_SEC_LEVEL_SC_AUTHEN_128;
+	case GAP_SEC_LEVEL_NO:
+		__attribute__((fallthrough));
+	default:
+		return RTK_BT_LE_SEC_LEVEL_NONE;
+	}
+}
+
 static void bt_stack_le_gap_handle_authen_state_evt(T_LE_GAP_MSG *p_gap_msg)
 {
 	T_GAP_AUTHEN_STATE *authen_state = &p_gap_msg->msg_data.gap_authen_state;
+	T_GAP_SEC_LEVEL sec_level;
 	uint8_t conn_id = authen_state->conn_id;
 	uint16_t status = authen_state->status;
 	uint8_t ltk_length = 0;
@@ -2546,6 +2614,9 @@ static void bt_stack_le_gap_handle_authen_state_evt(T_LE_GAP_MSG *p_gap_msg)
 		} else {
 			auth_ind->dev_ltk_length = ltk_length;
 			memcpy(auth_ind->dev_ltk, ltk, ltk_length);
+		}
+		if (GAP_CAUSE_SUCCESS == le_bond_get_sec_level(conn_id, &sec_level)) {
+			auth_ind->sec_level = convert_security_level(sec_level);
 		}
 	} else {
 		auth_ind->err = status;
@@ -2882,6 +2953,32 @@ static uint16_t bt_stack_le_gap_set_rand_addr(void *param)
 		if (cause) {
 			return RTK_BT_ERR_LOWER_STACK_API;
 		}
+	}
+
+	return 0;
+}
+
+static uint16_t bt_stack_le_gap_gen_rand_addr(void *param)
+{
+	rtk_bt_le_gen_rand_addr_t *gen_rand = (rtk_bt_le_gen_rand_addr_t *)param;
+	T_GAP_CAUSE cause;
+
+	cause = le_gen_rand_addr((T_GAP_RAND_ADDR_TYPE)gen_rand->type, gen_rand->p_addr);
+	if (cause) {
+		return RTK_BT_ERR_LOWER_STACK_API;
+	}
+
+	return 0;
+}
+
+static uint16_t bt_stack_le_gap_cfg_local_ident_addr(void *param)
+{
+	rtk_bt_le_ident_addr_t *ident_addr = (rtk_bt_le_ident_addr_t *)param;
+	T_GAP_CAUSE cause;
+
+	cause = le_cfg_local_identity_address(ident_addr->addr_val, (T_GAP_IDENT_ADDR_TYPE)ident_addr->type);
+	if (cause) {
+		return RTK_BT_ERR_LOWER_STACK_API;
 	}
 
 	return 0;
@@ -3298,20 +3395,22 @@ static uint16_t bt_stack_le_gap_remove_ext_adv(void *param)
 
 static uint16_t bt_stack_le_gap_get_ext_adv_handle_by_conn_handle(void *param)
 {
-#if defined(RTK_BLE_MGR_LIB_EADV) && RTK_BLE_MGR_LIB_EADV
-	(void)param;
-	return RTK_BT_ERR_UNSUPPORTED;
-#else
 	rtk_bt_le_get_eadv_by_conn_handle_param_t *get_eadv_hdl = (rtk_bt_le_get_eadv_by_conn_handle_param_t *)param;
 	uint8_t conn_id = 0;
+	uint8_t adv_handle = 0;
 
 	if (!le_get_conn_id_by_handle(get_eadv_hdl->conn_handle, &conn_id)) {
 		return RTK_BT_ERR_NO_CONNECTION;
 	}
-	*(get_eadv_hdl->adv_handle) = le_ext_adv_get_adv_handle_by_conn_id(conn_id);
+
+	adv_handle = le_ext_adv_get_adv_handle_by_conn_id(conn_id);
+	if (0xFF == adv_handle) {
+		return RTK_BT_ERR_LOWER_STACK_API;
+	}
+
+	*(get_eadv_hdl->adv_handle) = adv_handle;
 
 	return 0;
-#endif
 }
 #endif /* RTK_BLE_5_0_USE_EXTENDED_ADV && F_BT_LE_5_0_AE_ADV_SUPPORT */
 
@@ -4404,6 +4503,26 @@ static uint16_t bt_stack_le_gap_read_rssi(void *param)
 	return 0;
 }
 
+#if defined(F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT) && F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT
+static uint16_t bt_stack_le_gap_read_remote_version(void *param)
+{
+	T_GAP_CAUSE cause;
+	uint8_t conn_id;
+	uint16_t conn_handle = *((uint16_t *)param);
+
+	if (!le_get_conn_id_by_handle(conn_handle, &conn_id)) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	cause = le_read_remote_version(conn_id);
+	if (cause) {
+		return RTK_BT_ERR_LOWER_STACK_API;
+	}
+
+	return 0;
+}
+#endif
+
 static uint16_t bt_stack_le_gap_get_dev_state(void *param)
 {
 	T_GAP_CAUSE cause;
@@ -4465,7 +4584,6 @@ static uint16_t bt_stack_le_gap_get_conn_handle_by_addr(void *param)
 
 static uint16_t bt_stack_le_gap_get_conn_info(void *param)
 {
-	// uint16_t err = 0;
 	T_GAP_CAUSE cause;
 	T_GAP_CONN_INFO stack_conn_info;
 
@@ -4555,7 +4673,7 @@ static uint16_t bt_stack_le_gap_set_max_mtu_size(void *param)
 	}
 	active_conn_num = le_get_active_link_num();
 
-	if ((GAP_CONN_STATE_CONNECTING == dev_state.gap_conn_state) || active_conn_num) {
+	if ((GAP_CONN_DEV_STATE_INITIATING == dev_state.gap_conn_state) || active_conn_num) {
 		return RTK_BT_ERR_STATE_INVALID;
 	}
 
@@ -5212,6 +5330,12 @@ static uint16_t bt_stack_le_sm_set_security_param(void *param)
 	}
 
 	cause = gap_set_pairable_mode();
+	if (cause) {
+		return RTK_BT_ERR_LOWER_STACK_API;
+	}
+
+	cause = le_bond_set_param(GAP_PARAM_BOND_SIGN_KEY_FLAG, sizeof(uint8_t),
+							  &p_sec_param->sign_key_flag);
 	if (cause) {
 		return RTK_BT_ERR_LOWER_STACK_API;
 	}
@@ -6155,7 +6279,21 @@ uint16_t bt_stack_le_gap_act_handle(rtk_bt_cmd_t *p_cmd)
 		BT_LOGD("RTK_BT_LE_GAP_ACT_SET_PREFERRED_CONN_PARAM \r\n");
 		ret = bt_stack_le_gap_set_preferred_conn_param(p_cmd->param);
 		break;
-
+	case RTK_BT_LE_GAP_ACT_SET_RAND_ADDR:
+		BT_LOGD("RTK_BT_LE_GAP_ACT_SET_RAND_ADDR \r\n");
+		p_cmd->user_data = GAP_MSG_LE_SET_RAND_ADDR;
+		bt_stack_pending_cmd_insert(p_cmd);
+		ret = bt_stack_le_gap_set_rand_addr(p_cmd->param);
+		goto async_handle;
+		break;
+	case RTK_BT_LE_GAP_ACT_GEN_RAND_ADDR:
+		BT_LOGD("RTK_BT_LE_GAP_ACT_GEN_RAND_ADDR \r\n");
+		ret = bt_stack_le_gap_gen_rand_addr(p_cmd->param);
+		break;
+	case RTK_BT_LE_GAP_ACT_CFG_LOCAL_IDENT_ADDR:
+		BT_LOGD("RTK_BT_LE_GAP_ACT_CFG_LOCAL_IDENT_ADDR");
+		ret = bt_stack_le_gap_cfg_local_ident_addr(p_cmd->param);
+		break;
 	case RTK_BT_LE_GAP_ACT_SET_ADV_DATA:
 		BT_LOGD("RTK_BT_LE_GAP_ACT_SET_ADV_DATA \r\n");
 		ret = bt_stack_le_gap_set_adv_data(p_cmd->param, p_cmd->param_len);
@@ -6389,13 +6527,6 @@ uint16_t bt_stack_le_gap_act_handle(rtk_bt_cmd_t *p_cmd)
 		BT_LOGD("RTK_BT_LE_GAP_ACT_UPDATE_CONN_PARAM \r\n");
 		ret = bt_stack_le_gap_update_conn_param(p_cmd->param);
 		break;
-	case RTK_BT_LE_GAP_ACT_SET_RAND_ADDR:
-		BT_LOGD("RTK_BT_LE_GAP_ACT_SET_RAND_ADDR \r\n");
-		p_cmd->user_data = GAP_MSG_LE_SET_RAND_ADDR;
-		bt_stack_pending_cmd_insert(p_cmd);
-		ret = bt_stack_le_gap_set_rand_addr(p_cmd->param);
-		goto async_handle;
-		break;
 	case RTK_BT_LE_GAP_ACT_READ_RSSI:
 		BT_LOGD("RTK_BT_LE_GAP_ACT_READ_RSSI \r\n");
 		p_cmd->user_data = GAP_MSG_LE_READ_RSSI;
@@ -6403,6 +6534,13 @@ uint16_t bt_stack_le_gap_act_handle(rtk_bt_cmd_t *p_cmd)
 		ret = bt_stack_le_gap_read_rssi(p_cmd->param);
 		goto async_handle;
 		break;
+
+#if defined(F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT) && F_BT_LE_READ_REMOTE_VERSION_INFO_SUPPORT
+	case RTK_BT_LE_GAP_ACT_READ_REMOTE_VERSION:
+		BT_LOGD("RTK_BT_LE_GAP_ACT_READ_REMOTE_VERSION \r\n");
+		ret = bt_stack_le_gap_read_remote_version(p_cmd->param);
+		break;
+#endif
 
 	case RTK_BT_LE_GAP_ACT_MODIFY_WHITELIST:
 		BT_LOGD("RTK_BT_LE_GAP_ACT_MODIFY_WHITELIST \r\n");

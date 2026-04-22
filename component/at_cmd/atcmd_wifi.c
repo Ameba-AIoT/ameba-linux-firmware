@@ -7,6 +7,7 @@
 #include "platform_autoconf.h"
 
 #ifndef CONFIG_MP_SHRINK
+#ifdef CONFIG_WLAN
 #include "atcmd_service.h"
 #include "atcmd_wifi.h"
 #ifdef CONFIG_LWIP_LAYER
@@ -15,23 +16,26 @@
 #ifdef CONFIG_WLAN
 #include "wifi_intf_drv_to_upper.h"
 #endif
-#ifdef CONFIG_AS_INIC_AP
+#ifdef CONFIG_WHC_HOST
 #ifdef CONFIG_WHC_INTF_IPC
 #include "whc_ipc_host_api.h"
 #else
 #include "whc_host_api.h"
 #endif
 #endif
-
-#ifdef CONFIG_LWIP_LAYER
-extern struct netif xnetif[NET_IF_NUM];
+#if defined(CONFIG_IP6_RLOCAL) && (CONFIG_IP6_RLOCAL == 1)
+#include "lwip/lwip_ip6_rlocal.h"
 #endif
 
 #ifdef CONFIG_WLAN
-extern struct table  ip_table;
 #if defined(CONFIG_ENABLE_WPS) && CONFIG_ENABLE_WPS
 extern int cmd_wps(int argc, char **argv);
 #endif
+
+#ifdef CONFIG_WIFI_P2P_ENABLE
+#include "wifi_p2p_supplicant.h"
+#endif
+
 static struct rtw_network_info wifi = {0};
 static struct rtw_softap_info ap = {0};
 static unsigned char password[129] = {0};
@@ -42,15 +46,23 @@ extern void ipnat_dump(void);
 #endif
 
 extern int wifi_set_ips_internal(u8 enable);
+#if defined(CONFIG_IEEE80211R) && (WIFI_LOGO_CERTIFICATION == 1)
+extern int rtw_ft_reassoc_dbg(u16 argc, char **argv);
+#endif
+extern void wifi_set_dbg_dp_log(char *buf);
 
-#if (defined(CONFIG_LWIP_USB_ETHERNET) && CONFIG_LWIP_USB_ETHERNET) || (defined(CONFIG_ETHERNET) && CONFIG_ETHERNET)
-extern struct netif eth_netif;
+#if defined(CONFIG_LWIP_ETHERNET)
+extern struct netif *pnetif_eth;
+#endif
+#if defined(CONFIG_LWIP_USB_ETHERNET)
+extern struct netif *pnetif_usb_eth;
 #endif
 
 static void init_wifi_struct(void)
 {
 	memset(wifi.ssid.val, 0, sizeof(wifi.ssid.val));
 	memset(wifi.bssid.octet, 0, ETH_ALEN);
+	memset(wifi.prev_bssid.octet, 0, ETH_ALEN);
 	memset(password, 0, sizeof(password));
 	wifi.ssid.len = 0;
 	wifi.password = NULL;
@@ -220,7 +232,7 @@ static void at_wlconn_help(void)
 	RTK_LOGI(NOTAG, "\t<ssid>:\tA string SSID name\r\n");
 	RTK_LOGI(NOTAG, "\t<bssid>:\tA hex-number string with colons, e.g. 1a:2b:3c:4d:5e:6f\r\n");
 	RTK_LOGI(NOTAG, "\t<pw>:\tWPA or WPA2 with length 8~64, WEP with length 5 or 13\r\n");
-	RTK_LOGI(NOTAG, "\t<key_id>:\tFor WEP security, must be 0~3, if absent, it is 0\r\n");
+	RTK_LOGI(NOTAG, "\t<key_id>:\tFor WEP security, must be 0~3\r\n");
 }
 
 /****************************************************************
@@ -230,12 +242,11 @@ AT command process:
 	Connect to a wifi network.
 	[+WLCONN]:OK
 ****************************************************************/
-void at_wlconn(void *arg)
+void at_wlconn(u16 argc, char **argv)
 {
-	int argc = 0, ret = 0, i = 0, j = 0, k = 0;
+	int ret = 0, i = 0, j = 0, k = 0;
 	int error_no = RTW_AT_OK;
 	unsigned int mac[ETH_ALEN];
-	char *argv[MAX_ARGC] = {0};
 	char empty_bssid[6] = {0};
 
 #ifdef CONFIG_LWIP_LAYER
@@ -243,18 +254,25 @@ void at_wlconn(void *arg)
 	unsigned long tick3;
 #endif
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[+WLCONN] The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if ((argc < 2) || (argc > 11)) {
 		RTK_LOGW(NOTAG, "[+WLCONN] The parameters format ERROR\r\n");
 		error_no = RTW_AT_ERR_PARAM_NUM_ERR;
 		goto end;
 	}
+
+#ifdef CONFIG_RMESH_EN
+	if (0 == strcmp("zrpp", argv[1])) {
+		extern void wtn_zrpp_start(void);
+		wtn_zrpp_start();
+		goto end;
+	}
+#endif
 
 	/* The parameters appear by pairs, so i += 2. */
 	for (i = 1; argc > i; i += 2) {
@@ -345,10 +363,13 @@ void at_wlconn(void *arg)
 	}
 
 #ifdef CONFIG_LWIP_LAYER
-	/* Start DHCPClient */
-	LwIP_DHCP(0, DHCP_START);
+	ret = LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX);
 	tick3 = rtos_time_get_current_system_time_ms();
-	RTK_LOGI(NOTAG, "\r\n[+WLCONN] Got IP after %d ms.\r\n", (unsigned int)(tick3 - tick1));
+	if (DHCP_ADDRESS_ASSIGNED == ret) {
+		RTK_LOGI(NOTAG, "\r\n[+WLCONN] Got IP after %d ms.\r\n", (unsigned int)(tick3 - tick1));
+	} else {
+		RTK_LOGI(NOTAG, "\r\n[+WLCONN] NOT Got IP after %d ms.\r\n", (unsigned int)(tick3 - tick1));
+	}
 #endif
 
 end:
@@ -370,14 +391,15 @@ AT command process:
 	Disconnect from a wifi network.
 	[+WLDISCONN]:OK
 ****************************************************************/
-void at_wldisconn(void *arg)
+void at_wldisconn(u16 argc, char **argv)
 {
 	u8 join_status = RTW_JOINSTATUS_UNKNOWN;
 	int timeout = 20, ret = 0;
 	int error_no = RTW_AT_OK;
 	struct rtw_wifi_setting wifi_setting = {0};
 
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
 	if (wifi_get_setting(STA_WLAN_INDEX, &wifi_setting) >= 0) {
 		if (wifi_setting.mode == RTW_MODE_AP) {
@@ -425,7 +447,7 @@ void at_wldisconn(void *arg)
 end:
 #ifdef CONFIG_LWIP_LAYER
 	user_static_ip.use_static_ip = 0;
-	LwIP_ReleaseIP(STA_WLAN_INDEX);
+	LwIP_ReleaseIP(NETIF_WLAN_STA_INDEX);
 #endif
 	init_wifi_struct();
 	if (error_no == RTW_AT_OK) {
@@ -486,14 +508,13 @@ AT command process:
 	Scan all the SSIDs.
 	[+WLSCAN]:OK
 ****************************************************************/
-void at_wlscan(void *arg)
+void at_wlscan(u16 argc, char **argv)
 {
 	u8 *channel_list = NULL;
 	int num_channel = 0, ret = 0;
-	unsigned int i = 0, j = 0, argc = 0;
+	unsigned int i = 0, j = 0;
 	u32 scanned_AP_num = 0;
 	int error_no = RTW_AT_OK;
-	char *argv[MAX_ARGC] = {0};
 	struct rtw_scan_result *scanned_AP_list = NULL;
 	struct rtw_scan_param scan_param;
 	struct rtw_scan_result *scanned_AP_info;
@@ -511,8 +532,6 @@ void at_wlscan(void *arg)
 		error_no = RTW_AT_ERR_INVALID_WIFI_STATUS;
 		goto end;
 	}
-
-	argc = parse_param(arg, argv);
 
 	for (i = 1; argc > i; i += 2) {
 		j = i + 1;  /* Next i. */
@@ -618,11 +637,12 @@ AT command process:
 	Get the RSSI value of current network.
 	[+WLRSSI]:OK
 ****************************************************************/
-void at_wlrssi(void *arg)
+void at_wlrssi(u16 argc, char **argv)
 {
 	union rtw_phy_stats phy_stats;
 
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
 	RTK_LOGI(NOTAG, "[WLRSSI] _AT_WLAN_GET_RSSI_\r\n");
 	wifi_get_phy_stats(STA_WLAN_INDEX, NULL, &phy_stats);
@@ -673,28 +693,26 @@ AT command process:
 	Set the wifi soft AP.
 	[+WLSTARTAP]:OK
 ****************************************************************/
-void at_wlstartap(void *arg)
+void at_wlstartap(u16 argc, char **argv)
 {
-	int argc = 0, ret = 0, i = 0, j = 0;
+	int ret = 0, i = 0, j = 0;
 	int error_no = RTW_AT_OK;
-	char *argv[MAX_ARGC] = {0};
 #ifdef CONFIG_LWIP_LAYER
 	u32 ip_addr, netmask, gw;
 	struct ip_addr start_ip, end_ip;
-	struct netif *pnetif = &xnetif[SOFTAP_WLAN_INDEX];
+	int pool_specified = 0;
 #endif
 	int timeout = 20;
 	struct rtw_wifi_setting *setting = NULL;
 	struct rtw_acs_config acs_config;
 	acs_config.band = RTW_SUPPORT_BAND_2_4G_5G_BOTH;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[+WLSTARTAP] The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if ((argc < 2) || (argc > 18)) {
 		RTK_LOGW(NOTAG, "[+WLSTARTAP] command format error\r\n");
 		error_no = RTW_AT_ERR_PARAM_NUM_ERR;
@@ -796,7 +814,7 @@ void at_wlstartap(void *arg)
 				goto end;
 			}
 
-			dhcps_set_addr_pool(1, &start_ip, &end_ip);
+			pool_specified = 1;
 			i += 1;
 		} else if (0 == strcmp("gw", argv[i])) {
 			if (argv[j] != NULL && inet_addr(argv[j]) != IPADDR_NONE) {
@@ -875,11 +893,11 @@ void at_wlstartap(void *arg)
 	}
 
 #ifdef CONFIG_LWIP_LAYER
-	dhcps_deinit();
+	dhcps_deinit(pnetif_ap);
 	ip_addr = CONCAT_TO_UINT32(GW_ADDR0, GW_ADDR1, GW_ADDR2, GW_ADDR3);
 	netmask = CONCAT_TO_UINT32(NETMASK_ADDR0, NETMASK_ADDR1, NETMASK_ADDR2, NETMASK_ADDR3);
 	gw = CONCAT_TO_UINT32(GW_ADDR0, GW_ADDR1, GW_ADDR2, GW_ADDR3);
-	LwIP_SetIP(SOFTAP_WLAN_INDEX, ip_addr, netmask, gw);
+	LwIP_SetIP(NETIF_WLAN_AP_INDEX, ip_addr, netmask, gw);
 #endif
 
 	if (ap.channel == 0) {
@@ -929,8 +947,12 @@ void at_wlstartap(void *arg)
 	ip_addr = CONCAT_TO_UINT32(AP_IP_ADDR0, AP_IP_ADDR1, AP_IP_ADDR2, AP_IP_ADDR3);
 	netmask = CONCAT_TO_UINT32(AP_NETMASK_ADDR0, AP_NETMASK_ADDR1, AP_NETMASK_ADDR2, AP_NETMASK_ADDR3);
 	gw = CONCAT_TO_UINT32(AP_GW_ADDR0, AP_GW_ADDR1, AP_GW_ADDR2, AP_GW_ADDR3);
-	LwIP_SetIP(SOFTAP_WLAN_INDEX, ip_addr, netmask, gw);
-	dhcps_init(pnetif);
+	LwIP_SetIP(NETIF_WLAN_AP_INDEX, ip_addr, netmask, gw);
+	dhcps_init(pnetif_ap);
+	if (pool_specified) {
+		dhcps_set_addr_pool(pnetif_ap, 1, &start_ip, &end_ip);
+	}
+	dhcps_start(pnetif_ap);
 #endif
 
 end:
@@ -939,6 +961,10 @@ end:
 	if (error_no == RTW_AT_OK) {
 		at_printf(ATCMD_OK_END_STR);
 	} else {
+#ifdef CONFIG_LWIP_LAYER
+		dhcps_deinit(pnetif_ap);
+#endif
+		wifi_stop_ap();
 		if (error_no >= RTW_AT_ERR_REQUIRED_PARAM_MISS && error_no <= RTW_AT_ERR_PARAM_NUM_ERR) {
 			at_wlstartap_help();
 		}
@@ -948,15 +974,20 @@ end:
 
 /****************************************************************
 AT command process:
+
 	AT+WLSTOPAP
 	Wifi AT Command:
 	Set the wifi soft AP.
 	[+WLSTOPAP]:OK
 ****************************************************************/
-void at_wlstopap(void *arg)
+void at_wlstopap(u16 argc, char **argv)
 {
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
+#ifdef CONFIG_LWIP_LAYER
+	dhcps_deinit(pnetif_ap);
+#endif
 	wifi_stop_ap();
 	at_printf(ATCMD_OK_END_STR);
 }
@@ -968,21 +999,19 @@ AT command process:
 	Get the parameters of network.
 	[+WLSTATE]:OK
 ****************************************************************/
-void at_wlstate(void *arg)
+void at_wlstate(u16 argc, char **argv)
 {
 	int i = 0;
-#ifdef CONFIG_DHCPS_KEPT_CLIENT_INFO
-	uint8_t *p = NULL;
-#endif
 #ifdef CONFIG_LWIP_LAYER
-	u8 *mac = LwIP_GetMAC(0);
-	u8 *ip = LwIP_GetIP(0);
-	u8 *gw = LwIP_GetGW(0);
-	u8 *msk = LwIP_GetMASK(0);
+	u8 *mac = LwIP_GetMAC(NETIF_WLAN_STA_INDEX);
+	u8 *ip = LwIP_GetIP(NETIF_WLAN_STA_INDEX);
+	u8 *gw = LwIP_GetGW(NETIF_WLAN_STA_INDEX);
+	u8 *msk = LwIP_GetMASK(NETIF_WLAN_STA_INDEX);
 #endif
 	struct rtw_wifi_setting *p_wifi_setting = NULL;
 
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
 	p_wifi_setting = (struct rtw_wifi_setting *)rtos_mem_zmalloc(sizeof(struct rtw_wifi_setting));
 	if (p_wifi_setting == NULL) {
@@ -992,7 +1021,7 @@ void at_wlstate(void *arg)
 	}
 
 	RTK_LOGI(NOTAG, "[+WLSTATE]: _AT_WLAN_INFO_\r\n");
-	for (i = 0; i < NET_IF_NUM; i++) {
+	for (i = 0; i < WLAN_NET_IF_NUM; i++) {
 		if (wifi_is_running(i)) {
 #ifdef CONFIG_LWIP_LAYER
 			mac = LwIP_GetMAC(i);
@@ -1029,22 +1058,15 @@ void at_wlstate(void *arg)
 					at_printf("Client Num: %d\r\n", client_info.count);
 					for (client_number = 0; client_number < client_info.count; client_number++) {
 						at_printf("Client %d:\r\n", client_number + 1);
-#ifdef CONFIG_DHCPS_KEPT_CLIENT_INFO
-						for (int n = 0; n < wifi_user_config.ap_sta_num; n++) {
-							p = ip_table.client_mac[n];
-							if (memcmp(p, client_info.mac_list[client_number].octet, 6) == 0) {
-								at_printf("IPv4 address: %d.%d.%d.%d, ", gw[0], gw[1], gw[2], ip_table.ip_addr4[n]);
-								at_printf("MAC address: %02x:%02x:%02x:%02x:%02x:%02x, ", p[0], p[1], p[2], p[3], p[4], p[5]);
-								wifi_get_phy_stats(SOFTAP_WLAN_INDEX, p, &phy_stats);
-								at_printf("RSSI: %d", phy_stats.ap.data_rssi);
-								at_printf("\r\n");
-								break;
-							}
+						u8 *mac = client_info.mac_list[client_number].octet;
+						u8 ip_addr4 = dhcps_search_client_ip(pnetif_ap, mac);
+						if (ip_addr4) {
+							at_printf("IPv4 address: %d.%d.%d.%d, ", gw[0], gw[1], gw[2], ip_addr4);
+							at_printf("MAC address: %02x:%02x:%02x:%02x:%02x:%02x, ", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+							wifi_get_phy_stats(SOFTAP_WLAN_INDEX, mac, &phy_stats);
+							at_printf("RSSI: %d", phy_stats.ap.data_rssi);
+							at_printf("\r\n");
 						}
-#else
-						at_printf("MAC => "MAC_FMT"\r\n",
-								  MAC_ARG(client_info.mac_list[client_number].octet));
-#endif
 					}
 				}
 			}
@@ -1052,22 +1074,41 @@ void at_wlstate(void *arg)
 	}
 
 	/* show the ethernet interface info */
-#if (defined(CONFIG_LWIP_USB_ETHERNET) && CONFIG_LWIP_USB_ETHERNET) || (defined(CONFIG_ETHERNET) && CONFIG_ETHERNET)
 #ifdef CONFIG_LWIP_LAYER
-	mac = (uint8_t *)(eth_netif.hwaddr);
-	ip = (uint8_t *) & (eth_netif.ip_addr);
-	gw = (uint8_t *) & (eth_netif.gw);
+#if defined(CONFIG_LWIP_ETHERNET)
+	mac = (uint8_t *)(pnetif_eth->hwaddr);
+	ip = (uint8_t *) & (pnetif_eth->ip_addr);
+	gw = (uint8_t *) & (pnetif_eth->gw);
+	msk = (uint8_t *) & (pnetif_eth->netmask);
 	at_printf("Interface ethernet\r\n");
 	at_printf("==============================\r\n");
 	at_printf("MAC => %02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]) ;
 	at_printf("IP  => %d.%d.%d.%d\r\n", ip[0], ip[1], ip[2], ip[3]);
-	at_printf("GW  => %d.%d.%d.%d\r\n\r\n", gw[0], gw[1], gw[2], gw[3]);
+	at_printf("GW  => %d.%d.%d.%d\r\n", gw[0], gw[1], gw[2], gw[3]);
+	at_printf("MSK  => %d.%d.%d.%d\r\n\r\n", msk[0], msk[1], msk[2], msk[3]);
+#endif /* CONFIG_LWIP_ETHERNET */
+
+#if defined(CONFIG_LWIP_USB_ETHERNET)
+	mac = (uint8_t *)(pnetif_usb_eth->hwaddr);
+	ip = (uint8_t *) & (pnetif_usb_eth->ip_addr);
+	gw = (uint8_t *) & (pnetif_usb_eth->gw);
+	msk = (uint8_t *) & (pnetif_usb_eth->netmask);
+	at_printf("Interface usb ethernet\r\n");
+	at_printf("==============================\r\n");
+	at_printf("MAC => %02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]) ;
+	at_printf("IP  => %d.%d.%d.%d\r\n", ip[0], ip[1], ip[2], ip[3]);
+	at_printf("GW  => %d.%d.%d.%d\r\n", gw[0], gw[1], gw[2], gw[3]);
+	at_printf("MSK  => %d.%d.%d.%d\r\n\r\n", msk[0], msk[1], msk[2], msk[3]);
+#endif /* CONFIG_LWIP_USB_ETHERNET */
 #endif /* CONFIG_LWIP_LAYER */
-#endif /* CONFIG_LWIP_USB_ETHERNET || CONFIG_ETHERNET */
 
 	rtos_mem_free((void *)p_wifi_setting);
 
 #if defined(CONFIG_IP_NAT) && (CONFIG_IP_NAT == 1)
+#if defined(LWIP_IPV6) && (LWIP_IPV6 == 1)
+	print_rlocal_ipv6_addresses();
+	print_rlocal_nhb();
+#endif
 	ipnat_dump();
 #endif
 
@@ -1092,19 +1133,16 @@ AT command process:
 	Set auto-connection.
 	[+WLRECONN]:OK
 ****************************************************************/
-void at_wlreconn(void *arg)
+void at_wlreconn(u16 argc, char **argv)
 {
 	int error_no = RTW_AT_OK;
-	int argc = 0, mode = 0;
-	char *argv[MAX_ARGC] = {0};
+	int mode = 0;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[+WLRECONN] The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
-
-	argc = parse_param(arg, argv);
 
 	if (argc != 3 || argv[1] == NULL || argv[2] == NULL) {
 		RTK_LOGW(NOTAG, "[+WLRECONN] Invalid parameter number\r\n");
@@ -1157,28 +1195,46 @@ static void at_wlpromisc_help(void)
 	RTK_LOGI(NOTAG, "\t<all_apall>:\t\"all\" or \"apall\" only when enabled\r\n");
 }
 
+static u8 at_wlpromisc_cb(struct rtw_rx_pkt_info *pkt_info)
+{
+	UNUSED(pkt_info);
+	static u32 time = 0;
+	static u32 pkt_cnt = 0;
+	int time_diff;
+
+	if (0 == time) {
+		time = rtos_time_get_current_system_time_ms();
+	}
+	pkt_cnt++;
+	time_diff = rtos_time_get_current_system_time_ms() - time;
+	if (time_diff > 1000) {
+		RTK_LOGI(NOTAG, "recv %d pkts in %d ms\r\n", pkt_cnt, time_diff);
+		pkt_cnt = 0;
+		time = rtos_time_get_current_system_time_ms();
+	}
+
+	return RTW_PROMISC_NEED_DRV_HDL;
+}
+
 /****************************************************************
 AT command process:
 	AT+WLPROMISC
 	Wifi AT Command:
 	[+WLPROMISC]:OK
 ****************************************************************/
-void at_wlpromisc(void *arg)
+void at_wlpromisc(u16 argc, char **argv)
 {
-	int argc = 0, error_no = RTW_AT_OK;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = RTW_AT_OK;
 	struct rtw_promisc_para promisc_para;
 	u32 status;
 
 	memset(&promisc_para, 0, sizeof(struct rtw_promisc_para));
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[WLPROMISC]: The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
-
-	argc = parse_param(arg, argv);
 
 	if (argc > 1) {
 		if (strlen(argv[1]) == 0) {
@@ -1209,6 +1265,7 @@ void at_wlpromisc(void *arg)
 			error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
 			goto end;
 		}
+		promisc_para.callback = at_wlpromisc_cb;
 		wifi_promisc_enable(status, &promisc_para);
 	}
 
@@ -1233,45 +1290,49 @@ AT command process:
 	Wifi AT Command:
 	[+WLDBG]:OK
 ****************************************************************/
-void at_wldbg(void *arg)
+void at_wldbg(u16 argc, char **argv)
 {
 	char buf[64] = {0};
-	char *copy = buf;
-	int i = 0;
-	int len = 0;
 	int error_no = RTW_AT_OK;
 	int ret = 0;
 
 	RTK_LOGI(NOTAG, "[WLDBG]: _AT_WLAN_IWPRIV_\r\n");
-	if (arg == NULL) {
-		RTK_LOGW(NOTAG, "[WLDBG]Usage: AT+WLDBG=COMMAND[PARAMETERS]\r\n");
+
+	// Check parameters
+	if (argc < 2 || argv[1] == NULL) {
+		RTK_LOGW(NOTAG, "[WLDBG]Usage: AT+WLDBG=COMMAND[,PARAMETERS]\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
-	strncpy(copy, arg, sizeof(buf) - 1);
-	len = strlen(copy);
-	do {
-		if ((*(copy + i) == '[')) {
-			*(copy + i) = ' ';
-		}
-		if ((*(copy + i) == ']') || (*(copy + i) == '\0')) {
-			*(copy + i) = '\0';
-			break;
-		}
-	} while ((i++) < len);
 
-	i = 0;
-	do {
-		if ((*(copy + i) == ',')) {
-			*(copy + i) = ' ';
-			break;
+#ifdef CONFIG_WHC_HOST
+#if defined(CONFIG_IEEE80211R) && (WIFI_LOGO_CERTIFICATION == 1)
+	if (!strcmp("sta_reassoc", argv[1])) {
+		ret = rtw_ft_reassoc_dbg(argc - 2, &argv[2]);
+		goto end;
+	}
+#endif
+#endif
+	// Construct command string
+	u32 pos = 0;
+	for (int i = 1; i < argc && pos < sizeof(buf) - 1; i++) {
+		int len = strlen(argv[i]);
+		if (pos > 0) {
+			buf[pos++] = ' ';  // Separate parameters with space
 		}
-	} while ((i++) < len);
+		strncpy(buf + pos, argv[i], sizeof(buf) - pos - 1);
+		pos += len;
+	}
+	buf[sizeof(buf) - 1] = '\0';  // Ensure null-terminated string
 
-#ifdef CONFIG_AS_INIC_AP
-	ret = whc_host_api_iwpriv_command(copy, strlen(copy) + 1, 1);
+	// Execute command
+#ifdef CONFIG_WHC_HOST
+	if (!memcmp(buf, "dp_log", strlen("dp_log"))) {
+		wifi_set_dbg_dp_log(buf);
+	}
+	ret = whc_host_api_iwpriv_command(buf, strlen(buf) + 1, 1);
 #else
-	ret = rtw_iwpriv_command(STA_WLAN_INDEX, copy, 1);
+	ret = rtw_iwpriv_command(STA_WLAN_INDEX, buf, 1);
 #endif
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGW(NOTAG, "[WLDBG] Failed while iwpriv\r\n");
@@ -1303,20 +1364,17 @@ AT command process:
 	Wifi AT Command:
 	[+WLWPS]:OK
 ****************************************************************/
-void at_wlwps(void *arg)
+void at_wlwps(u16 argc, char **argv)
 {
 	int error_no = RTW_AT_OK;
 #if defined(CONFIG_ENABLE_WPS) && CONFIG_ENABLE_WPS
-	int argc = 0;
-	char *argv[MAX_ARGC] = {0};
 	char *wps_argv[4];
-
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[WLWPS]: The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
-	argc = parse_param(arg, argv);
+
 	if (argc < 2 || strlen(argv[1]) == 0) {
 		RTK_LOGW(NOTAG, "[WLWPS]: Should be pbc or pin here\r\n");
 		error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
@@ -1327,9 +1385,9 @@ void at_wlwps(void *arg)
 	wps_argv[1] = argv[1];
 	wps_argv[2] = argv[2];  /* Maybe NULL, but does not matter. */
 	error_no = cmd_wps(argc, wps_argv);
-
 #else
-	UNUSED(arg);
+	UNUSED(argc);
+	UNUSED(argv);
 
 	RTK_LOGW(NOTAG, "[WLWPS]: Not supported\r\n");
 	error_no = RTW_AT_ERR_FUNC_NOT_SUPPORT;
@@ -1343,6 +1401,319 @@ end:
 		if (error_no == RTW_AT_ERR_REQUIRED_PARAM_MISS || error_no == RTW_AT_ERR_INVALID_PARAM_VALUE) {
 			at_wlwps_help();
 		}
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+#endif
+
+#ifdef CONFIG_WIFI_P2P_ENABLE
+static void at_wlp2p_help(void)
+{
+	RTK_LOGI(NOTAG, "\r\n");
+	RTK_LOGI(NOTAG, "AT+WLP2PCONN=[<type>,<value>,<type>,<value>......]\n\r");
+	RTK_LOGI(NOTAG, "\t<type>:\tA string as \"peer\",\"pbc\",\"pin_keypad\",\"pin_display\",\"go_intent\"\r\n");
+	RTK_LOGI(NOTAG,
+			 "\t<value>:\tIf the <type> is \"pbc\",\"pin_display\", the value can be omitted. Otherwise, it should be <peer>, <pin_keypad>, <go_intent>\r\n");
+	RTK_LOGI(NOTAG, "\t<peer>:\thex-number string with colons to indicate the mac address of peer device, e.g. 1a:2b:3c:4d:5e:6f\r\n");
+	RTK_LOGI(NOTAG, "\t<pin_keypad>:\t8-digit PIN code\n\r");
+	RTK_LOGI(NOTAG, "\t<go_intent>:\tindicate the intent to become GO, must be 0~15, if absent, it will be a random value\n\r");
+}
+
+void at_wlp2p_start(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+	int listen_ch = 0;
+	int op_ch = 0;
+	u32 r = 0;
+	int i;
+
+	RTK_LOGI(NOTAG, "[+WLP2PSTART]: _AT_P2P_START_\n\r");
+
+	for (i = 1; i < argc; i += 2) {
+		if (os_strcmp(argv[i], "listen_ch") == 0) {
+			/* listen channel: ch1,6,11 for 2.4G. ch36,40,44,48 for 5G */
+			listen_ch = atoi(argv[i + 1]);
+		} else if (os_strcmp(argv[i], "op_ch") == 0) {
+			op_ch = atoi(argv[i + 1]);
+		} else {
+			RTK_LOGA(NOTAG, "Unknown parameters!\n");
+			return;
+		}
+	}
+
+	if (listen_ch == 0) {
+		r = _rand();
+		listen_ch = 1 + (r % 3) * 5;
+	}
+	if (op_ch == 0) {
+		r = _rand();
+		op_ch = 1 + (r % 3) * 5;
+	}
+
+	wifi_p2p_init(LwIP_GetMAC(0), listen_ch, op_ch);
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+
+void at_wlp2p_stop(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+
+	UNUSED(argc);
+	UNUSED(argv);
+
+	RTK_LOGI(NOTAG, "[+WLP2PSTOP]: _AT_P2P_STOP_\n\r");
+	wifi_p2p_deinit();
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+
+void at_wlp2p_autogo(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+	char *dev_name = "Ameba1234";	// max strlen 32
+	char *manufacturer = "by customer";	// max strlen 64
+	char *model_name = "customer";	// max strlen 32
+	char *model_number = "v2.0";	// max strlen 32
+	char *serial_number = "9";	// max strlen 32
+	u8 pri_dev_type[8] = {0x00, 0x0A, 0x00, 0x50, 0xF2, 0x04, 0x00, 0x01};	// category ID:0x00,0x0A; sub category ID:0x00,0x01
+	struct p2p_auto_go_params *param = NULL;
+	int i = 0, j = 0;
+
+	RTK_LOGI(NOTAG, "[+WLP2PGO]: _AT_P2P_AUTO_GO_START_\n\r");
+
+	if (argc == 1) {
+		RTK_LOGW(NOTAG, "[+WLP2PGO] The parameters can not be ignored\r\n");
+		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
+		goto end;
+	}
+
+	if ((argc < 2) || (argc > 7)) {
+		RTK_LOGW(NOTAG, "[+WLP2PGO] command format error\r\n");
+		error_no = RTW_AT_ERR_PARAM_NUM_ERR;
+		goto end;
+	}
+
+	param = rtos_mem_zmalloc(sizeof(struct p2p_auto_go_params));
+	param->channel = 6;
+
+	for (i = 1; argc > i; i += 2) {
+		j = i + 1;  /* next i. */
+		/* SSID */
+		if (0 == strcmp("ssid", argv[i])) {
+			if ((argc <= j) || (strlen(argv[j]) == 0) || (strlen(argv[j]) > RTW_ESSID_MAX_SIZE)) {
+				RTK_LOGW(NOTAG, "[+WLP2PGO] Invalid SSID length\r\n");
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+			if (strncmp(argv[j], P2P_WILDCARD_SSID, P2P_WILDCARD_SSID_LEN)) {
+				RTK_LOGW(NOTAG, "[+WLP2PGO] Invalid SSID, should be prefixed with \"DIRECT-\"\r\n");
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+			param->ssid.len = strlen(argv[j]);
+			strncpy((char *)param->ssid.val, argv[j], param->ssid.len);
+		}
+		/* password */
+		else if (0 == strcmp("pw", argv[i])) {
+			if ((argc <= j) || (0 == strlen(argv[j])) || (128 < strlen(argv[j]))) {
+				RTK_LOGW(NOTAG, "[+WLP2PGO] Invalid password\r\n");
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+
+			param->password_len = strlen(argv[j]);
+			strncpy((char *)password, argv[j], sizeof(password) - 1);
+			param->password = password;
+		}
+		/* channel */
+		else if (0 == strcmp("ch", argv[i])) {
+			if ((argc > j) && (0 != strlen(argv[j]))) {
+				/* listen channel: ch1,6,11 for 2.4G. ch36,40,44,48 for 5G */
+				param->channel = atoi(argv[j]);
+			}
+		} else {
+			RTK_LOGW(NOTAG, "[+WLP2PGO] Invalid parameter type\r\n");
+			error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+			goto end;
+		}
+	}
+
+	param->dev_name = dev_name;
+	param->manufacturer = manufacturer;
+	param->model_name = model_name;
+	param->model_number = model_number;
+	param->serial_number = serial_number;
+	param->pri_dev_type = pri_dev_type;
+
+	if (wifi_p2p_start_auto_go(param) < 0) {
+		RTK_LOGI(NOTAG, "\r\n[+WLP2PGO]: start p2p go fail.\n\r");
+	}
+
+end:
+	if (param) {
+		rtos_mem_free(param);
+	}
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+
+void at_wlp2p_connect(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+	enum p2p_wps_method config_method = WPS_PBC;
+	struct p2p_connect_params params = {0};
+	u8 dest[ETH_ALEN];
+	int go_intent = -1;
+	int i = 0;
+
+	RTK_LOGI(NOTAG, "[+WLP2PCONN]: _AT_P2P_CONNECT_\n\r");
+
+	if (argc == 1) {
+		RTK_LOGW(NOTAG, "[+WLP2PCONN]: The parameters can not be ignored\r\n");
+		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
+		goto end;
+	}
+
+	for (i = 1; i < argc;) {
+		if (os_strcmp(argv[i], "peer") == 0) {
+			if (argv[i + 1] == NULL) {
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+			os_sscanf(argv[i + 1], MAC_FMT, (int *)&dest[0], (int *)&dest[1], (int *)&dest[2],
+					  (int *)&dest[3], (int *)&dest[4], (int *)&dest[5]);
+			i += 2;
+		} else if (os_strcmp(argv[i], "pbc") == 0) {
+			config_method = WPS_PBC;
+			i++;
+		} else if (os_strcmp(argv[i], "pin_keypad") == 0) {
+			config_method = WPS_PIN_KEYPAD;
+			if (argv[i + 1] == NULL) {
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+			params.pin = argv[i + 1];
+			i += 2;
+		} else if (os_strcmp(argv[i], "pin_display") == 0) {
+			config_method = WPS_PIN_DISPLAY;
+			i++;
+		} else if (os_strcmp(argv[i], "go_intent") == 0) {
+			if (argv[i + 1] == NULL) {
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+			go_intent = atoi(argv[i + 1]) % 16;
+			i += 2;
+		} else if (os_strcmp(argv[i], "join") == 0) {
+			params.join = TRUE;
+			i++;
+		} else {
+			RTK_LOGA(NOTAG, "Unknown parameters!\n");
+			return;
+		}
+	}
+
+	if (go_intent == -1) {
+		go_intent = _rand() % 16; /*0-15*/
+	}
+
+	params.dest = dest;
+	params.config_method = config_method;
+	params.go_intent = go_intent;
+	params.timeout_sec = 30;
+
+	wifi_cmd_p2p_connect(&params);
+
+end:
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		if (error_no == RTW_AT_ERR_REQUIRED_PARAM_MISS || error_no == RTW_AT_ERR_INVALID_PARAM_VALUE) {
+			at_wlp2p_help();
+		}
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+
+void at_wlp2p_disconnect(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+
+	UNUSED(argc);
+	UNUSED(argv);
+
+	RTK_LOGI(NOTAG, "[+WLP2PDISCONN]: _AT_P2P_DISCONNECT_\n\r");
+	wifi_cmd_p2p_disconnect();
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+void at_wlp2p_state(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+
+	UNUSED(argc);
+	UNUSED(argv);
+
+	RTK_LOGI(NOTAG, "[+WLP2PSTATE]: _AT_P2P_STATE_\n\r");
+	wifi_cmd_p2p_state();
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+void at_wlp2p_find(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+	u32 timeout = 30; //seconds
+
+	RTK_LOGI(NOTAG, "[+WLP2PFIND]: _AT_P2P_FIND_\n\r");
+
+	if (argc == 2) {
+		timeout = os_atoi(argv[1]);
+		RTK_LOGA(NOTAG, "\r\n%s(): timeout=%d\n", __func__, timeout);
+	}
+
+	wifi_cmd_p2p_find(timeout);
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
+		at_printf(ATCMD_ERROR_END_STR, error_no);
+	}
+}
+
+void at_wlp2p_peers(u16 argc, char **argv)
+{
+	int error_no = RTW_AT_OK;
+
+	UNUSED(argc);
+	UNUSED(argv);
+
+	RTK_LOGI(NOTAG, "[+WLP2PPEERS]: _AT_P2P_PEERS_\n\r");
+	wifi_cmd_p2p_peers();
+
+	if (error_no == RTW_AT_OK) {
+		at_printf(ATCMD_OK_END_STR);
+	} else {
 		at_printf(ATCMD_ERROR_END_STR, error_no);
 	}
 }
@@ -1362,23 +1733,20 @@ AT command process:
 	Wifi AT Command:
 	[+WLPS]:OK
 ****************************************************************/
-void at_wlps(void *arg)
+void at_wlps(u16 argc, char **argv)
 {
 	int error_no = RTW_AT_OK;
-	int argc = 0;
 	int i = 0, j = 0;
-	char *argv[MAX_ARGC] = {0};
 	int ps_en;
 
 	RTK_LOGI(NOTAG, "[WLPS]: _AT_WLAN_POWER_SAVE_MODE_\r\n");
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[WLPS] Usage: AT+WLPS=lps/ips[mode]\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if (argc < 3) {
 		RTK_LOGW(NOTAG, "[WLPS] Usage: AT+WLPS=lps/ips/[mode]\r\n");
 		error_no = RTW_AT_ERR_PARAM_NUM_ERR;
@@ -1437,25 +1805,23 @@ AT command process:
 	Set static IP address.
 	[+WLSTATICIP]:OK
 ****************************************************************/
-void at_wlstaticip(void *arg)
+void at_wlstaticip(u16 argc, char **argv)
 {
-	int argc = 0, error_no = RTW_AT_OK;
-	char *argv[MAX_ARGC] = {0};
+	int error_no = RTW_AT_OK;
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[+WLSTATICIP]: The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if (argc != 2 && argc != 4) {
 		RTK_LOGW(NOTAG, "[+WLSTATICIP]: Invalid parameter number\r\n");
 		error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
 		goto end;
 	}
 
-	/* Static IP will be set in LwIP_DHCP(). */
+	/* Static IP will be set in LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX). */
 	user_static_ip.use_static_ip = 1;
 	user_static_ip.addr = PP_HTONL(inet_addr(argv[1]));
 	if (argc == 4) {
@@ -1515,21 +1881,19 @@ AT command process:
 	Config and Enable WiFi CSI.
 	[+WLCSI]:OK
 ****************************************************************/
-void at_wlcsi(void *arg)
+void at_wlcsi(u16 argc, char **argv)
 {
-	int argc = 0, ret = 0, i = 0, j = 0, k = 0;
+	int ret = 0, i = 0, j = 0, k = 0;
 	int error_no = RTW_AT_OK;
 	unsigned int mac[ETH_ALEN];
-	char *argv[MAX_ARGC] = {0};
 	struct rtw_csi_action_parm csi_param = {0};
 
-	if (arg == NULL) {
+	if (argc == 1) {
 		RTK_LOGW(NOTAG, "[+WLCSI] The parameters can not be ignored\r\n");
 		error_no = RTW_AT_ERR_REQUIRED_PARAM_MISS;
 		goto end;
 	}
 
-	argc = parse_param(arg, argv);
 	if ((argc < 2) || (argc > 21)) {
 		RTK_LOGW(NOTAG, "[+WLCSI] The parameters format ERROR\r\n");
 		error_no = RTW_AT_ERR_PARAM_NUM_ERR;
@@ -1600,6 +1964,48 @@ void at_wlcsi(void *arg)
 				csi_param.multi_type = (unsigned char)atoi(argv[j]);
 			}
 		}
+		/* trig_frame_data */
+		else if (0 == strcmp("trig_frame_data", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.trig_frame_data = (u16)atoi(argv[j]);
+			}
+		}
+		/* csi_role */
+		else if (0 == strcmp("csi_role", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.csi_role = (unsigned char)atoi(argv[j]);
+			}
+		}
+		/* alg_opt */
+		else if (0 == strcmp("alg_opt", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.alg_opt = (unsigned char)atoi(argv[j]);
+			}
+		}
+		/* ch_opt */
+		else if (0 == strcmp("ch_opt", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.ch_opt = (unsigned char)atoi(argv[j]);
+			}
+		}
+		/* trig_frame_mgnt */
+		else if (0 == strcmp("trig_frame_mgnt", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.trig_frame_mgnt = (u16)atoi(argv[j]);
+			}
+		}
+		/* trig_frame_ctrl */
+		else if (0 == strcmp("trig_frame_ctrl", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.trig_frame_ctrl = (u16)atoi(argv[j]);
+			}
+		}
+		/* data_bw */
+		else if (0 == strcmp("data_bw", argv[i])) {
+			if ((argc > j) && (strlen(argv[j]) != 0)) {
+				csi_param.data_bw = (unsigned char)atoi(argv[j]);
+			}
+		}
 		/* Invalid input. */
 		else {
 			RTK_LOGW(NOTAG, "[+WLCSI] Invalid parameter type\r\n");
@@ -1637,29 +2043,40 @@ end:
 }
 #endif
 
-log_item_t at_wifi_items[ ] = {
-#ifndef CONFIG_WHC_BRIDGE_HOST
+ATCMD_APONLY_TABLE_DATA_SECTION
+const log_item_t at_wifi_items[ ] = {
+#if !(!defined(CONFIG_WHC_INTF_IPC) && !defined(CONFIG_WHC_WIFI_API_PATH) && !defined(CONFIG_WHC_NONE))
 #ifdef CONFIG_LWIP_LAYER
-	{"+WLSTATICIP", at_wlstaticip, {NULL, NULL}},
+	{"+WLSTATICIP", at_wlstaticip},
 #endif /* CONFIG_LWIP_LAYER */
 #ifdef CONFIG_WLAN
-	{"+WLCONN", at_wlconn, {NULL, NULL}},
-	{"+WLDISCONN", at_wldisconn, {NULL, NULL}},
-	{"+WLSCAN", at_wlscan, {NULL, NULL}},
-	{"+WLRSSI", at_wlrssi, {NULL, NULL}},
-	{"+WLSTARTAP", at_wlstartap, {NULL, NULL}},
-	{"+WLSTOPAP", at_wlstopap, {NULL, NULL}},
-	{"+WLSTATE", at_wlstate, {NULL, NULL}},
-	{"+WLRECONN", at_wlreconn, {NULL, NULL}},
-	{"+WLPROMISC", at_wlpromisc, {NULL, NULL}},
-	{"+WLDBG", at_wldbg, {NULL, NULL}},
+	{"+WLCONN", at_wlconn},
+	{"+WLDISCONN", at_wldisconn},
+	{"+WLSCAN", at_wlscan},
+	{"+WLRSSI", at_wlrssi},
+	{"+WLSTARTAP", at_wlstartap},
+	{"+WLSTOPAP", at_wlstopap},
+	{"+WLSTATE", at_wlstate},
+	{"+WLRECONN", at_wlreconn},
+	{"+WLPROMISC", at_wlpromisc},
+	{"+WLDBG", at_wldbg},
 #ifdef CONFIG_WPS
-	{"+WLWPS", at_wlwps, {NULL, NULL}},
+	{"+WLWPS", at_wlwps},
+#endif
+#ifdef CONFIG_WIFI_P2P_ENABLE
+	{"+WLP2PSTART", at_wlp2p_start},
+	{"+WLP2PSTOP", at_wlp2p_stop},
+	{"+WLP2PGO", at_wlp2p_autogo},
+	{"+WLP2PCONN", at_wlp2p_connect},
+	{"+WLP2PDISCONN", at_wlp2p_disconnect},
+	{"+WLP2PSTATE", at_wlp2p_state},
+	{"+WLP2PFIND", at_wlp2p_find},
+	{"+WLP2PPEERS", at_wlp2p_peers},
 #endif
 #ifdef CONFIG_CSI
-	{"+WLCSI", at_wlcsi, {NULL, NULL}},
+	{"+WLCSI", at_wlcsi},
 #endif
-	{"+WLPS", at_wlps, {NULL, NULL}},
+	{"+WLPS", at_wlps},
 #endif /* CONFIG_WLAN */
 #endif
 };
@@ -1677,12 +2094,7 @@ void print_wifi_at(void)
 
 void at_wifi_init(void)
 {
-#ifdef CONFIG_WLAN
 	init_wifi_struct();
-#endif
-#ifndef CONFIG_MP_SHRINK
-	atcmd_service_add_table(at_wifi_items, sizeof(at_wifi_items) / sizeof(at_wifi_items[0]));
-#endif
 }
-
+#endif /* CONFIG_WLAN */
 #endif /* CONFIG_MP_SHRINK */

@@ -8,7 +8,6 @@ function(ameba_soc_name_to_camel_case input output)
     # Check if input starts with 'ameba'
     string(REGEX MATCH "^ameba" is_valid "${input}")
     if(NOT is_valid)
-        message(WARNING "Input does not start with 'ameba': ${input}")
         set(${output} "${input}" PARENT_SCOPE)
         return()
     endif()
@@ -104,10 +103,16 @@ macro(ameba_soc_project_create name)
             if (EXISTS ${OUTPUT_EXAMPLE})
                 set(EXAMPLEDIR ${OUTPUT_EXAMPLE})
             else()
-                file(GLOB_RECURSE EXAMPLEDIR
-                    ${c_CMPT_EXAMPLE_DIR}/example_${EXAMPLE}.c
-                    ${c_CMPT_EXAMPLE_DIR}/example_${EXAMPLE}.cc)
-                cmake_path(REMOVE_FILENAME EXAMPLEDIR)
+                if(EXISTS ${CMAKE_BINARY_DIR}/submodule_info.json)
+                    ameba_find_example_in_submodules(${EXAMPLE} EXAMPLEDIR)
+                endif()
+                if(NOT EXAMPLEDIR)
+                    file(GLOB_RECURSE EXAMPLEDIR
+                        ${c_CMPT_EXAMPLE_DIR}/example_${EXAMPLE}.c
+                        ${c_CMPT_EXAMPLE_DIR}/example_${EXAMPLE}.cc)
+                    cmake_path(REMOVE_FILENAME EXAMPLEDIR)
+                endif()
+
                 if(EXAMPLEDIR)
                     message("THE PATH of example_${EXAMPLE}.c is " "${EXAMPLEDIR}")
                 else()
@@ -124,7 +129,7 @@ macro(ameba_soc_project_create name)
     endif()
 
     execute_process(
-        COMMAND python menuconfig.py --check -d ${c_WORKING_PROJECT_DIR}
+        COMMAND python ${c_BASEDIR}/tools/scripts/menuconfig.py -proj ${c_SOC_PROJECT_DIR} --check -d ${c_WORKING_PROJECT_DIR}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMAND_ERROR_IS_FATAL ANY
     )
@@ -153,6 +158,14 @@ endmacro()
 
 # Top soc project create and init, name value maybe amebaxxx
 macro(ameba_soc_project_exit)
+    add_custom_target(
+        gen_submodule_info
+        COMMENT "generate submodule_info.json"
+        COMMAND python ${c_BASEDIR}/tools/scripts/gen_submodule_info.py
+            ${CMAKE_BINARY_DIR}/submodule_info.json
+            "$<JOIN:$<TARGET_PROPERTY:g_PROJECT_CONFIG,submodule_info>, >"
+    )
+
     set(DAILY_BUILD 0 CACHE STRING "code analysis argument" FORCE)
     unset(EXAMPLE CACHE)
     unset(USER_SRC_DIR CACHE)
@@ -204,7 +217,7 @@ macro(ameba_mcu_project_create name mcu_type)
 
     #NOTE: Determine whether build example for this mcu project
     if(EXAMPLE) #By default, MCU as ap run example
-        if(CONFIG_CORE_AS_AP)
+        if(CONFIG_WHC_HOST OR CONFIG_WHC_NONE)
             set(c_ENABLE_EXAMPLE TRUE)
         else()
             set(c_ENABLE_EXAMPLE FALSE)
@@ -216,7 +229,6 @@ macro(ameba_mcu_project_create name mcu_type)
     if (c_ENABLE_EXAMPLE)
         message("build example for mcu ${c_MCU_TYPE_UPPER}: ${EXAMPLE}")
     endif()
-
 
     #NOTE:
     ameba_set(c_MCU_TYPE ${mcu_type})
@@ -236,17 +248,20 @@ macro(ameba_mcu_project_create name mcu_type)
     ameba_set(c_MCU_SDK_DIR ${c_MCU_PROJECT_DIR}/${c_SDK_NAME})
     ameba_set(c_MCU_SRC_DIR ${c_MCU_PROJECT_DIR}/src)
     ameba_set(c_MCU_INC_DIR ${c_MCU_PROJECT_DIR}/inc)
+    if(NOT IS_DIRECTORY "${c_MCU_SRC_DIR}")
+        ameba_set(c_MCU_SRC_DIR ${c_MCU_PROJECT_DIR}/../../main/${name}/src)
+        ameba_set(c_MCU_INC_DIR ${c_MCU_PROJECT_DIR}/../../main/${name}/inc)
+        ameba_set(c_MCU_SDK_DIR ${c_MCU_PROJECT_DIR})
+    endif()
 
     # sub dirs in *sdk/
-    ameba_set(c_SDK_BUILD_DIR           ${c_MCU_SDK_DIR}/build)
     ameba_set(c_SDK_FLASHLOADER_DIR     ${c_MCU_SDK_DIR}/flashloader)
     ameba_set(c_SDK_GNU_UTILITY_DIR     ${c_MCU_SDK_DIR}/gnu_utility)
-    ameba_set(c_SDK_GNU_SCRIPT_DIR      ${c_SDK_GNU_UTILITY_DIR}/gnu_script)
+    ameba_set(c_SDK_GNU_SCRIPT_DIR      ${c_BASEDIR}/tools/scripts/gnu_script)
+    ameba_set(c_SDK_GDB_FLOADER_DIR     ${c_SDK_GNU_UTILITY_DIR}/gdb_floader)
     ameba_set(c_SDK_IMGTOOL_FLOADER_DIR ${c_SDK_GNU_UTILITY_DIR}/image_tool_flashloader)
     ameba_set(c_SDK_FLOADER_BIN_DIR     ${c_SDK_IMGTOOL_FLOADER_DIR}/${c_SOC_TYPE}_acut)
-    ameba_set(c_SDK_IMAGE_DIR           ${c_MCU_SDK_DIR}/image)
-    ameba_set(c_SDK_IMAGE_MP_DIR        ${c_MCU_SDK_DIR}/image_mp)
-    ameba_set(c_SDK_IMAGE_UTILITY_DIR   ${c_MCU_SDK_DIR}/img_utility)
+    ameba_set(c_SDK_IMAGE_UTILITY_DIR   ${c_BASEDIR}/tools/scripts/img_utility)
     ameba_set(c_SDK_LD_DIR              ${c_MCU_SDK_DIR}/ld)
     ameba_set(c_SDK_LD_NS_DIR           ${c_MCU_SDK_DIR}/ld_ns)
     ameba_set(c_SDK_LIB_DIR             ${c_MCU_SDK_DIR}/lib)
@@ -255,10 +270,10 @@ macro(ameba_mcu_project_create name mcu_type)
     ameba_set(c_SDK_LIB_SOC_DIR         ${c_MCU_SDK_DIR}/lib/soc)
 
     ameba_set(c_SDK_ROM_SYMBOL_GEN_SCRIPT       ${c_SDK_IMAGE_UTILITY_DIR}/export_rom_symbol.py)
-    ameba_set(c_SDK_ROM_SYMBOL_S_GEN_SCRIPT     ${c_SDK_IMAGE_UTILITY_DIR}/export_rom_symbol_s.py)
+    ameba_set(c_SDK_ROM_SYMBOL_NS_GEN_SCRIPT    ${c_SDK_IMAGE_UTILITY_DIR}/export_rom_symbol_ns.py)
     ameba_set(c_SDK_ROM_TOTAL_SIZE_SCRIPT       ${c_SDK_IMAGE_UTILITY_DIR}/total_rom_size.py)
     ameba_set(c_SDK_ROM_CODE_ANALYZE_SCRIPT     ${c_SDK_IMAGE_UTILITY_DIR}/code_analyze.py)
-    ameba_set(c_SDK_EXTRACT_LD_SCRIPT           ${c_SDK_IMAGE_UTILITY_DIR}/extract_ld_vars.sh)
+    ameba_set(c_SDK_EXTRACT_LD_SCRIPT           ${c_BASEDIR}/tools/scripts/extract_ld_value.py)
     ameba_set(c_SDK_ROM_WIFI_SYMBOL_GEN_SCRIPT  ${c_SDK_IMAGE_UTILITY_DIR}/export_rom_wifi_symbol.py)
 
     if (CONFIG_CA32_FREERTOS_V10_2_1_SMP)
@@ -275,7 +290,7 @@ macro(ameba_mcu_project_create name mcu_type)
     ameba_set_if(CONFIG_MP_INCLUDED c_SDK_IMAGE_FOLDER_NAME image_mp p_ELSE image)
 
     # dirs define on specific conditions
-    ameba_set(c_SDK_IMAGE_TARGET_DIR ${c_MCU_SDK_DIR}/${c_SDK_IMAGE_FOLDER_NAME})
+    ameba_set(c_SDK_IMAGE_TARGET_DIR ${CMAKE_CURRENT_BINARY_DIR}/${c_SDK_IMAGE_FOLDER_NAME})
 
     if(EXISTS ${c_SDK_IMAGE_TARGET_DIR})
         file(GLOB FILES_TO_REMOVE "${c_SDK_IMAGE_TARGET_DIR}/*")
@@ -331,19 +346,15 @@ macro(ameba_mcu_project_create name mcu_type)
         ${c_BUILD_INFO}
         ALL
         COMMENT "generate build_info.h"
-        COMMAND ${CMAKE_COMMAND} -DPROJECTDIR=${c_MCU_PROJECT_DIR} -DCMAKE_FILES_DIR=${c_CMAKE_FILES_DIR} -DCONFIG_TOOLCHAIN_ARM_GCC=${CONFIG_TOOLCHAIN_ARM_GCC} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -P ${c_CMAKE_FILES_DIR}/buildinfo.cmake
+        COMMAND ${CMAKE_COMMAND} -DPROJECTDIR=${c_MCU_INC_DIR} -DCMAKE_FILES_DIR=${c_CMAKE_FILES_DIR} -DCONFIG_TOOLCHAIN_ARM_GCC=${CONFIG_TOOLCHAIN_ARM_GCC} -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -P ${c_CMAKE_FILES_DIR}/buildinfo.cmake
         BYPRODUCTS ${c_MCU_INC_DIR}/build_info.h
     )
-    set_property(TARGET ${c_BUILD_INFO} PROPERTY ADDITIONAL_CLEAN_FILES ${c_MCU_PROJECT_DIR}/inc/build_info.h)
+    set_property(TARGET ${c_BUILD_INFO} PROPERTY ADDITIONAL_CLEAN_FILES ${c_MCU_INC_DIR}/build_info.h)
     set(c_CURRENT_IMAGE_IS_ROM FALSE) #Flag to identify whether current image is rom, updated in ameba_add_image
     ameba_add_empty_object()
 endmacro()
 
 function(ameba_firmware_package output_app_name)
-    if (CONFIG_WIFI_HOST_CONTROL)
-        ameba_info("Skip firmware package when CONFIG_WIFI_HOST_CONTROL enabled")
-        return()
-    endif()
     set(multiValueArgs
         p_CUSTOM_VARIABLES #Variables to be transformed to postbuild.cmake directly
         p_MCU_PROJECTS
@@ -354,13 +365,6 @@ function(ameba_firmware_package output_app_name)
     foreach(var ${ARG_p_CUSTOM_VARIABLES})
         ameba_list_append(custom_variables -D${var}=${${var}})
     endforeach()
-
-    if (CONFIG_DSP_WITHIN_APP_IMG)
-        set(c_DSP_FILE ${c_SOC_PROJECT_DIR}/${CONFIG_DSP_IMAGE_TARGET_DIR}/dsp.bin)
-        if(NOT EXISTS ${c_DSP_FILE})
-            message(FATAL_ERROR "dsp file not exist: ${c_DSP_FILE}")
-        endif()
-    endif()
 
     # Merge image2/image3 to app.bin
     set(c_APP_BINARY_NAME ${output_app_name})
@@ -390,7 +394,7 @@ function(ameba_firmware_package output_app_name)
     string(REPLACE ";" "\\;" image1_all_files "${image1_all_files}")
     string(REPLACE ";" "\\;" image2_all_files "${image2_all_files}")
     string(REPLACE ";" "\\;" image3_all_files "${image3_all_files}")
-    ameba_info("image all list: image1: ${image1_all_files}, image2: ${image2_all_files}, image3: ${image3_all_files}, dsp: ${c_DSP_FILE}")
+    ameba_info("image all list: image1: ${image1_all_files}, image2: ${image2_all_files}, image3: ${image3_all_files}")
     add_custom_target(firmware_package ALL
         COMMAND ${CMAKE_COMMAND}
             # common variables
@@ -401,11 +405,9 @@ function(ameba_firmware_package output_app_name)
             -Dc_SDK_IMAGE_TARGET_DIR=${c_SDK_IMAGE_TARGET_DIR} # dir of image output
             -Dc_IMAGE_OUTPUT_DIR=${c_IMAGE_OUTPUT_DIR}
             -Dc_APP_BINARY_NAME=${c_APP_BINARY_NAME}
-            -Dc_SDK_IMAGE_FOLDER_NAME=${c_SDK_IMAGE_FOLDER_NAME}
             -Dc_IMAGE1_ALL_FILES="${image1_all_files}" #NOTE: transfer as list
             -Dc_IMAGE2_ALL_FILES="${image2_all_files}" #NOTE: transfer as list
             -Dc_IMAGE3_ALL_FILES="${image3_all_files}" #NOTE: transfer as list
-            -Dc_DSP_FILE="${c_DSP_FILE}"
 
             # user's variables
             -DFINAL_IMAGE_DIR=${FINAL_IMAGE_DIR}
@@ -432,4 +434,34 @@ endfunction()
 function(ameba_mcu_project_check)
     ameba_info("mcu project: ${PROJECT_NAME}, mcu: ${c_MCU_TYPE}|${c_MCU_TYPE_UPPER}, isa: ${c_ISA_TYPE}, sdk: ${c_SDK_NAME}, dir: ${c_MCU_PROJECT_DIR}")
     ameba_info("freertos: ${c_FREERTOS_DIR}")
+endfunction()
+
+function(ameba_find_example_in_submodules EXAMPLE_NAME output)
+    set(JSON_FILE "${CMAKE_BINARY_DIR}/submodule_info.json")
+    if(NOT EXISTS "${JSON_FILE}")
+        message(FATAL_ERROR "JSON file not found: ${JSON_FILE}")
+        return()
+    endif()
+
+    set(FOUND_PATH "")
+    file(READ ${JSON_FILE} JSON_CONTENT)
+
+    string(JSON num_submodule LENGTH "${JSON_CONTENT}")
+    math(EXPR last_index_submodule "${num_submodule} - 1")
+    foreach(idx_submodule RANGE ${last_index_submodule})
+        string(JSON EXAMPLES_ARRAY GET "${JSON_CONTENT}" ${idx_submodule} "examples")
+        string(JSON num_example LENGTH ${EXAMPLES_ARRAY})
+        math(EXPR last_index_example "${num_example} - 1")
+
+        foreach(idx_example RANGE ${last_index_example})
+            string(JSON CURRENT_EXAMPLE_NAME GET "${EXAMPLES_ARRAY}" ${idx_example} "name")
+            if(${CURRENT_EXAMPLE_NAME} STREQUAL ${EXAMPLE_NAME})
+                string(JSON FOUND_PATH GET "${EXAMPLES_ARRAY}" ${idx_example} "path")
+                set(${output} ${FOUND_PATH} PARENT_SCOPE)
+                return()
+            endif()
+        endforeach()
+    endforeach()
+
+    set(${output} "" PARENT_SCOPE)
 endfunction()

@@ -28,7 +28,7 @@
 /* auth/assoc/key resnd limit can be configured, refer max >> RTW_JOIN_TIMEOUT
  * including auth + assoc + 4way handshake, no dhcp
  */
-#define RTW_JOIN_TIMEOUT (3 * 12000 + 13100 + 20200 + 50) //(MAX_CNT_SCAN_TIMES * SCANNING_TIMEOUT + MAX_JOIN_TIMEOUT + KEY_EXCHANGE_TIMEOUT + 50)
+#define RTW_JOIN_TIMEOUT (10 * 12000 + 13100 + 20200 + 50) //(MAX_CNT_SCAN_TIMES * SCANNING_TIMEOUT + MAX_JOIN_TIMEOUT + KEY_EXCHANGE_TIMEOUT + 50)
 #define RTW_SCAN_TIMEOUT (12000) //When blocking scan is invoked in BT COEXIST, the scan time may increases due to TDMA scan, up to 8.96s (5G) +2.17s (2.4G)*/
 
 /******************************************************
@@ -42,7 +42,7 @@ struct internal_block_param *join_block_param = NULL;
 struct internal_block_param *scan_block_param = NULL;
 
 s32(*scan_user_callback_ptr)(u32, void *) = NULL;
-s32(*scan_each_report_user_callback_ptr)(struct rtw_scan_result *, void *) = NULL;
+s32(*scan_each_report_user_callback_ptr)(struct rtw_scan_result *, void *, u8 *, u32) = NULL;
 
 u8(*promisc_user_callback_ptr)(struct rtw_rx_pkt_info *pkt_info) = NULL;
 s32(*scan_acs_report_user_callback_ptr)(struct rtw_acs_mntr_rpt *acs_mntr_rpt) = NULL;
@@ -71,7 +71,9 @@ s32 wifi_connect(struct rtw_network_info *connect_param, u8 block)
 	u8 *param_buf = rtos_mem_zmalloc(sizeof(struct rtw_network_info) + connect_param->password_len);
 	u8 *ptr;
 	u8 no_need_indicate = 0;
-	struct rtw_event_info_joinstatus_joinfail fail_info = {0};
+	struct rtw_event_join_status_info join_status_info;
+	struct rtw_event_join_fail *join_fail;
+	u8 eap_phase = 0;
 
 	/* check if SoftAP is running */
 	if ((wifi_user_config.concurrent_enabled == FALSE) && wifi_is_running(SOFTAP_WLAN_INDEX)) {
@@ -92,7 +94,9 @@ s32 wifi_connect(struct rtw_network_info *connect_param, u8 block)
 
 	/*clear for last connect status */
 	rtw_join_status = RTW_JOINSTATUS_STARTING;
-	wifi_indication(RTW_EVENT_JOIN_STATUS, NULL, 0, RTW_JOINSTATUS_STARTING);
+	memset(&join_status_info, 0, sizeof(struct rtw_event_join_status_info));
+	join_status_info.status = RTW_JOINSTATUS_STARTING;
+	wifi_indication(RTW_EVENT_JOIN_STATUS, (u8 *)&join_status_info, sizeof(struct rtw_event_join_status_info));
 
 	/* step2: malloc and set synchronous connection related variables*/
 	if (block) {
@@ -160,7 +164,8 @@ s32 wifi_connect(struct rtw_network_info *connect_param, u8 block)
 		join_block_param = block_param;
 
 		// for eap connection, timeout should be longer (default value in wpa_supplicant: 60s)
-		if (wifi_get_eap_phase()) {
+		wifi_get_eap_phase(&eap_phase);
+		if (eap_phase == 1) {
 			timeout = 60000;
 		} else {
 			timeout = RTW_JOIN_TIMEOUT;
@@ -184,7 +189,7 @@ s32 wifi_connect(struct rtw_network_info *connect_param, u8 block)
 #if defined(TODO) && defined(CONFIG_LWIP_LAYER)
 	if (result == RTK_SUCCESS) {
 		/* Start DHCPClient */
-		LwIP_DHCP(0, DHCP_START);
+		LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX);
 	}
 #endif
 
@@ -201,8 +206,10 @@ error:
 	}
 
 	if (rtw_join_status == RTW_JOINSTATUS_FAIL && no_need_indicate == 0) {
-		fail_info.fail_reason = result;
-		wifi_indication(RTW_EVENT_JOIN_STATUS, (u8 *)&fail_info, sizeof(struct rtw_event_info_joinstatus_joinfail), RTW_JOINSTATUS_FAIL);
+		join_status_info.status = RTW_JOINSTATUS_FAIL;
+		join_fail = &join_status_info.priv.fail;
+		join_fail->fail_reason = result;
+		wifi_indication(RTW_EVENT_JOIN_STATUS, (u8 *)&join_status_info, sizeof(struct rtw_event_join_status_info));
 	}
 
 	return result;
@@ -224,6 +231,9 @@ s32 wifi_is_running(u8 wlan_idx)
 	param_buf[0] = wlan_idx;
 
 	whc_host_api_message_send(WHC_API_WIFI_IS_RUNNING, (u8 *)param_buf, 4, (u8 *)&ret, sizeof(ret));
+	if (ret < 0) {
+		ret = 0;
+	}
 	return ret;
 }
 
@@ -262,7 +272,7 @@ s32 wifi_on(u8 mode)
 	if (ret == RTK_SUCCESS) { //wifi on success
 #if defined(CONFIG_LWIP_LAYER)
 		if (mode == RTW_MODE_STA) {
-			LwIP_netif_set_up(0);
+			LwIP_netif_set_up(NETIF_WLAN_STA_INDEX);
 		}
 #endif
 	}
@@ -338,7 +348,7 @@ s32 wifi_start_ap(struct rtw_softap_info *softap_config)
 
 	if (ret == RTK_SUCCESS) {
 #ifdef CONFIG_LWIP_LAYER
-		LwIP_netif_set_up(SOFTAP_WLAN_INDEX);
+		LwIP_netif_set_up(NETIF_WLAN_AP_INDEX);
 		LwIP_netif_set_link_up(SOFTAP_WLAN_INDEX);
 #endif
 	}
@@ -358,15 +368,14 @@ s32 wifi_stop_ap(void)
 {
 	int ret = 0;
 
-	if (wifi_is_running(SOFTAP_WLAN_INDEX) == 0) {
+	if (wifi_is_running(SOFTAP_WLAN_INDEX) == FALSE) {
 		RTK_LOGA(TAG_WLAN_INIC, "WIFI no run\n");
 		return 0;
 	}
 
 #ifdef CONFIG_LWIP_LAYER
-	dhcps_deinit();
-	LwIP_netif_set_down(1);
-	LwIP_netif_set_link_down(1);
+	LwIP_netif_set_down(NETIF_WLAN_AP_INDEX);
+	LwIP_netif_set_link_down(NETIF_WLAN_AP_INDEX);
 #endif
 
 	whc_host_api_message_send(WHC_API_WIFI_STOP_AP, NULL, 0, (u8 *)&ret, sizeof(ret));
@@ -483,7 +492,12 @@ s32 wifi_scan_networks(struct rtw_scan_param *scan_param, u8 block)
 		scan_block_param = NULL;
 	}
 
+	goto exit;
+
 error:
+	rtw_scan_api_inprocess = 0;
+
+exit:
 	if (block_param) {
 		if (block_param->sema) {
 			rtos_sema_delete_static(block_param->sema);
@@ -497,15 +511,33 @@ error:
 	return ret;
 }
 
+u8 promisc_callback_default(struct rtw_rx_pkt_info *pkt_info)
+{
+	(void) pkt_info;
+
+	return RTW_PROMISC_NEED_DRV_HDL;
+}
+
 void wifi_promisc_enable(u32 enable, struct rtw_promisc_para *para)
 {
 	u32 buf[3] = {0};
-	buf[0] = enable;
-	buf[1] = (u32)para->filter_mode;
-	if (para->callback) {
-		promisc_user_callback_ptr = para->callback;
-		buf[2] = ENABLE;
+
+	if (enable && para == NULL) {
+		RTK_LOGE(TAG_WLAN_INIC, "promisc param not set!\n");
+		return;
 	}
+
+	buf[0] = enable;
+	if (enable) {
+		buf[1] = (u32)para->filter_mode;
+		if (para->callback) {
+			promisc_user_callback_ptr = para->callback;
+			buf[2] = ENABLE;
+		}
+	} else {
+		promisc_user_callback_ptr = promisc_callback_default;
+	}
+
 	whc_host_api_message_send(WHC_API_WIFI_PROMISC_INIT, (u8 *)buf, 12, NULL, 0);
 }
 

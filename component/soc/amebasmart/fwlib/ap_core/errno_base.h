@@ -1,6 +1,16 @@
+/*
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _ASM_GENERIC_ERRNO_BASE_H
 #define _ASM_GENERIC_ERRNO_BASE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define	EPERM		 1	/* Operation not permitted */
 #define	ENOENT		 2	/* No such file or directory */
@@ -36,5 +46,9 @@
 #define	EPIPE		32	/* Broken pipe */
 #define	EDOM		33	/* Math argument out of domain of func */
 #define	ERANGE		34	/* Math result not representable */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

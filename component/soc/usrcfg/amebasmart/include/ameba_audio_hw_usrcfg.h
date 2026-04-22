@@ -1,13 +1,17 @@
 /*
-* Copyright (c) 2024 Realtek Semiconductor Corp.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef AMEBA_FWK_AUDIO_CONFIGS_HARDWARE_AUDIO_AUDIO_HW_CONFIG_H
 #define AMEBA_FWK_AUDIO_CONFIGS_HARDWARE_AUDIO_AUDIO_HW_CONFIG_H
 
 #include "basic_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  *Audio amplifier pin, if your board has no audio amplifier pin , please set it as -1.
@@ -231,5 +235,9 @@
  *Define I2S out sport index, for example, if I2S is using sport3, set 3 as value.
  */
 extern u32 audio_delay_start_sport_index;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

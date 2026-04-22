@@ -183,7 +183,7 @@ static void gatts_loop_send_task_entry(void *ctx)
 	uint32_t cnt = 0;
 
 	while (true) {
-		simple_ble_srv_cccd_notify(param->conn_handle);
+		simple_ble_srv_cccd_indicate(param->conn_handle);
 		if (!gatts_loop_send_task_running) {
 			break;
 		}
@@ -319,7 +319,13 @@ static const cmd_table_t gatts_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_gatts(int argc, char *argv[])
+void fBLEGATTS(u16 argc, char *argv[])
 {
-	return atcmd_bt_excute(argc, argv, gatts_cmd_table, "[AT+BLEGATTS]");
+	int ret = atcmd_bt_excute(argc - 1, &argv[1], gatts_cmd_table, "[AT+BLEGATTS]");
+
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }

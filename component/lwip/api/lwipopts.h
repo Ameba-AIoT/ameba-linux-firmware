@@ -63,7 +63,11 @@ extern unsigned int sys_now(void);
 #define TCP_SND_BUF                     (5 * TCP_MSS)
 #define TCP_SND_QUEUELEN                (4 * TCP_SND_BUF / TCP_MSS)
 /* Pbuf options */
+#if defined(CONFIG_PBUF_POOL_BUFSIZE)
+#define PBUF_POOL_BUFSIZE               CONFIG_PBUF_POOL_BUFSIZE
+#else
 #define PBUF_POOL_BUFSIZE               508
+#endif
 /* Network Interfaces options */
 #define LWIP_NETIF_API                  1
 #define LWIP_NUM_NETIF_CLIENT_DATA      1
@@ -90,7 +94,11 @@ extern unsigned int sys_now(void);
 #define LWIP_SO_RCVTIMEO                1
 #define SO_REUSE                        1
 /* Statistics options */
+#ifdef CONFIG_LWIP_STATS
+#define LWIP_STATS                      1
+#else
 #define LWIP_STATS                      0
+#endif
 /* Other lwip options */
 #define DHCP_COARSE_TIMER_SECS          60
 #define LWIP_COMPAT_MUTEX               0
@@ -102,6 +110,13 @@ extern unsigned int sys_now(void);
 #define LWIP_RANDOMIZE_INITIAL_LOCAL_PORTS  1
 #define LWIP_ICMP_SUPPRESS                  0
 #define LWIP_ICMP_SUPPRESS_INTERVAL         900 //allow one icmp per second with tolerance of 100 ms
+/* SNTP options */
+#define SNTP_SERVER_DNS                   1
+#define SNTP_MAX_SERVERS                  3
+#define SNTP_SUPPRESS_DELAY_CHECK
+#define SNTP_UPDATE_DELAY                 sntp_get_update_interval()
+#define SNTP_SET_SYSTEM_TIME_US(sec, us)  sntp_set_system_time(sec, us)
+#define SNTP_GET_SYSTEM_TIME(sec, us)     sntp_get_system_time(&(sec), &(us))
 
 /* ------------------------------------ Options for different chips ------------------------------------ */
 
@@ -129,10 +144,19 @@ extern unsigned int sys_now(void);
 #if defined(CONFIG_IP_NAT) && (CONFIG_IP_NAT == 1)
 #define IP_FORWARD                      1
 #define IP_NAT                          1
+#if defined(LWIP_IPV6) && (LWIP_IPV6 == 1)
+#define CONFIG_IP6_RLOCAL 1
+#endif
+#endif
+
+#if defined(CONFIG_IP6_RLOCAL) && (CONFIG_IP6_RLOCAL == 1)
+#define LWIP_IPV6_FORWARD               1
+#define LWIP_HOOK_IP6_ROUTE nd6_find_nhb_netif
+#define is_sta_ap() (wifi_is_running(1)&&wifi_is_running(0))
+#define is_sta_only() (wifi_is_running(0)&&(!wifi_is_running(1)))
 #endif
 
 #if defined(CONFIG_HIGH_TP_TEST)
-#if defined (CONFIG_AS_INIC_AP)
 #undef TCP_WND
 #define TCP_WND                         (16 * TCP_MSS)
 #undef TCP_SND_BUF
@@ -143,7 +167,6 @@ extern unsigned int sys_now(void);
 #define DEFAULT_UDP_RECVMBOX_SIZE       18
 #undef DEFAULT_TCP_RECVMBOX_SIZE
 #define DEFAULT_TCP_RECVMBOX_SIZE       18
-#endif
 #endif
 
 #if defined(CONFIG_WPAN_THREAD_BORDER_ROUTER_EN) && CONFIG_WPAN_THREAD_BORDER_ROUTER_EN
@@ -169,6 +192,13 @@ extern unsigned int sys_now(void);
 #define LWIP_NETCONN_THREAD_SEM_GET()     sys_thread_sem_get()
 #define LWIP_NETCONN_THREAD_SEM_ALLOC()   sys_thread_sem_init()
 #define LWIP_NETCONN_THREAD_SEM_FREE()    sys_thread_sem_deinit()
+#endif
+
+/*Can disable UDP checksum to achive higher throughput, when in reliable network environments or the application-layer protocol provides strong integrity protection*/
+#if defined (CONFIG_LWIP_SKIP_CHECK_UDP_CHECKSUM)
+#define CHECKSUM_CHECK_UDP              0
+#else
+#define CHECKSUM_CHECK_UDP              1
 #endif
 
 #endif /* LWIP_HDR_LWIPOPTS_H */

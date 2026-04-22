@@ -6,10 +6,6 @@ set(c_GLOBAL_MCU_INCLUDE_DIRECTORIES)
 
 # +++++++++++++++++ c_GLOBAL_COMMON_COMPILE_DEFINES ++++++++++++++++ #
 ameba_list_append(c_GLOBAL_COMMON_COMPILE_DEFINES
-    #TODO: to be removed when new cmake is ready
-    CONFIG_USE_MBEDTLS_ROM_ALG # sw ed25519 used.
-    CONFIG_FUNCION_O0_OPTIMIZE # sw ed25519 used.
-    DM_ODM_SUPPORT_TYPE=32 # wifi used.
 )
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
@@ -45,17 +41,17 @@ ameba_list_append(c_GLOBAL_COMMON_COMPILE_C_OPTIONS
 
     # When the memory length is 4 bytes, memset/memcpy will be optimized for direct 32-bit reading and writing.
     # If the source address is not aligned, an error will result because the hardware does not support unaligned accesses.
-    -fno-builtin # avoid strcpy(ISO C90) to be optimized to stpcpy(posix) by compiler, including -fno-builtin-memset -fno-builtin-memcpy -fno-builtin-printf
+    #TODO: -fno-builtin will affect dhrystone and tflite_micro performance.
+    -fno-builtin # avoid strcpy(ISO C90) to be optimized to stpcpy(posix) by compiler, including -fno-builtin-memset -fno-builtin-memcpy -fno-builtin-printf...
 
     -save-temps=obj
     # -fno-short-enums
-    # -ffile-prefix-map=${c_BASEDIR}=.
+    -ffile-prefix-map=${c_BASEDIR}=.
 )
-
-if(CONFIG_AMEBALITE OR CONFIG_AMEBAD)
-    ameba_list_append(c_GLOBAL_COMMON_COMPILE_C_OPTIONS -Os)
-else()
+if(CONFIG_AMEBASMART OR CONFIG_AMEBADPLUS OR CONFIG_AMEBAL2 OR CONFIG_AMEBAPRO3)
     ameba_list_append(c_GLOBAL_COMMON_COMPILE_C_OPTIONS -O2)
+else()
+    ameba_list_append(c_GLOBAL_COMMON_COMPILE_C_OPTIONS -Os)
 endif()
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
@@ -71,6 +67,20 @@ list(REMOVE_ITEM c_GLOBAL_COMMON_COMPILE_CPP_OPTIONS  -Wstrict-prototypes)
 # ++++++++++++++++ c_GLOBAL_MCU_INCLUDE_DIRECTORIES ++++++++++++++++ #
 ameba_list_append(c_GLOBAL_MCU_INCLUDE_DIRECTORIES
     ${c_MENUCONFIG_DIR}/project_${c_MCU_PROJECT_NAME}
-    ${c_MCU_PROJECT_DIR}/inc
+    ${c_MCU_INC_DIR}
 )
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+
+# ++++++++++++++++++++++ MATTER MODIFICATIONS ++++++++++++++++++++++ #
+if(CONFIG_MATTER_EN)
+    message(STATUS "CONFIG_MATTER_EN is ON, modifying global common flags")
+    include(${EXAMPLEDIR}/project/cmake/flags/compile_options_matter.cmake)
+endif()
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
+
+# ++++++++++++++++++++++++ AWS MODIFICATIONS +++++++++++++++++++++++ #
+if(CONFIG_AMAZON_FREERTOS_EN)
+    message(STATUS "CONFIG_AMAZON_FREERTOS_EN is ON, modifying global common flags")
+    include(${EXAMPLEDIR}/project/cmake/flags/compile_options_aws.cmake)
+endif()
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #

@@ -22,6 +22,11 @@ void wifi_hal_p2p_addr_cam_init(void)
 {
 }
 
+void rtw_p2p_init(void)
+{
+
+}
+
 void rtw_p2p_set_role(enum rtw_p2p_role role)
 {
 	UNUSED(role);
@@ -35,6 +40,20 @@ u8 *rtw_p2p_set_assoc_p2p_ie(u8 *pframe, u32 *pktlen)
 }
 
 u8 *rtw_p2p_set_probereq_p2p_ie(u8 *pframe, u32 *pktlen)
+{
+	UNUSED(pframe);
+	UNUSED(pktlen);
+	return pframe;
+}
+
+u8 *rtw_p2p_set_bcn_p2p_ie(u8 *pframe, u32 *pktlen)
+{
+	UNUSED(pframe);
+	UNUSED(pktlen);
+	return pframe;
+}
+
+u8 *rtw_p2p_set_probersp_p2p_ie(u8 *pframe, u32 *pktlen)
 {
 	UNUSED(pframe);
 	UNUSED(pktlen);
@@ -81,11 +100,12 @@ void rtw_p2p_set_supported_rates(u8 *supported_rateset, u8 bssrate_len)
 	UNUSED(bssrate_len);
 }
 
-int rtw_p2p_probereq_indicate(u8 *pframe, u32 len, u8 iface_type)
+int rtw_p2p_probereq_indicate(u8 *pframe, u32 len, u8 iface_type, u8 *is_valid_p2p_probereq)
 {
 	UNUSED(pframe);
 	UNUSED(len);
 	UNUSED(iface_type);
+	UNUSED(is_valid_p2p_probereq);
 	return RTK_FAIL;
 }
 
@@ -139,7 +159,10 @@ int rtw_p2p_remain_on_ch(u8 wlan_idx, u8 enable)
 	return 0;
 }
 
+u8 whc_ipc_dev_p2p_api_hdl(void *p_ipc_msg)
+{
+	UNUSED(p_ipc_msg);
+	return FALSE;
+}
 #endif
 #endif
-
-

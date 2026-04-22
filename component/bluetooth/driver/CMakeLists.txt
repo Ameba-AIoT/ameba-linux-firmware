@@ -41,42 +41,61 @@ set(private_compile_options)         #private compile_options
 #------------------------------#
 # Component private part, user config begin
 
-ameba_list_append(private_sources
-    hci/hci_process/hci_process.c
-	hci/hci_process/hci_download_v2.c
-	hci/hci_process/hci_download_v3.c
-	hci/hci_process/hci_common.c
-	hci/hci_process/hci_standalone.c
-	hci/hci_transport/hci_h4.c
-	dtm/hci_dtm.c
-)
+if(NOT CONFIG_SDN_BT)
+	ameba_list_append(private_sources
+		hci/hci_process/hci_process.c
+		hci/hci_process/hci_download_v1.c
+		hci/hci_process/hci_download_v2.c
+		hci/hci_process/hci_download_v3.c
+		hci/hci_process/hci_controller.c
+		hci/hci_process/hci_standalone.c
+		hci/hci_transport/hci_h4.c
+	)
+
+	ameba_list_append(private_sources
+		platform/${c_SOC_TYPE}/hci/bt_mp_patch.c
+		platform/${c_SOC_TYPE}/hci/bt_normal_patch.c
+		platform/${c_SOC_TYPE}/hci/hci_uart.c
+	)
+endif()
 
 ameba_list_append(private_sources
-    platform/${c_SOC_TYPE}/hci/bt_mp_patch.c
-    platform/${c_SOC_TYPE}/hci/bt_normal_patch.c
-    platform/${c_SOC_TYPE}/hci/hci_platform.c
-    platform/${c_SOC_TYPE}/hci/hci_uart.c
+	hci/hci_common.c
+	platform/${c_SOC_TYPE}/hci/hci_platform.c
 )
 
 if(CONFIG_BT_INIC)
-	ameba_list_append(private_sources hci/hci_if_inic.c)
-	if(CONFIG_BT_INIC_H4 OR CONFIG_BT_INICD_H4)
+	ameba_list_append_ifnot(CONFIG_SDN_BT private_sources hci/hci_if_inic.c)
+
+	if(CONFIG_BT_INIC_H4)
 		ameba_list_append(private_sources bt_inic/bt_inic_h4.c)
-	elseif(CONFIG_BT_INIC_H5 OR CONFIG_BT_INICD_H5)
+	elseif(CONFIG_BT_INIC_H5)
 		ameba_list_append(private_sources bt_inic/bt_inic_h5.c)
-	elseif(CONFIG_BT_INICD_SPI OR (CONFIG_WHC_INTF_SPI AND CONFIG_BT_INIC_SHARE))
+	elseif(CONFIG_BT_INIC_SPI)
 		ameba_list_append(private_sources bt_inic/bt_inic_spi_dev.c)
-	elseif(CONFIG_BT_INICD_SDIO OR (CONFIG_WHC_INTF_SDIO AND CONFIG_BT_INIC_SHARE))
+	elseif(CONFIG_BT_INIC_USB)
+		ameba_list_append(private_sources bt_inic/bt_inic_usbd.c)
+		ameba_list_append(private_sources bt_inic/bt_inic_usb.c)
+		ameba_list_append(private_includes
+			${c_CMPT_USB_DIR}/common
+		 	${c_CMPT_USB_DIR}/device/core
+		 	${c_CMPT_USB_DIR}/device/inic
+		)
+	elseif(CONFIG_BT_INIC_SDIO)
 		ameba_list_append_if(CONFIG_AMEBADPLUS private_sources bt_inic/bt_inic_sdio_dplus.c)
+		ameba_list_append_if(CONFIG_AMEBAGREEN2 private_sources bt_inic/bt_inic_sdio.c)
+		ameba_list_append_if(CONFIG_RTL8720F private_sources bt_inic/bt_inic_sdio.c)
 	endif()
 elseif(CONFIG_BT_ZEPHYR)
-	ameba_list_append(private_sources hci/hci_if_zephyr.c)
+	if(CONFIG_SDN_BT)
+		ameba_list_append(private_sources vhci/hci_if_zephyr_sdn.c)
+	else()
+		ameba_list_append(private_sources hci/hci_if_zephyr.c)
+	endif()
 	ameba_list_append(private_includes
 		 ${c_CMPT_BLUETOOTH_DIR}/zephyr/include
 		 ${c_CMPT_BLUETOOTH_DIR}/zephyr/port
 	)
-elseif(CONFIG_BT_SDN_VERIFY)
-	ameba_list_append(private_sources vhci/hci_if_virtual.c)
 else()
 	ameba_list_append(private_sources hci/hci_if_rtk.c)
 endif()
@@ -88,6 +107,14 @@ ameba_list_append(private_includes
 	${c_CMPT_BLUETOOTH_DIR}/driver/platform/${c_SOC_TYPE}/inc
 	${c_CMPT_BLUETOOTH_DIR}/rtk_coex
 )
+
+if(CONFIG_SDN_BT)
+	ameba_list_append(private_includes 
+	vhci
+	${c_COMPONENT_DIR}/sdn/platform/${c_SOC_TYPE}/intf
+    ${c_COMPONENT_DIR}/sdn/platform/${c_SOC_TYPE}/intf/host
+	)
+endif()
 
 # Component private part, user config end
 #------------------------------#

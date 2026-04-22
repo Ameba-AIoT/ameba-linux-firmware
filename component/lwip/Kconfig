@@ -1,24 +1,33 @@
 menu "CONFIG LWIP"
     config FAST_DHCP_MENU
         bool "Enable Fast DHCP"
-        select FAST_DHCP if CORE_AS_AP
+        select FAST_DHCP if WHC_HOST || WHC_NONE
 
     config IP_NAT_MENU
         bool "Enable NAT REPEATER"
-        select IP_NAT if CORE_AS_AP
+        select IP_NAT if WHC_HOST || WHC_NONE
 
     config LWIP_IPV6_MENU
         bool "Enable LWIP IPV6"
-        select LWIP_IPV6 if CORE_AS_AP
+        select LWIP_IPV6 if WHC_HOST || WHC_NONE
+
+    config LWIP_SKIP_CHECK_UDP_CHECKSUM
+        bool "Skip check UDP checksum"
+        help
+            Skip checksum for UDP RX packet
+            Skipping it will provide higher throughput but reduce reliability.
 
     config LWIP_USB_ETHERNET
-        depends on USBH_ECM_ETHERNET_MENU||USBH_ECM_ETHERNET_BRIDGE_MENU||USBH_ECM_MENU
+        depends on USBH_ECM_ETHERNET_MENU||USBH_ECM_ETHERNET_BRIDGE_MENU||USBH_ECM_MENU || USBH_COMPOSITE_ACM_ECM_MENU
         bool "Enable LWIP USB ETHERNET"
 
     config LWIP_USB_ETHERNET_BRIDGE
         depends on USBH_ECM_ETHERNET_BRIDGE_MENU
         bool "Enable LWIP USB ETHERNET BRIDGE"
 
+    config LWIP_ETHERNET
+        depends on ETHERNET
+        bool "Enable LWIP ETHERNET"
 
     config FAST_DHCP
         bool
@@ -29,6 +38,10 @@ menu "CONFIG LWIP"
 
     config LWIP_DEBUG
         bool "Enable LWIP Debug"
+        default n
+
+    config LWIP_STATS
+        bool "Enable LWIP Stats"
         default n
 
     if LWIP_DEBUG
@@ -101,4 +114,10 @@ menu "CONFIG LWIP"
         config DHCP6_DEBUG
             bool "Enable DHCP6 DEBUG"
     endif
+
+    config PBUF_POOL_BUFSIZE
+        int "Len of pbuf pool"
+        default 508
+        range 508 1500
+
 endmenu

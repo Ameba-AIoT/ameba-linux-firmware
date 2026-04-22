@@ -86,6 +86,46 @@ function(import_kconfig prefix kconfig_fragment)
   endif()
 endfunction()
 
+function(ameba_submodule_register name)
+    set(multiValueArgs
+        p_EXAMPLE_DIRS
+    )
+    cmake_parse_arguments(ARG "" "" "${multiValueArgs}" ${ARGN})
+
+    set(SUBMODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+    set(INFO_STRING "submodule_name=${name} submodule_path=${SUBMODULE_PATH} ")
+    set_property(TARGET g_PROJECT_CONFIG APPEND PROPERTY submodule_info ${INFO_STRING})
+
+    if(NOT ARG_p_EXAMPLE_DIRS)
+        message(FATAL_ERROR "None p_EXAMPLE_DIRS. Submodule example directories must be given")
+    endif()
+
+    list(LENGTH ARG_p_EXAMPLE_DIRS example_num)
+    math(EXPR last_index "${example_num} - 1")
+    foreach(index RANGE ${last_index})
+        list(GET ARG_p_EXAMPLE_DIRS ${index} example_dir)
+        ameba_example_register(${example_dir})
+    endforeach()
+endfunction()
+
+function(ameba_example_register example_dir)
+    set(options p_NOT_SUBMODULE)
+    cmake_parse_arguments(ARG "${options}" "" "" ${ARGN})
+
+    if(NOT IS_ABSOLUTE "${example_dir}")
+        file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${example_dir}" example_dir)
+    endif()
+    get_filename_component(example_name "${example_dir}" NAME)
+
+    set(INFO_STRING "example_name=${example_name} example_path=${example_dir} ")
+
+    if(NOT ARG_p_NOT_SUBMODULE)
+        set_property(TARGET g_PROJECT_CONFIG APPEND PROPERTY submodule_info ${INFO_STRING})
+    # else() # TODO: using for non-submodule
+    endif()
+
+endfunction()
+
 function(ameba_add_empty_object)
     # Empty object is added to avoid cmake error: NO SOURCE given to target...
     # However, default empty file generates .data, .text, .rodata, .bss section, and debug related sections,
@@ -394,7 +434,6 @@ function(ameba_add_merge_app_library output_name)
     if(CONFIG_AMEBA_RLS)
         return()
     endif()
-
     ameba_add_merge_library(${output_name} ${c_SDK_LIB_APPLICATION_DIR} ${ARGN})
     set(c_CURRENT_TARGET_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
     set(c_CURRENT_TARGET_FILE ${c_CURRENT_TARGET_FILE} PARENT_SCOPE)
@@ -421,7 +460,10 @@ function(ameba_add_merge_module_library output_name output_path)
 endfunction()
 
 function(ameba_add_image name)
-    set(options p_EXCLUDE_FROM_ALL)
+    set(options
+        p_EXCLUDE_FROM_ALL
+        p_HIDE_FROM_ALL_PATH   # the image will not append to image_list
+    )
     set(oneValueArgs p_TYPE p_IMAGE_ALL)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "" ${ARGN})
     ameba_gen_wrap_name(${name} c_CURRENT_IMAGE)
@@ -477,7 +519,9 @@ function(ameba_add_image name)
     #Can be used to get target name of image1/image2/image2 somewhere else
     set_property(TARGET ${c_MCU_PROJ_CONFIG} APPEND PROPERTY ${c_CURRENT_IMAGE_TYPE} "${c_CURRENT_IMAGE}")
     if (ARG_p_IMAGE_ALL)
-        set_property(TARGET ${c_MCU_PROJ_CONFIG} APPEND PROPERTY ${c_CURRENT_IMAGE_TYPE}_all "${c_SDK_IMAGE_TARGET_DIR}/${ARG_p_IMAGE_ALL}")
+        if(NOT ARG_p_HIDE_FROM_ALL_PATH)
+            set_property(TARGET ${c_MCU_PROJ_CONFIG} APPEND PROPERTY ${c_CURRENT_IMAGE_TYPE}_all "${c_SDK_IMAGE_TARGET_DIR}/${ARG_p_IMAGE_ALL}")
+        endif()
     endif()
     set(c_CURRENT_IMAGE ${c_CURRENT_IMAGE} PARENT_SCOPE)
     set(c_CURRENT_IMAGE_TYPE ${c_CURRENT_IMAGE_TYPE} PARENT_SCOPE)
@@ -569,7 +613,7 @@ function(ameba_add_subdirectory_if_exist dir)
     if(NOT IS_ABSOLUTE "${dir}")
         file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/${dir}" dir)
     endif()
-    if(NOT EXISTS ${dir})
+    if(NOT EXISTS "${dir}/CMakeLists.txt")
         return()
     endif()
     ameba_add_subdirectory(${dir} ${ARGN})
@@ -599,35 +643,31 @@ function(ameba_global_library)
     endif()
 endfunction()
 
+function(ameba_layout_extract name ldfile origin end length)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${c_SDK_EXTRACT_LD_SCRIPT} ${ldfile} ${name} ORIGIN
+        RESULT_VARIABLE ret
+        OUTPUT_VARIABLE ${origin}
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${c_SDK_EXTRACT_LD_SCRIPT} ${ldfile} ${name} END
+        RESULT_VARIABLE ret
+        OUTPUT_VARIABLE ${end}
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    math(EXPR ${length} "${${end}} - ${${origin}}")
+    set(${origin} ${${origin}} PARENT_SCOPE)
+    set(${end} ${${end}} PARENT_SCOPE)
+    set(${length} ${${length}} PARENT_SCOPE)
+endfunction()
 
 ########################################################################################################
 #TODO: deprecated functions
 
-function(ameba_add_exist_library name)
-    ameba_warning("This function is deprecated and will be removed in future versions, use ameba_port_standalone_internal_library instead")
-    ameba_port_standalone_internal_library(${name})
-endfunction()
-
 #NOTE: For compatibility with version CMAKE_V0.1
-
 function(ameba_internal_library name)
     ameba_add_internal_library(${name})
-    set(CURRENT_LIB_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
-endfunction()
-
-#define soc library named lib_${name}_${PROJECT_NAME}.a, and it will be move to lib/soc
-function(ameba_soc_library name)
-    ameba_add_external_soc_library(${name})
-    set(CURRENT_LIB_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
-endfunction()
-
-#define application library named lib_${name}_${PROJECT_NAME}.a, and it will be move to lib/application
-function(ameba_app_library name)
-    ameba_add_external_app_library(${name})
-    set(CURRENT_LIB_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
-endfunction()
-
-function(ameba_app_library_with_gitver name)
-    ameba_add_external_app_library(${name})
     set(CURRENT_LIB_NAME ${c_CURRENT_TARGET_NAME} PARENT_SCOPE)
 endfunction()

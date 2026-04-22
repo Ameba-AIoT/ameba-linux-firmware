@@ -4,22 +4,79 @@
  *******************************************************************************
  */
 
-#include "platform_autoconf.h"
-#include <stdio.h>
-#include <string.h>
-#include <osif.h>
-#include <basic_types.h>
 #include "bt_debug.h"
+#include <platform_autoconf.h>
+#if defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+#include "sdn_host.h"
 #include "hci_common.h"
+#else
 #include "hci_transport.h"
+#include "hci_controller.h"
 #include "hci_uart.h"
-#include <bt_mp_api.h>
-#if defined(CONFIG_BT_ENABLE_FAST_MP) && CONFIG_BT_ENABLE_FAST_MP
-#include "hci_dtm.h"
 #endif
 
-/* ---------------------------------- define -------------------------------*/
-#define BT_MP_ARG_LOGE(str)  BT_LOGE("%s (line: %d) arg NOT IN RANGE! (arg: %s)\r\n", __func__, __LINE__, str)
+#if defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+enum {
+	ST_H4_IDLE = 0,    /* Waiting for packet type. */
+	ST_H4_HDR,         /* Receiving packet header. */
+	ST_H4_PAYLOAD,     /* Receiving packet payload. */
+	ST_H4_DISCARD,     /* Dropping packet. */
+};
+
+#define HCI_H4_HDR_MAX_SIZE    4
+#define HCI_H4_BODY_MAX_SIZE   1024
+static struct h4_rx {
+	uint8_t rx_state;
+	uint8_t type;
+	uint16_t remaining;
+	uint8_t hdr_len;
+	uint16_t body_len;
+	uint8_t buf[HCI_H4_HDR_MAX_SIZE + HCI_H4_BODY_MAX_SIZE];
+} *h4 = NULL;
+
+void sdn_bqb_h4_rx(uint8_t ch)
+{
+	switch (h4->rx_state) {
+	case ST_H4_IDLE: {
+		/* Read H4 Type */
+		h4->type = ch;
+		h4->hdr_len = hci_get_hdr_len(h4->type);
+		if (h4->hdr_len) {
+			h4->remaining = h4->hdr_len;
+			h4->rx_state = ST_H4_HDR;
+		}
+		break;
+	}
+	case ST_H4_HDR: {
+		h4->buf[h4->hdr_len - h4->remaining] = ch;
+		h4->remaining--;
+		if (h4->remaining == 0) {
+			h4->body_len = hci_get_body_len(h4->buf, h4->type);
+			if (h4->body_len == 0) { /* some cmd has no param */
+				sdn_host_send(SDN_INTF_BT, h4->type, h4->buf, h4->hdr_len);
+				h4->rx_state = ST_H4_IDLE;
+				break;
+			}
+
+			h4->remaining = h4->body_len;
+			h4->rx_state = ST_H4_PAYLOAD;
+		}
+		break;
+	}
+	case ST_H4_PAYLOAD: {
+		h4->buf[h4->hdr_len + h4->body_len - h4->remaining] = ch;
+		h4->remaining--;
+		if (h4->remaining == 0) {
+			sdn_host_send(SDN_INTF_BT, h4->type, h4->buf, h4->hdr_len + h4->body_len);
+			h4->rx_state = ST_H4_IDLE;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+#endif
 
 /**
  * @brief     BT power on for MP test.
@@ -29,14 +86,21 @@
 void rtk_bt_mp_power_on(void)
 {
 	hci_set_mp(true);
-	if (hci_controller_enable()) {
+#if defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+	if (!h4) {
+		h4 = rtos_mem_zmalloc(sizeof(struct h4_rx));
+	}
+	sdn_host_enable(SDN_INTF_IPC, SDN_INTF_BT);
+#else
+	if (hci_controller_open()) {
 		BT_LOGA("Patch download End!\r\n");
 		BT_LOGA("After download patch, deinit HCI driver & HCI uart!\r\n");
-		/* In order to keep controller powerd on, do not use hci_controller_disable() */
+		/* In order to keep controller powerd on, do not use hci_controller_close() */
 		hci_uart_close();
 		hci_transport_close();
 		hci_controller_free();
 	}
+#endif
 }
 
 /**
@@ -46,253 +110,13 @@ void rtk_bt_mp_power_on(void)
  */
 void rtk_bt_mp_power_off(void)
 {
-	/* just power off controller, uart & transport are already disabled & freed */
-	hci_controller_disable();
+#if defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+	sdn_host_disable(SDN_INTF_BT);
+	rtos_mem_free(h4);
+	h4 = NULL;
+#else
+	/* just power off controller, uart & transport are already closed & freed */
+	hci_controller_close();
+#endif
 	hci_set_mp(false);
 }
-
-#if defined(CONFIG_BT_ENABLE_FAST_MP) && CONFIG_BT_ENABLE_FAST_MP
-void rtk_bt_mp_dtm_power_on(void)
-{
-	hci_set_mp(true);
-	hci_controller_enable();
-}
-
-void rtk_bt_mp_dtm_power_off(void)
-{
-	hci_controller_disable();
-	hci_controller_free();
-	hci_set_mp(false);
-}
-
-uint8_t rtk_bt_mp_dtm_rx_test_v1(uint8_t rx_chann)
-{
-	if (rx_chann > 0x27) {
-		BT_MP_ARG_LOGE("rx_chann");
-		return 0;
-	}
-
-	return hci_dtm_reveiver_test_v1(rx_chann);
-}
-
-uint8_t rtk_bt_mp_dtm_rx_test_v2(uint8_t rx_chann, uint8_t phy, uint8_t mod_idx)
-{
-	if (rx_chann > 0x27) {
-		BT_MP_ARG_LOGE("rx_chann");
-		return 0;
-	}
-	if (phy < RTK_BT_MP_RX_PHYS_1M || phy > RTK_BT_MP_RX_PHYS_CODED) {
-		BT_MP_ARG_LOGE("phy");
-		return 0;
-	}
-	if (mod_idx > RTK_BT_MP_MODULATION_INDEX_STABLE) {
-		BT_MP_ARG_LOGE("mod_idx");
-		return 0;
-	}
-
-	return hci_dtm_reveiver_test_v2(rx_chann, phy, mod_idx);
-}
-
-uint8_t rtk_bt_mp_dtm_rx_test_v3(uint8_t rx_chann, uint8_t phy, uint8_t mod_idx,
-								 uint8_t exp_cte_len, uint8_t exp_cte_type, uint8_t slot_durations,
-								 uint8_t sw_pattern_len, uint8_t *p_antenna_ids)
-{
-	if (rx_chann > 0x27) {
-		BT_MP_ARG_LOGE("rx_chann");
-		return 0;
-	}
-	if (phy < RTK_BT_MP_RX_PHYS_1M || phy > RTK_BT_MP_RX_PHYS_CODED) {
-		BT_MP_ARG_LOGE("phy");
-		return 0;
-	}
-	if (mod_idx > RTK_BT_MP_MODULATION_INDEX_STABLE) {
-		BT_MP_ARG_LOGE("mod_idx");
-		return 0;
-	}
-	if (exp_cte_len == 0x01 || exp_cte_len > 0x14) {
-		BT_MP_ARG_LOGE("exp_cte_len");
-		return 0;
-	}
-	if (exp_cte_type > RTK_BT_MP_CTE_TYPE_AOD_2US_SLOT) {
-		BT_MP_ARG_LOGE("exp_cte_type");
-		return 0;
-	}
-	if (slot_durations < RTK_BT_MP_SLOT_DURATIONS_SWITCH_SAMPLE_1US ||
-		slot_durations > RTK_BT_MP_SLOT_DURATIONS_SWITCH_SAMPLE_2US) {
-		BT_MP_ARG_LOGE("slot_durations");
-		return 0;
-	}
-	if (sw_pattern_len < 0x02 || sw_pattern_len > 0x4B) {
-		BT_MP_ARG_LOGE("sw_pattern_len");
-		return 0;
-	}
-	if (p_antenna_ids == NULL) {
-		BT_MP_ARG_LOGE("p_antenna_ids");
-		return 0;
-	}
-
-	return hci_dtm_receiver_test_v3(rx_chann, phy, mod_idx,
-									exp_cte_len, exp_cte_type, slot_durations,
-									sw_pattern_len, p_antenna_ids);
-}
-
-uint8_t rtk_bt_mp_dtm_tx_test_v1(uint8_t tx_chann, uint8_t data_len, uint8_t pkt_pl)
-{
-	if (tx_chann > 0x27) {
-		BT_MP_ARG_LOGE("tx_chann");
-		return 0;
-	}
-	if (pkt_pl > RTK_BT_MP_PACKET_PAYLOAD_01) {
-		BT_MP_ARG_LOGE("pkt_pl");
-		return 0;
-	}
-
-	return hci_dtm_transmitter_test_v1(tx_chann, data_len, pkt_pl);
-}
-
-uint8_t rtk_bt_mp_dtm_tx_test_v2(uint8_t tx_chann, uint8_t data_len, uint8_t pkt_pl, uint8_t phy)
-{
-	if (tx_chann > 0x27) {
-		BT_MP_ARG_LOGE("tx_chann");
-		return 0;
-	}
-	if (pkt_pl > RTK_BT_MP_PACKET_PAYLOAD_01) {
-		BT_MP_ARG_LOGE("pkt_pl");
-		return 0;
-	}
-	if (phy < RTK_BT_MP_TX_PHYS_1M || phy > RTK_BT_MP_TX_PHYS_CODED_S2) {
-		BT_MP_ARG_LOGE("phy");
-		return 0;
-	}
-
-	return hci_dtm_transmitter_test_v2(tx_chann, data_len, pkt_pl, phy);
-}
-
-uint8_t rtk_bt_mp_dtm_tx_test_v3(uint8_t tx_chann, uint8_t data_len, uint8_t pkt_pl, uint8_t phy,
-								 uint8_t cte_len, uint8_t cte_type, uint8_t sw_pattern_len, uint8_t *p_antenna_ids)
-{
-	if (tx_chann > 0x27) {
-		BT_MP_ARG_LOGE("tx_chann");
-		return 0;
-	}
-	if (pkt_pl > RTK_BT_MP_PACKET_PAYLOAD_01) {
-		BT_MP_ARG_LOGE("pkt_pl");
-		return 0;
-	}
-	if (phy < RTK_BT_MP_TX_PHYS_1M || phy > RTK_BT_MP_TX_PHYS_CODED_S2) {
-		BT_MP_ARG_LOGE("phy");
-		return 0;
-	}
-	if (cte_len == 0x01 || cte_len > 0x14) {
-		BT_MP_ARG_LOGE("cte_len");
-		return 0;
-	}
-	if (cte_type > RTK_BT_MP_CTE_TYPE_AOD_2US_SLOT) {
-		BT_MP_ARG_LOGE("cte_type");
-		return 0;
-	}
-	if (sw_pattern_len < 0x02 || sw_pattern_len > 0x4B) {
-		BT_MP_ARG_LOGE("sw_pattern_len");
-		return 0;
-	}
-	if (p_antenna_ids == NULL) {
-		BT_MP_ARG_LOGE("p_antenna_ids");
-		return 0;
-	}
-
-	return hci_dtm_transmitter_test_v3(tx_chann, data_len, pkt_pl, phy,
-									   cte_len, cte_type, sw_pattern_len, p_antenna_ids);
-}
-
-uint8_t rtk_bt_mp_dtm_tx_test_v4(uint8_t tx_chann, uint8_t data_len, uint8_t pkt_pl, uint8_t phy,
-								 uint8_t cte_len, uint8_t cte_type, uint8_t sw_pattern_len, uint8_t *p_antenna_ids,
-								 int8_t tx_power_level)
-{
-	if (tx_chann > 0x27) {
-		BT_MP_ARG_LOGE("tx_chann");
-		return 0;
-	}
-	if (pkt_pl > RTK_BT_MP_PACKET_PAYLOAD_01) {
-		BT_MP_ARG_LOGE("pkt_pl");
-		return 0;
-	}
-	if (phy < RTK_BT_MP_TX_PHYS_1M || phy > RTK_BT_MP_TX_PHYS_CODED_S2) {
-		BT_MP_ARG_LOGE("phy");
-		return 0;
-	}
-	if (cte_len == 0x01 || cte_len > 0x14) {
-		BT_MP_ARG_LOGE("cte_len");
-		return 0;
-	}
-	if (cte_type > RTK_BT_MP_CTE_TYPE_AOD_2US_SLOT) {
-		BT_MP_ARG_LOGE("cte_type");
-		return 0;
-	}
-	if (sw_pattern_len < 0x02 || sw_pattern_len > 0x4B) {
-		BT_MP_ARG_LOGE("sw_pattern_len");
-		return 0;
-	}
-	if (p_antenna_ids == NULL) {
-		BT_MP_ARG_LOGE("p_antenna_ids");
-		return 0;
-	}
-
-	return hci_dtm_transmitter_test_v4(tx_chann, data_len, pkt_pl, phy, cte_len,
-									   cte_type, sw_pattern_len, p_antenna_ids, tx_power_level);
-}
-
-uint8_t rtk_bt_mp_dtm_test_end(uint16_t *p_num_pkts)
-{
-	if (p_num_pkts == NULL) {
-		BT_MP_ARG_LOGE("p_num_pkts");
-		return 0;
-	}
-
-	return hci_dtm_test_end(p_num_pkts);
-}
-
-uint8_t rtk_bt_mp_dtm_get_rx_report(int8_t *p_rssi)
-{
-	if (p_rssi == NULL) {
-		BT_MP_ARG_LOGE("p_rssi");
-		return 0;
-	}
-
-	return hci_dtm_vendor_get_receiver_report(NULL, NULL, NULL, NULL, NULL, p_rssi);
-}
-
-uint8_t rtk_bt_mp_dtm_set_tx_count(uint8_t tx_pkt_cnt)
-{
-	return hci_dtm_vendor_set_transmitter_count(0x01, tx_pkt_cnt, 0x00, NULL, 0x00);
-}
-
-uint8_t rtk_bt_mp_dtm_set_tx_power_index(uint8_t ble_1m, uint8_t ble_2m)
-{
-	return hci_dtm_vendor_ctrl_tx_power(0xFF, 0xFF, 0xFF, ble_1m, ble_2m);
-}
-
-uint8_t rtk_bt_mp_dtm_set_tx_gaink(uint8_t tx_gain_k)
-{
-	return hci_dtm_vendor_k_power_setting(0x01, (uint32_t)tx_gain_k, NULL, NULL, NULL);
-}
-
-uint8_t rtk_bt_mp_dtm_set_tx_flatnessk(uint32_t tx_flastness_k)
-{
-	return hci_dtm_vendor_k_power_setting(0x02, tx_flastness_k, NULL, NULL, NULL);
-}
-
-uint8_t rtk_bt_mp_dtm_read_thermal(uint8_t *p_thermal_value)
-{
-	if (p_thermal_value == NULL) {
-		BT_MP_ARG_LOGE("p_thermal_value");
-		return 0;
-	}
-
-	return hci_dtm_vendor_read_thermal_meter_data(p_thermal_value);
-}
-
-uint8_t rtk_bt_mp_dtm_set_disable_tx_power_tracking(void)
-{
-	return hci_dtm_vendor_enable_tx_power_tracking(0x00, 0x00, NULL);
-}
-#endif /* CONFIG_BT_ENABLE_FAST_MP */

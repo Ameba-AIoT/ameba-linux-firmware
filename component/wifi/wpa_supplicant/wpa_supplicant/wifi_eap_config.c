@@ -46,7 +46,7 @@ void set_eap_phase(unsigned char is_trigger_eap)
 	wifi_set_eap_phase(is_trigger_eap);
 }
 
-int get_eap_phase(void)
+__weak int get_eap_phase(void)
 {
 	return eap_phase;
 }
@@ -79,15 +79,13 @@ void judge_station_disconnect(void)
 	}
 }
 
-extern void eap_peer_unregister_methods(void);
 extern void eap_sm_deinit(void);
+
 __weak void eap_disconnected_hdl(void)
 {
 #ifdef CONFIG_ENABLE_EAP
 	if (eap_event_reg_disconn) {
-		wifi_unreg_event_handler(RTW_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl);
 		eap_event_reg_disconn = 0;
-		//eap_peer_unregister_methods();
 		eap_sm_deinit();
 		//reset_config();
 	}
@@ -167,6 +165,7 @@ void eap_config(void){
 "-----END CERTIFICATE-----\r\n";
 }
 */
+extern void eap_peer_unregister_methods(void);
 
 __weak int eap_start(char *method)
 {
@@ -218,21 +217,16 @@ __weak int eap_start(char *method)
 	//eap_config();
 
 	set_eap_phase(ENABLE);
-	wifi_reg_event_handler(RTW_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl, NULL);
-	wifi_reg_event_handler(RTW_EVENT_WPA_EAPOL_RECVD, eap_eapol_recvd_hdl, NULL);
-
-
 
 	ret = connect_by_open_system(eap_target_ssid);
 
 #ifdef CONFIG_LWIP_LAYER
 	/* Start DHCPClient */
 	if (ret == 0) {
-		LwIP_DHCP(0, DHCP_START);
+		LwIP_IP_Address_Request(NETIF_WLAN_STA_INDEX);
 	}
 #endif
 
-	wifi_unreg_event_handler(RTW_EVENT_WPA_EAPOL_START, eap_eapol_start_hdl);
 	eap_event_reg_disconn = 1;
 	set_eap_phase(DISABLE);
 
@@ -240,9 +234,10 @@ __weak int eap_start(char *method)
 	if (ret != 0) {
 		judge_station_disconnect();
 		eap_disconnected_hdl();
-		rtos_time_delay_ms(200);	//wait handler done
 		DiagPrintf("\r\nERROR: connect to AP by %s failed\n", method);
 	}
+
+	eap_peer_unregister_methods();  //free malloc when register
 
 	eap_sm_deinit();
 	DiagPrintf("\n==================== %s_finish ====================\n", method);
@@ -276,6 +271,9 @@ int connect_by_open_system(char *target_ssid)
 
 void eap_autoreconnect_thread(void *method)
 {
+	while (get_eap_phase()) {
+		rtos_time_delay_ms(200);  //wait pre-conn handler done
+	}
 	eap_start((char *)method);
 	rtos_task_delete(NULL);
 }

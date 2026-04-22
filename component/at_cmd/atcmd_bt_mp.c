@@ -8,6 +8,8 @@
 
 #if defined(CONFIG_BT) && CONFIG_BT
 #if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
+/* Ensure fATM2 is linked only in ap core */
+#if (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE)
 #include "atcmd_service.h"
 #include "atcmd_bt_mp.h"
 
@@ -25,7 +27,7 @@ static bool open_flag = 0;
 static uint8_t check_byte_num = 0;
 
 #if ((defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)) \
-	|| (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
+    || (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
 #define HCI_UART_DEV             (UART3_DEV)
 #define HCI_UART_IRQ             (UART3_BT_IRQ)
 
@@ -94,10 +96,26 @@ static void bt_hci_uart_deinit(void)
 }
 #endif /* CONFIG_AMEBALITE or CONFIG_AMEBASMART */
 
+
+#if defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+void sdn_send_to_loguart(uint8_t type, uint8_t *data, uint16_t len)
+{
+	uint16_t i = 0;
+
+	while (!LOGUART_Writable());
+	LOGUART_PutChar_RAM(type);
+
+	while (i < len) {
+		while (!LOGUART_Writable());
+		LOGUART_PutChar_RAM(data[i++]);
+	}
+}
+#endif
+
 static void bt_uart_bridge_close(void)
 {
 #if ((defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)) \
-	|| (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
+    || (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
 	LOGUART_PutChar_RAM('#');
 	LOGUART_PutChar_RAM(0x0A);
 	LOGUART_PutChar_RAM(0x0D);
@@ -140,17 +158,22 @@ static void bt_uart_bridge_close(void)
 	/*Open log output*/
 	ConfigDebugClose = 0;
 
+#elif defined(CONFIG_AMEBAPRO3) && (CONFIG_AMEBAPRO3 == 1)
+	// todo
 #else /* not (CONFIG_AMEBALITE or CONFIG_AMEBASMART) */
-	u32 TempVal;
 
 	LOGUART_WaitTxComplete();
 	/*restore the Baud register value*/
 	LOGUART_SetBaud(LOGUART_DEV, LOGUART_BAUDRATE);
 	LOGUART_INT_AP2NP();
-
+#if (defined(CONFIG_SDN_BT) && CONFIG_SDN_BT)
+	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_2, ENABLE);
+#else
+	u32 TempVal;
 	TempVal = HAL_READ32(SYSTEM_CTRL_BASE, REG_LSYS_BT_CTRL0);
 	TempVal &= ~(LSYS_BIT_FORCE_LOGUART_USE_LOGUART_PAD_B | LSYS_BIT_WL_USE_REQ);
 	HAL_WRITE32(SYSTEM_CTRL_BASE, REG_LSYS_BT_CTRL0, TempVal);
+#endif
 #endif /* CONFIG_AMEBALITE or CONFIG_AMEBASMART */
 }
 
@@ -206,43 +229,47 @@ static u32 bt_uart_bridge_irq(void *data)
 {
 	(void)data;
 
-	uint8_t rc = 0, ret = 0;
+	uint8_t rc = 0;
 	uint32_t reg_lsr = LOGUART_GetStatus(LOGUART_DEV);
 
 	/* when rx FIFO not empty */
-	if ((reg_lsr & RUART_BIT_RXFIFO_INT) || (reg_lsr & RUART_BIT_TIMEOUT_INT)) {
+#if (defined(CONFIG_AMEBAPRO3) && (CONFIG_AMEBAPRO3 == 1))
+	// todo
+	(void)reg_lsr;
+	bt_uart_bridge_close_pattern(rc);
+#else
+	if ((reg_lsr & LOGUART_BIT_RXFIFO_INT) || (reg_lsr & LOGUART_BIT_TIMEOUT_INT)) {
 		while (LOGUART_Readable()) {
 			rc = LOGUART_GetChar(FALSE);
-			ret = bt_uart_bridge_close_pattern(rc);
+			if (bt_uart_bridge_close_pattern(rc) != TRUE) {
 #if ((defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)) \
-	|| (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
-			if (ret != TRUE) {
+    || (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
 				while (!UART_Writable(HCI_UART_DEV));
 				UART_CharPut(HCI_UART_DEV, rc);
-			}
-#else
-			UNUSED(ret);
+#elif defined(CONFIG_SDN_BT) && CONFIG_SDN_BT
+				sdn_bqb_h4_rx(rc);
 #endif
+			}
 		}
 
 		/* clear timeout interrupt flag */
-		if (reg_lsr & RUART_BIT_TIMEOUT_INT) {
-			LOGUART_INTClear(LOGUART_DEV, RUART_BIT_TOICF);
+		if (reg_lsr & LOGUART_BIT_TIMEOUT_INT) {
+			LOGUART_INTClear(LOGUART_DEV, LOGUART_BIT_TOICF);
 		}
 	}
 
-	if (reg_lsr & RUART_BIT_RXFIFO_ERR) {
-		LOGUART_INTConfig(LOGUART_DEV, RUART_BIT_ELSI, DISABLE);
-		LOGUART_INTClear(LOGUART_DEV, RUART_BIT_RLSICF);
+	if (reg_lsr & LOGUART_BIT_RXFIFO_ERR) {
+		LOGUART_INTConfig(LOGUART_DEV, LOGUART_BIT_ELSI, DISABLE);
+		LOGUART_INTClear(LOGUART_DEV, LOGUART_BIT_RLSICF);
 	}
-
+#endif
 	return 0;
 }
 
 void bt_uart_bridge_open(void)
 {
 #if ((defined(CONFIG_AMEBALITE) && (CONFIG_AMEBALITE == 1)) \
-	|| (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
+    || (defined(CONFIG_AMEBASMART) && (CONFIG_AMEBASMART == 1)))
 	/*backup the AGGC register value*/
 	temp_uart_aggc = LOGUART_DEV->LOGUART_UART_AGGC;
 	LOGUART_WaitTxComplete();
@@ -285,20 +312,27 @@ void bt_uart_bridge_open(void)
 	irq_register((IRQ_FUN)bt_uart_bridge_irq, UART_LOG_IRQ, (uint32_t)NULL, INT_PRI4);
 	irq_enable(UART_LOG_IRQ);
 
+#elif defined(CONFIG_AMEBAPRO3) && (CONFIG_AMEBAPRO3 == 1)
+	// todo
+	bt_uart_bridge_irq(NULL);
 #else /* not (CONFIG_AMEBALITE or CONFIG_AMEBASMART) */
-	u32 TempVal;
 
 	LOGUART_WaitTxComplete();
 
+#if (defined(CONFIG_SDN_BT) && CONFIG_SDN_BT)
+	LOGUART_AGGPathCmd(LOGUART_DEV, LOGUART_PATH_INDEX_2, DISABLE);
+#else
+	u32 TempVal;
 	TempVal = HAL_READ32(SYSTEM_CTRL_BASE, REG_LSYS_BT_CTRL0);
 	TempVal |= (LSYS_BIT_FORCE_LOGUART_USE_LOGUART_PAD_B | LSYS_BIT_WL_USE_REQ);
 	HAL_WRITE32(SYSTEM_CTRL_BASE, REG_LSYS_BT_CTRL0, TempVal);
-
-	/*set Baud*/
-	LOGUART_SetBaud(LOGUART_DEV, HCI_UART_BAUDRATE);
+#endif
 
 	/* Switch LOGUART interrupt from NP to AP */
 	LOGUART_INT_NP2AP();
+
+	/*set Baud*/
+	LOGUART_SetBaud(LOGUART_DEV, HCI_UART_BAUDRATE);
 
 	/* Register Log Uart Callback function */
 	irq_register((IRQ_FUN)bt_uart_bridge_irq, UART_LOG_IRQ, (uint32_t)NULL, INT_PRI4);
@@ -369,37 +403,43 @@ static int mp_ext2_gnt_bt(void **argv, int argc)
 	return 0;
 }
 
+#if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBAPRO3)
 static int mp_ext2_ant(void **argv, int argc)
 {
 	(void)argc;
 
 	if (strcmp(argv[0], "s0") == 0) {
 		MP_EXT2_PRINTF("BT use dedicated RF s0.\n\r");
+#if defined(CONFIG_BT_COEXIST)
 		rtk_coex_btc_set_bt_ant(0);
+#endif
 		rtk_bt_set_bt_antenna(0);
 	} else if (strcmp(argv[0], "s1") == 0) {
 		MP_EXT2_PRINTF("BT use share RF s1.\n\r");
+#if defined(CONFIG_BT_COEXIST)
 		rtk_coex_btc_set_bt_ant(1);
+#endif
 		rtk_bt_set_bt_antenna(1);
 	}
 
 	return 0;
 }
+#endif /* CONFIG_AMEBASMART */
 
 at_mp_ext_item_t at_mp_ext2_items[] = {
-	{"bridge",		mp_ext2_uart_bridge,		UART_BRIDGE_USAGE},
-	{"bt_power",	mp_ext2_bt_power,			BT_POWER_USAGE},
-	{"gnt_bt",		mp_ext2_gnt_bt,				GNT_BT_USAGE},
-	{"ant",			mp_ext2_ant,				SELECTION_BT_ANTENNA},
+	{"bridge",      mp_ext2_uart_bridge,        UART_BRIDGE_USAGE},
+	{"bt_power",    mp_ext2_bt_power,           BT_POWER_USAGE},
+	{"gnt_bt",      mp_ext2_gnt_bt,             GNT_BT_USAGE},
+#if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBAPRO3)
+	{"ant",         mp_ext2_ant,                SELECTION_BT_ANTENNA},
+#endif /* CONFIG_AMEBASMART */
 };
 
-void fATM2(void *arg)
+void fATM2(u16 argc, char **argv)
 {
-	int argc = 0, idx, cmd_cnt;
-	char *argv[MAX_ARGC] = {0};
-
+	int idx, cmd_cnt;
 	cmd_cnt = sizeof(at_mp_ext2_items) / sizeof(at_mp_ext2_items[0]);
-	argc = parse_param(arg, argv);
+
 	if (argc == 1) {
 		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "\n");
 		MP_EXT2_PRINTF("Command usage :\n");
@@ -419,20 +459,15 @@ void fATM2(void *arg)
 }
 
 //-------- AT MP commands ---------------------------------------------------------------
-log_item_t at_mp_items[] = {
-	{"M2", fATM2, {NULL, NULL}},	// MP ext2 AT command
+ATCMD_TABLE_DATA_SECTION
+const log_item_t at_mp_items[] = {
+	{"M2", fATM2},    // MP ext2 AT command
 };
 
 /* TODO: A part of AT command "AT+LIST". */
 void print_bt_mp_at(void)
 {
 }
-
-void at_mp_init(void)
-{
-	atcmd_service_add_table(at_mp_items, sizeof(at_mp_items) / sizeof(at_mp_items[0]));
-}
-
+#endif /* CONFIG_WHC_HOST || CONFIG_WHC_NONE */
 #endif /* #if CONFIG_ATCMD_MP */
 #endif /* #if CONFIG_BT */
-

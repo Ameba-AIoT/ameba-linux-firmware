@@ -11,85 +11,69 @@
 
 #include "usbh.h"
 
-// #define  CONFIG_USBH_COMPOSITE_HID_UAC 1
-
 /* Exported defines ----------------------------------------------------------*/
-#if defined(CONFIG_USBH_COMPOSITE_HID_UAC)
 
-#define USBH_COMPOSITE_HID_UAC_DEBUG              1
+#if defined(CONFIG_USBH_COMPOSITE_HID_UAC)
+#define USBH_COMPOSITE_HID_UAC_DEBUG             0
+
+#if USBH_COMPOSITE_HID_UAC_DEBUG && (USBH_TP_TRACE_DEBUG == 0)
+#error "Please set USBH_TP_TRACE_DEBUG in usbh.h"
+#endif
+
+#define USBH_COMPOSITE_HID_UAC_EVENT              BIT0
+#define USBH_COMPOSITE_HID_EVENT                  BIT1
+#define USBH_COMPOSITE_UAC_EVENT                  BIT2
+#elif defined(CONFIG_USBH_COMPOSITE_ACM_ECM)
+
+#define USB_4G_DONGLE_SUPPORT                     1
+
+#define USB_EF_DONGLE_VID        0x2C7C
+#define EF_DONGLE_PID_EG915      0x0901
+#define EF_DONGLE_PID_EG91       0x0191
+#define USB_DEFAULT_VID          USB_VID
 
 #else
 #error "No composite class configured"
 #endif
 
 /* Exported types ------------------------------------------------------------*/
+
+/** @addtogroup USB_Host_API USB Host API
+ *  @{
+ */
+/** @addtogroup USB_Host_Types USB Host Types
+ * @{
+ */
+/** @addtogroup Host_Composite_Types Host Composite Types
+ * @{
+ */
 typedef struct {
-	u8 bLength;
-	u8 bDescriptorType;
-} usb_descriptor_header_t;
-
-typedef enum {
-	USBH_COMPOSITE_IDLE = 0U,
-	USBH_COMPOSITE_DETACHED,
-	USBH_COMPOSITE_ATTACH,
-	USBH_COMPOSITE_SETUP,
-	USBH_COMPOSITE_MAX,
-} usbh_compsoite_state_t;
-
-typedef struct {
-	u8 *buf;
-	__IO u16 buf_len;     /* buf valid len */
-} usb_ringbuf_t;
-
-typedef struct {
-	usb_ringbuf_t *list_node;
-	u8 *buf;
-
-	__IO u16 head;  //read idx
-	__IO u16 tail;  //write idx
-
-	__IO u16 written;  //part write data length
-
-	u16 item_cnt;
-	u16 item_size;
-} usb_ringbuf_manager_t;
-
-typedef struct {
+	/**
+	 * @brief Called when USB attach status changes for application to support hot-plug events.
+	 * @param[in] old_status: The previous attach status.
+	 * @param[in] status: The new attach status.
+	 */
 	void (*status_changed)(u8 old_status, u8 status);
-	int (* set_config)(void);
 } usbh_composite_cb_t;
 
 typedef struct {
 #if defined(CONFIG_USBH_COMPOSITE_HID_UAC)
-	usbh_class_driver_t *hid;
-	usbh_class_driver_t *uac;
+	usbh_class_driver_t *hid;    /**< HID class. */
+	usbh_class_driver_t *uac;    /**< UAC class. */
+#elif defined(CONFIG_USBH_COMPOSITE_ACM_ECM)
+	usbh_class_driver_t *acm;    /**< CDC ACM class. */
+	usbh_class_driver_t *ecm;    /**< CDC ECM class. */
 #endif
-
-	usbh_composite_cb_t *cb;
-	usb_host_t *host;
-	__IO usbh_compsoite_state_t state;
+	usbh_composite_cb_t *cb;      /**< Pointer to the user-defined callback structure. */
+	usb_host_t *host;             /**< Pointer to the host structure. */
 } usbh_composite_host_t;
-
+/** @} End of Host_Composite_Types group*/
+/** @} End of USB_Host_Types group*/
+/** @} End of USB_Host_API group */
 /* Exported macros -----------------------------------------------------------*/
 
 /* Exported variables --------------------------------------------------------*/
 
 /* Exported functions --------------------------------------------------------*/
-u32 usb_ringbuf_get_count(usb_ringbuf_manager_t *handle);
-int usb_ringbuf_is_empty(usb_ringbuf_manager_t *handle);
-int usb_ringbuf_is_full(usb_ringbuf_manager_t *handle);
-
-int usb_ringbuf_add_tail(usb_ringbuf_manager_t *handle, u8 *buf, u32 size);
-u32 usb_ringbuf_remove_head(usb_ringbuf_manager_t *handle, u8 *buf, u32 size);
-
-usb_ringbuf_t *usb_ringbuf_get_head(usb_ringbuf_manager_t *handle);
-int usb_ringbuf_release_head(usb_ringbuf_manager_t *handle);
-
-int usb_ringbuf_write_partial(usb_ringbuf_manager_t *handle, u8 *data, u32 len);
-int usb_ringbuf_finish_write(usb_ringbuf_manager_t *handle);
-
-int usb_ringbuf_manager_init(usb_ringbuf_manager_t *handle, u16 cnt, u16 size, u8 cache_align);
-int usb_ringbuf_manager_deinit(usb_ringbuf_manager_t *handle);
 
 #endif // USBH_COMPOSITE_CONFIG_H
-

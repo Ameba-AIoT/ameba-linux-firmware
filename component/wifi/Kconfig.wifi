@@ -1,13 +1,13 @@
-if FULLMAC_DEV
-    menu "CONFIG WIFI MODE"
-        config NAN
-            bool "Enable NAN"
-            default n
-        config WIFI_P2P_ENABLE
-            bool "Enable P2P"
-            default n
-    endmenu
+menu "CONFIG WIFI MODE"
+if WHC_DEV_MENU
+    config NAN
+        bool "Enable NAN"
+        default n
 endif
+    config WIFI_P2P_ENABLE
+        bool "Enable P2P"
+        default n
+endmenu
 
 if WHC_INTF_IPC_MENU || WIFI_SINGLE_CORE_MENU
     config WIFI_WPS_ENABLE_MENU
@@ -51,8 +51,36 @@ config HIGH_TP_TEST
     bool "Enable HIGH TP"
     default n
 
+config RMESH_EN
+    bool "Enable R-mesh"
+    default n
+
+if RMESH_EN
+    config RNAT_EN
+        bool "Enable R-NAT"
+        default n
+
+    config RMESH_SOCKET_EN
+        bool "Enable R-mesh Socket"
+        default n
+
+if RMESH_SOCKET_EN
+    config RMESH_OTA_EN
+        bool "Enable R-mesh OTA"
+        default n
+endif
+
+endif
+
 if LINUX_FW_EN
+    config NAN
+        bool "Enable NAN"
+        default n
     config WIFI_P2P_ENABLE
         bool "Enable P2P"
         default n
 endif
+
+config WLAN_CRITICAL_CODE_IN_RAM
+    bool "Enable Critical code in RAM"
+    default y

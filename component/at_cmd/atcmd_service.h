@@ -14,23 +14,21 @@
 #include "dlist.h"
 #include "ameba_soc.h"
 #include "os_wrapper.h"
+#include <stdlib.h>
 
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 #include "ringbuffer.h"
 #endif
-
-#define ATC_INDEX_NUM 32
 
 #ifndef MAX_ARGC
 #define MAX_ARGC 23
 #endif
 
 typedef void (*log_init_t)(void);
-typedef void (*log_act_t)(void *);
+typedef void (*log_act_t)(u16 argc, char **argv);
 typedef struct _at_command_item_ {
 	const char *log_cmd;
 	log_act_t at_act;
-	struct list_head node;
 } log_item_t;
 
 void atcmd_service_add_table(log_item_t *tbl, int len);
@@ -60,8 +58,9 @@ void at_printf_unlock(void);
 #define ATCMD_DOWNSTREAM_TEST_END_STR "Downstream Test End\r\n"
 #define SMALL_BUF               512
 #define MAX_BUF_LEN             20000
+#define CMD_BLOCK_SIZE 127
 
-#ifdef CONFIG_ATCMD_HOST_CONTROL
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 extern char g_host_control_mode;
 extern char g_tt_mode;
 extern char g_tt_mode_check_watermark;
@@ -100,13 +99,14 @@ enum {
 	AT_HOST_CONTROL_UART = 1,
 	AT_HOST_CONTROL_SPI,
 	AT_HOST_CONTROL_SDIO,
+	AT_HOST_CONTROL_USB,
 };
 
 int atcmd_get_ssl_certificate(char *buffer, CERT_TYPE cert_type, int index);
 int atcmd_get_ssl_certificate_size(CERT_TYPE cert_type, int index);
 
 /* TODO */
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 typedef void (*at_write)(char *buf, int len);
 extern uint16_t atcmd_switch;
 extern char global_buf[SMALL_BUF];
@@ -121,7 +121,7 @@ int at_printf_indicate(const char *fmt, ...);
 #endif
 
 #ifdef CONFIG_MP_INCLUDED
-#ifdef CONFIG_AS_INIC_AP
+#ifdef CONFIG_WHC_HOST
 extern void whc_ipc_host_api_mp_command(char *token, unsigned int cmd_len, int show_msg);
 #else
 extern int wext_private_command(char *cmd, int show_msg, char *user_buf);
@@ -130,5 +130,7 @@ extern int wext_private_command(char *cmd, int show_msg, char *user_buf);
 #if defined(CONFIG_BT) && CONFIG_BT
 extern void at_bt_init(void);
 #endif
-
+#if defined(CONFIG_SDN) && CONFIG_SDN
+extern void at_sdn_init(void);
+#endif
 #endif /* ATCMD_SERVICE_H */

@@ -1,13 +1,13 @@
 /*
-* Copyright (c) 2024 Realtek Semiconductor Corp.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "ameba_soc.h"
 
 /*wakeup attribute can be set to WAKEUP_NULL/WAKEUP_LP/WAKEUP_NP/WAKEUP_AP*/
-WakeEvent_TypeDef sleep_wevent_config[] = {
+struct WakeEvent_TypeDef sleep_wevent_config[] = {
 //  Module									wakeup
 	{WAKE_SRC_nFIQOUT1_OR_nIRQOUT1,			WAKEUP_NULL},
 	{WAKE_SRC_nFIQOUT0_OR_nIRQOUT0,			WAKEUP_NULL},
@@ -54,28 +54,10 @@ WakeEvent_TypeDef sleep_wevent_config[] = {
 	{0xFFFFFFFF,							WAKEUP_NULL},	/* Table end */
 };
 
-/* can be used by sleep mode & deep sleep mode */
-/* config can be set to DISABLE_WAKEPIN/HIGH_LEVEL_WAKEUP/LOW_LEVEL_WAKEUP */
-WAKEPIN_TypeDef sleep_wakepin_config[] = {
-//  wakepin			config
-	{WAKEPIN_0,		DISABLE_WAKEPIN},	/* WAKEPIN_0 corresponding to _PB_21 */
-	{WAKEPIN_1,		DISABLE_WAKEPIN},	/* WAKEPIN_1 corresponding to _PB_22  */
-	{WAKEPIN_2,		DISABLE_WAKEPIN},	/* WAKEPIN_2 corresponding to _PB_23  */
-	{WAKEPIN_3,		DISABLE_WAKEPIN},	/* WAKEPIN_3 corresponding to _PB_24  */
-
-	{0xFFFFFFFF,	DISABLE_WAKEPIN},	/* Table end */
-};
-
-PSCFG_TypeDef ps_config = {
-	.km0_tickles_debug = TRUE,/* if open WIFI FW, should close it, or beacon will lost in WOWLAN */
-	.km0_pg_enable = FALSE,
-	.km0_pll_off = TRUE,
+struct PSCFG_TypeDef ps_config = {
 	.km0_audio_vad_on = FALSE,
-	.km0_config_psram = TRUE, /* if device enter sleep mode or not, false for keep active */
-	.km0_sleep_withM4 = TRUE,
-	.keep_OSC4M_on = FALSE,
-	.xtal_mode_in_sleep = XTAL_OFF,
-	.swr_mode_in_sleep = SWR_PFM,
+	.keep_osc4m_on = FALSE,		   /* keep OSC4M off or on during sleep */
+	.xtal_mode_in_sleep = XTAL_OFF,/* set xtal mode during sleep mode */
 };
 
 UARTCFG_TypeDef uart_config[4] = {

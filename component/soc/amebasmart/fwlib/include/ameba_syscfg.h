@@ -7,6 +7,10 @@
 #ifndef _AMEBA_SYSCFG_H_
 #define _AMEBA_SYSCFG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @addtogroup AmebaD_Platform
   * @{
   */
@@ -150,8 +154,8 @@ _LONG_CALL_ u32 SYSCFG_OTP_HUKDerivEn(void);
 _LONG_CALL_ u32 SYSCFG_OTP_RomPatchEn(void);
 _LONG_CALL_ u32 SYSCFG_OTP_GetUsbPhyCalData(void);
 _LONG_CALL_ u32 SYSCFG_OTP_GetUsbPhyCalData2(void);
-_LONG_CALL_ u32 SYSCFG_OTP_UsbDownloadEnable(void);
-_LONG_CALL_ u32 SYSCFG_BootFromNor(void);
+_LONG_CALL_ u32 SYSCFG_OTP_UsbDownloadEn(void);
+_LONG_CALL_ u32 SYSCFG_OTP_BootFromNor(void);
 _LONG_CALL_ u32 SYSCFG_OTP_BootSelect(void);
 _LONG_CALL_ u32 SYSCFG_HWTrigDownload(void);
 _LONG_CALL_ u32 SYSCFG_SWTrigDownload(void);
@@ -182,5 +186,9 @@ _LONG_CALL_ u32 SYSCFG_SWTrigDownload(void);
 #define RSIP_XTS_MODE                                             0
 #define RSIP_CTR_MODE                                             1
 #define RSIP_GCM_MODE                                            2
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_AMEBA_SYSCFG_H_

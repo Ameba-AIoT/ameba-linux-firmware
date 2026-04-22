@@ -1202,6 +1202,7 @@ static struct wpabuf *eap_sm_buildNak(struct eap_sm *sm, int id)
 	struct wpabuf *resp;
 #ifndef CONFIG_NO_STDOUT_DEBUG
 	u8 *start;
+	(void) start;
 #endif
 	int found = 0, expanded_found = 0;
 	size_t count;
@@ -1250,10 +1251,10 @@ static struct wpabuf *eap_sm_buildNak(struct eap_sm *sm, int id)
 	if (!found) {
 		wpabuf_put_u8(resp, EAP_TYPE_NONE);
 	}
-#ifndef CONFIG_NO_STDOUT_DEBUG
-	wpa_hexdump_key(MSG_DEBUG, "EAP: allowed methods", start, found);
-#endif
 
+#ifndef CONFIG_NO_STDOUT_DEBUG
+	wpa_hexdump(MSG_DEBUG, "EAP: allowed methods", start, found);
+#endif
 	eap_update_len(resp);
 
 	return resp;

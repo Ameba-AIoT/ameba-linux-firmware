@@ -12,10 +12,12 @@ menu "CONFIG OS"
             config PLATFORM_FREERTOS_ROM  #amebagreen2
                 bool "FREERTOS_ROM"
                 depends on AMEBAGREEN2
+            config PLATFORM_ZEPHYR
+                bool "ZEPHYR OS"
         endchoice
     endif
 
-    if AMEBASMART
+    if SUPPORT_SMP
         choice
             prompt "CA32 SMP FreeRTOS OS version select"
             default CA32_FREERTOS_V10_2_1_SMP_FOR_CA32
@@ -26,14 +28,16 @@ menu "CONFIG OS"
         endchoice
     endif
 
-    if AMEBADPLUS || AMEBALITE || AMEBAD || AMEBASMART
-        config BACK_TRACE_DEPTH_LIMIT
-            int "Crash Back Trace Depth Limit"
-            default 8
-            range 4 16
-            help
-                This defines the maximum depth of back trace. The value must be at least 4.
+    # the back trace setting is only valid for KM4 / KR4 core
+    config BACK_TRACE_DEPTH_LIMIT
+        int "Crash Back Trace Depth Limit"
+        default 8
+        range 4 16
+        help
+            This defines the maximum depth of back trace. The value must be at least 4.
 
+    # freertos v11 not support heap protect currently. Other versions all supprot.
+    if !CA32_FREERTOS_V11_1_0_FOR_CA32 && !PLATFORM_ZEPHYR
         config HEAP_PROTECTOR
             bool "Enable Heap Protector"
             default n
@@ -54,7 +58,7 @@ menu "CONFIG OS"
             help
                 Checks for uninitialized-access and use-after-free bugs. Huge impact on runtime performance, only enable this mode when debugging.
 
-        if AMEBADPLUS || AMEBALITE || AMEBAD
+        if SUPPORT_HEAP_TRACE
             config HEAP_INTEGRITY_CHECK_IN_TASK_SWITCHED_OUT
                 bool "Check Heap Integrity in Task Switched Out Hook (Increase CPU load)"
                 default n
@@ -64,7 +68,8 @@ menu "CONFIG OS"
                     Huge impact on runtime performance, only enable this mode when debugging. Especially when HEAP_CORRUPTION_DETECT_COMPREHENSIVE enabled.
                     1. if HEAP_PROTECTOR enabled: head protector, check block header.
                     2. if HEAP_CORRUPTION_DETECT_LITE enabled: boundary protector, check block header, head/tail canary.
-                    3. if HEAP_CORRUPTION_DETECT_COMPREHENSIVE enabled: content Portector, check block header, head/tail canary, additionally check if free/malloc space conforms to pattern.
+                    3. HEAP_CORRUPTION-DELECTCOMPREHENSIVE does not perform heap content checks regardless of whether it is enabled or not.
+                        This check is too time-consuming and executing it in the hook will affect the normal scheduling of the system.
 
             config HEAP_TRACE
                 bool "Enable Heap Trace"
@@ -100,6 +105,7 @@ menu "CONFIG OS"
         endif
     endif
     config STANDARD_TICKLESS
+        depends on !AMEBASMART && !AMEBALITE && !AMEBAPRO3 && !AMEBAD
         bool "Enable FreeRTOS Standard Tickless Flow"
         default n
         help

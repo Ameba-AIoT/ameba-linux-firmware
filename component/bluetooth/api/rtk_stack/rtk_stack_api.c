@@ -61,8 +61,6 @@ static void *api_task_sem = NULL;
 static void *api_task_hdl = NULL;
 static void *api_task_io_msg_q = NULL;
 static void *api_task_evt_msg_q = NULL;
-static bool api_task_running = false;
-static uint32_t api_task_msg_num = 0;
 static struct list_head g_cmd_pending_list;
 
 static uint16_t bt_stack_act_handler(rtk_bt_cmd_t *p_cmd);
@@ -92,7 +90,8 @@ static void bt_stack_api_taskentry(void *ctx)
 							break;
 
 						case IO_MSG_TYPE_BT_STATUS:
-							bt_stack_le_gap_handle_io_msg(io_msg.subtype, (void *)&io_msg.u.param);
+							/* When le_gap_msg_info_way(false) is called, gap io msg will be excuted in gap callback instead of here. */
+							// bt_stack_le_gap_handle_io_msg(io_msg.subtype, (void *)&io_msg.u.param);
 							break;
 #if defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT
 						case IO_MSG_TYPE_LE_AUDIO:
@@ -246,6 +245,7 @@ static uint16_t bt_stack_init(void *app_config)
 		default_conf.irk_auto_gen = papp_conf->irk_auto_gen;
 		memcpy(default_conf.irk, papp_conf->irk, RTK_BT_LE_GAP_IRK_LEN);
 #endif
+		default_conf.min_enc_key_size = papp_conf->min_enc_key_size;
 	} else {
 		default_conf.mtu_size = 180;
 		default_conf.master_init_mtu_req = true;
@@ -265,6 +265,7 @@ static uint16_t bt_stack_init(void *app_config)
 		default_conf.irk_auto_gen = true;
 		memset(default_conf.irk, 0, RTK_BT_LE_GAP_IRK_LEN);
 #endif
+		default_conf.min_enc_key_size = 0;
 	}
 
 	//Trace uart init
@@ -371,7 +372,6 @@ failed:
 
 	return RTK_BT_FAIL;
 }
-
 
 static uint16_t bt_stack_deinit(void)
 {
@@ -669,7 +669,6 @@ static uint16_t bt_stack_api_init(void)
 		goto failed;
 	}
 
-	api_task_running = true;
 	return 0;
 
 failed:
@@ -687,16 +686,6 @@ failed:
 	}
 
 	return RTK_BT_FAIL;
-}
-
-static void bt_stack_api_stop(void)
-{
-	api_task_running = false;
-
-	/* Waiting bt_stack_msg_send() on other tasks interrupted by deinit task to complete */
-	while (api_task_msg_num) {
-		osif_delay(5);
-	}
 }
 
 static uint16_t bt_stack_api_deinit(void)
@@ -724,6 +713,7 @@ static uint16_t bt_stack_api_deinit(void)
 	api_task_io_msg_q = NULL;
 	api_task_evt_msg_q = NULL;
 
+	/* bt_stack_pending_cmd_deinit will give the sem in pending list, sem pool deinit shall be later than it. */
 	bt_stack_pending_cmd_deinit();
 
 	return 0;
@@ -1144,8 +1134,6 @@ uint16_t bt_stack_disable(void)
 {
 	uint16_t ret = 0;
 
-	bt_stack_api_stop();
-
 	ret = bt_stack_deinit();
 	if (ret) {
 		return ret;
@@ -1174,37 +1162,20 @@ uint16_t bt_stack_disable(void)
 
 uint16_t bt_stack_msg_send(uint16_t type, uint16_t subtype, void *msg)
 {
-	uint16_t ret = RTK_BT_OK;
 	uint8_t event = EVENT_IO_TO_APP;
 	T_IO_MSG io_msg;
-	uint32_t flags = 0;
-
-	flags = osif_lock();
-	api_task_msg_num++;
-	osif_unlock(flags);
-
-	if (!api_task_running) {
-		ret = RTK_BT_ERR_NOT_READY;
-		goto end;
-	}
 
 	io_msg.type = type;
 	io_msg.subtype = subtype;
 	io_msg.u.buf = msg;
 
-	ret = RTK_BT_ERR_OS_OPERATION;
 	if (osif_msg_send(api_task_io_msg_q, &io_msg, 0)) {
 		if (osif_msg_send(api_task_evt_msg_q, &event, 0)) {
-			ret = RTK_BT_OK;
+			return RTK_BT_OK;
 		}
 	}
 
-end:
-	flags = osif_lock();
-	api_task_msg_num--;
-	osif_unlock(flags);
-
-	return ret;
+	return RTK_BT_ERR_OS_OPERATION;
 }
 
 uint16_t bt_stack_api_send(void *pcmd)
@@ -1248,6 +1219,7 @@ void bt_stack_pending_cmd_deinit(void)
 	BT_LOGD("delete cmd pending list\r\n");
 
 	list_for_each_entry_safe(cmd, next, &g_cmd_pending_list, list, rtk_bt_cmd_t) {
+		cmd->ret = RTK_BT_ERR_UNHANDLED;
 		osif_sem_give(cmd->psem);
 		list_del(&cmd->list);
 	}

@@ -16,6 +16,7 @@
 #define BIT_PER_SAMPLE_ENCODE 16
 
 // static int byte_count_max_dec = 800;
+const int16_t SPECIFIC_VALUE[155] = {0};
 
 typedef struct {
 	lc3_encoder_t enc[2];
@@ -198,7 +199,6 @@ uint16_t lc3_codec_deinit(void *p_entity)
 	return RTK_BT_AUDIO_OK;
 }
 
-TIMESENSITIVE_TEXT_SECTION
 uint16_t lc3_decoder_process_data(void *p_entity, uint8_t *data, uint32_t size, struct dec_codec_buffer *decode_buffer, uint32_t *ppcm_size,
 								  struct audio_param *paudio_param)
 {
@@ -238,10 +238,14 @@ uint16_t lc3_decoder_process_data(void *p_entity, uint8_t *data, uint32_t size, 
 					   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
 		}
 	} else {
-		for (uint32_t ich = 0; ich < entity->lc3.channels; ich ++) {
-			lc3_decode(p_codec_t->dec[ich],
-					   data + ich * frame_bytes, frame_bytes,
-					   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
+		if (memcmp(data, SPECIFIC_VALUE, frame_bytes) == 0) {
+			memset(pout, 0, entity->lc3.channels * frame_samples * pcm_sbytes);
+		} else {
+			for (uint32_t ich = 0; ich < entity->lc3.channels; ich ++) {
+				lc3_decode(p_codec_t->dec[ich],
+						   data + ich * frame_bytes, frame_bytes,
+						   pcm_fmt, (void *)((uint8_t *)pout + ich * pcm_sbytes), entity->lc3.channels);
+			}
 		}
 	}
 	decode_buffer->pbuffer = pout;
@@ -252,7 +256,7 @@ uint16_t lc3_decoder_process_data(void *p_entity, uint8_t *data, uint32_t size, 
 	return RTK_BT_AUDIO_OK;
 }
 
-TIMESENSITIVE_TEXT_SECTION
+
 uint16_t lc3_encoder_process_data(void *p_entity, int16_t *data, uint32_t size, struct enc_codec_buffer *pencoder_buffer, uint8_t *p_frame_num,
 								  uint32_t *p_actual_len)
 {

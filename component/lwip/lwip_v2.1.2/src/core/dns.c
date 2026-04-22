@@ -304,8 +304,10 @@ static u8_t                   dns_last_pcb_idx;
 static u8_t                   dns_seqno;
 static struct dns_table_entry dns_table[DNS_TABLE_SIZE];
 static struct dns_req_entry   dns_requests[DNS_MAX_REQUESTS];
+/* Added by Realtek start */
 #if LWIP_IPV4 && LWIP_IPV6
 static ip_addr_t              dns_servers[DNS_IPV4_IPV6_MAX_SERVERS];
+/* Added by Realtek end */
 #else
 static ip_addr_t              dns_servers[DNS_MAX_SERVERS];
 #endif
@@ -370,8 +372,10 @@ dns_init(void)
 void
 dns_setserver(u8_t numdns, const ip_addr_t *dnsserver)
 {
+/* Added by Realtek start */
 #if LWIP_IPV4 && LWIP_IPV6
   if (numdns < DNS_IPV4_IPV6_MAX_SERVERS) {
+/* Added by Realtek end */
 #else
   if (numdns < DNS_MAX_SERVERS) {
 #endif
@@ -1651,11 +1655,15 @@ void comp_dns_ttl(u32_t ms)
 {
   u8_t i;
   struct dns_table_entry *entry = NULL;
+  if (ms < DNS_TMR_INTERVAL / 2) {
+    return;
+  }
+  u32_t comp_ms = ms < DNS_TMR_INTERVAL ? DNS_TMR_INTERVAL : ms;
   
   for (i = 0; i < DNS_TABLE_SIZE; ++i) {
     entry = &dns_table[i];
     if (entry->state == DNS_STATE_DONE) {
-      entry->ttl = entry->ttl > ms / DNS_TMR_INTERVAL ? entry->ttl - ms / DNS_TMR_INTERVAL : 0;
+      entry->ttl = entry->ttl > comp_ms / DNS_TMR_INTERVAL ? entry->ttl - comp_ms / DNS_TMR_INTERVAL : 0;
     }
   }
 }
@@ -1682,7 +1690,7 @@ u8_t check_dns_tmr_removable(void)
         break;
       } else {
         max_sleep_time = (entry->ttl - 1) * DNS_TMR_INTERVAL;
-        if (sleep_param.sleep_time > max_sleep_time || sleep_param.sleep_time  == 0) {
+        if (sleep_param.sleep_time > max_sleep_time) {
           sleep_param.sleep_time = max_sleep_time;
         }
       }

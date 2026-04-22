@@ -729,6 +729,10 @@ typedef struct {
 /* AUTO_GEN_END */
 
 /* MANUAL_GEN_START */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /* Exported types ------------------------------------------------------------*/
 /** @defgroup FLASH_Exported_Types FLASH Exported Types
@@ -1022,8 +1026,6 @@ void FLASH_Write_IPC_Int(void *Data, u32 IrqStatus, u32 ChanNum);
 extern FLASH_InitTypeDef flash_init_para;
 extern u32 SPIC_CALIB_PATTERN[2];
 
-typedef void (*FLASH_STRUCT_INIT_FUNC)(FLASH_InitTypeDef *FLASH_InitStruct);
-
 #define PAGE_SIZE_4K	0x1000
 #define PAGE_SIZE_2K	0x800
 
@@ -1062,6 +1064,10 @@ typedef struct {
 	u32 start_addr;
 	u32 end_addr;
 } FlashLayoutInfo_TypeDef;
+
+#ifdef __cplusplus
+}
+#endif
 
 /* MANUAL_GEN_END */
 

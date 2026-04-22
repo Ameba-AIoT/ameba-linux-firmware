@@ -31,6 +31,7 @@ extern "C"
 #define RTK_BT_HC_CLOCK_OFFSET_SUPPORT      1
 #define RTK_BT_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT 0
 #define RTK_BLE_SET_TX_QUEUE_NUM            0
+#define RTK_BLE_GET_SLAVE_CONN_CLOCK_SUPPORT       0
 
 #if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
 #define RTK_BLE_GATTS_SUPPORT               1
@@ -83,7 +84,6 @@ extern "C"
 #endif
 #define RTK_BT_POWER_CONTROL_SUPPORT        1
 #define RTK_BT_HC_CLOCK_OFFSET_SUPPORT      1
-#define RTK_BT_GET_LE_ISO_SYNC_REF_AP_INFO_SUPPORT 0
 
 #if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
 #define RTK_BLE_GATTS_SUPPORT               1
@@ -185,6 +185,103 @@ extern "C"
 #endif /* RTK_BLE_5_0_SUPPORT */
 
 /*
+ * AmebaL2
+ */
+#elif defined(CONFIG_AMEBAL2) && CONFIG_AMEBAL2
+#define RTK_BLE_GAP_MAX_LINKS               4
+#define RTK_BLE_SUPPORT                     1
+#define RTK_BT_POWER_CONTROL_SUPPORT        1
+
+#if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
+#define RTK_BLE_GATTS_SUPPORT               1
+#define RTK_BLE_GATTC_SUPPORT               1
+#define RTK_BLE_4_0_SUPPORT                 1
+#define RTK_BLE_4_2_SUPPORT                 1
+#define RTK_BLE_5_0_SUPPORT                 1
+#define RTK_BLE_5_1_SUPPORT                 0
+#define RTK_BLE_5_2_SUPPORT                 0
+#define RTK_BLE_SMP_OOB_SUPPORT             1
+#define RTK_BLE_COC_SUPPORT                 0
+#endif /* RTK_BLE_SUPPORT */
+
+#if defined(RTK_BLE_4_2_SUPPORT) && RTK_BLE_4_2_SUPPORT
+#if defined(CONFIG_SDN) && CONFIG_SDN
+#define RTK_BLE_PRIVACY_SUPPORT             0
+#else
+#define RTK_BLE_PRIVACY_SUPPORT             1
+#endif
+#define RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT    1
+#endif /* RTK_BLE_4_2_SUPPORT */
+
+#if defined(RTK_BLE_5_0_SUPPORT) && RTK_BLE_5_0_SUPPORT
+#define RTK_BLE_5_0_SET_PHYS_SUPPORT        1
+#define RTK_BLE_5_0_AE_ADV_SUPPORT          0
+#define RTK_BLE_5_0_AE_SCAN_SUPPORT         0
+#endif /* RTK_BLE_5_0_SUPPORT */
+
+/*
+ * Ameba 8720F
+ */
+#elif defined(CONFIG_RTL8720F) && CONFIG_RTL8720F
+#define RTK_BLE_GAP_MAX_LINKS               4
+#define RTK_BLE_SUPPORT                     1
+#define RTK_BT_POWER_CONTROL_SUPPORT        0
+
+#if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
+#define RTK_BLE_GATTS_SUPPORT               1
+#define RTK_BLE_GATTC_SUPPORT               1
+#define RTK_BLE_4_0_SUPPORT                 1
+#define RTK_BLE_4_2_SUPPORT                 1
+#define RTK_BLE_5_0_SUPPORT                 1
+#define RTK_BLE_5_1_SUPPORT                 0
+#define RTK_BLE_5_2_SUPPORT                 0
+#define RTK_BLE_SMP_OOB_SUPPORT             1
+#define RTK_BLE_COC_SUPPORT                 0
+#endif /* RTK_BLE_SUPPORT */
+
+#if defined(RTK_BLE_4_2_SUPPORT) && RTK_BLE_4_2_SUPPORT
+#define RTK_BLE_PRIVACY_SUPPORT             0
+#define RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT    1
+#endif /* RTK_BLE_4_2_SUPPORT */
+
+#if defined(RTK_BLE_5_0_SUPPORT) && RTK_BLE_5_0_SUPPORT
+#define RTK_BLE_5_0_SET_PHYS_SUPPORT        1
+#define RTK_BLE_5_0_AE_ADV_SUPPORT          0
+#define RTK_BLE_5_0_AE_SCAN_SUPPORT         0
+#endif /* RTK_BLE_5_0_SUPPORT */
+
+/*
+ * AmebaPro3
+ */
+#elif defined(CONFIG_AMEBAPRO3) && CONFIG_AMEBAPRO3
+#define RTK_BLE_GAP_MAX_LINKS               4
+#define RTK_BLE_SUPPORT                     1
+#define RTK_BT_POWER_CONTROL_SUPPORT        1
+
+#if defined(RTK_BLE_SUPPORT) && RTK_BLE_SUPPORT
+#define RTK_BLE_GATTS_SUPPORT               1
+#define RTK_BLE_GATTC_SUPPORT               1
+#define RTK_BLE_4_0_SUPPORT                 1
+#define RTK_BLE_4_2_SUPPORT                 1
+#define RTK_BLE_5_0_SUPPORT                 1
+#define RTK_BLE_5_1_SUPPORT                 0
+#define RTK_BLE_5_2_SUPPORT                 0
+#define RTK_BLE_SMP_OOB_SUPPORT             1
+#define RTK_BLE_COC_SUPPORT                 0
+#endif /* RTK_BLE_SUPPORT */
+
+#if defined(RTK_BLE_4_2_SUPPORT) && RTK_BLE_4_2_SUPPORT
+#define RTK_BLE_PRIVACY_SUPPORT             1
+#define RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT    1
+#endif /* RTK_BLE_4_2_SUPPORT */
+
+#if defined(RTK_BLE_5_0_SUPPORT) && RTK_BLE_5_0_SUPPORT
+#define RTK_BLE_5_0_SET_PHYS_SUPPORT        1
+#define RTK_BLE_5_0_AE_ADV_SUPPORT          0
+#define RTK_BLE_5_0_AE_SCAN_SUPPORT         0
+#endif /* RTK_BLE_5_0_SUPPORT */
+
+/*
  * Error Platform
  */
 #else
@@ -219,10 +316,10 @@ extern "C"
 #endif
 
 #if defined(RTK_BLE_5_2_SUPPORT) && RTK_BLE_5_2_SUPPORT
-#if defined(CONFIG_BT_ISO_TEST) && CONFIG_BT_ISO_TEST
+#if defined(CONFIG_BT_ISO_SUPPORT) && CONFIG_BT_ISO_SUPPORT
 #define RTK_BLE_ISO_SUPPORT                 1
 #endif
-#if defined(CONFIG_BT_LE_AUDIO) && CONFIG_BT_LE_AUDIO
+#if defined(CONFIG_BT_LE_AUDIO_SUPPORT) && CONFIG_BT_LE_AUDIO_SUPPORT
 #define RTK_BLE_AUDIO_SUPPORT               1
 #if defined(CONFIG_BT_TMAP_SUPPORT) && CONFIG_BT_TMAP_SUPPORT
 #define RTK_BLE_AUDIO_TMAP_SUPPORT          1
@@ -271,7 +368,7 @@ extern "C"
 #define RTK_BLE_AUDIO_MCP_MEDIA_CONTROL_SERVER_SUPPORT 0    //can set 1 when CAP Initiator role
 #define RTK_BLE_AUDIO_MCP_MEDIA_CONTROL_CLIENT_SUPPORT 0    //can set 1 when CAP Acceptor or Commander role
 #define RTK_BLE_AUDIO_CSIP_SET_COORDINATOR_SUPPORT     0    //can set 1 when CAP Initiator or Commander role
-#define RTK_BLE_AUDIO_CSIP_SET_MEMBER_SUPPORT          0    //can set 1 when CAP Acceptor role 
+#define RTK_BLE_AUDIO_CSIP_SET_MEMBER_SUPPORT          0    //can set 1 when CAP Acceptor role
 #endif
 
 #if (!defined(CONFIG_BT_ZEPHYR) || !CONFIG_BT_ZEPHYR) && (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT)
@@ -281,13 +378,13 @@ extern "C"
 #define RTK_BLE_MGR_LIB             0
 #endif
 
-#if (defined(CONFIG_BT_ISO_TEST) && CONFIG_BT_ISO_TEST) && (defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT) && \
+#if (defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT) && \
     ((!defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT) || (!defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) || !RTK_BLE_5_0_AE_SCAN_SUPPORT) || \
      (!defined(RTK_BLE_5_0_PA_ADV_SUPPORT) || !RTK_BLE_5_0_PA_ADV_SUPPORT) || (!defined(RTK_BLE_5_0_PA_SYNC_SUPPORT) || !RTK_BLE_5_0_PA_SYNC_SUPPORT))
 #error "Please enable AE, AE Scan, PA, PA Sync for correct platform when enable ISO DEMO"
 #endif
 
-#if (defined(CONFIG_BT_LE_AUDIO) && CONFIG_BT_LE_AUDIO) && (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT) && \
+#if (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT) && \
     ((!defined(RTK_BLE_5_0_AE_ADV_SUPPORT) || !RTK_BLE_5_0_AE_ADV_SUPPORT) || (!defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) || !RTK_BLE_5_0_AE_SCAN_SUPPORT))
 #error "Please enable AE, AE Scan for correct platform when enable LE AUDIO"
 #endif
@@ -307,15 +404,6 @@ extern "C"
 #else
 #define RTK_BLE_MESH_DEVICE_SUPPORT         0
 #endif
-#if (defined(RTK_BLE_MESH_SUPPORT) && RTK_BLE_MESH_SUPPORT) && (defined(CONFIG_BT_MESH_BASED_ON_CODED_PHY) && CONFIG_BT_MESH_BASED_ON_CODED_PHY)
-#define RTK_BLE_MESH_BASED_ON_CODED_PHY     1
-#undef RTK_BLE_5_0_AE_ADV_SUPPORT
-#define RTK_BLE_5_0_AE_ADV_SUPPORT          1
-#undef RTK_BLE_5_0_AE_SCAN_SUPPORT
-#define RTK_BLE_5_0_AE_SCAN_SUPPORT         1
-#else
-#define RTK_BLE_MESH_BASED_ON_CODED_PHY     0
-#endif
 #if (defined(RTK_BLE_MESH_PROVISIONER_SUPPORT) && RTK_BLE_MESH_PROVISIONER_SUPPORT) && (defined(RTK_BLE_MESH_DEVICE_SUPPORT) && RTK_BLE_MESH_DEVICE_SUPPORT)
 #error "Can not enable RTK_BLE_MESH_PROVISIONER_SUPPORT and RTK_BLE_MESH_DEVICE_SUPPORT at same time"
 #endif
@@ -323,6 +411,30 @@ extern "C"
 #if (defined(RTK_BLE_5_0_AE_ADV_SUPPORT) && RTK_BLE_5_0_AE_ADV_SUPPORT) || (defined(RTK_BLE_5_0_AE_SCAN_SUPPORT) && RTK_BLE_5_0_AE_SCAN_SUPPORT)
 #define RTK_BLE_5_0_USE_EXTENDED_ADV        1
 #endif
+
+#define RTK_BT_API_MEM_PRE_ALLOC            1
+
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+#define BT_API_SEM_POOL_SIZE                8
+#define BT_EVT_SMALL_POOL_SIZE              32
+
+#if (defined(RTK_BLE_ISO_SUPPORT) && RTK_BLE_ISO_SUPPORT) || \
+    (defined(RTK_BLE_AUDIO_SUPPORT) && RTK_BLE_AUDIO_SUPPORT)
+#define BT_EVT_MEDIUM_POOL_SIZE             8
+#else
+#define BT_EVT_MEDIUM_POOL_SIZE             4
+#endif
+
+#if defined(RTK_BREDR_SUPPORT) && RTK_BREDR_SUPPORT
+#define BT_EVT_LARGE_POOL_SIZE              4
+#else
+#define BT_EVT_LARGE_POOL_SIZE              1
+#endif
+
+#define BT_EVT_SMALL_BUF_SIZE               128
+#define BT_EVT_MEDIUM_BUF_SIZE              640
+#define BT_EVT_LARGE_BUF_SIZE               1280
+#endif  /* RTK_BT_API_MEM_PRE_ALLOC */
 
 #ifdef __cplusplus
 }

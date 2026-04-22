@@ -18,10 +18,6 @@ extern "C"
 {
 #endif
 
-#define RTK_EVT_POOL_SIZE 8
-
-#define BT_API_SYNC_TIMEOUT         3000
-
 #define RTK_BT_API_LE_BASE          0x0
 #define RTK_BT_API_BR_BASE          0x80
 #define RTK_BT_API_COMMON_BASE      0xE0
@@ -253,6 +249,8 @@ typedef enum {
 	RTK_BT_LE_GAP_ACT_SET_APPEARANCE,
 	RTK_BT_LE_GAP_ACT_SET_PREFERRED_CONN_PARAM,
 	RTK_BT_LE_GAP_ACT_SET_RAND_ADDR,
+	RTK_BT_LE_GAP_ACT_GEN_RAND_ADDR,
+	RTK_BT_LE_GAP_ACT_CFG_LOCAL_IDENT_ADDR,
 	RTK_BT_LE_GAP_ACT_SET_ADV_DATA,
 	RTK_BT_LE_GAP_ACT_SET_SCAN_RSP_DATA,
 	RTK_BT_LE_GAP_ACT_START_ADV,
@@ -269,6 +267,7 @@ typedef enum {
 	RTK_BT_LE_GAP_ACT_DISCONN_WITH_REASON,
 	RTK_BT_LE_GAP_ACT_UPDATE_CONN_PARAM,
 	RTK_BT_LE_GAP_ACT_READ_RSSI,
+	RTK_BT_LE_GAP_ACT_READ_REMOTE_VERSION,
 	RTK_BT_LE_GAP_ACT_MODIFY_WHITELIST,
 	RTK_BT_LE_GAP_ACT_GET_CONN_INFO,
 	RTK_BT_LE_GAP_ACT_GET_DEV_STATE,
@@ -363,16 +362,17 @@ typedef enum {
  */
 typedef enum {
 	RTK_BT_LE_GAP_EVT_ADV_START_IND = 1,            /*!< Indicate LE adv started, with msg @ref rtk_bt_le_adv_start_ind_t */
-	RTK_BT_LE_GAP_EVT_ADV_STOP_IND,                 /*!< Indicate LE adv stopped, with msg @ref rtk_bt_le_adv_stop_ind_t*/
-	RTK_BT_LE_GAP_EVT_CONNECT_IND,                  /*!< Indicate LE connection complete, with msg @ref rtk_bt_le_conn_ind_t*/
-	RTK_BT_LE_GAP_EVT_DISCONN_IND,                  /*!< Indicate LE disconnection complete, with msg @ref rtk_bt_le_disconn_ind_t*/
+	RTK_BT_LE_GAP_EVT_ADV_STOP_IND,                 /*!< Indicate LE adv stopped, with msg @ref rtk_bt_le_adv_stop_ind_t */
+	RTK_BT_LE_GAP_EVT_CONNECT_IND,                  /*!< Indicate LE connection complete, with msg @ref rtk_bt_le_conn_ind_t */
+	RTK_BT_LE_GAP_EVT_DISCONN_IND,                  /*!< Indicate LE disconnection complete, with msg @ref rtk_bt_le_disconn_ind_t */
 	RTK_BT_LE_GAP_EVT_SCAN_START_IND,               /*!< Indicate LE scan started, with msg @ref rtk_bt_le_scan_start_ind_t */
-	RTK_BT_LE_GAP_EVT_SCAN_RES_IND,                 /*!< Indicate LE scan data report, with msg @ref rtk_bt_le_scan_res_ind_t*/
-	RTK_BT_LE_GAP_EVT_SCAN_STOP_IND,                /*!< Indicate LE scan stopped, with msg @ref rtk_bt_le_scan_stop_ind_t*/
-	RTK_BT_LE_GAP_EVT_CONN_UPDATE_IND,              /*!< Indicate LE connection parameter updated, with msg @ref rtk_bt_le_conn_update_ind_t*/
+	RTK_BT_LE_GAP_EVT_SCAN_RES_IND,                 /*!< Indicate LE scan data report, with msg @ref rtk_bt_le_scan_res_ind_t */
+	RTK_BT_LE_GAP_EVT_SCAN_STOP_IND,                /*!< Indicate LE scan stopped, with msg @ref rtk_bt_le_scan_stop_ind_t */
+	RTK_BT_LE_GAP_EVT_CONN_UPDATE_IND,              /*!< Indicate LE connection parameter updated, with msg @ref rtk_bt_le_conn_update_ind_t */
 	RTK_BT_LE_GAP_EVT_REMOTE_CONN_UPDATE_REQ_IND,   /*!< Indicate LE remote device connection parameter change request, with msg @ref rtk_bt_le_remote_conn_update_req_ind_t. Direct calling, BT api shall not be called in this event case. */
 	RTK_BT_LE_GAP_EVT_DATA_LEN_CHANGE_IND,          /*!< Indicate LE data length changed, with msg @ref rtk_bt_le_data_len_change_ind_t */
 	RTK_BT_LE_GAP_EVT_PHY_UPDATE_IND,               /*!< Indicate LE PHY updated, with msg @ref rtk_bt_le_phy_update_ind_t */
+	RTK_BT_LE_GAP_EVT_READ_REMOTE_VERSION_IND,      /*!< Indicate LE read remote version information complete, with msg @ref rtk_bt_le_read_remote_version_ind_t */
 	RTK_BT_LE_GAP_EVT_AUTH_PAIRING_CONFIRM_IND,     /*!< Indicate LE just work pairing need to confirm, with msg @ref rtk_bt_le_auth_pair_cfm_ind_t */
 	RTK_BT_LE_GAP_EVT_AUTH_PASSKEY_DISPLAY_IND,     /*!< Indicate LE pairing passkey need to display, with msg @ref rtk_bt_le_auth_key_display_ind_t */
 	RTK_BT_LE_GAP_EVT_AUTH_PASSKEY_INPUT_IND,       /*!< Indicate LE pairing need to input passkey, with msg @ref rtk_bt_le_auth_key_input_ind_t */
@@ -380,11 +380,11 @@ typedef enum {
 	RTK_BT_LE_GAP_EVT_AUTH_OOB_KEY_INPUT_IND,       /*!< Indicate LE pairing need to input oob key, with msg @ref rtk_bt_le_auth_oob_input_ind_t */
 	RTK_BT_LE_GAP_EVT_AUTH_COMPLETE_IND,            /*!< Indicate LE auth complete, with msg @ref rtk_bt_le_auth_complete_ind_t */
 	RTK_BT_LE_GAP_EVT_BOND_MODIFY_IND,              /*!< Indicate LE bond info modified, with msg @ref rtk_bt_le_bond_modify_ind_t */
-	RTK_BT_LE_GAP_EVT_EXT_ADV_IND,                  /*!< Indicate LE ext adv state, with msg @ref rtk_bt_le_ext_adv_ind_t*/
-	RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND,             /*!< Indicate LE ext scan data report, with msg @ref rtk_bt_le_ext_scan_res_ind_t*/
-	RTK_BT_LE_GAP_EVT_PA_IND,                       /*!< Indicate LE periodic adv state, with msg @ref rtk_bt_le_pa_ind_t*/
-	RTK_BT_LE_GAP_EVT_PA_SYNC_STATE_IND,            /*!< Indicate LE periodic adv synchronization state, with msg @ref rtk_bt_le_pa_sync_ind_t*/
-	RTK_BT_LE_GAP_EVT_PA_ADV_REPORT_IND,            /*!< Indicate LE periodic adv synchronization adv report, with msg @ref rtk_bt_le_pa_adv_report_ind_t*/
+	RTK_BT_LE_GAP_EVT_EXT_ADV_IND,                  /*!< Indicate LE ext adv state, with msg @ref rtk_bt_le_ext_adv_ind_t */
+	RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND,             /*!< Indicate LE ext scan data report, with msg @ref rtk_bt_le_ext_scan_res_ind_t */
+	RTK_BT_LE_GAP_EVT_PA_IND,                       /*!< Indicate LE periodic adv state, with msg @ref rtk_bt_le_pa_ind_t */
+	RTK_BT_LE_GAP_EVT_PA_SYNC_STATE_IND,            /*!< Indicate LE periodic adv synchronization state, with msg @ref rtk_bt_le_pa_sync_ind_t */
+	RTK_BT_LE_GAP_EVT_PA_ADV_REPORT_IND,            /*!< Indicate LE periodic adv synchronization adv report, with msg @ref rtk_bt_le_pa_adv_report_ind_t */
 	RTK_BT_LE_GAP_EVT_RESOLV_LIST_MODIFY_IND,       /*!< Indicate LE resolving list modified, with msg @ref rtk_bt_le_modify_resolv_list_ind_t */
 	RTK_BT_LE_GAP_EVT_RESOLV_LIST_PENDING_IND,      /*!< Indicate LE resolving list modification is pending, with msg @ref rtk_bt_le_resolv_list_pending_ind_t */
 	RTK_BT_LE_GAP_EVT_TXPOWER_REPORT_IND,           /*!< Indicate LE Tx power report, with msg @ref rtk_bt_le_txpower_ind_t */
@@ -511,13 +511,13 @@ typedef enum {
 	RTK_BT_LE_ISO_EVT_CIG_ACCEPTOR_REQUEST_CIS_IND,               /*!< comes when receive a request to establish a CIS for acceptor */
 	RTK_BT_LE_ISO_EVT_CIG_SETUP_DATA_PATH,                        /*!< comes when receive a cig setup data path successfully event */
 	RTK_BT_LE_ISO_EVT_CIG_REMOVE_DATA_PATH,                       /*!< comes when receive a cig remove data path successfully event */
+	RTK_BT_LE_ISO_EVT_CIG_START_SETTING_INFO,                     /*!< comes when CIG start setting is done, contains cis_conn_handle */
 	RTK_BT_LE_ISO_EVT_BIG_BROADCASTER_CREATE_CMPL_INFO,           /*!< comes when RTK_BT_LE_ISO_ACT_BIG_BROADCASTER_CREATE is done */
 	RTK_BT_LE_ISO_EVT_BIG_BROADCASTER_SYNC_STATE_IND,             /*!< comes when broadcaster synchronization state change */
 	RTK_BT_LE_ISO_EVT_BIG_RECEIVER_SYNC_ESTABLISHED_INFO,         /*!< comes when RTK_BT_LE_ISO_ACT_BIG_RECEIVER_CREATE_SYNC is done */
 	RTK_BT_LE_ISO_EVT_BIG_RECEIVER_SYNC_STATE_IND,                /*!< comes when receiver synchronization state change */
 	RTK_BT_LE_ISO_EVT_BIG_SETUP_DATA_PATH,                        /*!< comes when receive a big setup data path successfully event */
 	RTK_BT_LE_ISO_EVT_BIG_REMOVE_DATA_PATH,                       /*!< comes when receive a big remove data path successfully event */
-	RTK_BT_LE_ISO_EVT_DATA_SEND_DONE,                             /*!< comes when RTK_BT_LE_ISO_ACT_ISO_DATA_SEND is done */
 	RTK_BT_LE_ISO_EVT_DATA_RECEIVE_IND,                           /*!< comes when receive iso data. Direct calling, BT api shall not be called in this event case. */
 	RTK_BT_LE_ISO_EVT_MAX
 } rtk_bt_le_iso_evt_code_t;
@@ -572,6 +572,7 @@ typedef enum {
 	RTK_BT_LE_AUDIO_EVT_BASS_GET_PA_SYNC_PARAM_IND,
 	RTK_BT_LE_AUDIO_EVT_BASS_GET_BIG_SYNC_PARAM_IND,
 	RTK_BT_LE_AUDIO_EVT_PA_SYNC_STATE_IND,
+	RTK_BT_LE_AUDIO_EVT_BIG_SYNC_STATE_IND,
 	RTK_BT_LE_AUDIO_EVT_BIG_INFO_ADV_REPORT,
 	RTK_BT_LE_AUDIO_EVT_BIG_SETUP_DATA_PATH,
 	RTK_BT_LE_AUDIO_EVT_BIG_REMOVE_DATA_PATH,
@@ -795,6 +796,7 @@ typedef enum {
  */
 typedef enum {
 	RTK_BT_BR_GAP_INQUIRY_RESULT = 1,
+	RTK_BT_BR_GAP_INQUIRY_CMPL,
 	RTK_BT_BR_GAP_REMOTE_NAME_RSP,
 	RTK_BT_BR_GAP_ACL_CONN_IND,
 	RTK_BT_BR_GAP_ACL_CONN_SUCCESS,
@@ -1137,6 +1139,7 @@ typedef enum {
 	RTK_BT_GAP_EVT_ECFC_DISCONN_IND,                  /*!< Indicate ECFC disconnect, with msg @ref rtk_bt_ecfc_disconn_ind_t */
 	RTK_BT_GAP_EVT_ECFC_RECONF_REQ_IND,               /*!< Indicate ECFC reconfiguration request, with msg @ref rtk_bt_ecfc_reconf_req_ind_t. Direct calling, BT api shall not be called in this event case. */
 	RTK_BT_GAP_EVT_ECFC_RECONF_RSP_IND,               /*!< Indicate ECFC reconfiguration response, with msg @ref rtk_bt_ecfc_reconf_rsp_ind_t */
+	RTK_BT_GAP_EVT_FW_EXCEPTION_IND,                  /*!< Indicate BT firmware exception, with no msg */
 	RTK_BT_GAP_EVT_MAX,
 } rtk_bt_gap_evt_t;
 
@@ -1199,26 +1202,9 @@ typedef struct {
 typedef struct {
 	uint8_t group;
 	uint8_t evt;
-	void *data;
 	uint32_t data_len;
-	uint8_t data_pool[RTK_EVT_POOL_SIZE];
-	void *user_data;
+	void *data;
 } rtk_bt_evt_t;
-
-struct act_mem_option {
-	uint8_t act;
-	uint32_t size;
-};
-
-struct evt_mem_option {
-	uint8_t evt;
-	uint32_t size;
-};
-
-struct evt_ret_mem_option {
-	uint8_t evt;
-	uint32_t size;
-};
 
 /********************************* Functions Declaration *******************************/
 /**
@@ -1288,7 +1274,19 @@ uint16_t rtk_bt_evt_unregister_callback(uint8_t group);
  */
 
 /*********************** Functions for API internal use **********************/
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+bool bt_api_sem_pool_init(void);
+
+void bt_api_sem_pool_deinit(void);
+
+bool bt_evt_mem_pool_init(void);
+
+void bt_evt_mem_pool_deinit(void);
+#endif
+
 uint16_t rtk_bt_send_cmd(uint8_t group, uint8_t act, void *param, uint32_t param_len);
+
+void bt_wait_cmd_send_complete(void);
 
 uint16_t rtk_bt_evt_init(void);
 
@@ -1299,6 +1297,8 @@ rtk_bt_evt_t *rtk_bt_event_create(uint8_t group, uint8_t evt, uint32_t param_len
 uint16_t rtk_bt_evt_indicate(void *evt, uint8_t *cb_ret);
 
 void rtk_bt_event_free(rtk_bt_evt_t *pevt);
+
+#define BT_STRUCT_TAIL(ptr, type)   ((void *)((uint8_t *)ptr + sizeof(type)))
 
 #define LE_TO_U32(_a)                                   \
         (((uint32_t)(*((uint8_t *)(_a) + 0)) << 0)  |   \

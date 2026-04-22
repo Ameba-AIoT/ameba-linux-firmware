@@ -1,11 +1,15 @@
 /*
- * Copyright (c) 2020 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef ARM_GIC_COMMON_PRIV_H
 #define ARM_GIC_COMMON_PRIV_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Offsets from GICD base or GICR(n) SGI_base */
 #define GIC_DIST_IGROUPR		0x0080
@@ -44,5 +48,10 @@
 #define GET_DIST_BASE(intid)	((intid < GIC_SPI_INT_BASE) ? \
 				(GIC_GET_RDIST(GET_CPUID) + GICR_SGI_BASE_OFF) \
 				: GIC_DIST_BASE)
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
 #endif /* ARM_GIC_COMMON_PRIV_H */

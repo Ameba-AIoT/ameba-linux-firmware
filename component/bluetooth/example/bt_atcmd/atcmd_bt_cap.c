@@ -895,10 +895,22 @@ static const cmd_table_t cap_commander_cmd_table[] = {
 	{NULL,},
 };
 
-int atcmd_bt_cap_cmd(int argc, char *argv[])
+void fBLECAP(u16 argc, char *argv[])
 {
 	int ret = 0;
 	char tag[80] = "[AT+BLECAP]";
+
+	if (argc < 2) {
+		BT_LOGE("[%s]Error: Atcmd has too few params!!!\r\n", __func__);
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+		ret = BT_AT_ERR_PARAM_INVALID;
+#endif
+		goto exit;
+	}
+
+	argc -= 1;
+	argv = &argv[1];
+
 	if (strcmp(argv[0], "initiator") == 0) {
 		strcat(tag, "[initiator]");
 		ret = atcmd_bt_excute(argc - 1, &argv[1], cap_initiator_cmd_table, tag);
@@ -910,8 +922,16 @@ int atcmd_bt_cap_cmd(int argc, char *argv[])
 		ret = atcmd_bt_excute(argc - 1, &argv[1], cap_commander_cmd_table, tag);
 	} else {
 		BT_LOGE("[%s]Error: cap do not support %s\r\n", __func__, argv[0]);
-		ret = -1;
+#if defined(CONFIG_ATCMD_HOST_CONTROL) && CONFIG_ATCMD_HOST_CONTROL
+		ret = BT_AT_ERR_PARAM_INVALID;
+#endif
 	}
-	return ret;
+
+exit:
+	if (ret == 0) {
+		BT_AT_PRINTOK();
+	} else {
+		BT_AT_PRINTERROR(ret);
+	}
 }
 #endif

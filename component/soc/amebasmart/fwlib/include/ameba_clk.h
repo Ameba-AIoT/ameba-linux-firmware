@@ -7,6 +7,10 @@
 #ifndef _AMEBA_CLK_H_
 #define _AMEBA_CLK_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @addtogroup AmebaD_Platform
   * @{
   */
@@ -242,8 +246,8 @@ _LONG_CALL_ void PLL_I2S_98P304M(u32 NewState);
 _LONG_CALL_ void PLL_I2S_45P158M(u32 NewState);
 _LONG_CALL_ float PLL_I2S_98P304M_ClkTune(u32 pll_sel, float ppm, u32 action);
 _LONG_CALL_ float PLL_I2S_45P158M_ClkTune(u32 pll_sel, float ppm, u32 action);
-_LONG_CALL_ u32 PLL_NP_ClkGet(void);
 _LONG_CALL_ void PLL_NP_ClkSet(u32 PllClk);
+_LONG_CALL_ u32 PLL_NP_ClkGet(void);
 _LONG_CALL_ void PLL_NP(u32 NewState);
 _LONG_CALL_ void PLL_AP_ClkSet(u32 PllClk);
 _LONG_CALL_ void PLL_AP(u32 NewState);
@@ -321,6 +325,13 @@ void CLK_SWITCH_XTAL(u32 State);
 #define APPLL_1480M			1400	// for Acut Vol when not cal
 #define APPLL_NULL			0
 
+#define CLK_LIMIT_PSRAM           (460 * MHZ_TICK_CNT)
+
 #define ISNPPLL				0
 #define ISAPPLL				0x80000000
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif //_AMEBA_CLK_H_

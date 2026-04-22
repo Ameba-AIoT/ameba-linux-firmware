@@ -27,29 +27,29 @@
 
 
 #if defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT
-#define BT_POWER_TEST_MODE         0    //If set to 1, WAKE_SRC_BT_WAKE_HOST should be set to wakeup AP core in ameba_sleepcfg.c
-#if defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE
+#define BT_WAKE_UP_HOST         0    //If set to 1, WAKE_SRC_BT_WAKE_HOST should be set to wakeup AP core in ameba_sleepcfg.c
+#if defined(BT_WAKE_UP_HOST) && BT_WAKE_UP_HOST
 #include "rtk_bt_power_control.h"
 
-static void bt_power_test_suspend(void)
+static void bt_wake_up_host_suspend(void)
 {
-	BT_LOGA("[BT_PS] Enter bt_power_test_suspend\r\n");
+	BT_LOGA("[BT_PS] Enter bt_wake_up_host_suspend\r\n");
 }
 
-static void bt_power_test_resume(void)
+static void bt_wake_up_host_resume(void)
 {
-	BT_LOGA("[BT_PS] Enter bt_power_test_resume\r\n");
+	BT_LOGA("[BT_PS] Enter bt_wake_up_host_resume\r\n");
 
 	/* Our demo releases BT wake lock here, it can be released anywhere as application's request */
 	rtk_bt_release_wakelock();
 }
 
-static void bt_power_test_init(void)
+static void bt_wake_up_host_init(void)
 {
-	rtk_bt_power_save_init((rtk_bt_ps_callback)bt_power_test_suspend, (rtk_bt_ps_callback)bt_power_test_resume);
+	rtk_bt_power_save_init((rtk_bt_ps_callback)bt_wake_up_host_suspend, (rtk_bt_ps_callback)bt_wake_up_host_resume);
 }
 
-static void bt_power_test_deinit(void)
+static void bt_wake_up_host_deinit(void)
 {
 	rtk_bt_power_save_deinit();
 }
@@ -180,14 +180,14 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 	case RTK_BT_LE_GAP_EVT_EXT_SCAN_RES_IND: {
 		rtk_bt_le_ext_scan_res_ind_t *scan_res_ind = (rtk_bt_le_ext_scan_res_ind_t *)param;
 		rtk_bt_le_addr_to_str(&(scan_res_ind->addr), le_addr, sizeof(le_addr));
-		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %d, PHY: 0x%x, TxPower: %d, Len: %d\r\n",
+		BT_LOGA("[APP] Ext Scan info, [Device]: %s, AD evt type: 0x%x, RSSI: %d, PHY: 0x%x, TxPower: %d, Data_status: %d, Len: %d\r\n",
 				le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 				(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
-				scan_res_ind->tx_power, scan_res_ind->len);
-		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%d,0x%x,%d,%d\r\n",
+				scan_res_ind->tx_power, scan_res_ind->data_status, scan_res_ind->len);
+		BT_AT_PRINT("+BLEGAP:escan,%s,0x%x,%d,0x%x,%d,%d,%d\r\n",
 					le_addr, scan_res_ind->evt_type, scan_res_ind->rssi,
 					(scan_res_ind->primary_phy << 4) | scan_res_ind->secondary_phy,
-					scan_res_ind->tx_power, scan_res_ind->len);
+					scan_res_ind->tx_power, scan_res_ind->data_status, scan_res_ind->len);
 		break;
 	}
 #endif
@@ -335,6 +335,21 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 						phy_update_ind->conn_handle,
 						phy_update_ind->tx_phy,
 						phy_update_ind->rx_phy);
+		}
+		break;
+	}
+
+	case RTK_BT_LE_GAP_EVT_READ_REMOTE_VERSION_IND: {
+		rtk_bt_le_read_remote_version_ind_t *rmt_ver = (rtk_bt_le_read_remote_version_ind_t *)param;
+		if (rmt_ver->err) {
+			BT_LOGE("[APP] Read remote version failed, conn_handle: %d, err: 0x%x\r\n",
+					rmt_ver->conn_handle, rmt_ver->err);
+			BT_AT_PRINT("+BLEGAP:remote_version,%d,-1\r\n", rmt_ver->conn_handle);
+		} else {
+			BT_LOGA("[APP] Read remote version, conn_handle: %d, version: 0x%x, company_id: 0x%x, subversion: 0x%x\r\n",
+					rmt_ver->conn_handle, rmt_ver->version, rmt_ver->company_id, rmt_ver->subversion);
+			BT_AT_PRINT("+BLEGAP:remote_version,%d,0,0x%x,0x%x,0x%x\r\n", rmt_ver->conn_handle,
+						rmt_ver->version, rmt_ver->company_id, rmt_ver->subversion);
 		}
 		break;
 	}
@@ -594,7 +609,7 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 			BT_LOGA("[APP] LE COC connected, conn_handle: %d, cid: 0x%x\r\n",
 					coc_conn_ind->conn_handle, coc_conn_ind->cid);
 		} else {
-			BT_LOGE("[APP] LE COC connect failed, conn_hande: %d, cid: 0x%x, err: 0x%x\r\n",
+			BT_LOGE("[APP] LE COC connect failed, conn_handle: %d, cid: 0x%x, err: 0x%x\r\n",
 					coc_conn_ind->conn_handle, coc_conn_ind->cid, coc_conn_ind->err);
 		}
 		BT_AT_PRINT("+BLEGAP:coc_conn,%d,0x%x,%d\r\n", coc_conn_ind->conn_handle, coc_conn_ind->cid,
@@ -608,7 +623,7 @@ static rtk_bt_evt_cb_ret_t ble_central_gap_app_callback(uint8_t evt_code, void *
 			BT_LOGA("[APP] LE COC disconnected, conn_handle: %d, cid: 0x%x\r\n",
 					coc_disconn_ind->conn_handle, coc_disconn_ind->cid);
 		} else {
-			BT_LOGE("[APP] LE COC disconnect failed, conn_hande: %d, cid: 0x%x, err: 0x%x\r\n",
+			BT_LOGE("[APP] LE COC disconnect failed, conn_handle: %d, cid: 0x%x, err: 0x%x\r\n",
 					coc_disconn_ind->conn_handle, coc_disconn_ind->cid, coc_disconn_ind->err);
 		}
 		BT_AT_PRINT("+BLEGAP:coc_disconn,%d,0x%x,%d\r\n", coc_disconn_ind->conn_handle,
@@ -822,12 +837,12 @@ int ble_central_main(uint8_t enable)
 		BT_APP_PROCESS(cte_client_add());
 #endif
 
-#if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
-		bt_power_test_init();
+#if (defined(BT_WAKE_UP_HOST) && BT_WAKE_UP_HOST) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
+		bt_wake_up_host_init();
 #endif
 	} else if (0 == enable) {
-#if (defined(BT_POWER_TEST_MODE) && BT_POWER_TEST_MODE) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
-		bt_power_test_deinit();
+#if (defined(BT_WAKE_UP_HOST) && BT_WAKE_UP_HOST) && (defined(RTK_BT_POWER_CONTROL_SUPPORT) && RTK_BT_POWER_CONTROL_SUPPORT)
+		bt_wake_up_host_deinit();
 #endif
 
 		/* Disable BT */

@@ -80,7 +80,7 @@ uint16_t rtk_bt_le_gap_set_rand_addr(bool auto_generate, rtk_bt_le_rand_addr_typ
 	}
 
 	if (auto_generate && type > RTK_BT_LE_RAND_ADDR_RESOLVABLE) {
-		return RTK_BT_ERR_POINTER_INVALID;
+		return RTK_BT_ERR_PARAM_INVALID;
 	}
 
 	param.auto_generate = auto_generate;
@@ -111,6 +111,49 @@ uint16_t rtk_bt_le_gap_set_preferred_conn_param(rtk_bt_le_preferred_conn_param_t
 	return ret;
 }
 
+uint16_t rtk_bt_le_gap_gen_rand_addr(rtk_bt_le_rand_addr_type_t type, uint8_t *p_addr)
+{
+	uint16_t ret = 0;
+	rtk_bt_le_gen_rand_addr_t param;
+
+	if (type > RTK_BT_LE_RAND_ADDR_RESOLVABLE) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (!p_addr) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	param.type = type;
+	param.p_addr = p_addr;
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_GEN_RAND_ADDR,
+						  (void *)&param, sizeof(rtk_bt_le_gen_rand_addr_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_le_gap_cfg_local_ident_addr(rtk_bt_le_ident_addr_type_t type, uint8_t *p_addr)
+{
+	uint16_t ret = 0;
+	rtk_bt_le_ident_addr_t param;
+
+	if (type > RTK_BT_LE_IDENT_ADDR_RAND) {
+		return RTK_BT_ERR_PARAM_INVALID;
+	}
+
+	if (!p_addr) {
+		return RTK_BT_ERR_POINTER_INVALID;
+	}
+
+	param.type = type;
+	memcpy(param.addr_val, p_addr, RTK_BD_ADDR_LEN);
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_CFG_LOCAL_IDENT_ADDR,
+						  (void *)&param, sizeof(rtk_bt_le_ident_addr_t));
+
+	return ret;
+}
 
 uint16_t rtk_bt_le_gap_set_adv_data(uint8_t *padv_data, uint32_t adv_len)
 {
@@ -809,10 +852,9 @@ uint16_t rtk_bt_le_gap_connect_cancel(rtk_bt_le_addr_t *cancel_addr)
 uint16_t rtk_bt_le_gap_disconnect(uint16_t conn_handle)
 {
 	uint16_t ret = 0;
-	uint16_t conn_hdl = conn_handle;
 
 	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_DISCONN,
-						  &conn_hdl, sizeof(uint16_t));
+						  &conn_handle, sizeof(uint16_t));
 
 	return ret;
 }
@@ -910,6 +952,16 @@ uint16_t rtk_bt_le_gap_read_rssi(uint16_t conn_handle, int8_t *p_rssi)
 
 	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_READ_RSSI,
 						  &read_rssi, sizeof(rtk_bt_le_read_rssi_param_t));
+
+	return ret;
+}
+
+uint16_t rtk_bt_le_gap_read_remote_version(uint16_t conn_handle)
+{
+	uint16_t ret = 0;
+
+	ret = rtk_bt_send_cmd(RTK_BT_LE_GP_GAP, RTK_BT_LE_GAP_ACT_READ_REMOTE_VERSION,
+						  &conn_handle, sizeof(uint16_t));
 
 	return ret;
 }

@@ -1,22 +1,27 @@
 /*
-* Copyright (c) 2024 Realtek Semiconductor Corp.
-*
-* SPDX-License-Identifier: Apache-2.0
-*/
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #ifndef _AMEBA_PMU_H_
 #define _AMEBA_PMU_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
 	PMU_OS					= 0,
 	PMU_WLAN_DEVICE		= 1,
 	PMU_KM4_RUN			= 2,
 	PMU_AP_RUN	= 3,
-	PMU_BT_DEVICE	= 4,
-	PMU_VAD_DEVICE	= 5,
+	PMU_BT_CONTROLLER	= 4,
+	PMU_BT_HOST	= 5,
+	PMU_VAD_DEVICE	= 6,
 	PMU_DHCP_PROCESS,
 	PMU_LWIP_STACK,
-	PMU_DEV_USER_BASE, /*reserved for customer use*/
+	PMU_DEV_USER_BASE, /* reserved for customer use */
 	PMU_MAX,
 } PMU_DEVICE;
 
@@ -30,7 +35,7 @@ enum CPU1_STATE {
 #define DEFAULT_WAKELOCK		(BIT(PMU_OS))
 
 #define DEFAULT_DEEP_WAKELOCK		(BIT(PMU_OS))
-#define SLEEP_MAX_DELAY		(uint32_t) 0xffffffffUL
+#define PMU_SLEEP_FOREVER		(uint32_t) 0xffffffffUL
 
 typedef uint32_t (*PSM_HOOK_FUN)(uint32_t, void *param_ptr);
 
@@ -91,5 +96,9 @@ extern uint32_t sysactive_timeout_flag;
 extern uint32_t system_can_yield;
 extern void Systick_Cmd(uint32_t enable);
 extern uint32_t SYSTIMER_GetPassTick(uint32_t start);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

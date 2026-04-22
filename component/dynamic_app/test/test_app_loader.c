@@ -95,8 +95,8 @@ void PICTestApp(u8  *argv[])
 
 u32
 CmdPICTest(
-	IN u16 argc,
-	IN u8  *argv[]
+	u16 argc,
+	u8  *argv[]
 )
 {
 	if (argc > 0) {
@@ -108,9 +108,7 @@ CmdPICTest(
 
 CMD_TABLE_DATA_SECTION
 const COMMAND_TABLE pic_test_cmd_table[] = {
-	{
-		(const u8 *)"pic", 3, CmdPICTest, (const u8 *)"\tWIFI \n"
-	},
+	{"pic", CmdPICTest},
 };
 
 

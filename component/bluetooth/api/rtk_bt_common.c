@@ -74,6 +74,7 @@ extern uint16_t bt_stack_api_send(void *pcmd);
 extern void bt_stack_pending_cmd_delete(rtk_bt_cmd_t *p_cmd);
 #endif
 
+static uint32_t api_task_msg_num = 0;
 static void *g_evt_task_sem = NULL;
 static void *g_evt_queue = NULL;
 static void *g_evt_task_hdl = NULL;
@@ -104,20 +105,20 @@ void rtk_bt_le_addr_to_str(void *paddr, char *str, uint32_t len)
 		strncpy(type, "random-id", 10);
 		break;
 	default:
-		snprintf(type, sizeof(type), "0x%02x", addr->type);
+		DiagSnPrintf(type, sizeof(type), "0x%02x", addr->type);
 		break;
 	}
-	snprintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X(%s)",
-			 addr->addr_val[5], addr->addr_val[4], addr->addr_val[3],
-			 addr->addr_val[2], addr->addr_val[1], addr->addr_val[0], type);
+	DiagSnPrintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X(%s)",
+				 addr->addr_val[5], addr->addr_val[4], addr->addr_val[3],
+				 addr->addr_val[2], addr->addr_val[1], addr->addr_val[0], type);
 }
 
 void rtk_bt_addr_val_to_str(uint8_t *paddr, char *str, uint32_t len)
 {
 	memset(str, 0, len);
-	snprintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X",
-			 paddr[5], paddr[4], paddr[3],
-			 paddr[2], paddr[1], paddr[0]);
+	DiagSnPrintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X",
+				 paddr[5], paddr[4], paddr[3],
+				 paddr[2], paddr[1], paddr[0]);
 }
 
 void rtk_bt_br_addr_to_str(uint8_t *paddr, char *str, uint32_t len)
@@ -147,42 +148,258 @@ void rtk_bt_addr_to_str(uint8_t addr_type, uint8_t *paddr, char *str, uint32_t l
 		strncpy(str_type + strlen(str_type), "classic", 8);
 		break;
 	default:
-		snprintf(str_type, sizeof(str_type), "0x%02x", addr_type);
+		DiagSnPrintf(str_type, sizeof(str_type), "0x%02x", addr_type);
 		break;
 	}
-	snprintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X(%s)",
-			 paddr[5], paddr[4], paddr[3],
-			 paddr[2], paddr[1], paddr[0], str_type);
+	DiagSnPrintf(str, len, "%02X:%02X:%02X:%02X:%02X:%02X(%s)",
+				 paddr[5], paddr[4], paddr[3],
+				 paddr[2], paddr[1], paddr[0], str_type);
+}
+
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+static void *api_sem_pool_q = NULL;
+
+static struct bt_evt_pool {
+	void *pool_q_small;
+	uint8_t buf_small[BT_EVT_SMALL_POOL_SIZE][BT_EVT_SMALL_BUF_SIZE];
+
+	void *pool_q_medium;
+	uint8_t buf_medium[BT_EVT_MEDIUM_POOL_SIZE][BT_EVT_MEDIUM_BUF_SIZE];
+
+	void *pool_q_large;
+	uint8_t buf_large[BT_EVT_LARGE_POOL_SIZE][BT_EVT_LARGE_BUF_SIZE];
+} *evt_pool = NULL;
+
+bool bt_api_sem_pool_init(void)
+{
+	int i;
+	void *sem = NULL;
+
+	if (!osif_msg_queue_create(&api_sem_pool_q, BT_API_SEM_POOL_SIZE, sizeof(void *))) {
+		return false;
+	}
+
+	for (i = 0; i < BT_API_SEM_POOL_SIZE; i++) {
+		if (osif_sem_create(&sem, 0, 1)) {
+			if (osif_msg_send(api_sem_pool_q, &sem, 0)) {
+				continue;
+			} else {
+				osif_sem_delete(sem);
+			}
+		}
+		goto fail;
+	}
+	BT_LOGA("BT API memory pre alloc\r\n");
+	return true;
+
+fail:
+	while (osif_msg_recv(api_sem_pool_q, &sem, 0)) {
+		osif_sem_delete(sem);
+	}
+	osif_msg_queue_delete(api_sem_pool_q);
+	api_sem_pool_q = NULL;
+
+	return false;
+}
+
+void bt_api_sem_pool_deinit(void)
+{
+	int i = 0;
+	uint32_t msg_num = 0;
+	void *sem = NULL;
+
+	if (!api_sem_pool_q) {
+		return;
+	}
+
+	/* wait all sem being freed(give back to pool) by app */
+	while (1) {
+		osif_msg_queue_peek(api_sem_pool_q, &msg_num);
+		if (BT_API_SEM_POOL_SIZE == msg_num) {
+			break;
+		}
+		osif_delay(5);
+		i++;
+		if (200 == i) {
+			BT_LOGA("!!wait api sem full freed over 1s\r\n");
+		}
+	}
+
+	while (osif_msg_recv(api_sem_pool_q, &sem, 0)) {
+		osif_sem_delete(sem);
+	};
+
+	osif_msg_queue_delete(api_sem_pool_q);
+	api_sem_pool_q = NULL;
+}
+
+bool bt_evt_mem_pool_init(void)
+{
+	int i;
+	void *pbuf;
+
+	if (!evt_pool) {
+		evt_pool = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct bt_evt_pool));
+		if (!evt_pool) {
+			return false;
+		}
+		memset(evt_pool, 0, sizeof(struct bt_evt_pool));
+	}
+
+	if (false == osif_msg_queue_create(&evt_pool->pool_q_small, BT_EVT_SMALL_POOL_SIZE, sizeof(void *))) {
+		goto fail;
+	}
+	if (false == osif_msg_queue_create(&evt_pool->pool_q_medium, BT_EVT_MEDIUM_POOL_SIZE, sizeof(void *))) {
+		goto fail;
+	}
+	if (false == osif_msg_queue_create(&evt_pool->pool_q_large, BT_EVT_LARGE_POOL_SIZE, sizeof(void *))) {
+		goto fail;
+	}
+	for (i = 0; i < BT_EVT_SMALL_POOL_SIZE; i++) {
+		pbuf = &evt_pool->buf_small[i][0];
+		if (false == osif_msg_send(evt_pool->pool_q_small, &pbuf, 0)) {
+			goto fail;
+		}
+	}
+	for (i = 0; i < BT_EVT_MEDIUM_POOL_SIZE; i++) {
+		pbuf = &evt_pool->buf_medium[i][0];
+		if (false == osif_msg_send(evt_pool->pool_q_medium, &pbuf, 0)) {
+			goto fail;
+		}
+	}
+	for (i = 0; i < BT_EVT_LARGE_POOL_SIZE; i++) {
+		pbuf = &evt_pool->buf_large[i][0];
+		if (false == osif_msg_send(evt_pool->pool_q_large, &pbuf, 0)) {
+			goto fail;
+		}
+	}
+	return true;
+
+fail:
+	if (evt_pool->pool_q_small) {
+		while (osif_msg_recv(evt_pool->pool_q_small, &pbuf, 0));
+		osif_msg_queue_delete(evt_pool->pool_q_small);
+	}
+	if (evt_pool->pool_q_medium) {
+		while (osif_msg_recv(evt_pool->pool_q_medium, &pbuf, 0));
+		osif_msg_queue_delete(evt_pool->pool_q_medium);
+	}
+	if (evt_pool->pool_q_large) {
+		while (osif_msg_recv(evt_pool->pool_q_large, &pbuf, 0));
+		osif_msg_queue_delete(evt_pool->pool_q_large);
+	}
+	if (evt_pool) {
+		osif_mem_free(evt_pool);
+		evt_pool = NULL;
+	}
+	return false;
+}
+
+void bt_evt_mem_pool_deinit(void)
+{
+	void *pbuf;
+
+	if (!evt_pool) {
+		return;
+	}
+
+	while (osif_msg_recv(evt_pool->pool_q_small, &pbuf, 0));
+	while (osif_msg_recv(evt_pool->pool_q_medium, &pbuf, 0));
+	while (osif_msg_recv(evt_pool->pool_q_large, &pbuf, 0));
+	osif_msg_queue_delete(evt_pool->pool_q_small);
+	osif_msg_queue_delete(evt_pool->pool_q_medium);
+	osif_msg_queue_delete(evt_pool->pool_q_large);
+
+	osif_mem_free(evt_pool);
+	evt_pool = NULL;
+}
+
+static void *choose_evt_mem_pool_q(uint32_t size)
+{
+	if (size <= BT_EVT_SMALL_BUF_SIZE) {
+		return evt_pool->pool_q_small;
+	} else if (size <= BT_EVT_MEDIUM_BUF_SIZE) {
+		return evt_pool->pool_q_medium;
+	} else if (size <= BT_EVT_LARGE_BUF_SIZE) {
+		return evt_pool->pool_q_large;
+	} else {
+		return NULL;
+	}
+}
+
+static void *find_evt_pool_q_by_buf(uint8_t *pbuf)
+{
+	if (pbuf >= &evt_pool->buf_small[0][0] &&
+		pbuf < (uint8_t *)&evt_pool->buf_small[0][0] + sizeof(evt_pool->buf_small)) {
+		return evt_pool->pool_q_small;
+	} else if (pbuf >= &evt_pool->buf_medium[0][0] &&
+			   pbuf < (uint8_t *)&evt_pool->buf_medium[0][0] + sizeof(evt_pool->buf_medium)) {
+		return evt_pool->pool_q_medium;
+	} else if (pbuf >= &evt_pool->buf_large[0][0] &&
+			   pbuf < (uint8_t *)&evt_pool->buf_large[0][0] + sizeof(evt_pool->buf_large)) {
+		return evt_pool->pool_q_large;
+	} else {
+		return NULL;
+	}
+}
+#endif  /* RTK_BT_API_MEM_PRE_ALLOC */
+
+static bool bt_api_sem_alloc(void **pp_handle)
+{
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+	return osif_msg_recv(api_sem_pool_q, pp_handle, 0);
+#else
+	return osif_sem_create(pp_handle, 0, 1);
+#endif
+}
+
+static bool bt_api_sem_free(void *p_handle)
+{
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+	return osif_msg_send(api_sem_pool_q, &p_handle, 0);
+#else
+	return osif_sem_delete(p_handle);
+#endif
 }
 
 uint16_t rtk_bt_send_cmd(uint8_t group, uint8_t act, void *param, uint32_t param_len)
 {
-	uint16_t ret = RTK_BT_FAIL;
-	rtk_bt_cmd_t *pcmd = NULL;
+	uint16_t ret = RTK_BT_OK;
+	uint32_t flags = 0;
+	rtk_bt_cmd_t cmd = {0};
+	rtk_bt_cmd_t *pcmd = &cmd;
 
-	if (!rtk_bt_is_enable()) {
-		ret = RTK_BT_ERR_NOT_READY;
-		goto end;
-	}
-
-	pcmd = (rtk_bt_cmd_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_cmd_t));
-	if (!pcmd) {
-		goto end;
-	}
-
-	memset(pcmd, 0, sizeof(rtk_bt_cmd_t));
 	pcmd->group = group;
 	pcmd->act = act;
 	pcmd->param = param;
 	pcmd->param_len = param_len;
 
-	if (false == osif_sem_create(&pcmd->psem, 0, 1)) {
+	flags = osif_lock();
+	api_task_msg_num++;
+	osif_unlock(flags);
+
+	/* check if bt deinit started */
+	if (!rtk_bt_is_enable()) {
+		ret = RTK_BT_ERR_NOT_READY;
+		goto msg_num_hdl;
+	}
+
+	if (false == bt_api_sem_alloc(&pcmd->psem)) {
 		ret = RTK_BT_ERR_OS_OPERATION;
-		goto end;
+		goto msg_num_hdl;
 	}
 
 	if (bt_stack_api_send(pcmd)) {
 		ret = RTK_BT_ERR_MSG_SEND;
+		goto msg_num_hdl;
+	}
+
+msg_num_hdl:
+	flags = osif_lock();
+	api_task_msg_num--;
+	osif_unlock(flags);
+
+	if (ret) {
 		goto end;
 	}
 
@@ -197,18 +414,29 @@ uint16_t rtk_bt_send_cmd(uint8_t group, uint8_t act, void *param, uint32_t param
 	}
 
 	ret = pcmd->ret;
+
 end:
-	if (pcmd) {
-		if (pcmd->psem) {
-			osif_sem_delete(pcmd->psem);
-		}
-		osif_mem_free(pcmd);
+	if (pcmd->psem) {
+		bt_api_sem_free(pcmd->psem);
 	}
 
 	return ret;
 }
 
-uint8_t rtk_bt_excute_evt_cb(uint8_t group, uint8_t evt_code, void *param, uint32_t len)
+void bt_wait_cmd_send_complete(void)
+{
+	int i = 0;
+
+	while (api_task_msg_num) {
+		osif_delay(5);
+		i++;
+		if (200 == i) {
+			BT_LOGA("!!wait cmd send complete over 1s\r\n");
+		}
+	}
+}
+
+static uint8_t rtk_bt_excute_evt_cb(uint8_t group, uint8_t evt_code, void *param, uint32_t len)
 {
 	uint8_t ret = 0;
 	rtk_bt_evt_cb_t cb_func = NULL;
@@ -232,14 +460,19 @@ uint8_t rtk_bt_excute_evt_cb(uint8_t group, uint8_t evt_code, void *param, uint3
 
 void rtk_bt_event_free(rtk_bt_evt_t *pevt)
 {
-	if (pevt->data_len > RTK_EVT_POOL_SIZE) {
-		osif_mem_free(pevt->data);
-	}
-	if (pevt->user_data != NULL) {
-		osif_mem_free(pevt->user_data);
-	}
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+	void *evt_q = find_evt_pool_q_by_buf((uint8_t *)pevt);
 
-	osif_mem_free(pevt);
+	if (evt_q) {
+		if (!osif_msg_send(evt_q, &pevt, 0)) {
+			BT_LOGE("rtk_bt_event_free failed!\r\n");
+			return;
+		}
+	} else
+#endif
+	{
+		osif_mem_free(pevt);
+	}
 }
 
 static void rtk_bt_evt_taskentry(void *ctx)
@@ -418,32 +651,34 @@ uint16_t rtk_bt_evt_unregister_callback(uint8_t group)
 rtk_bt_evt_t *rtk_bt_event_create(uint8_t group, uint8_t evt, uint32_t param_len)
 {
 	rtk_bt_evt_t *pevt = NULL;
-	pevt = (rtk_bt_evt_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_evt_t));
-	if (NULL == pevt) {
-		goto end;
+#if defined(RTK_BT_API_MEM_PRE_ALLOC) && RTK_BT_API_MEM_PRE_ALLOC
+	void *pbuf = NULL;
+	void *evt_q = choose_evt_mem_pool_q(sizeof(rtk_bt_evt_t) + param_len);
+
+	if (evt_q && osif_msg_recv(evt_q, &pbuf, 0)) {
+		/* Double check if the evt buf len match the queue. If a small buf is send to medium queue,
+		it will cause memory overflow when a medium buf is needed but just get a small buf from medium queue. */
+		if (evt_q != find_evt_pool_q_by_buf((uint8_t *)pbuf)) {
+			BT_LOGE("!Error, evt buf len mismatch the queue\r\n");
+			return NULL;
+		}
+		pevt = (rtk_bt_evt_t *)pbuf;
+	} else /* event size too large(evt_q is NULL) or no enough queue element */
+#endif
+	{
+		pevt = (rtk_bt_evt_t *)osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(rtk_bt_evt_t) + param_len);
 	}
 
-	memset(pevt, 0, sizeof(rtk_bt_evt_t));
+	if (!pevt) {
+		return NULL;
+	}
+
+	memset(pevt, 0, sizeof(rtk_bt_evt_t) + param_len);
 	pevt->group = group;
 	pevt->evt = evt;
+	pevt->data_len = param_len;
+	pevt->data = BT_STRUCT_TAIL(pevt, rtk_bt_evt_t);
 
-	if (param_len != 0) {
-		pevt->data_len = param_len;
-
-		if (param_len <= RTK_EVT_POOL_SIZE) {
-			pevt->data = pevt->data_pool;
-		} else {
-			pevt->data = osif_mem_alloc(RAM_TYPE_DATA_ON, param_len);
-			if (NULL == pevt->data) {
-				osif_mem_free(pevt);
-				pevt = NULL;
-				goto end;
-			}
-		}
-		memset(pevt->data, 0, param_len);
-	}
-
-end:
 	return pevt;
 }
 

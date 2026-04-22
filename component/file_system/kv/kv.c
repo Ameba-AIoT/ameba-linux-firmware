@@ -13,15 +13,10 @@
 #include "diag.h"
 #include "littlefs_adapter.h"
 
-extern FILE *fopen(const char *filename, const char *mode);
-extern int fclose(FILE *stream);
-extern size_t fwrite(const void *ptr, size_t size, size_t count, FILE *stream);
-extern size_t fread(void *ptr, size_t size, size_t count, FILE *stream);
-
 int kv_init_done = 0;
 
 static char *prefix;
-int rt_kv_init(void)
+int vfs_kv_init(void)
 {
 	int ret = -1;
 	char *path = NULL;
@@ -31,7 +26,7 @@ int rt_kv_init(void)
 		goto exit;
 	}
 
-	if (lfs_mount_flag == -1) {
+	if (lfs_mount_flag != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -67,11 +62,11 @@ exit:
 
 int32_t rt_kv_set(const char *key, const void *val, int32_t len)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -92,17 +87,17 @@ int32_t rt_kv_set(const char *key, const void *val, int32_t len)
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:KV/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "w");
+	finfo = fopen(path, "w");
 	if (finfo == NULL) {
 		VFS_DBG(VFS_ERROR, "fopen failed, res is %d", res);
 		goto exit;
 	}
 
-	res = fwrite(val, len, 1, (FILE *)finfo);
+	res = fwrite(val, len, 1, finfo);
 	if (res != len) {
 		VFS_DBG(VFS_ERROR, "fwrite failed,err is %d!!", res);
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -115,11 +110,11 @@ exit:
 
 int32_t rt_kv_set_offset(const char *key, const void *val, int32_t len, int32_t offset)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -140,9 +135,9 @@ int32_t rt_kv_set_offset(const char *key, const void *val, int32_t len, int32_t 
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:KV/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "wx");
+	finfo = fopen(path, "wx");
 	if (finfo == NULL) {
-		finfo = (vfs_file *)fopen(path, "+");
+		finfo = fopen(path, "+");
 		if (finfo == NULL) {
 			VFS_DBG(VFS_ERROR, "fopen failed, res is %d", res);
 			goto exit;
@@ -150,18 +145,18 @@ int32_t rt_kv_set_offset(const char *key, const void *val, int32_t len, int32_t 
 	}
 
 	if (offset > 0) {
-		res = fseek((FILE *)finfo, offset, SEEK_SET);
+		res = fseek(finfo, offset, SEEK_SET);
 		if (res < 0) {
 			VFS_DBG(VFS_ERROR, "fseek failed,err is %d!!", res);
 			goto exit;
 		}
 	}
 
-	res = fwrite(val, len, 1, (FILE *)finfo);
+	res = fwrite(val, len, 1, finfo);
 	if (res != len) {
 		VFS_DBG(VFS_ERROR, "fwrite failed,err is %d!!", res);
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -173,11 +168,11 @@ exit:
 
 int32_t rt_kv_get(const char *key, void *buffer, int32_t len)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -198,17 +193,17 @@ int32_t rt_kv_get(const char *key, void *buffer, int32_t len)
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:KV/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		VFS_DBG(VFS_WARNING, "fopen failed ");
 		goto exit;
 	}
 
-	res = fread(buffer, len, 1, (FILE *)finfo);
+	res = fread(buffer, len, 1, finfo);
 	if (res < 0) {
 		VFS_DBG(VFS_ERROR, "fread failed,err is %d!!!", res);
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -220,11 +215,11 @@ exit:
 
 int32_t rt_kv_get_offset(const char *key, void *buffer, int32_t len, int32_t offset)
 {
-	vfs_file *finfo;
+	FILE *finfo;
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -245,25 +240,25 @@ int32_t rt_kv_get_offset(const char *key, void *buffer, int32_t len, int32_t off
 	}
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:KV/%s", prefix, key);
-	finfo = (vfs_file *)fopen(path, "r");
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		VFS_DBG(VFS_WARNING, "fopen failed ");
 		goto exit;
 	}
 
 	if (offset > 0) {
-		res = fseek((FILE *)finfo, offset, SEEK_SET);
+		res = fseek(finfo, offset, SEEK_SET);
 		if (res < 0) {
 			VFS_DBG(VFS_ERROR, "fseek failed,err is %d!!", res);
 			goto exit;
 		}
 	}
 
-	res = fread(buffer, len, 1, (FILE *)finfo);
+	res = fread(buffer, len, 1, finfo);
 	if (res < 0) {
 		VFS_DBG(VFS_ERROR, "fread failed,err is %d!!!", res);
 	}
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 exit:
 	if (path) {
@@ -279,7 +274,7 @@ int32_t rt_kv_size(const char *key)
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -330,7 +325,7 @@ int32_t rt_kv_delete(const char *key)
 	int res = -1;
 	char *path = NULL;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -364,12 +359,12 @@ exit:
 int rt_kv_list(char *buf, int32_t len)
 {
 	dirent *info;
-	DIR *dir;
+	void *dir;
 	char *path = NULL;
 	char *name_str = NULL;
 	int ret = -1;
 
-	if (check_mount_completion(&kv_init_done) != 0) {
+	if (kv_init_done != 1) {
 		VFS_DBG(VFS_ERROR, "KV init fail");
 		goto exit;
 	}
@@ -386,7 +381,7 @@ int rt_kv_list(char *buf, int32_t len)
 
 	DiagSnPrintf(path, MAX_KEY_LENGTH + 2, "%s:KV", prefix);
 
-	dir = (DIR *)opendir(path);
+	dir = opendir(path);
 	if (dir == NULL) {
 		VFS_DBG(VFS_ERROR, "opendir failed");
 		goto exit;
@@ -401,7 +396,7 @@ int rt_kv_list(char *buf, int32_t len)
 	u32 len_left = len - 1;
 	u8 fmt_len = 0;
 	while (1) {
-		info = readdir((void **)dir);
+		info = readdir(dir);
 		if (info == NULL) {
 			break;
 		} else if (strcmp(info->d_name, ".") != 0 && strcmp(info->d_name, "..") != 0) {
@@ -418,7 +413,7 @@ int rt_kv_list(char *buf, int32_t len)
 		}
 	}
 
-	ret = closedir((void **)dir);
+	ret = closedir(dir);
 
 exit:
 	if (path) {

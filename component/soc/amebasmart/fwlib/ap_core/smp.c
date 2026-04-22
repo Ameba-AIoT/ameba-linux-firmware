@@ -1,17 +1,22 @@
 /*
- * Copyright (c) 2020 Realtek Semiconductor Corp.	All rights reserved.
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- * Author: PSP Software Group
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "sheipa.h"
 #include "ameba_soc.h"
 #include "FreeRTOS.h"
+#include <spinlock.h>
 
 static const char *const TAG = "#";
 extern void _boot(void);
-extern void vPortRestoreTaskContext(void);
+extern BaseType_t xPortStartScheduler(void);
+extern volatile uint32_t uxPortSchedulerStart[configNUM_CORES];
 
+#if ( configNUM_CORES > 1 )
+extern spinlock_t flash_lock;
+#endif
 /*-----------------------------------------------------------*/
 
 void rtk_core1_power_on(void)
@@ -69,10 +74,15 @@ void rtk_core1_power_off(void)
 void vPortGateOtherCore(void)
 {
 #if ( configNUM_CORES > 1 )
-	if (rtos_sched_get_state() == RTOS_SCHED_NOT_STARTED) {
+	if (uxPortSchedulerStart[portPrimaryCoreID] == pdFALSE) {
 		/* If os not start schedule, cpu1 cannot handle interrupt */
 		return;
 	}
+
+	/* The completion of a DSB that completes a TLB maintenance operation ensures that all accesses that used the old mapping have completed. */
+	MMU_InvalidateTLB();
+	L1C_InvalidateBTAC();
+	spin_lock(&flash_lock);
 
 	ulFlashPG_Flag = 1;
 	__DSB();
@@ -82,16 +92,24 @@ void vPortGateOtherCore(void)
 	arm_gic_raise_softirq(ulCoreID, IPI_FLASHPG_IRQ);
 
 	CA32_TypeDef *ca32 = CA32_BASE;
-	/* Ensure WFE is entered by IPI_FLASHPG_IRQ */
-	while ((ulFlashPG_Flag == 1) || (CA32_GET_STANDBYWFE(ca32->CA32_C0_CPU_STATUS) != BIT(ulCoreID)));
+	/* WFE wake-up events: A physical IRQ/FIQ interrupt, unless masked by the CPSR.I bit */
+	while (1) {
+		/* Ensure WFE is entered, maybe not by IPI_FLASHPG_IRQ */
+		if (CA32_GET_STANDBYWFE(ca32->CA32_C0_CPU_STATUS) == BIT(ulCoreID)) {
+			break;
+		}
+	}
 #endif
 }
 
 void vPortWakeOtherCore(void)
 {
+#if ( configNUM_CORES > 1 )
 	ulFlashPG_Flag = 0;
 	__DSB();
 	__SEV();
+	spin_unlock(&flash_lock);
+#endif
 }
 
 void vPortSecondaryOff(void)
@@ -124,46 +142,45 @@ void vPortSecondaryOff(void)
 
 void vPortSecondaryStart(void)
 {
-	/* Wait until scheduler starts */
-	if (pmu_get_secondary_cpu_state(portGET_CORE_ID()) == CPU1_RUNNING)
-		while (rtos_sched_get_state() == RTOS_SCHED_NOT_STARTED);
-
-	RTK_LOGS(TAG, RTK_LOG_INFO, "CPU%d: on\n", (int)portGET_CORE_ID());
-#if ( configNUM_CORES > 1 )
 	/* Configure the hardware ready to run the demo. */
 	prvSetupHardwareSecondary();
 
-	/* Enable ipi for yield core */
-	configSETUP_IPI_INTERRUPT();
-#endif
-	/* Start the timer that generates the tick ISR. */
-	configSETUP_TICK_INTERRUPT();
+	if (pmu_get_secondary_cpu_state(portGET_CORE_ID()) == CPU1_RUNNING) {
+		while (uxPortSchedulerStart[portPrimaryCoreID] == pdFALSE);
+	}
+
+	/* Wait until scheduler starts */
+	DiagPrintf("CPU%d: on\n", (int)portGET_CORE_ID());
 
 	/* Secondary core is up, set cpu state to CPU1_RUNNING */
 	pmu_set_secondary_cpu_state(1, CPU1_RUNNING);
 
-	/* Start the first task executing. */
-	vPortRestoreTaskContext();
+	/* Enable IPI and start the first task. */
+	(void) xPortStartScheduler();
 }
 /*-----------------------------------------------------------*/
 
 void smp_init(void)
 {
+#if ( configNUM_CORES == 1 )
+	/* power off core1 to avoid km4 has already open it */
+	rtk_core1_power_off();
+	return;
+#endif
+
 	BaseType_t xCoreID;
 	BaseType_t err;
 
-#if ( configNUM_CORES > 1 )
 	RTK_LOGS(TAG, RTK_LOG_INFO, "smp: Bringing up secondary CPUs ...\n");
 
 	if (SYSCFG_CHIPType_Get() != CHIP_TYPE_RTLSIM) {//RTL sim shall not use delayus before core1 ready
-		/* power on core1 to avoid km4 not open it */
 		rtk_core1_power_on();
-		DelayUs(50);
-	}
+#ifdef CONFIG_CP_TEST_CA32
+		DelayUs(120); // wait Core1 enter wfe in plat_secondary_cold_boot_setup, actually need 84us
 #else
-	/* power off core1 to avoid km4 has already open it */
-	rtk_core1_power_off();
+		DelayUs(40); // ddr need 7us, psram need 15us
 #endif
+	}
 
 	for (xCoreID = 0; xCoreID < configNUM_CORES; xCoreID++) {
 		if (xCoreID == portGET_CORE_ID()) {

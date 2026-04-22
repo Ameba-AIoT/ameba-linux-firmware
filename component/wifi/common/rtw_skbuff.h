@@ -29,11 +29,13 @@
 #define MAX_SKB_BUF_SIZE_NORMAL  (((WLAN_HW_INFO_LEN+WLAN_MAX_PROTOCOL_OVERHEAD+WLAN_MAX_ETHFRM_LEN+8)\
 							+ SKB_CACHE_SZ) & ~(SKB_CACHE_SZ-1))
 
+#if !(!defined(CONFIG_WHC_INTF_IPC) && defined(CONFIG_WHC_HOST))
 #if defined(CONFIG_WHC_INTF_SDIO)
 #include "whc_dev_struct.h"
-#define MAX_SKB_BUF_SIZE	MAX(MAX_SKB_BUF_SIZE_NORMAL, (SPDIO_RX_BUFSZ + SPDIO_SKB_RSVD_LEN + SKB_CACHE_SZ) & ~(SKB_CACHE_SZ-1))
+#define MAX_SKB_BUF_SIZE	MAX(MAX_SKB_BUF_SIZE_NORMAL, (SPDIO_DEVICE_RX_BUFSZ + SPDIO_SKB_RSVD_LEN + SKB_CACHE_SZ) & ~(SKB_CACHE_SZ-1))
 #else
 #define MAX_SKB_BUF_SIZE	MAX_SKB_BUF_SIZE_NORMAL
+#endif
 #endif
 
 /*TX reserve size before 802.3 pkt*/
@@ -42,6 +44,7 @@
 
 #define SKB_DATA_ALIGN(X)	(((X) + (4 - 1)) & ~(4 - 1))
 
+#define TX_CACHE_CLEANED	BIT(7)
 struct  sk_buff_head {
 	struct list_head	*next, *prev;
 	unsigned int 		qlen;

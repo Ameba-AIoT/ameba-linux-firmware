@@ -77,6 +77,24 @@ s32 wifi_set_lps_enable(u8 enable);
  */
 s32 wifi_set_lps_listen_interval(u8 interval);
 
+/**
+ * @brief   Enable or disable manual configuration of rxbcn window under LPS.
+ * @param[in]  enable: It could be TRUE or FALSE.
+ * 	FALSE(default) means rxbcn window automatically decided by IC; TRUE means rxbcn window set by this api parameters.
+ * @param[in] bcn_ely_time(unit: 128us):set the rx bcn wakpup-ely-time before TBTT.
+ * @param[in] rx_bcn_timeout(unit: 1 ms): If no bcn is received within rx_bcn_timeout, RF will be turned off. Max to 31ms.
+ * @return  RTW_SUCCESS if setting successful.
+ * @return  RTW_ERROR otherwise.
+ */
+s32 wifi_set_lps_bcn_window(u8 enable, u8 bcn_ely_time, u8 rx_bcn_timeout);
+
+/**
+ * @brief   Enable or disable rx broadcast in tickless wowlan mode.
+ * @param[in]  enable: FALSE means disable rx broadcast in tickless wowlan mode, TRUE means enable(default) rx broadcast in tickless wowlan mode.
+ * @return
+ *    - @ref RTK_SUCCESS : The API executed successfully.
+ */
+s32 wifi_set_wowlan_rx_broadcast(u8 enable);
 
 /**
  * @brief Set up custom TCP/UDP broadcast port filter white list for wifi wake application core under tickless state
@@ -89,9 +107,9 @@ s32 wifi_set_lps_listen_interval(u8 interval);
  * @endcode
  * @return
  *    - @ref RTK_SUCCESS : The API executed successfully.
- *    - @ref RTK_FAIL: The API executed fail.
- *    - @ref RTK_ERR_WIFI_NOT_INIT: wifi not initial
- *    - @ref RTK_ERR_WIFI_POWEROFF: Wi-Fi is powered off in IPS(Inactive Power Save) mode.
+ *    - @ref RTK_FAIL : The API executed fail.
+ *    - @ref RTK_ERR_WIFI_NOT_INIT : wifi not initial
+ *    - @ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode.
  * @note
  *    - If the port of TCP/UDP broadcast packet not match port_list, drop the packet and not wakeup host
  *    - If this API is not set, all ports will not be filtered
@@ -200,11 +218,11 @@ s32 wifi_set_countrycode(u8 *cntcode);
 
 /**
  * @brief  Retrieve current country code information.
- * @param[in]  table: Pointer to store the country code table containing country code,
+ * @param[in]  pinfo: Pointer to store the country code info table containing country code,
  *                    channel plan code, and TX power limit index.
  * @return  @ref RTK_SUCCESS : The API executed successfully.
  */
-s32 wifi_get_countrycode(struct rtw_country_code_table *table);
+s32 wifi_get_countrycode(struct rtw_country_code_table *pinfo);
 
 /**
  * @brief  Get the list of available WiFi channels for the current regulatory domain.
@@ -293,18 +311,20 @@ s32 wifi_set_wireless_mode(u32 wmode);
  *        - Do not support calling APIs in callback.
  *        - Enabling promisc mode temporarily disables LPS(Legacy Power Save) and IPS(Inactive Power Save).
  *        - Original power save settings are restored when promisc mode is disabled.
+ *        - Promiscuous mode can coexist with STA mode and SoftAP mode. After packets are processed by the application layer, the Wi-Fi driver layer can proceed with further processing.
+ *        - Promiscuous mode can report Data Frames and Management Frames, but Control Frames are currently not reported.
  * @return  None.
  */
 void wifi_promisc_enable(u32 enable, struct rtw_promisc_para *para);
 
 /**
  * @brief  Check if the Wi-Fi driver is in Mass Production (MP) mode.
+ * @param[out]  is_mp: 1 indicate driver is MP mode, 0 indicate driver is not MP mode.
  * @note  MP mode is used for Wi-Fi & Bluetooth performance verification and parameter calibration during mass production.
  * @return
- *        - 1: Driver is MP mode.
- *        - 0: Driver is not in MP mode.
+ *    - @ref RTK_SUCCESS : The API executed successfully.
  */
-u8 wifi_driver_is_mp(void);
+s32 wifi_driver_is_mp(u8 *is_mp);
 
 /**
  * @brief  Get CCMP unicast and group keys.
@@ -376,7 +396,6 @@ s32 wifi_get_txbuf_pkt_num(s32 *pkt_num);
  */
 s32 wifi_get_antdiv_info(u8 *antdiv_mode, u8 *curr_ant);
 
-//-------------------------------------------------------------//
 /**
  * @brief Get the supported frequency band type.
  * @param[out]  band_type: Pointer to store the supported band type. Values:
@@ -398,6 +417,18 @@ s32 wifi_get_band_type(u8 *band_type);
 s32 wifi_get_tsf(u8 wlan_idx, u64 *tsf);
 
 /**
+ * @brief	Get latest latched WIFI TSF us(64-bit), WIFI TSF ns(10-bit), I2S counter(64-bit).
+ * @param[in] req: Pointer to the struc for the request parameters.
+ * @param[out] rpt: Pointer to the struc to store the latched values.
+ * @return
+ *    - @ref RTK_SUCCESS : The API executed successfully.
+ *    - @ref RTK_FAIL : Unsupported chip.
+ *    - -@ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode, unable to access Wi-Fi registers.
+ *    - -@ref RTK_ERR_BADARG : NULL pointer passed.
+ */
+s32 wifi_get_latched_tsf_i2s(struct rtw_speaker_read_latch_req *req, struct rtw_speaker_read_latch_rpt *rpt);
+
+/**
  * @brief  Set up custom Information Element (IE) list.
  * @warning  This API cannot be called twice without deleting the previous custom IE list.
  * @param[in]  ie_list: Buffer containing custom IE list. Each element should be of type struct rtw_custom_ie.
@@ -405,7 +436,10 @@ s32 wifi_get_tsf(u8 wlan_idx, u64 *tsf);
  * @code
  *  u8 ie1[] = {221, 2, 2, 2};
  *  u8 ie2[] = {221, 2, 1, 1};
- *  struct rtw_custom_ie ie_list[2] = {{ie1, RTW_CUS_IE_BEACON|RTW_CUS_IE_PROBERSP}, {ie2, RTW_CUS_IE_PROBERSP}};
+ *  struct rtw_custom_ie ie_list[2] = {
+ *	  {ie1, RTW_CUS_IE_BEACON|RTW_CUS_IE_PROBERSP},
+ *    {ie2, RTW_CUS_IE_PROBERSP}
+ *  };
  *  wifi_add_custom_ie(ie_list, 2);
  * @endcode
  * @return
@@ -453,7 +487,7 @@ s32 wifi_del_custom_ie(u8 wlan_idx);
  *             details such as raw data pointer and transmission rate.
  * @return
  *    - @ref RTK_SUCCESS : The API executed successfully.
- *    - -@ref RTK_ERR_WIFI_TX_BUF_FULL : HW & SW tx buffer full, please wait for a while.
+ *    - -@ref RTK_ERR_WIFI_TX_BUF_FULL : Driver tx buffer full, please wait for a while and try again.
  *    - -@ref RTK_ERR_BUFFER_OVERFLOW : The packet length exceeds the SW per buf size.
  *    - -@ref RTK_ERR_BADARG : NULL pointer passed for `raw_frame_desc`.
  * @note  For unassociated peer devices in RX mode, only unencrypted frames are currently supported.
@@ -473,8 +507,26 @@ s32 wifi_send_raw_frame(struct rtw_raw_frame_desc *raw_frame_desc);
 s32 wifi_set_tx_rate_by_tos(u8 enable, u8 tos_precedence, u8 tx_rate);
 
 /**
- * @brief  Set EDCA parameters for STA/SOFTAP.
- * @param[in]  pedca_param: EDCA parameters (as per 802.11 spec):
+ * @brief  Set EDCA parameters for STA/SOFTAP. Suggest to call API when wifi connected for STA mode, e,g., in RTW_EVENT_JOIN_STATUS event handler.
+ * @param[in]  pedca_param: EDCA parameters {ACI, AIFSN, CWmax, CWmin, TXOP, SlotTime} (as WMM_Specification_1.1 table 13):
+ * @code
+ * struct rtw_edca_param edca_param_0 = {0, 7, 0xa, 0x4, 0x0, 0};
+ * // BE Queue, AIFSN=7, CWmax=10, CWmin=4, TXOP=0, SlotTime default
+ * (short slot time 9us, long slot time 20us)
+ * struct rtw_edca_param edca_param_1 = {1, 3, 0xa, 0x4, 0x0, 0};
+ * // BK Queue, AIFSN=3, CWmax=10, CWmin=4, TXOP=0, SlotTime default
+ * (short slot time 9us, long slot time 20us)
+ * struct rtw_edca_param edca_param_2 = {2, 2, 0x4, 0x3, 0x5e, 0};
+ * // VI Queue, AIFSN=2, CWmax=4, CWmin=3, TXOP=3.008ms, SlotTime default
+ * (short slot time 9us, long slot time 20us)
+ * struct rtw_edca_param edca_param_3 = {3, 2, 0x3, 0x2, 0x2f, 0};
+ * // VO Queue, AIFSN=2, CWmax=3, CWmin=2, TXOP=1.504ms, SlotTime default
+ * (short slot time 9us, long slot time 20us)
+ * wifi_set_edca_param(&edca_param_0);
+ * wifi_set_edca_param(&edca_param_1);
+ * wifi_set_edca_param(&edca_param_2);
+ * wifi_set_edca_param(&edca_param_3);
+ * @endcode
  * @return
  *    - @ref RTK_SUCCESS : The API executed successfully.
  *    - -@ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode,
@@ -611,6 +663,17 @@ s32 wifi_acs_find_ideal_channel(struct rtw_acs_config *acs_config, u8 *ideal_ch)
  */
 s32 wifi_set_tx_advanced_config(struct rtw_tx_advanced_cfg *tx_setting);
 
+/**
+ * @brief  Configure TSF sync to the specified target.
+ * @param[in]  enable: 1 to enable, 0 to disable.
+ * @param[in]  mac: Pointer to the mac address of the specified target.
+ * @return
+ *    - @ref RTK_SUCCESS : The API executed successfully.
+ *    - -@ref RTK_ERR_WIFI_POWEROFF : Wi-Fi is powered off in IPS(Inactive Power Save) mode,
+ *                      unable to access Wi-Fi registers.
+ */
+s32 wifi_tsf_sync_to_user_target(u8 enable, u8 *mac_addr);
+
 /** @} End of Extended_Functions group */
 /** @} End of WIFI_Exported_Functions group*/
 /** @} End of WIFI_API group*/
@@ -620,4 +683,3 @@ s32 wifi_set_tx_advanced_config(struct rtw_tx_advanced_cfg *tx_setting);
 #endif
 
 #endif // __WIFI_API_EXT_H
-

@@ -24,10 +24,8 @@
 #define CONFIG_MCC_MODE
 
 #ifdef CONFIG_NAN
-#define NET_IF_NUM	3
 #define SUPPORT_ADAPTER_NUM	3
 #else
-#define NET_IF_NUM 2
 #define SUPPORT_ADAPTER_NUM	2
 #endif
 /**************** configurations for concurrent mode end **********************/
@@ -35,6 +33,7 @@
 /************************* Default Values of User Configure *****************************/
 #define MACID_HW_MAX_NUM		16
 /************************* Default Values of User Configure End***************************/
+//#define CONFIG_SUPPLICANT_SME
 
 #ifdef CONFIG_NAN
 #define CONFIG_NAN_PAIRING
@@ -73,7 +72,7 @@
 
 //#define SW_WEP_TKIP
 
-#ifdef CONFIG_AS_INIC_NP
+#ifdef CONFIG_WHC_DEV
 // customer requirement, send udp multicast frames around 1890 bytes without fragmentation
 #endif
 
@@ -191,8 +190,6 @@
 #define WLAN_MAX_ETHFRM_LEN	1904/*max payload size of wifi frame*/
 
 /* debug log level */
-#undef RELEASE_WIFI
-
+#define RELEASE_WIFI
 #define CONFIG_IOT_RS 1
 #endif /*#ifndef AUTOCONF_8730A_H */
-

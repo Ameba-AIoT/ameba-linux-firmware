@@ -50,6 +50,7 @@ ameba_list_append(private_sources
     ${c_CMPT_SOC_DIR}/fwlib/ram_common/ameba_usb.c
     ../common/usb_hal.c
     ../common/usb_os.c
+    ../common/usb_ringbuf.c
     core/usbh.c
     core/usbh_core.c
     core/usbh_hal.c
@@ -58,6 +59,10 @@ ameba_list_append(private_sources
 
 ameba_list_append_ifnot(CONFIG_SUPPORT_USB_NO_PHY private_sources
     ../common/usb_phy.c
+)
+
+ameba_list_append_if(CONFIG_SUPPORT_USBH_UVC_HW_DEC private_sources
+    core/usbh_hw_uvc.c
 )
 
 # Component private part, user config end

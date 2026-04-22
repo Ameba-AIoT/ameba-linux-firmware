@@ -124,7 +124,15 @@ static bool bt_stack_sbc_encoder_init(SBC_ENC_PARAMS *p_params, rtk_bt_sbc_encod
 		p_params->s16SamplingFreq = 0;
 		break;
 	}
-	p_params->u16BitRate = 229;
+	if (p_encode_t->sample_rate == 48000) {
+		p_params->u16BitRate = 328;
+	} else if (p_encode_t->sample_rate == 44100) {
+		p_params->u16BitRate = 229;
+	} else if (p_encode_t->sample_rate == 32000) {
+		p_params->u16BitRate = 152;
+	} else {
+		p_params->u16BitRate = 76;
+	}
 	memset((void *)encoded_data, 0, 4096 + 16);
 	p_params->pu8Packet = encoded_data;
 	p_params->u8NumPacketToEncode = p_encode_t->sbc_pkt_num;
@@ -224,13 +232,18 @@ static uint16_t sbc_decoder_process_data(void *pentity, uint8_t *data, uint32_t 
 
 	availPcmBytes = sizeof(pcm_data);
 	// DBG_BAD("%s : Enter frame size %d \r\n", __func__, size);
-	while (frame_data_len && availPcmBytes) {
+	do {
 		pcmBytes = availPcmBytes;
-		status = OI_CODEC_SBC_DecodeFrame(&priv_decode_context,
-										  &frame_data,
-										  &frame_data_len,
-										  pcm_data_pointer,
-										  &pcmBytes);
+		if (!data && (size == 0)) {
+			status = OI_CODEC_SBC_NO_SYNCWORD;
+			BT_LOGA(" Received one no data \r\n");
+		} else {
+			status = OI_CODEC_SBC_DecodeFrame(&priv_decode_context,
+											  &frame_data,
+											  &frame_data_len,
+											  pcm_data_pointer,
+											  &pcmBytes);
+		}
 		/* Handle decoding result. */
 #if defined(SBC_PLC_INCLUDED) && SBC_PLC_INCLUDED
 		if (priv_decode_context.sbc_mode == OI_SBC_MODE_MSBC) {
@@ -297,7 +310,7 @@ static uint16_t sbc_decoder_process_data(void *pentity, uint8_t *data, uint32_t 
 #endif
 		availPcmBytes -= pcmBytes;
 		pcm_data_pointer += pcmBytes / 2;
-	}
+	} while (frame_data_len && availPcmBytes);
 	*ppcm_size = sizeof(pcm_data) - availPcmBytes;
 
 	return (uint16_t)status;
@@ -421,7 +434,11 @@ static uint16_t sbc_audio_handle_media_data_packet(void *pentity, uint8_t *packe
 		paudio_param->bits = 16;
 		*pcodec_header_flag = 0;
 		*pframe_num = 1;
-		*pframe_size = 57;
+		if (packet) {
+			*pframe_size = 57;
+		} else {
+			*pframe_size = 0;
+		}
 		return 0;
 	}
 	/* decode sbc header */

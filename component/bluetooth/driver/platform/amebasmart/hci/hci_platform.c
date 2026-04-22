@@ -1,17 +1,18 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "osif.h"
-#include "hci/hci_common.h"
+#include "hci_controller.h"
 #include "hci_uart.h"
 #include "hci_platform.h"
 #include "bt_debug.h"
 #include "platform_autoconf.h"
 #if defined(CONFIG_WLAN) && CONFIG_WLAN
 #include "wifi_api.h"
+#include "wifi_intf_drv_to_app_internal.h"
 extern int wifi_set_ips_internal(u8 enable);
 #endif
 
@@ -163,8 +164,8 @@ static uint8_t hci_platform_read_antenna(void)
 	/* Parse BT RF PATH */
 	if (bt_ant_switch == 0xFF) { /* Priority of ATM2=ant is higher than efuse in mp image. */
 		/* Read Logic Efuse */
-		if (RTK_FAIL == OTP_LogicalMap_Read(&val, 0x133, 1)) {
-			BT_LOGE("OTP_LogicalMap_Read 0x133 failed\r\n");
+		if (RTK_FAIL == OTP_LogicalRead(&val, 0x133, 1)) {
+			BT_LOGE("OTP_LogicalRead 0x133 failed\r\n");
 			return HCI_FAIL;
 		}
 
@@ -192,8 +193,8 @@ static uint8_t hci_platform_read_efuse(void)
 	uint8_t i;
 
 	/* Read Logic Efuse */
-	if (RTK_FAIL == OTP_LogicalMap_Read(hci_lgc_efuse, HCI_LGC_EFUSE_OFFSET, HCI_LGC_EFUSE_LEN)) {
-		BT_LOGE("OTP_LogicalMap_Read failed\r\n");
+	if (RTK_FAIL == OTP_LogicalRead(hci_lgc_efuse, HCI_LGC_EFUSE_OFFSET, HCI_LGC_EFUSE_LEN)) {
+		BT_LOGE("OTP_LogicalRead failed\r\n");
 		return HCI_FAIL;
 	}
 
@@ -357,7 +358,7 @@ static void bt_power_on(void)
 	}
 	set_reg_value(0x42008200, BIT25, 1);                /* Release BTON por, BT Memory */
 	set_reg_value(0x42008208, BIT13, 1);                /* Release BTON reset */
-	if (HCI_BT_KEEP_WAKE) {
+	if (HCI_BT_KEEP_AWAKE) {
 		set_reg_value(0x42008250, BIT13, 1);            /* enable HOST_WAKE_BT */
 	}
 }
@@ -403,10 +404,7 @@ bool rtk_bt_pre_enable(void)
 			return false;
 		}
 
-		if (hci_is_wifi_need_leave_ps()) {
-			wifi_set_lps_enable(FALSE);
-			wifi_set_ips_internal(FALSE);
-		}
+		wifi_ps_en_by_bt_state(DISABLE);
 	}
 #endif
 
@@ -417,10 +415,7 @@ void rtk_bt_post_enable(void)
 {
 #if defined(CONFIG_WLAN) && CONFIG_WLAN
 	if (bt_ant_switch == ANT_S1) {
-		if (hci_is_wifi_need_leave_ps()) {
-			wifi_set_lps_enable(wifi_user_config.lps_enable);
-			wifi_set_ips_internal(wifi_user_config.ips_enable);
-		}
+		wifi_ps_en_by_bt_state(ENABLE);
 	}
 #endif
 }
@@ -431,8 +426,16 @@ void hci_platform_external_fw_log_pin(void)
 	PAD_PullCtrl(_PB_10, GPIO_PuPd_UP);
 }
 
-uint8_t hci_platform_init(void)
+uint8_t hci_platform_open(void)
 {
+	if (!CHECK_CFG_SW(CFG_SW_BT_FW_LOG)) {
+		rtk_bt_fw_log_open();
+		BT_LOGA("FW LOG OPEN\r\n");
+#if 0
+		hci_platform_external_fw_log_pin();
+#endif
+	}
+
 	/* Read Efuse and Parse Configbuf */
 	if (HCI_FAIL == hci_platform_read_efuse()) {
 		return HCI_FAIL;
@@ -442,18 +445,10 @@ uint8_t hci_platform_init(void)
 		return HCI_FAIL;
 	}
 
-	if (!CHECK_CFG_SW(CFG_SW_BT_FW_LOG)) {
-		rtk_bt_fw_log_open();
-		BT_LOGA("FW LOG OPEN\r\n");
-#if 0
-		hci_platform_external_fw_log_pin();
-#endif
-	}
-
 	/* BT Controller Reset */
 	hci_platform_controller_reset();
 
-	/* UART Init */
+	/* UART Open */
 	if (HCI_FAIL == hci_uart_open()) {
 		return HCI_FAIL;
 	}
@@ -461,17 +456,23 @@ uint8_t hci_platform_init(void)
 	return HCI_SUCCESS;
 }
 
-void hci_platform_deinit(void)
+void hci_platform_close(void)
 {
 	/* BT Controller Power Off */
 	bt_power_off();
 
-	/* UART Deinit */
+	/* UART Close */
 	hci_uart_close();
 
 	if (!CHECK_CFG_SW(CFG_SW_BT_FW_LOG)) {
 		rtk_bt_fw_log_close();
 	}
+}
+
+void hci_platform_free(void)
+{
+	/* UART Free */
+	hci_uart_free();
 }
 
 uint8_t hci_platform_record_chipid(uint8_t chipid)

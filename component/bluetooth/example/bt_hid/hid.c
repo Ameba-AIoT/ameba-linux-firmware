@@ -191,6 +191,12 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 		break;
 	}
 
+	case RTK_BT_BR_GAP_INQUIRY_CMPL: {
+		rtk_bt_br_inquiry_cmpl_t *p_cmpl = (rtk_bt_br_inquiry_cmpl_t *)param;
+		BT_LOGA("[BR GAP] Inquiry completed, cause is 0x%x \r\n", p_cmpl->cause);
+		break;
+	}
+
 	case RTK_BT_BR_GAP_REMOTE_NAME_RSP: {
 		// rtk_bt_br_remote_name_rsp_t *p_name_rsp = (rtk_bt_br_remote_name_rsp_t *)param;
 		break;
@@ -275,6 +281,16 @@ static rtk_bt_evt_cb_ret_t br_gap_app_callback(uint8_t evt_code, void *param, ui
 					p_acl_disc_event->bd_addr[3], p_acl_disc_event->bd_addr[2],
 					p_acl_disc_event->bd_addr[1], p_acl_disc_event->bd_addr[0],
 					p_acl_disc_event->cause);
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_ROLE_MASTER: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_MASTER \r\n");
+		break;
+	}
+
+	case RTK_BT_BR_GAP_LINK_ROLE_SLAVE: {
+		BT_LOGA("[BR GAP] RTK_BT_BR_GAP_LINK_ROLE_SLAVE \r\n");
 		break;
 	}
 
@@ -464,7 +480,7 @@ int bt_hid_main(uint8_t role, uint8_t enable)
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_GAP, br_gap_app_callback));
 		/* mix RTK_BT_DEV_NAME with bt mac address */
 		strcpy(dev_name, RTK_BT_DEV_NAME);
-		snprintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
+		DiagSnPrintf(&dev_name[strlen(RTK_BT_DEV_NAME)], 7, "(%02X%02X)", bd_addr.addr[1], bd_addr.addr[0]);
 		BT_APP_PROCESS(rtk_bt_br_gap_set_device_name((const uint8_t *)dev_name));
 		/* Initilize SDP part */
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_BR_GP_SDP, rtk_bt_sdp_app_callback));

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-
 #include "platform_autoconf.h"
 
 #ifdef CONFIG_SUPPORT_ATCMD
@@ -13,12 +12,22 @@
 #include "at_intf_uart.h"
 #include "at_intf_spi.h"
 #include "at_intf_sdio.h"
+#include "at_intf_usbd.h"
+#include "at_intf_usbh.h"
 #include "atcmd_service.h"
+#include "atcmd_sys_common.h"
+#if (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE)
 #include "vfs.h"
 #include "kv.h"
+#ifndef CONFIG_PLATFORM_ZEPHYR
 #include "cJSON.h"
+#endif
+#endif
 
 #include "atcmd_sys.h"
+#ifdef CONFIG_DIAGNOSE_EN
+#include "atcmd_diag.h"
+#endif
 
 #ifndef CONFIG_MP_SHRINK
 #ifdef CONFIG_WLAN
@@ -33,6 +42,7 @@
 #endif
 #endif
 #include "atcmd_fs.h"
+#include "atcmd_ethernet.h"
 #endif
 
 #if defined(CONFIG_BT) && CONFIG_BT
@@ -51,75 +61,48 @@
 #include "atcmd_otp.h"
 #endif
 
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 #ifdef CONFIG_SUPPORT_SDIO_DEVICE
 #include "ameba_intfcfg.h"
 #endif
 #endif
 
 //======================================================
-struct list_head log_hash[ATC_INDEX_NUM];
-
 rtos_mutex_t at_printf_mutex = NULL;
 
 static const char *const TAG = "AT";
-
 log_init_t log_init_table[] = {
-
+#if (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE)
 #ifndef CONFIG_MP_SHRINK
 #ifdef CONFIG_WLAN
 	at_wifi_init,
 #ifdef CONFIG_LWIP_LAYER
 #if defined(CONFIG_ATCMD_MQTT) && (CONFIG_ATCMD_MQTT == 1)
 	at_mqtt_init,
-#endif
+#endif  /* CONFIG_ATCMD_MQTT */
 #if defined(CONFIG_ATCMD_SOCKET) && (CONFIG_ATCMD_SOCKET == 1)
 	at_socket_init,
-#endif
-#if defined(CONFIG_ATCMD_HTTP) && (CONFIG_ATCMD_HTTP == 1)
-	at_http_init,
-#endif
+#endif  /* CONFIG_ATCMD_SOCKET */
 #if defined(CONFIG_ATCMD_WEBSOCKET) && (CONFIG_ATCMD_WEBSOCKET == 1)
 	at_websocket_init,
-#endif
-#if defined(CONFIG_ATCMD_NETWORK) && (CONFIG_ATCMD_NETWORK == 1)
-	at_network_init,
-#endif
-#if defined(CONFIG_ATCMD_OTA) && (CONFIG_ATCMD_OTA == 1)
-	at_ota_init,
-#endif
-#endif  //CONFIG_LWIP_LAYER
-#endif  //CONFIG_WLAN
-	at_fs_init,
-#endif  //CONFIG_MP_SHRINK
+#endif  /* CONFIG_ATCMD_WEBSOCKET */
+#endif  /* CONFIG_LWIP_LAYER */
+#endif  /* CONFIG_WLAN */
+#endif  /* CONFIG_MP_SHRINK */
 
-#if defined(CONFIG_BT) && CONFIG_BT
-	at_bt_init,
-#if defined(CONFIG_MP_INCLUDED) && CONFIG_MP_INCLUDED
-	at_mp_init,
-#endif
-#endif
-
-#ifndef CONFIG_MP_SHRINK
-#if defined(CONFIG_BT_COEXIST)
-	at_coex_init,
-#endif
-#endif
-	at_sys_init,
-#ifndef CONFIG_AMEBAD
-	at_otp_init,
-#endif
+#endif  /* (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE) */
 };
 
 
 //======================================================
-#if defined(CONFIG_ATCMD_HOST_CONTROL)
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 RingBuffer *atcmd_tt_mode_rx_ring_buf = NULL;
 char g_tt_mode = 0;
 char g_tt_mode_check_watermark = 0;
 char g_tt_mode_indicate_high_watermark = 0;
 char g_tt_mode_indicate_low_watermark = 1;
 char g_host_control_mode = AT_HOST_CONTROL_UART;
+char atcmd_usb_mode = 0;
 volatile char g_tt_mode_stop_flag = 0;
 volatile u8 g_tt_mode_stop_char_cnt = 0;
 rtos_timer_t xTimers_TT_Mode;
@@ -290,10 +273,10 @@ int atcmd_tt_mode_start(u32 len)
 		return -1;
 	}
 
-	g_tt_mode = 1;
-	RTK_LOGI(TAG, "enter tt mode\n");
 	// info HOST we enter tt mode now
 	at_printf(ATCMD_ENTER_TT_MODE_STR);
+	g_tt_mode = 1;
+	RTK_LOGI(TAG, "enter tt mode\n");
 
 	return 0;
 }
@@ -362,7 +345,7 @@ int atcmd_wifi_config_setting(void)
 	struct stat *stat_buf = NULL;
 	char *wifi_config = NULL;
 
-	if (lfs_mount_flag == -1) {
+	if (lfs_mount_flag != 1) {
 		ret = -1;
 		goto EXIT;
 	}
@@ -378,8 +361,8 @@ int atcmd_wifi_config_setting(void)
 		goto EXIT;
 	}
 
-	vfs_file *finfo;
-	finfo = (vfs_file *)fopen(path, "r");
+	FILE *finfo;
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		RTK_LOGI(TAG, "get wifi_config.json fail \r\n");
 		ret = -1;
@@ -389,14 +372,14 @@ int atcmd_wifi_config_setting(void)
 
 	cJSON *wifi_ob, *country_code_ob;
 	wifi_config = (char *)rtos_mem_zmalloc(stat_buf->st_size);
-	ret = fread(wifi_config, stat_buf->st_size, 1, (FILE *)finfo);
+	ret = fread(wifi_config, stat_buf->st_size, 1, finfo);
 	if (ret < 0) {
 		RTK_LOGI(TAG, "get wifi_config.json fail \r\n");
-		fclose((FILE *)finfo);
+		fclose(finfo);
 		goto EXIT;
 	}
 
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 	if ((wifi_ob = cJSON_Parse(wifi_config)) != NULL) {
 		country_code_ob = cJSON_GetObjectItem(wifi_ob, "country_code");
@@ -451,7 +434,7 @@ int atcmd_host_control_config_setting(void)
 	char *atcmd_config = NULL;
 	cJSON *atcmd_ob = NULL, *interface_ob;
 
-	if (lfs_mount_flag == -1) {
+	if (lfs_mount_flag != 1) {
 		goto DEFAULT;
 	}
 
@@ -465,22 +448,22 @@ int atcmd_host_control_config_setting(void)
 		goto DEFAULT;
 	}
 
-	vfs_file *finfo;
-	finfo = (vfs_file *)fopen(path, "r");
+	FILE *finfo;
+	finfo = fopen(path, "r");
 	if (finfo == NULL) {
 		RTK_LOGI(TAG, "get atcmd_config.json fail \r\n");
 		goto DEFAULT;
 	}
 
 	atcmd_config = (char *)rtos_mem_zmalloc(stat_buf->st_size);
-	ret = fread(atcmd_config, stat_buf->st_size, 1, (FILE *)finfo);
+	ret = fread(atcmd_config, stat_buf->st_size, 1, finfo);
 	if (ret < 0) {
 		RTK_LOGI(TAG, "get atcmd_config.json fail \r\n");
-		fclose((FILE *)finfo);
+		fclose(finfo);
 		goto DEFAULT;
 	}
 
-	fclose((FILE *)finfo);
+	fclose(finfo);
 
 	if ((atcmd_ob = cJSON_Parse(atcmd_config)) != NULL) {
 		interface_ob = cJSON_GetObjectItem(atcmd_ob, "interface");
@@ -492,6 +475,8 @@ int atcmd_host_control_config_setting(void)
 				g_host_control_mode = AT_HOST_CONTROL_SPI;
 			} else if (strncmp(interface_ob->valuestring, "sdio", strlen(interface_ob->valuestring)) == 0) {
 				g_host_control_mode = AT_HOST_CONTROL_SDIO;
+			} else if (strncmp(interface_ob->valuestring, "usb", strlen(interface_ob->valuestring)) == 0) {
+				g_host_control_mode = AT_HOST_CONTROL_USB;
 			}
 		} else {
 			goto DEFAULT;
@@ -531,6 +516,16 @@ int atcmd_host_control_config_setting(void)
 				group_ob = cJSON_GetObjectItem(sdio_ob, "group");
 				if (group_ob) {
 					SDIO_Pin_Grp = group_ob->valueint;
+				}
+			}
+#endif
+		} else if (g_host_control_mode == AT_HOST_CONTROL_USB) {
+#ifdef CONFIG_SUPPORT_USB
+			cJSON *usb_ob, *mode_ob;
+			if ((usb_ob = cJSON_GetObjectItem(atcmd_ob, "usb")) != NULL) {
+				mode_ob = cJSON_GetObjectItem(usb_ob, "mode");
+				if (mode_ob) {
+					atcmd_usb_mode = mode_ob->valueint;
 				}
 			}
 #endif
@@ -580,6 +575,27 @@ DEFAULT:
 		ret = -1;
 		RTK_LOGI(TAG, "NOT Support SDIO Interface!\r\n");
 #endif
+	} else if (g_host_control_mode == AT_HOST_CONTROL_USB) {
+#ifdef CONFIG_SUPPORT_USB
+		if (atcmd_usb_mode) {
+#ifdef CONFIG_USB_HOST_EN
+			RTK_LOGI(TAG, "ATCMD HOST Control Mode : USB HOST\r\n");
+			ret = atio_usbh_init();
+#else
+			RTK_LOGI(TAG, "NOT Support USB HOST Interface!\r\n");
+#endif
+		} else {
+#ifdef CONFIG_USB_DEVICE_EN
+			RTK_LOGI(TAG, "ATCMD HOST Control Mode : USB DEVICE\r\n");
+			ret = atio_usbd_init();
+#else
+			RTK_LOGI(TAG, "USB Mode Config Error!\r\n");
+#endif
+		}
+#else
+		ret = -1;
+		RTK_LOGI(TAG, "NOT Support USB Interface!\r\n");
+#endif
 	} else {
 		RTK_LOGE(TAG, "g_host_control_mode is invalid\r\n");
 	}
@@ -615,29 +631,40 @@ void tt_mode_timeout_handler(void *arg)
 void atcmd_host_control_mode_init_thread(void *param)
 {
 	(void) param;
+
 	rtos_timer_create(&xTimers_TT_Mode, "TT_Mode_Timer", NULL, 30, FALSE, tt_mode_timeout_handler);
+
 	//initialize tt mode ring sema
 	rtos_sema_create(&atcmd_tt_mode_sema, 0, 0xFFFF);
-	while (kv_init_done == 0) {
-		rtos_time_delay_ms(10);
+
+	if (kv_init_done != 1) {
+		RTK_LOGE(TAG, "file system init fail\n");
+		goto exit;
 	}
+
 	int ret = atcmd_wifi_config_setting();
 	if (ret < 0) {
 		RTK_LOGE(TAG, "atcmd wifi config setting fail\n");
-		return;
+		goto exit;
 	}
+
 	ret = atcmd_host_control_config_setting();
+
 	if (ret < 0) {
 		RTK_LOGI(TAG, "atcmd host control config setting fail\n");
-		return;
+		goto exit;
 	}
+
 	char *path = rtos_mem_zmalloc(MAX_KEY_LENGTH);
 	char *prefix = find_vfs_tag(VFS_REGION_1);
 	DiagSnPrintf(path, MAX_KEY_LENGTH, "%s:AT", prefix);
 	mkdir(path, 0);
 	rtos_mem_free(path);
+
 	RTK_LOGI(TAG, ATCMD_HOST_CONTROL_INIT_STR);
 	at_printf(ATCMD_HOST_CONTROL_INIT_STR);
+
+exit:
 	rtos_task_delete(NULL);
 }
 
@@ -687,68 +714,38 @@ void at_printf_unlock()
 	rtos_mutex_recursive_give(at_printf_mutex);
 }
 
-
-int hash_index(const char *str)
-{
-	unsigned int seed = 131; // 31 131 1313 13131 131313 etc..
-	unsigned int hash = 0;
-
-	while (*str) {
-		hash = hash * seed + (*str++);
-	}
-
-	return (hash & 0x7FFFFFFF);
-}
-
-void log_add_new_command(log_item_t *new)
-{
-	int index = hash_index(new->log_cmd) % ATC_INDEX_NUM;
-
-	list_add(&new->node, &log_hash[index]);
-}
-
 void atcmd_service_init(void)
 {
 	unsigned int i;
+	unsigned int array_size = sizeof(log_init_table) / sizeof(log_init_t);
 
-	for (i = 0; i < ATC_INDEX_NUM; i++) {
-		INIT_LIST_HEAD(&log_hash[i]);
-	}
-
-	for (i = 0; i < sizeof(log_init_table) / sizeof(log_init_t); i++) {
-		log_init_table[i]();
+	/* Avoid compile warning when log_init_table is NULL */
+	if (array_size > 0) {
+		for (i = 0; i < array_size; i++) {
+			log_init_table[i]();
+		}
 	}
 
 	rtos_mutex_recursive_create(&at_printf_mutex);
 
-#ifdef CONFIG_ATCMD_HOST_CONTROL
+#if (defined CONFIG_ATCMD_HOST_CONTROL && (defined CONFIG_WHC_HOST || defined CONFIG_WHC_NONE))
 	rtos_task_create(NULL, ((const char *)"atcmd_host_control_mode_init_thread"), atcmd_host_control_mode_init_thread, NULL, 4096, 5);
 #endif
 }
 
-//sizeof(log_items)/sizeof(log_items[0])
-void atcmd_service_add_table(log_item_t *tbl, int len)
+__attribute__((noinline)) void *atcmd_action(char *cmd)
 {
-	int i;
-	for (i = 0; i < len; i++) {
-		log_add_new_command(&tbl[i]);
-	}
-}
-
-void *atcmd_action(char *cmd)
-{
-	int index = hash_index(cmd) % ATC_INDEX_NUM;
-	struct list_head *head = &log_hash[index];
-	struct list_head *iterator;
-	log_item_t *item;
+	log_item_t *item = (log_item_t *)__cmd_table_start__;
+	u32 cmd_mum = ((__cmd_table_end__ - __cmd_table_start__) / sizeof(log_item_t));
+	u32	index ;
 	void *act = NULL;
 
-	list_for_each(iterator, head) {
-		item = list_entry(iterator, log_item_t, node);
+	for (index = 0; index < cmd_mum; index++) {
 		if (strcmp(item->log_cmd, cmd) == 0) {
 			act = (void *)item->at_act;
 			break;
 		}
+		item++;
 	}
 
 	return act;
@@ -764,6 +761,15 @@ void *atcmd_handler(char *cmd)
 	char tok[33] = {0};//'\0'
 	char *tokSearch = NULL;
 	int prefix_length = strlen(atcmd_prefix);
+	char *argv[MAX_ARGC] = {0};
+	u16 argc = 0;
+	int i = 0;
+
+	/* Validate input command */
+	if (cmd == NULL) {
+		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "[ATCMD] Invalid cmd input \r\n");
+		return NULL;
+	}
 
 	if (strncmp(cmd, atcmd_prefix, prefix_length) != 0) {
 		return NULL;
@@ -782,10 +788,24 @@ void *atcmd_handler(char *cmd)
 	action = (log_act_t)atcmd_action(tokSearch);
 
 	if (action) {
-		action(param);
+		/* Initialize argv array to NULL */
+		for (i = 0; i < MAX_ARGC; i++) {
+			argv[i] = NULL;
+		}
+
+		/* Parse parameters at top level before calling handler */
+		/* Use parse_param_advance to support escaped characters like \, and \\ */
+		argc = parse_param_advance(param, argv);
+
+		/* Validate argc is within valid range */
+		if (argc < 1 || argc >= MAX_ARGC) {
+			RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "[ATCMD] Invalid argc: %d\r\n", argc);
+			return (void *)action;
+		}
+
+		action(argc, argv);
 	}
 	return (void *)action;
-
 }
 
 /****************************************************************
@@ -835,7 +855,7 @@ exit:
 int parse_param_advance(char *buf, char **argv)
 {
 	/* The last charactor should be '\0'. */
-	const int most_size = UART_LOG_CMD_BUFLEN - 1;
+	const int most_size = CMD_BUFLEN - 1;
 	int argc = 1, pos = 0, i = 0, j = 0, offset = 1;
 
 	if (buf == NULL) {
@@ -890,13 +910,13 @@ int mp_command_handler(char *cmd)
 	int len = strlen(start);
 	if (strncmp(cmd, start, len) == 0) {
 #ifdef CONFIG_MP_INCLUDED
-#if defined(CONFIG_AS_INIC_AP)
+#if defined(CONFIG_WHC_HOST)
 		char *cmdbuf = NULL;
 		cmdbuf = rtos_mem_malloc(strlen(cmd + len) + 1);
 		strcpy(cmdbuf, (const char *)(cmd + len));
 		whc_ipc_host_api_mp_command(cmdbuf, strlen(cmd + len) + 1, 1);
 		rtos_mem_free(cmdbuf);
-#elif defined(CONFIG_SINGLE_CORE_WIFI)
+#elif defined(CONFIG_WHC_NONE)
 		wext_private_command(cmd + len, 1, NULL);
 #endif
 #endif

@@ -1,12 +1,12 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "osif.h"
-#include "hci/hci_common.h"
-#include "hci/hci_transport.h"
+#include "hci_controller.h"
+#include "hci_transport.h"
 #include "hci_platform.h"
 #include "bt_debug.h"
 #include "rtk_coex.h"
@@ -14,12 +14,18 @@
 
 #define CONFIG_HCI_RX_PRIO        5
 #define CONFIG_HCI_RX_STACK_SIZE  (2*1024)
+/* RX ACL/SCO/ISO data */
 #if defined(CONFIG_BT_DUAL_MODE) && CONFIG_BT_DUAL_MODE
-#define CONFIG_HCI_RX_BUF_LEN     1056
+#define CONFIG_HCI_RX_DATA_BUF_LEN     1056  /* shall be 4 byte aligned */
 #else
-#define CONFIG_HCI_RX_BUF_LEN     288
+#define CONFIG_HCI_RX_DATA_BUF_LEN     288   /* shall be 4 byte aligned */
 #endif
-#define CONFIG_HCI_RX_NUM         8
+#define CONFIG_HCI_RX_DATA_NUM         8
+/* RX HCI event */
+#define CONFIG_HCI_RX_EVT_BUF_LEN      260   /* shall be 4 byte aligned */
+#define CONFIG_HCI_RX_EVT_NUM          8
+
+#define CONFIG_HCI_RX_TOTAL_NUM        (CONFIG_HCI_RX_DATA_NUM + CONFIG_HCI_RX_EVT_NUM)
 
 
 static struct hci_h4_t {
@@ -29,9 +35,11 @@ static struct hci_h4_t {
 	void    *rx_run_sema;
 	void    *rx_thread_hdl;
 	void    *rx_busy;
-	void    *rx_free;
-	struct hci_rx_packet_t rxpkts[CONFIG_HCI_RX_NUM];
-	uint8_t rxbuf[CONFIG_HCI_RX_BUF_LEN * CONFIG_HCI_RX_NUM];
+	void    *rx_data_free;
+	uint8_t rx_data_buf[CONFIG_HCI_RX_DATA_NUM][CONFIG_HCI_RX_DATA_BUF_LEN]; /* buf start pionter shall be 4 byte aligned */
+	void    *rx_evt_free;
+	uint8_t rx_evt_buf[CONFIG_HCI_RX_EVT_NUM][CONFIG_HCI_RX_EVT_BUF_LEN]; /* buf start pionter shall be 4 byte aligned */
+	struct hci_rx_packet_t rxpkts[CONFIG_HCI_RX_TOTAL_NUM];
 	bool    rx_disabled;
 	bool    rx_run;
 
@@ -60,6 +68,47 @@ _WEAK void bt_vendor_process_tx_frame(uint8_t type, uint8_t *pdata, uint16_t len
 	(void)type;
 	(void)pdata;
 	(void)len;
+}
+
+uint16_t hci_rx_buf_size(uint8_t type)
+{
+	return ((HCI_EVT == type) ? CONFIG_HCI_RX_EVT_BUF_LEN : CONFIG_HCI_RX_DATA_BUF_LEN);
+}
+
+static bool hci_rx_pkt_alloc(struct hci_rx_packet_t **pkt, uint8_t type)
+{
+	void *rx_free_q = ((HCI_EVT == type) ? h4->rx_evt_free : h4->rx_data_free);
+	return osif_msg_recv(rx_free_q, pkt, BT_TIMEOUT_NONE);
+}
+
+bool hci_rx_pkt_free(struct hci_rx_packet_t *pkt)
+{
+	void *rx_free_q = ((HCI_EVT == pkt->type) ? h4->rx_evt_free : h4->rx_data_free);
+
+	if (!osif_msg_send(rx_free_q, &pkt, BT_TIMEOUT_NONE)) {
+		return false;
+	}
+
+	if (h4->rx_disabled) {
+		BT_LOGA("Uart Rx recover.\r\n");
+		hci_uart_rx_irq_handler(false); /* just in case the paused packet has no body */
+		h4->rx_disabled = false;
+		hci_uart_rx_irq(true);
+	}
+	return true;
+}
+
+bool hci_rx_buf_find_free(uint8_t *buf)
+{
+	int i;
+
+	for (i = 0; i < CONFIG_HCI_RX_TOTAL_NUM; i++) {
+		if (h4->rxpkts[i].buf == buf) {
+			return hci_rx_pkt_free(&h4->rxpkts[i]);
+		}
+	}
+	BT_LOGE("rx buf find failed\r\n");
+	return false;
 }
 
 void hci_uart_rx_irq_handler(bool from_irq)
@@ -93,7 +142,7 @@ void hci_uart_rx_irq_handler(bool from_irq)
 
 		if (h4->remain == 0) {
 			h4->body_len = hci_get_body_len(h4->hdr, h4->type);
-			if ((h4->body_len + h4->hlen) > CONFIG_HCI_RX_BUF_LEN) {
+			if ((h4->body_len + h4->hlen) > hci_rx_buf_size(h4->type)) {
 				BT_LOGE("ERROR!!!, type %d, len %d\r\n", h4->type, h4->body_len);
 				h4->remain = h4->body_len;
 				h4->state = ST_DISCARD;
@@ -108,7 +157,7 @@ void hci_uart_rx_irq_handler(bool from_irq)
 				}
 			}
 
-			if (osif_msg_recv(h4->rx_free, &h4->pkt, BT_TIMEOUT_NONE)) { /* h4->pkt is valid */
+			if (hci_rx_pkt_alloc(&h4->pkt, h4->type)) { /* h4->pkt is valid */
 				h4->pkt->type = h4->type;
 				h4->pkt->discardable = h4->discardable;
 				h4->pkt->len = h4->hlen + h4->body_len;
@@ -165,22 +214,17 @@ static void rx_thread(void *context)
 		if (!packet) { /* exit flag */
 			break;
 		}
+
 #ifndef CONFIG_BT_INIC
 		if (!hci_is_mp_mode()) {
 			bt_coex_process_rx_frame(packet->type, packet->buf, packet->len);
 		}
 #endif
+
 		if (h4->cb->recv) { /* send to upperstack */
-			h4->cb->recv(packet);
-		}
-
-		osif_msg_send(h4->rx_free, &packet, BT_TIMEOUT_NONE);
-
-		if (h4->rx_disabled) {
-			BT_LOGA("Uart Rx recover.\r\n");
-			hci_uart_rx_irq_handler(false); /* just in case the paused packet has no body */
-			h4->rx_disabled = false;
-			hci_uart_rx_irq(true);
+			h4->cb->recv(packet);  /* pkt will be freed in this callback or in upper layer when this pkt finish process */
+		} else {
+			hci_rx_pkt_free(packet);
 		}
 	}
 
@@ -204,12 +248,14 @@ uint16_t hci_transport_send(uint8_t type, uint8_t *buf, uint16_t len, bool has_r
 	if (type < HCI_CMD || type > HCI_ISO) {
 		return 0;
 	}
+
 #ifndef CONFIG_BT_INIC
 	if (!hci_is_mp_mode()) {
 		bt_coex_process_tx_frame(type, buf, len);
 		bt_vendor_process_tx_frame(type, buf, len);
 	}
 #endif
+
 	osif_mutex_take(h4->tx_mutex, BT_TIMEOUT_FOREVER);
 	if (has_rsvd_byte) {
 		*(buf - 1) = type;
@@ -228,6 +274,7 @@ uint16_t hci_transport_send(uint8_t type, uint8_t *buf, uint16_t len, bool has_r
 uint8_t hci_transport_open(void)
 {
 	int i;
+	void *pkt;
 
 	if (!h4) {
 		h4 = osif_mem_alloc(RAM_TYPE_DATA_ON, sizeof(struct hci_h4_t));
@@ -236,25 +283,86 @@ uint8_t hci_transport_open(void)
 		}
 		memset(h4, 0, sizeof(struct hci_h4_t));
 	}
+
 #ifndef CONFIG_BT_INIC
 	if (!hci_is_mp_mode()) {
 		bt_coex_init();
 	}
 #endif
-	osif_sem_create(&h4->rx_run_sema, 0, 1);
-	osif_mutex_create(&h4->tx_mutex);
-	osif_msg_queue_create(&h4->rx_busy, CONFIG_HCI_RX_NUM + 1, sizeof(struct hci_rx_packet_t *));
-	osif_msg_queue_create(&h4->rx_free, CONFIG_HCI_RX_NUM, sizeof(struct hci_rx_packet_t *));
-	for (i = 0; i < CONFIG_HCI_RX_NUM; i++) {
-		struct hci_rx_packet_t *pkt = &h4->rxpkts[i];
-		pkt->buf = &h4->rxbuf[CONFIG_HCI_RX_BUF_LEN * i];
-		osif_msg_send(h4->rx_free, &pkt, BT_TIMEOUT_NONE);
-	}
-	osif_task_create(&h4->rx_thread_hdl, "h4_rx_thread", rx_thread, 0, CONFIG_HCI_RX_STACK_SIZE, CONFIG_HCI_RX_PRIO);
-	osif_sem_take(h4->rx_run_sema, BT_TIMEOUT_FOREVER);
-	h4->rx_run = true;
 
+	if (false == osif_sem_create(&h4->rx_run_sema, 0, 1)) {
+		goto failed;
+	}
+	if (false == osif_mutex_create(&h4->tx_mutex)) {
+		goto failed;
+	}
+	if (false == osif_msg_queue_create(&h4->rx_busy, CONFIG_HCI_RX_TOTAL_NUM + 1, sizeof(struct hci_rx_packet_t *))) {
+		goto failed;
+	}
+	if (false == osif_msg_queue_create(&h4->rx_data_free, CONFIG_HCI_RX_DATA_NUM, sizeof(struct hci_rx_packet_t *))) {
+		goto failed;
+	}
+	if (false == osif_msg_queue_create(&h4->rx_evt_free, CONFIG_HCI_RX_EVT_NUM, sizeof(struct hci_rx_packet_t *))) {
+		goto failed;
+	}
+	for (i = 0; i < CONFIG_HCI_RX_TOTAL_NUM; i++) {
+		struct hci_rx_packet_t *pkt = &h4->rxpkts[i];
+		if (i < CONFIG_HCI_RX_DATA_NUM) {
+			pkt->buf = &h4->rx_data_buf[i][0];
+			if (false == osif_msg_send(h4->rx_data_free, &pkt, BT_TIMEOUT_NONE)) {
+				goto failed;
+			}
+		} else {
+			pkt->buf = &h4->rx_evt_buf[i - CONFIG_HCI_RX_DATA_NUM][0];
+			if (false == osif_msg_send(h4->rx_evt_free, &pkt, BT_TIMEOUT_NONE)) {
+				goto failed;
+			}
+		}
+	}
+
+	if (false == osif_task_create(&h4->rx_thread_hdl, "h4_rx_thread", rx_thread, 0, CONFIG_HCI_RX_STACK_SIZE, CONFIG_HCI_RX_PRIO)) {
+		goto failed;
+	}
+	if (false == osif_sem_take(h4->rx_run_sema, BT_TIMEOUT_FOREVER)) {
+		goto failed;
+	}
+
+	h4->rx_run = true;
 	return HCI_SUCCESS;
+
+failed:
+#ifndef CONFIG_BT_INIC
+	if (!hci_is_mp_mode()) {
+		bt_coex_deinit();
+	}
+#endif
+	if (h4->rx_thread_hdl) {
+		osif_task_delete(h4->rx_thread_hdl);
+	}
+	if (h4->rx_busy) {
+		while (osif_msg_recv(h4->rx_busy, &pkt, BT_TIMEOUT_NONE));
+		osif_msg_queue_delete(h4->rx_busy);
+	}
+	if (h4->rx_data_free) {
+		while (osif_msg_recv(h4->rx_data_free, &pkt, BT_TIMEOUT_NONE));
+		osif_msg_queue_delete(h4->rx_data_free);
+	}
+	if (h4->rx_evt_free) {
+		while (osif_msg_recv(h4->rx_evt_free, &pkt, BT_TIMEOUT_NONE));
+		osif_msg_queue_delete(h4->rx_evt_free);
+	}
+	if (h4->rx_run_sema) {
+		osif_sem_delete(h4->rx_run_sema);
+	}
+	if (h4->tx_mutex) {
+		osif_mutex_delete(h4->tx_mutex);
+	}
+	if (h4) {
+		osif_mem_free(h4);
+		h4 = NULL;
+	}
+
+	return HCI_FAIL;
 }
 
 void hci_transport_close(void)
@@ -283,9 +391,11 @@ void hci_transport_free(void)
 	}
 
 	while (osif_msg_recv(h4->rx_busy, &pkt, BT_TIMEOUT_NONE));
-	while (osif_msg_recv(h4->rx_free, &pkt, BT_TIMEOUT_NONE));
+	while (osif_msg_recv(h4->rx_data_free, &pkt, BT_TIMEOUT_NONE));
+	while (osif_msg_recv(h4->rx_evt_free, &pkt, BT_TIMEOUT_NONE));
 	osif_msg_queue_delete(h4->rx_busy);
-	osif_msg_queue_delete(h4->rx_free);
+	osif_msg_queue_delete(h4->rx_data_free);
+	osif_msg_queue_delete(h4->rx_evt_free);
 	osif_sem_delete(h4->rx_run_sema);
 	osif_mutex_delete(h4->tx_mutex);
 

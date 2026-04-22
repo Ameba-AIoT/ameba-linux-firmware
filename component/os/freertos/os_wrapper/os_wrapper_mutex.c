@@ -14,8 +14,8 @@
 
 /* FreeRTOS Static Implementation */
 #if(configSUPPORT_STATIC_ALLOCATION == 1)
-extern StaticSemaphore_t *__reserved_get_mutex_from_poll(void);
-extern void __reserved_release_mutex_to_poll(void *buf);
+extern StaticSemaphore_t *__reserved_get_mutex_from_pool(void);
+extern void __reserved_release_mutex_to_pool(void *buf);
 #endif
 
 int rtos_mutex_create_static(rtos_mutex_t *pp_handle)
@@ -23,7 +23,11 @@ int rtos_mutex_create_static(rtos_mutex_t *pp_handle)
 #if(configSUPPORT_STATIC_ALLOCATION == 1)
 	StaticSemaphore_t *mutex;
 
-	mutex = __reserved_get_mutex_from_poll();
+	if (pp_handle == NULL) {
+		return RTK_FAIL;
+	}
+
+	mutex = __reserved_get_mutex_from_pool();
 
 	if (mutex == NULL) {
 		return rtos_mutex_create(pp_handle);
@@ -45,7 +49,10 @@ int rtos_mutex_delete_static(rtos_mutex_t p_handle)
 {
 #if(configSUPPORT_STATIC_ALLOCATION == 1)
 	int ret = rtos_mutex_delete(p_handle);
-	__reserved_release_mutex_to_poll(p_handle);
+
+	if (ret == RTK_SUCCESS) {
+		__reserved_release_mutex_to_pool(p_handle);
+	}
 	return ret;
 #else
 	return rtos_mutex_delete(p_handle);
@@ -57,7 +64,11 @@ int rtos_mutex_recursive_create_static(rtos_mutex_t *pp_handle)
 #if(configSUPPORT_STATIC_ALLOCATION == 1)
 	StaticSemaphore_t *mutex;
 
-	mutex = __reserved_get_mutex_from_poll();
+	if (pp_handle == NULL) {
+		return RTK_FAIL;
+	}
+
+	mutex = __reserved_get_mutex_from_pool();
 
 	if (mutex == NULL) {
 		return rtos_mutex_create(pp_handle);
@@ -115,6 +126,13 @@ int rtos_mutex_take(rtos_mutex_t p_handle, uint32_t wait_ms)
 	BaseType_t ret;
 	BaseType_t task_woken = pdFALSE;
 
+#if defined(RTOS_NUM_CORES) && (RTOS_NUM_CORES > 1)
+	extern volatile uint32_t uxPortSchedulerStart[configNUM_CORES];
+	if (uxPortSchedulerStart[portPrimaryCoreID] == pdFALSE) {
+		return RTK_FAIL;
+	}
+#endif
+
 	if (rtos_critical_is_in_interrupt()) {
 		ret = xSemaphoreTakeFromISR((QueueHandle_t)p_handle, &task_woken);
 		if (ret != pdTRUE) {
@@ -141,6 +159,13 @@ int rtos_mutex_give(rtos_mutex_t p_handle)
 {
 	BaseType_t ret;
 	BaseType_t task_woken = pdFALSE;
+
+#if defined(RTOS_NUM_CORES) && (RTOS_NUM_CORES > 1)
+	extern volatile uint32_t uxPortSchedulerStart[configNUM_CORES];
+	if (uxPortSchedulerStart[portPrimaryCoreID] == pdFALSE) {
+		return RTK_FAIL;
+	}
+#endif
 
 	if (rtos_critical_is_in_interrupt()) {
 		ret = xSemaphoreGiveFromISR(p_handle, &task_woken);

@@ -411,9 +411,11 @@ etharp_find_entry(const ip4_addr_t *ipaddr, u8_t flags, struct netif *netif)
   return (s16_t)i;
 }
 
+/* Added by Realtek start */
 void etharp_arp_table_clear(void){
     memset(arp_table, 0, sizeof(arp_table));
 }
+/* Added by Realtek end */
 
 /**
  * Update (or insert) a IP/MAC address pair in the ARP cache.
@@ -815,7 +817,9 @@ etharp_output_to_arp_index(struct netif *netif, struct pbuf *q, netif_addr_idx_t
  * - ERR_RTE No route to destination (no gateway to external networks),
  * or the return type of either etharp_query() or ethernet_output().
  */
+/* Added by Realtek start */
 SRAM_WLAN_CRITICAL_CODE_SECTION
+/* Added by Realtek end */
 err_t
 etharp_output(struct netif *netif, struct pbuf *q, const ip4_addr_t *ipaddr)
 {
@@ -1253,6 +1257,10 @@ Called in post sleep process to compenstate the arp ctime
 void comp_arp_ctime(u32_t ms)
 {
   int i;
+  if (ms < ARP_TMR_INTERVAL / 2) {
+    return;
+  }
+  u32_t comp_ms = ms < ARP_TMR_INTERVAL ? ARP_TMR_INTERVAL : ms;
 
   for (i = 0; i < ARP_TABLE_SIZE; ++i) {
     u8_t state = arp_table[i].state;
@@ -1261,7 +1269,7 @@ void comp_arp_ctime(u32_t ms)
         && (state != ETHARP_STATE_STATIC)
 #endif /* ETHARP_SUPPORT_STATIC_ENTRIES */
        ) {
-      arp_table[i].ctime += ms / ARP_TMR_INTERVAL;
+      arp_table[i].ctime += comp_ms / ARP_TMR_INTERVAL;
     }
   }
 }
@@ -1291,7 +1299,7 @@ u8_t check_etharp_tmr_removable(void)
         break;
       } else {
         max_sleep_time = (ARP_MAXAGE - (u32_t)arp_table[i].ctime) * ARP_TMR_INTERVAL;
-        if (sleep_param.sleep_time > max_sleep_time || sleep_param.sleep_time == 0) {
+        if (sleep_param.sleep_time > max_sleep_time) {
           sleep_param.sleep_time = max_sleep_time;
         }
       }

@@ -38,17 +38,34 @@ set(private_compile_options)         #private compile_options
 
 #NOTE: User defined section, add your private build configures here
 # You may use if-else condition to set these predefined variable
-ameba_list_append(private_sources
-    monitor.c
-)
-if(CONFIG_CORE_AS_AP AND CONFIG_SUPPORT_ATCMD)
+ameba_list_append(private_sources monitor.c)
+
+if(CONFIG_SUPPORT_ATCMD)
+
     ameba_list_append(private_sources
         atcmd_service.c
+        atcmd_sys_common.c
+    )
+    ameba_list_append(private_includes
+        ${c_CMPT_WIFI_DIR}/api
+        ${c_CMPT_WIFI_DIR}/common
+        ${c_CMPT_WIFI_DIR}/wpa_supplicant/wpa_supplicant
+    )
+
+    ameba_list_append_if(CONFIG_BT private_sources
+        atcmd_bt_ext.c
+    )
+    ameba_list_append_if(CONFIG_SDN private_sources
+        atcmd_sdn.c
+    )
+
+if(CONFIG_WHC_HOST OR CONFIG_WHC_NONE)
+    ameba_list_append(private_sources
         atcmd_sys.c
         atcmd_fs.c
         atcmd_bt_mp.c
-        atcmd_otp.c
         atcmd_coex.c
+        atcmd_otp.c
     )
     ameba_list_append_if(CONFIG_WLAN private_sources
         atcmd_http.c
@@ -59,19 +76,43 @@ if(CONFIG_CORE_AS_AP AND CONFIG_SUPPORT_ATCMD)
         atcmd_websocket.c
         atcmd_wifi.c
     )
-    ameba_list_append_if(CONFIG_BT private_sources
-        atcmd_bt_ext.c
+    ameba_list_append_if(CONFIG_ETHERNET private_sources
+        atcmd_ethernet.c
+    )
+    ameba_list_append_if(CONFIG_ETHERNET private_includes
+        ${c_CMPT_ETHERNET_DIR}/
+    )
+    ameba_list_append_if(CONFIG_DIAGNOSE_EN private_sources
+        atcmd_diag.c
     )
     if(CONFIG_ATCMD_HOST_CONTROL)
         ameba_list_append_if(CONFIG_SUPPORT_SDIO_DEVICE private_sources
             at_intf_sdio.c
         )
+        ameba_list_append_if(CONFIG_SUPPORT_USB private_sources
+            at_intf_usbd.c
+        )
+        if(CONFIG_SUPPORT_USB)
+            ameba_list_append_ifnot(CONFIG_SUPPORT_USB_DEVICE_ONLY private_sources
+                at_intf_usbh.c
+            )
+        endif()
         ameba_list_append(private_sources
             at_intf_uart.c
             at_intf_spi.c
         )
+        ameba_list_append_if(CONFIG_SUPPORT_USB private_includes
+            ${c_CMPT_USB_DIR}/common
+            ${c_CMPT_USB_DIR}/device/core
+            ${c_CMPT_USB_DIR}/device/cdc_acm
+            ${c_CMPT_USB_DIR}/host/core
+            ${c_CMPT_USB_DIR}/host/cdc_acm
+        )
+
     endif()
 endif()
+endif()
+
 # Component private part, user config end(DO NOT remove this line)
 #------------------------------------------------------------------#
 

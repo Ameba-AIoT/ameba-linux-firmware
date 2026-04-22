@@ -6,14 +6,16 @@
 
 /* Includes ------------------------------------------------------------------*/
 
-#include "usbd.h"
 #include "usbd_msc.h"
 #include "usbd_scsi.h"
 #include "os_wrapper.h"
-#include "ameba_sd.h"
-#if !USBD_MSC_RAM_DISK
+#if !defined(CONFIG_USBD_MSC_RAM_DISK)
 #include "vfs_fatfs.h"
 #endif
+#ifdef CONFIG_USBD_MSC_SD_MODE
+#include "ameba_sd.h"
+#endif
+
 /* Private defines -----------------------------------------------------------*/
 
 /* Private types -------------------------------------------------------------*/
@@ -27,7 +29,7 @@ static int usbd_msc_clear_config(usb_dev_t *dev, u8 config);
 static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req);
 static u16 usbd_msc_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf);
 static int usbd_msc_handle_ep_data_in(usb_dev_t *dev, u8 ep_addr, u8 status);
-static int usbd_msc_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u16 len);
+static int usbd_msc_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u32 len);
 static void usbd_msc_status_changed(usb_dev_t *dev, u8 old_status, u8 status);
 
 /* Private variables ---------------------------------------------------------*/
@@ -190,7 +192,7 @@ static usbd_msc_dev_t usbd_msc_dev;
 static usb_os_lock_t usbd_msc_sd_lock = NULL;
 
 /* Private functions ---------------------------------------------------------*/
-#if USBD_MSC_RAM_DISK
+#ifdef CONFIG_USBD_MSC_RAM_DISK
 static u8 *usbd_msc_ram_disk_buf;
 
 static int RAM_init(void)
@@ -246,54 +248,64 @@ static int RAM_WriteBlocks(u32 sector, const u8 *data, u32 count)
 
 static int usbd_msc_sd_init(void)
 {
-	RTK_LOGS(TAG, RTK_LOG_INFO, "SD init\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Disk init\n");
 
-#ifdef CONFIG_FATFS_SECONDARY_FLASH
-	return FLASH_disk_secondary_Driver.disk_initialize();
-#else
+#ifdef CONFIG_USBD_MSC_SECOND_FLASH
+	return FLASH_second_disk_Driver.disk_initialize();
+#elif defined CONFIG_USBD_MSC_SD_MODE
 	return SD_disk_Driver.disk_initialize();
+#else
+	return SD_disk_spi_Driver.disk_initialize();
 #endif
 }
 
 static int usbd_msc_sd_deinit(void)
 {
-	RTK_LOGS(TAG, RTK_LOG_INFO, "SD deinit\n");
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Disk deinit\n");
 
-#ifdef CONFIG_FATFS_SECONDARY_FLASH
-	return FLASH_disk_secondary_Driver.disk_deinitialize();
-#else
+#ifdef CONFIG_USBD_MSC_SECOND_FLASH
+	return FLASH_second_disk_Driver.disk_deinitialize();
+#elif defined CONFIG_USBD_MSC_SD_MODE
 	return SD_disk_Driver.disk_deinitialize();
+#else
+	return SD_disk_spi_Driver.disk_deinitialize();
 #endif
 }
 
 static int usbd_msc_sd_getcapacity(u32 *sector_count)
 {
-#ifdef CONFIG_FATFS_SECONDARY_FLASH
-	return FLASH_disk_secondary_Driver.disk_ioctl(GET_SECTOR_COUNT, sector_count);
-#else
+#ifdef CONFIG_USBD_MSC_SECOND_FLASH
+	return FLASH_second_disk_Driver.disk_ioctl(GET_SECTOR_COUNT, sector_count);
+#elif defined CONFIG_USBD_MSC_SD_MODE
 	return SD_disk_Driver.disk_ioctl(GET_SECTOR_COUNT, sector_count);
+#else
+	return SD_disk_spi_Driver.disk_ioctl(GET_SECTOR_COUNT, sector_count);
 #endif
 }
 
 static int usbd_msc_sd_readblocks(u32 sector, u8 *data, u32 count)
 {
-#ifdef CONFIG_FATFS_SECONDARY_FLASH
-	return FLASH_disk_secondary_Driver.disk_read(data, sector, count);
-#else
+#ifdef CONFIG_USBD_MSC_SECOND_FLASH
+	return FLASH_second_disk_Driver.disk_read(data, sector, count);
+#elif defined CONFIG_USBD_MSC_SD_MODE
 	return SD_disk_Driver.disk_read(data, sector, count);
+#else
+	return SD_disk_spi_Driver.disk_read(data, sector, count);
 #endif
 }
 
 static int usbd_msc_sd_writeblocks(u32 sector, const u8 *data, u32 count)
 {
-#ifdef CONFIG_FATFS_SECONDARY_FLASH
-	return FLASH_disk_secondary_Driver.disk_write(data, sector, count);
-#else
+#ifdef CONFIG_USBD_MSC_SECOND_FLASH
+	return FLASH_second_disk_Driver.disk_write(data, sector, count);
+#elif defined CONFIG_USBD_MSC_SD_MODE
 	return SD_disk_Driver.disk_write(data, sector, count);
+#else
+	return SD_disk_spi_Driver.disk_write(data, sector, count);
 #endif
 }
 
-#endif // USBD_MSC_RAM_DISK
+#endif // CONFIG_USBD_MSC_RAM_DISK
 
 /**
 * @brief  Abort the current transfer
@@ -303,10 +315,10 @@ static int usbd_msc_sd_writeblocks(u32 sector, const u8 *data, u32 count)
 static void usbd_msc_abort(usb_dev_t *dev)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
-	usbd_msc_cbw_t *cbw = cdev->cbw;
+	usb_msc_bot_cbw_t *cbw = cdev->cbw;
 
-	if ((cbw->bmCBWFlags == 0U) &&
-		(cbw->dCBWDataTransferLength != 0U) &&
+	if ((cbw->field.bmCBWFlags == 0U) &&
+		(cbw->field.dCBWDataTransferLength != 0U) &&
 		(cdev->bot_status == USBD_MSC_STATUS_NORMAL)) {
 		usbd_ep_set_stall(dev, &cdev->ep_bulk_out);
 	}
@@ -314,7 +326,7 @@ static void usbd_msc_abort(usb_dev_t *dev)
 	usbd_ep_set_stall(dev, &cdev->ep_bulk_in);
 
 	if (cdev->bot_status == USBD_MSC_STATUS_ERROR) {
-		usbd_msc_bulk_receive(dev, (u8 *)cbw, USBD_MSC_CB_WRAP_LEN);
+		usbd_msc_bulk_receive(dev, (u8 *)cbw, USB_MSC_CBW_LEN);
 	}
 }
 
@@ -352,7 +364,7 @@ static int usbd_msc_set_config(usb_dev_t *dev, u8 config)
 	cdev->phase_error = 0;
 
 	/* Prepare to receive next BULK OUT packet */
-	usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USBD_MSC_CB_WRAP_LEN);
+	usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USB_MSC_CBW_LEN);
 
 	return ret;
 }
@@ -452,7 +464,7 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 				usbd_ep_set_stall(dev, ep_bulk_in);
 				cdev->bot_status = USBD_MSC_STATUS_NORMAL;
 			} else if (((((u8)req->wIndex) & USB_REQ_DIR_MASK) == USB_D2H) && (cdev->bot_status != USBD_MSC_STATUS_RECOVERY)) {
-				usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_FAILED);
+				usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 			} else {
 				// Do nothing
 			}
@@ -466,7 +478,7 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 	/* Class request */
 	case USB_REQ_TYPE_CLASS:
 		switch (req->bRequest) {
-		case USBD_MSC_REQUEST_GET_MAX_LUN:
+		case USB_MSC_REQUEST_GET_MAX_LUN:
 			if ((req->wValue  == 0U) && (req->wLength == 1U) &&
 				((req->bmRequestType & USB_REQ_DIR_MASK) == USB_D2H)) {
 				ep0_in->xfer_buf[0] = 0U;
@@ -477,13 +489,13 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			}
 			break;
 
-		case USBD_MSC_REQUEST_RESET :
+		case USB_MSC_REQUEST_BOT_RESET :
 			if ((req->wValue  == 0U) && (req->wLength == 0U) &&
 				((req->bmRequestType & USB_REQ_DIR_MASK) != USB_D2H)) {
 				cdev->bot_state  = USBD_MSC_IDLE;
 				cdev->bot_status = USBD_MSC_STATUS_RECOVERY;
 				/* Prepare to receive BOT cmd */
-				usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USBD_MSC_CB_WRAP_LEN);
+				usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USB_MSC_CBW_LEN);
 			} else {
 				ret = HAL_ERR_PARA;
 			}
@@ -536,18 +548,18 @@ static void usbd_msc_tx_process(void)
 	if (cdev->tx_status == HAL_OK) {
 		switch (cdev->bot_state) {
 		case USBD_MSC_DATA_IN:
-			if (usbd_scsi_process_cmd(cdev, &cdev->cbw->CBWCB[0]) < 0) {
-				usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_FAILED);
+			if (usbd_scsi_process_cmd(cdev, &cdev->cbw->field.CBWCB[0]) < 0) {
+				usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 			}
 			break;
 
 		case USBD_MSC_SEND_DATA:
 		case USBD_MSC_LAST_DATA_IN:
 			if (cdev->phase_error == 1) {
-				usbd_msc_send_csw(dev, USBD_MSC_CSW_PHASE_ERROR);
+				usbd_msc_send_csw(dev, BOT_CSW_PHASE_ERROR);
 				cdev->phase_error = 0;
 			} else {
-				usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_PASSED);
+				usbd_msc_send_csw(dev, BOT_CSW_CMD_PASSED);
 			}
 			break;
 
@@ -567,7 +579,7 @@ static void usbd_msc_tx_process(void)
   * @param  ep_addr: endpoint address
   * @retval Status
   */
-static int usbd_msc_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u16 len)
+static int usbd_msc_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u32 len)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
 
@@ -587,8 +599,8 @@ static int usbd_msc_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u16 len)
 static void usbd_msc_rx_process(void)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
-	usbd_msc_cbw_t *cbw = cdev->cbw;
-	usbd_msc_csw_t *csw = cdev->csw;
+	usb_msc_bot_cbw_t *cbw = cdev->cbw;
+	usb_msc_bot_csw_t *csw = cdev->csw;
 	usb_dev_t *dev = cdev->dev;
 
 	usb_os_lock(usbd_msc_sd_lock);
@@ -596,23 +608,23 @@ static void usbd_msc_rx_process(void)
 	switch (cdev->bot_state) {
 	case USBD_MSC_IDLE:
 		/* Decode the CBW command */
-		csw->dCSWTag = cbw->dCBWTag;
-		csw->dCSWDataResidue = cbw->dCBWDataTransferLength;
+		csw->field.dCSWTag = cbw->field.dCBWTag;
+		csw->field.dCSWDataResidue = cbw->field.dCBWDataTransferLength;
 
-		if ((cdev->rx_data_length != USBD_MSC_CB_WRAP_LEN) ||
-			(cbw->dCBWSignature != USBD_MSC_CB_SIGN) ||
-			(cbw->bCBWLUN > 1U) ||
-			(cbw->bCBWCBLength < 1U) || (cbw->bCBWCBLength > 16U)) {
-			usbd_scsi_sense_code(cdev, ILLEGAL_REQUEST, INVALID_CDB);
+		if ((cdev->rx_data_length != USB_MSC_CBW_LEN) ||
+			(cbw->field.dCBWSignature != USB_MSC_CBW_SIGN) ||
+			(cbw->field.bCBWLUN > 1U) ||
+			(cbw->field.bCBWCBLength < 1U) || (cbw->field.bCBWCBLength > 16U)) {
+			usbd_scsi_sense_code(cdev, SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_ASC_INVALID_COMMAND_OPERATION_CODE);
 			cdev->bot_status = USBD_MSC_STATUS_ERROR;
 			usbd_msc_abort(dev);
 		} else {
-			if (usbd_scsi_process_cmd(cdev, &cbw->CBWCB[0]) < 0) {
+			if (usbd_scsi_process_cmd(cdev, &cbw->field.CBWCB[0]) < 0) {
 				if (cdev->phase_error == 1) {
-					usbd_msc_send_csw(dev, USBD_MSC_CSW_PHASE_ERROR);
+					usbd_msc_send_csw(dev, BOT_CSW_PHASE_ERROR);
 					cdev->phase_error = 0;
 				} else if (cdev->bot_state == USBD_MSC_NO_DATA) {
-					usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_FAILED);
+					usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 				} else {
 					usbd_msc_abort(dev);
 				}
@@ -622,14 +634,14 @@ static void usbd_msc_rx_process(void)
 					 (cdev->bot_state != USBD_MSC_DATA_OUT) &&
 					 (cdev->bot_state != USBD_MSC_LAST_DATA_IN)) {
 				if (cdev->data_length > 0U) {
-					u16 length = (u16)MIN(cbw->dCBWDataTransferLength, cdev->data_length);
-					csw->dCSWDataResidue -= cdev->data_length;
-					csw->bCSWStatus = USBD_MSC_CSW_CMD_PASSED;
+					u16 length = (u16)MIN(cbw->field.dCBWDataTransferLength, cdev->data_length);
+					csw->field.dCSWDataResidue -= cdev->data_length;
+					csw->field.bCSWStatus = BOT_CSW_CMD_PASSED;
 					cdev->bot_state = USBD_MSC_SEND_DATA;
 
 					usbd_msc_bulk_transmit(dev, cdev->data, length);
 				} else if (cdev->data_length == 0U) {
-					usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_PASSED);
+					usbd_msc_send_csw(dev, BOT_CSW_CMD_PASSED);
 				} else {
 					usbd_msc_abort(dev);
 				}
@@ -638,8 +650,8 @@ static void usbd_msc_rx_process(void)
 		break;
 
 	case USBD_MSC_DATA_OUT:
-		if (usbd_scsi_process_cmd(cdev, &cbw->CBWCB[0]) < 0) {
-			usbd_msc_send_csw(dev, USBD_MSC_CSW_CMD_FAILED);
+		if (usbd_scsi_process_cmd(cdev, &cbw->field.CBWCB[0]) < 0) {
+			usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 		}
 
 		break;
@@ -791,7 +803,7 @@ int usbd_msc_disk_init(void)
 {
 	int ret;
 
-#if USBD_MSC_RAM_DISK
+#ifdef CONFIG_USBD_MSC_RAM_DISK
 	ret = RAM_init();
 #else
 	ret = usbd_msc_sd_init();
@@ -804,7 +816,7 @@ int usbd_msc_disk_deinit(void)
 {
 	int ret;
 
-#if USBD_MSC_RAM_DISK
+#ifdef CONFIG_USBD_MSC_RAM_DISK
 	ret = RAM_deinit();
 #else
 	ret = usbd_msc_sd_deinit();
@@ -832,7 +844,7 @@ int usbd_msc_init(usbd_msc_cb_t *cb)
 		cdev->cb = cb;
 	}
 
-#if USBD_MSC_RAM_DISK
+#ifdef CONFIG_USBD_MSC_RAM_DISK
 	ops->disk_getcapacity = RAM_GetCapacity;
 	ops->disk_read = RAM_ReadBlocks;
 	ops->disk_write = RAM_WriteBlocks;
@@ -850,13 +862,13 @@ int usbd_msc_init(usbd_msc_cb_t *cb)
 		goto data_buf_fail;
 	}
 
-	cdev->cbw = (usbd_msc_cbw_t *)usb_os_malloc(USBD_MSC_CB_WRAP_LEN);
+	cdev->cbw = (usb_msc_bot_cbw_t *)usb_os_malloc(USB_MSC_CBW_LEN);
 	if (cdev->cbw == NULL) {
 		ret = HAL_ERR_MEM;
 		goto cbw_fail;
 	}
 
-	cdev->csw = (usbd_msc_csw_t *)usb_os_malloc(USBD_MSC_CS_WRAP_LEN);
+	cdev->csw = (usb_msc_bot_csw_t *)usb_os_malloc(USB_MSC_CSW_LEN);
 	if (cdev->csw == NULL) {
 		ret = HAL_ERR_MEM;
 		goto csw_fail;
@@ -865,13 +877,13 @@ int usbd_msc_init(usbd_msc_cb_t *cb)
 	rtos_sema_create(&cdev->rx_sema, 0U, 1U);
 	rtos_sema_create(&cdev->tx_sema, 0U, 1U);
 
-	ret = rtos_task_create(&cdev->rx_task, "usbd_msc_rx_thread", usbd_msc_rx_thread, NULL, 1024U, USBD_MSC_RX_THREAD_PRIORITY);
+	ret = rtos_task_create(&cdev->rx_task, "usbd_msc_rx_thread", usbd_msc_rx_thread, NULL, USBD_MSC_TRX_THREAD_STACK_SIZE, USBD_MSC_RX_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create RX thread fail\n");
 		goto create_rx_thread_fail;
 	}
 
-	ret = rtos_task_create(&cdev->tx_task, "usbd_msc_tx_thread", usbd_msc_tx_thread, NULL, 1024U, USBD_MSC_TX_THREAD_PRIORITY);
+	ret = rtos_task_create(&cdev->tx_task, "usbd_msc_tx_thread", usbd_msc_tx_thread, NULL, USBD_MSC_TRX_THREAD_STACK_SIZE, USBD_MSC_TX_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create TX thread fail\n");
 		goto create_tx_thread_fail;
@@ -956,7 +968,7 @@ void usbd_msc_deinit(void)
 * @param  len: data length
 * @retval status
 */
-int usbd_msc_bulk_transmit(usb_dev_t *dev, u8 *buf, u16 len)
+int usbd_msc_bulk_transmit(usb_dev_t *dev, u8 *buf, u32 len)
 {
 	int ret = HAL_ERR_HW;
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
@@ -978,7 +990,7 @@ int usbd_msc_bulk_transmit(usb_dev_t *dev, u8 *buf, u16 len)
 * @param  len: data length
 * @retval status
 */
-int usbd_msc_bulk_receive(usb_dev_t *dev, u8 *buf, u16 len)
+int usbd_msc_bulk_receive(usb_dev_t *dev, u8 *buf, u32 len)
 {
 	int ret = HAL_ERR_HW;
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
@@ -1002,17 +1014,17 @@ int usbd_msc_bulk_receive(usb_dev_t *dev, u8 *buf, u16 len)
 void usbd_msc_send_csw(usb_dev_t *dev, u8 status)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
-	usbd_msc_cbw_t *cbw = cdev->cbw;
-	usbd_msc_csw_t *csw = cdev->csw;
+	usb_msc_bot_cbw_t *cbw = cdev->cbw;
+	usb_msc_bot_csw_t *csw = cdev->csw;
 #if USBD_MSC_FIX_CV_TEST_ISSUE
 	usbd_ep_t *ep_bulk_out = &cdev->ep_bulk_out;
 #endif
 
-	csw->dCSWSignature = USBD_MSC_CS_SIGN;
-	csw->bCSWStatus = status;
+	csw->field.dCSWSignature = USB_MSC_CSW_SIGN;
+	csw->field.bCSWStatus = status;
 	cdev->bot_state = USBD_MSC_IDLE;
 
-	usbd_msc_bulk_transmit(dev, (u8 *)csw, USBD_MSC_CS_WRAP_LEN);
+	usbd_msc_bulk_transmit(dev, (u8 *)csw, USB_MSC_CSW_LEN);
 
 #if USBD_MSC_FIX_CV_TEST_ISSUE
 	/* Fix CV test failure */
@@ -1023,6 +1035,5 @@ void usbd_msc_send_csw(usb_dev_t *dev, u8 status)
 #endif
 
 	/* Prepare EP to Receive next Cmd */
-	usbd_msc_bulk_receive(dev, (u8 *)cbw, USBD_MSC_CB_WRAP_LEN);
+	usbd_msc_bulk_receive(dev, (u8 *)cbw, USB_MSC_CBW_LEN);
 }
-

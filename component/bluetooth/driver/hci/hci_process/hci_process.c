@@ -1,11 +1,11 @@
 /*
- *******************************************************************************
- * Copyright(c) 2021, Realtek Semiconductor Corporation. All rights reserved.
- *******************************************************************************
+ * Copyright (c) 2025 Realtek Corporation
+ *
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "osif.h"
-#include "hci_common.h"
+#include "hci_controller.h"
 #include "hci_platform.h"
 #include "hci_transport.h"
 #include "bt_debug.h"
@@ -97,6 +97,7 @@ static uint8_t hci_process_reset_baudrate(uint16_t opcode)
 #endif
 
 #if defined(hci_platform_DOWNLOAD_PATCH) && hci_platform_DOWNLOAD_PATCH
+extern uint8_t hci_patch_download_v1(uint16_t opcode, uint8_t *p_patch, uint32_t patch_len);
 extern uint8_t hci_patch_download_v2(uint16_t opcode, uint8_t *p_patch, uint32_t patch_len);
 extern uint8_t hci_patch_download_v3(uint8_t *p_patch);
 uint8_t hci_process_download_patch(uint16_t opcode)
@@ -110,7 +111,8 @@ uint8_t hci_process_download_patch(uint16_t opcode)
 
 	switch (patch_version) {
 	case PATCH_VERSION_V1:
-		BT_LOGE("Signature check success: Merge patch v1 not support\r\n");
+		BT_LOGE("Signature check success: Merge patch v1\r\n");
+		ret = hci_patch_download_v1(opcode, p_patch, patch_len);
 		break;
 
 	case PATCH_VERSION_V2:

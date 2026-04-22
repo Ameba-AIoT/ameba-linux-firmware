@@ -907,7 +907,7 @@ static rtk_bt_evt_cb_ret_t ble_mesh_config_client_model_app_callback(uint8_t evt
 	case RTK_BT_MESH_CONFIG_MODEL_LPN_POLL_TO_STAT: {
 		rtk_bt_mesh_cfg_lpn_poll_timeout_stat_t *lpn_poll_to_stat;
 		lpn_poll_to_stat = (rtk_bt_mesh_cfg_lpn_poll_timeout_stat_t *)param;
-		BT_LOGA("[APP] fn = 0x%04x lpn = 0x%04x \r\n", lpn_poll_to_stat->lpn_addr,
+		BT_LOGA("[APP] lpn = 0x%04x poll_timeout = %d00ms \r\n", lpn_poll_to_stat->lpn_addr,
 				lpn_poll_to_stat->poll_to[0] + (lpn_poll_to_stat->poll_to[1] << 8) + (lpn_poll_to_stat->poll_to[2] << 16));
 		BT_AT_PRINT("+BLEMESHCONFIG:lptg,0x%04x,0x%04x\r\n",
 					lpn_poll_to_stat->lpn_addr,
@@ -2918,7 +2918,8 @@ int ble_mesh_provisioner_main(uint8_t enable)
 		bt_app_conf.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_CODED;
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
-		BT_LOGA("Before Enable BT\r\n");
+
+		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_LE_GP_MESH_STACK, ble_mesh_stack_app_callback));
 		/* Enable BT */
 		BT_APP_PROCESS(rtk_bt_enable(&bt_app_conf));
 
@@ -2930,7 +2931,6 @@ int ble_mesh_provisioner_main(uint8_t enable)
 		BT_LOGA("[APP] BD_ADDR: %s\r\n", addr_str);
 
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_LE_GP_GAP, ble_mesh_gap_app_callback));
-		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_LE_GP_MESH_STACK, ble_mesh_stack_app_callback));
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_LE_GP_MESH_CONFIG_CLIENT_MODEL, ble_mesh_config_client_model_app_callback));
 #if defined(BT_MESH_ENABLE_GENERIC_ON_OFF_CLIENT_MODEL) && BT_MESH_ENABLE_GENERIC_ON_OFF_CLIENT_MODEL
 		BT_APP_PROCESS(rtk_bt_evt_register_callback(RTK_BT_LE_GP_MESH_GENERIC_ONOFF_CLIENT_MODEL, ble_mesh_generic_onoff_client_model_app_callback));

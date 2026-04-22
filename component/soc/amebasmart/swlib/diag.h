@@ -1,10 +1,7 @@
 /*
- *  Routines to access hardware
+ * Copyright (c) 2024 Realtek Semiconductor Corp.
  *
- *  Copyright (c) 2013 Realtek Semiconductor Corp.
- *
- *  This module is a confidential and proprietary property of RealTek and
- *  possession or use of this module requires written permission of RealTek.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef _DIAG_H_
@@ -14,6 +11,10 @@
 #include "basic_types.h"
 #include "rtl_trace.h"
 #include <stdarg.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 u32 DiagPrintf(const char *fmt, ...);
 u32 DiagPrintfD(const char *fmt, ...);
@@ -185,5 +186,8 @@ extern u32 ConfigDebugBuffer;
 extern u32 ConfigDebugClose;
 extern u32 ConfigDebug[];
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif //_DIAG_H_
