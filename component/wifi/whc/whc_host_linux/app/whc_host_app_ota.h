@@ -35,20 +35,33 @@ struct whc_host_ota_hdr {
 
 struct whc_host_ota_info {
 	uint32_t port;
-	char host[16];
-	/* fix less than 20B now */
-	char resource[20];
+
+	uint32_t host_len;
+	uint32_t resource_len;
+
 	uint8_t ota_type;
 	uint8_t rmesh_ota_type;
 	uint8_t rsvd[2];
+
+	char *host;
+	char *resource;
 };
 
-struct update_redirect_conn {
+struct whc_ota_http_redirect {
 	char *url;
 	int len;
 	uint16_t port;
 	char *host;
 	char *resource;
+};
+
+struct whc_ota_http_response {
+	uint32_t  status_code;        /* HTTP status code */
+	uint32_t  parse_status;       /* Parse status */
+	uint32_t  body_len;           /* Response body length */
+	uint32_t  header_len;         /* Response header length */
+	uint8_t  *header_bak;         /* Response header backup */
+	uint8_t  *body;               /* Response body pointer */
 };
 
 struct whc_ota_context {
@@ -60,6 +73,8 @@ struct whc_ota_context {
 	char *private_key;
 	int fd;
 	uint8_t type;
+	int NextImgLen;
+	char *NextImgBuf;
 };
 
 int whc_host_ota(void);

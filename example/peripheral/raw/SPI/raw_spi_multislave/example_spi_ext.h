@@ -13,8 +13,8 @@
 #define SPI_IS_AS_MASTER	1
 
 #if defined (CONFIG_AMEBASMART)
-#define SPI_GPIO_CS0 _PA_0
-#define SPI_GPIO_CS1 _PA_1
+#define SPI_GPIO_CS0 _PA_9
+#define SPI_GPIO_CS1 _PA_10
 #if SPI_IS_AS_MASTER
 // SPI1
 #define SPI1_MOSI  _PA_5
@@ -106,6 +106,25 @@
 #define SPI0_MISO  _PA_31
 #define SPI0_SCLK  _PA_29
 #define SPI0_CS    _PB_0
+#endif
+
+#elif defined (CONFIG_RTL8720F)
+#define SPI_GPIO_CS0 _PA_8
+#define SPI_GPIO_CS1 _PA_9
+
+#if SPI_IS_AS_MASTER
+// SPI1 - Master
+#define SPI1_MOSI  _PA_26
+#define SPI1_MISO  _PA_27
+#define SPI1_SCLK  _PA_25
+#define SPI1_CS    _PA_28
+
+#else
+// SPI0 - Slave
+#define SPI0_MOSI  _PA_8
+#define SPI0_MISO  _PA_9
+#define SPI0_SCLK  _PA_7
+#define SPI0_CS    _PA_10
 #endif
 
 #endif

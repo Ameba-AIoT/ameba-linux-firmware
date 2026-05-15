@@ -12,19 +12,15 @@
 #include "wtn_app_ota.h"
 extern struct rmesh_http_ota_param ota_param;
 #endif
-struct whc_dev_ota_info *whc_ota_info;
+/* time for reset when ota done, default 1s, change if needed */
+#define WHC_WAITING_RESET 1000
+extern void sys_reset(void);
 
 void whc_update_ota_task(void *param)
 {
 	int ret = -1;
 	ota_context_t *ctx = NULL;
-	u32 port;
 	(void)param;
-
-	if (!whc_ota_info) {
-		RTK_LOGE(TAG_WLAN_INIC, "ota_info null \r\n");
-		goto exit;
-	}
 
 	ctx = (ota_context_t *)rtos_mem_malloc(sizeof(ota_context_t));
 	if (ctx == NULL) {
@@ -34,22 +30,25 @@ void whc_update_ota_task(void *param)
 
 	memset(ctx, 0, sizeof(ota_context_t));
 
-	port = whc_ota_info->port;
-
-	ret = ota_init(ctx, (char *)whc_ota_info->host, port, (char *)whc_ota_info->resource, OTA_WHC);
-	if (ret != 0) {
+	ret = ota_init(ctx, NULL, 0, NULL, OTA_USER);
+	if (ret != OTA_OK) {
 		RTK_LOGE(TAG_WLAN_INIC, "ota_init err");
 		goto exit;
 	}
+
+	ota_register_user_read_func(ctx, whc_dev_ota_read);
+	ota_register_user_close_func(ctx, whc_dev_ota_close);
 
 	ret = ota_start(ctx);
 
 	RTK_LOGE(TAG_WLAN_INIC, "ota exit");
 	if (!ret) {
 		RTK_LOGE(TAG_WLAN_INIC, "can reboot\n");
-#ifdef todo
-#endif
-		// sys_reset();
+		if (ret == OTA_OK) {
+			RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "[%s] Ready to reboot\n", __FUNCTION__);
+			rtos_time_delay_ms(WHC_WAITING_RESET);
+			sys_reset();
+		}
 	}
 
 exit:
@@ -58,40 +57,42 @@ exit:
 		rtos_mem_free(ctx);
 	}
 
-	if (whc_ota_info) {
-		rtos_mem_free(whc_ota_info);
-		whc_ota_info = NULL;
-	}
 	rtos_task_delete(NULL);
 }
+
 
 void whc_dev_api_start_ota(struct whc_dev_ota_info *ota_info)
 {
 	u8 ota_type = ota_info->ota_type;
-	u32 len;
+	u32 len, offset;
+	u8 *ptr = (u8 *)ota_info;
 	(void)len;
+	(void)offset;
+	(void)ptr;
+
+	offset = offsetof(struct whc_dev_ota_info, host);
 
 	if (ota_type == OTA_FOR_NORMAL) {
-		if (whc_ota_info == NULL) {
-			whc_ota_info = rtos_mem_zmalloc(sizeof(struct whc_dev_ota_info));
-			memcpy(whc_ota_info, ota_info, sizeof(struct whc_dev_ota_info));
-		}
-
 		if (rtos_task_create(NULL, ((const char *)"whc_update_ota_task"), whc_update_ota_task, NULL, 1024 * 5, 1) != RTK_SUCCESS) {
 			RTK_LOGE(TAG_WLAN_INIC, "create ota task err\n");
 		}
 #ifdef CONFIG_RMESH_OTA_EN
 	} else if (ota_type == OTA_FOR_RMESH) {
 		memset(&ota_param, 0, sizeof(struct rmesh_http_ota_param));
-		len = strlen(ota_info->host);
-		ota_param.host = (char *)rtos_mem_zmalloc(len + 1);
-		memcpy(ota_param.host, ota_info->host, len);
 		memcpy(&ota_param.port, &(ota_info->port), 2);
-
-		len = strlen(ota_info->resource);
-		ota_param.resource = (char *)rtos_mem_zmalloc(len + 1);
-		memcpy(ota_param.resource, ota_info->resource, len);
 		ota_param.ota_type = ota_info->rmesh_ota_type;
+
+		ptr += offset;
+		/* host & resource */
+		len = ota_info->host_len;
+		ota_param.host = (char *)rtos_mem_zmalloc(len + 1);
+		memcpy(ota_param.host, ptr, len);
+		ptr += ota_info->host_len;
+
+		len = ota_info->resource_len;
+		ota_param.resource = (char *)rtos_mem_zmalloc(len + 1);
+		memcpy(ota_param.resource, ptr, len);
+
 		rmesh_ota_cmd_recv(&ota_param);
 #endif
 	}
@@ -160,7 +161,7 @@ int whc_dev_ota_read(u8 *data, int data_len)
 	}
 
 	/* len from host */
-	whc_dev_api_send_to_host_block(buf, buf_len, (u8 *)&rbuf, ota_hdr->len);
+	whc_dev_api_send_to_host(buf, buf_len, (u8 *)&rbuf, ota_hdr->len);
 
 	ota_hdr = &(rbuf.ota_hdr);
 	read_len = (int16_t)ota_hdr->len;
@@ -182,38 +183,9 @@ int whc_dev_ota_close(void)
 	ota_hdr->type = WHC_WIFI_TEST_OTA;
 	ota_hdr->subtype = WHC_OTA_END;
 
-	whc_dev_api_send_to_host(buf, buf_len);
+	whc_dev_api_send_to_host(buf, buf_len, NULL, 0);
 
+	rtos_mem_free(buf);
 	return 0;
 }
 
-#ifdef CONFIG_RMESH_OTA_EN
-void whc_dev_api_rmesh_ota_start(struct rmesh_http_ota_param *ota_param)
-{
-	u8 *buf = rtos_mem_zmalloc(1024);
-	u8 *ptr = buf;
-	struct whc_dev_ota_hdr *ota_hdr;
-	struct whc_dev_ota_info *ota_info;
-	u32 buf_len = 0;
-
-	*(u32 *)ptr = WHC_WIFI_TEST;
-	ptr += 4;
-
-	ota_hdr = (struct whc_dev_ota_hdr *)ptr;
-	ota_hdr->type = WHC_WIFI_TEST_OTA;
-	ota_hdr->subtype = WHC_OTA_START;
-
-	ptr += sizeof(struct whc_dev_ota_hdr);
-
-	ota_info = (struct whc_dev_ota_info *)ptr;
-	ota_info->port = (u32)ota_param->port;
-	memcpy(ota_info->host, ota_param->host, strlen(ota_param->host));
-	memcpy(ota_info->resource, ota_param->resource, strlen(ota_param->resource));
-
-	buf_len = 4 + sizeof(struct whc_dev_ota_hdr) + sizeof(struct whc_dev_ota_info);
-
-	whc_dev_api_send_to_host(buf, buf_len);
-
-	rtos_mem_free(buf);
-}
-#endif

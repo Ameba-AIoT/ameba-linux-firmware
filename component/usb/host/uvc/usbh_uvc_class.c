@@ -21,10 +21,12 @@ extern usbh_uvc_host_t uvc_host;
 
 static int usbh_uvc_attach(usb_host_t *host);
 static int usbh_uvc_detach(usb_host_t *host);
-static int usbh_uvc_process(usb_host_t *host, u32 msg);
-static int usbh_uvc_sof(usb_host_t *host);
+static int usbh_uvc_process(usb_host_t *host, usbh_event_t *event);
 static int usbh_uvc_setup(usb_host_t *host);
+#if (USBH_UVC_USE_HW == 0)
+static int usbh_uvc_sof(usb_host_t *host);
 static int usbh_uvc_completed(usb_host_t *host, u8 pipe_num);
+#endif
 
 /* Private variables ---------------------------------------------------------*/
 
@@ -48,8 +50,10 @@ static usbh_class_driver_t usbh_uvc_driver = {
 	.detach = usbh_uvc_detach,
 	.setup = usbh_uvc_setup,
 	.process = usbh_uvc_process,
+#if (USBH_UVC_USE_HW == 0)
 	.sof = usbh_uvc_sof,
 	.completed = usbh_uvc_completed
+#endif
 };
 
 /* Private functions ---------------------------------------------------------*/
@@ -101,7 +105,6 @@ static int usbh_uvc_attach(usb_host_t *host)
 			cur_set->valid = 0;
 			pipe->ep_addr = 0;
 			pipe->xfer_len = 0;
-			stream->stream_data_state = STREAM_DATA_OFF;
 			continue;
 		}
 		xfer_len = ep->wMaxPacketSize;
@@ -124,7 +127,6 @@ static int usbh_uvc_attach(usb_host_t *host)
 		RTK_LOGS(TAG, RTK_LOG_INFO, "S[%d] Itf/alt:%d/%d ", i, cur_set->bInterfaceNumber, cur_set->bAlternateSetting);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "EP:%d-%d-%d-%d-%d-%d\n", pipe->ep_addr, pipe->xfer_len, pipe->ep_mps, pipe->ep_interval, pipe->ep_type);
 #endif
-		stream->stream_data_state = STREAM_DATA_OFF;
 	}
 
 	if ((uvc->cb != NULL) && (uvc->cb->attach != NULL)) {
@@ -215,12 +217,13 @@ static void usbh_uvc_find_alt(usbh_uvc_stream_t *stream)
 
 			max_ep_size = xfer_len;
 			pipe->xfer_len = xfer_len;
-#if USBH_UVC_DEBUG
-			RTK_LOGS(TAG, RTK_LOG_INFO, "F Itf/alt:%d/%d\n", cur_set->bInterfaceNumber, cur_set->bAlternateSetting);
-			RTK_LOGS(TAG, RTK_LOG_INFO, "F EP:%d-%d-%d-%d-%d-%d\n", pipe->ep_addr, pipe->xfer_len, pipe->ep_mps, pipe->ep_interval, pipe->ep_type);
-#endif
 		}
 	}
+
+#if USBH_UVC_DEBUG
+	RTK_LOGS(TAG, RTK_LOG_INFO, "F Itf/alt:%d/%d\n", cur_set->bInterfaceNumber, cur_set->bAlternateSetting);
+	RTK_LOGS(TAG, RTK_LOG_INFO, "F EP:%d-%d-%d-%d-%d\n", pipe->ep_addr, pipe->xfer_len, pipe->ep_mps, pipe->ep_interval, pipe->ep_type);
+#endif
 
 	uvc->state = UVC_STATE_CTRL;
 	stream->state = STREAM_STATE_SET_ALT;
@@ -257,7 +260,7 @@ static int usbh_uvc_setup(usb_host_t *host)
   * @param  host: Host handle
   * @retval Status
   */
-static int usbh_uvc_process_ctrl(usb_host_t *host, u32 msg)
+static int usbh_uvc_process_ctrl(usb_host_t *host, usbh_event_t *event)
 {
 	int ret = HAL_OK;
 	int ret_status = HAL_BUSY;
@@ -265,7 +268,7 @@ static int usbh_uvc_process_ctrl(usb_host_t *host, u32 msg)
 	usbh_uvc_stream_t *stream = NULL;
 	u8 stream_idx = uvc->stream_in_ctrl;
 	u8 size;
-	UNUSED(msg);
+	UNUSED(event);
 
 	if (stream_idx >= uvc->uvc_desc.vs_num) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Err S[%d]\n", stream_idx);
@@ -415,19 +418,19 @@ static int usbh_uvc_process_ctrl(usb_host_t *host, u32 msg)
 /**
   * @brief  UVC Process function (State Machine)
   */
-static int usbh_uvc_process(usb_host_t *host, u32 msg)
+static int usbh_uvc_process(usb_host_t *host, usbh_event_t *event)
 {
 	int ret = HAL_OK;
 	usbh_uvc_host_t *uvc = &uvc_host;
-	usbh_event_t event;
-	event.d32 = msg;
 
 	switch (uvc->state) {
 	case UVC_STATE_CTRL:
-		if (event.msg.pipe_num == 0x00) {
-			ret = usbh_uvc_process_ctrl(host, msg);
-		} else {
-			usbh_notify_class_state_change(host, 0);
+		if (event) {
+			if (event->pipe_num == 0x00) {
+				ret = usbh_uvc_process_ctrl(host, event);
+			} else {
+				usbh_notify_class_state_change(host, 0);
+			}
 		}
 
 		break;
@@ -454,6 +457,7 @@ static int usbh_uvc_process(usb_host_t *host, u32 msg)
 	return ret;
 }
 
+#if (USBH_UVC_USE_HW == 0)
 /**
   * @brief  SOF callback
   * @param  host: Host handle
@@ -475,6 +479,7 @@ static int usbh_uvc_completed(usb_host_t *host, u8 pipe_num)
 	usbh_uvc_process_completed(host, pipe_num);
 	return HAL_OK;
 }
+#endif
 
 /* Exported functions --------------------------------------------------------*/
 

@@ -3,11 +3,11 @@ set(CMAKE_SYSTEM_PROCESSOR arm)
 
 # set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 set(ToolChainVerMajor asdk-${ASDK_VER})
-set(ToolChainVerMinor 4568)
+set(ToolChainVerMinor 4600)
 if(USE_ALIYUN_URL)
 set(TOOLCHAINURL https://aiot.realmcu.com/download/toolchain)
 else()
-set(TOOLCHAINURL https://github.com/Ameba-AIoT/ameba-toolchain/releases/download/12.3.1_v3/)
+set(TOOLCHAINURL https://github.com/Ameba-AIoT/ameba-toolchain/releases/download/12.3.1_v4/)
 endif()
 
 set(TOOLCHAINDIR)
@@ -26,7 +26,7 @@ file(TO_CMAKE_PATH "${TOOLCHAINDIR}" TOOLCHAINDIR)
 
 if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL Linux)
 	if(NOT TOOLCHAINDIR)
-		set(TOOLCHAINDIR /opt/rtk-toolchain)
+		set(TOOLCHAINDIR "$ENV{HOME}/rtk-toolchain")
 		message("Default toolchain path: ${TOOLCHAINDIR}")
 	endif()
 	set(SDK_TOOLCHAIN ${TOOLCHAINDIR}/${ToolChainVerMajor}-${ToolChainVerMinor}/linux/newlib) # Note: server needs to be updated, ${ToolChainVerMajor}-${ToolChainVerMinor}

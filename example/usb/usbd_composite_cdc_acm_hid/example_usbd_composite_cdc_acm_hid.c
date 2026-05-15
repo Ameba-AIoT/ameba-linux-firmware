@@ -61,7 +61,6 @@ static void composite_cb_status_changed(u8 old_status, u8 status);
 static usbd_config_t composite_cfg = {
 	.speed = CONFIG_USBD_COMPOSITE_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
-	.intr_use_ptx_fifo = 0U,
 #if defined(CONFIG_AMEBASMART)
 	.ext_intr_enable = USBD_EPMIS_INTR,
 	.nptx_max_epmis_cnt = 100U,
@@ -87,10 +86,7 @@ static usbd_composite_cdc_acm_usr_cb_t composite_cdc_acm_usr_cb = {
 
 static usb_cdc_line_coding_t composite_cdc_acm_line_coding;
 
-static u16 composite_cdc_acm_ctrl_line_state;
-
 static u16 composite_hid_protocol;
-
 static u16 composite_hid_idle_state;
 
 static usbd_composite_hid_usr_cb_t composite_hid_usr_cb = {
@@ -213,6 +209,7 @@ static int composite_cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 {
 	int ret = HAL_OK;
 	usb_cdc_line_coding_t *lc = &composite_cdc_acm_line_coding;
+	u16 composite_cdc_acm_ctrl_line_state;
 
 	switch (req->bRequest) {
 	case USB_CDC_ACM_SEND_ENCAPSULATED_COMMAND:
@@ -474,4 +471,3 @@ void example_usbd_composite(void)
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD COMP thread fail\n");
 	}
 }
-

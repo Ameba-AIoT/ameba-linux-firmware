@@ -17,6 +17,11 @@ This test needs two demo board, one as master and the other as slave.
   - Master board I2C0 SCL (`_PA_25`) to Slave board I2C0 SCL (`_PA_25`) pin.
   - Master's `GND` connect to Slave's `GND`
 
+* On RTL8720F
+  - Master board I2C0 SDA (`_PA_22`) to Slave board I2C0 SDA (`_PA_22`) pin,
+  - Master board I2C0 SCL (`_PA_21`) to Slave board I2C0 SCL (`_PA_21`) pin.
+  - Master's `GND` connect to Slave's `GND`
+
 # SW Configuration
 
 1. The codes of Master and Slave are distinguished by the value of macro 'I2C_MASTER_DEVICE' in the code.
@@ -26,7 +31,7 @@ This test needs two demo board, one as master and the other as slave.
    * `Download` images to board by Ameba Image Tool.
 4. How to modify gpio pin:
    you can also modify pinmux group settings according to correct pinmux table.
-   for example: 
+   for example:
    	If you want to modify pinmux group setting in RTL8730E, then you should refer to UM0602_RTL8730E_pinmux.xls
 
 # Expected Result
@@ -41,3 +46,4 @@ none
 
 RTL8721Dx
 RTL8721F
+RTL8720F

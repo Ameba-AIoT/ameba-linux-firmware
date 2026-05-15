@@ -27,29 +27,11 @@
 #endif
 #include "wifi_intf_drv_to_upper.h"
 
-#if defined(CONFIG_WHC_CMD_PATH) && !defined(CONFIG_WHC_HOST)
-#include "whc_dev_api.h"
-#endif
-
-//todo clarify
-#if defined(CONFIG_WHC_INTF_SDIO)
+#if !defined(CONFIG_WHC_INTF_IPC)
 #if defined(CONFIG_WHC_HOST)
-#include "whc_sdio_host.h"
-#endif
-#include "whc_sdio_dev.h"
-#elif defined(CONFIG_WHC_INTF_SPI)
-#if defined(CONFIG_WHC_HOST)
-#include "whc_spi_host.h"
+#include "whc_host.h"
 #else
-#include "whc_spi_dev.h"
-#endif
-#elif defined(CONFIG_WHC_INTF_USB)
-#include "whc_usb_dev.h"
-#elif defined(CONFIG_WHC_INTF_UART)
-#if defined(CONFIG_WHC_HOST)
-#include "whc_uart_host.h"
-#else
-#include "whc_uart_dev.h"
+#include "whc_dev.h"
 #endif
 #endif
 
@@ -62,6 +44,7 @@
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
+	wifi_set_task_size();
 #ifdef CONFIG_LWIP_LAYER
 	LwIP_Init();
 #endif
@@ -84,14 +67,11 @@ void wifi_init_thread(void *param)
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
-
+	wifi_set_task_size();
 #if defined(CONFIG_LWIP_LAYER) && defined(CONFIG_WHC_DEV_TCPIP_KEEPALIVE)
 	LwIP_Init();
 #endif
 
-#ifdef CONFIG_WHC_CMD_PATH
-	whc_dev_init_cmd_path_task();
-#endif
 	whc_dev_init();
 	rtos_task_delete(NULL);
 }
@@ -103,6 +83,7 @@ void wifi_init_thread(void *param)
 void wifi_init_thread(void *param)
 {
 	UNUSED(param);
+	wifi_set_task_size();
 #if defined(CONFIG_ARM_CORE_CM4) && defined(configENABLE_TRUSTZONE) && (configENABLE_TRUSTZONE == 1)
 	rtos_create_secure_context(configMINIMAL_SECURE_STACK_SIZE);
 #endif

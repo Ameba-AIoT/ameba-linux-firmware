@@ -44,6 +44,9 @@ static int security = -1;
 #if defined(CONFIG_IP_NAT) && (CONFIG_IP_NAT == 1)
 extern void ipnat_dump(void);
 #endif
+#if defined(CONFIG_RNAPT)
+extern void rnapt_print_status(void);
+#endif
 
 extern int wifi_set_ips_internal(u8 enable);
 #if defined(CONFIG_IEEE80211R) && (WIFI_LOGO_CERTIFICATION == 1)
@@ -84,20 +87,38 @@ static void init_wifi_struct(void)
 static void print_wifi_setting(unsigned char wlan_idx, struct rtw_wifi_setting *pSetting)
 {
 #ifndef CONFIG_INIC_NO_FLASH
+	char *mode;
 
 	at_printf("WLAN%d Setting:\r\n", wlan_idx);
 	at_printf("==============================\r\n");
 
 	switch (pSetting->mode) {
 	case RTW_MODE_AP:
-		at_printf("      MODE => AP\r\n");
+#ifdef CONFIG_WIFI_P2P_ENABLE
+		if (wifi_p2p_check_role(P2P_R_GO)) {
+			mode = "P2P GO";
+		} else
+#endif
+		{
+			mode = "AP";
+		}
 		break;
 	case RTW_MODE_STA:
-		at_printf("      MODE => STATION\r\n");
+#ifdef CONFIG_WIFI_P2P_ENABLE
+		if (wifi_p2p_check_role(P2P_R_CLIENT)) {
+			mode = "P2P GC";
+		} else if (wifi_p2p_check_role(P2P_R_DEVICE)) {
+			mode = "P2P DEVICE";
+		} else
+#endif
+		{
+			mode = "STATION";
+		}
 		break;
 	default:
-		at_printf("      MODE => UNKNOWN\r\n");
+		mode = "UNKNOWN";
 	}
+	at_printf("      MODE => %s\r\n", mode);
 	at_printf("      SSID => %s\r\n", pSetting->ssid);
 	at_printf("     BSSID => %02x:%02x:%02x:%02x:%02x:%02x\r\n", pSetting->bssid[0], pSetting->bssid[1], pSetting->bssid[2], pSetting->bssid[3],
 			  pSetting->bssid[4], pSetting->bssid[5]);
@@ -698,7 +719,6 @@ void at_wlstartap(u16 argc, char **argv)
 	int ret = 0, i = 0, j = 0;
 	int error_no = RTW_AT_OK;
 #ifdef CONFIG_LWIP_LAYER
-	u32 ip_addr, netmask, gw;
 	struct ip_addr start_ip, end_ip;
 	int pool_specified = 0;
 #endif
@@ -894,10 +914,7 @@ void at_wlstartap(u16 argc, char **argv)
 
 #ifdef CONFIG_LWIP_LAYER
 	dhcps_deinit(pnetif_ap);
-	ip_addr = CONCAT_TO_UINT32(GW_ADDR0, GW_ADDR1, GW_ADDR2, GW_ADDR3);
-	netmask = CONCAT_TO_UINT32(NETMASK_ADDR0, NETMASK_ADDR1, NETMASK_ADDR2, NETMASK_ADDR3);
-	gw = CONCAT_TO_UINT32(GW_ADDR0, GW_ADDR1, GW_ADDR2, GW_ADDR3);
-	LwIP_SetIP(NETIF_WLAN_AP_INDEX, ip_addr, netmask, gw);
+	LwIP_ReleaseIP(SOFTAP_WLAN_INDEX);
 #endif
 
 	if (ap.channel == 0) {
@@ -944,10 +961,7 @@ void at_wlstartap(u16 argc, char **argv)
 	}
 
 #ifdef CONFIG_LWIP_LAYER
-	ip_addr = CONCAT_TO_UINT32(AP_IP_ADDR0, AP_IP_ADDR1, AP_IP_ADDR2, AP_IP_ADDR3);
-	netmask = CONCAT_TO_UINT32(AP_NETMASK_ADDR0, AP_NETMASK_ADDR1, AP_NETMASK_ADDR2, AP_NETMASK_ADDR3);
-	gw = CONCAT_TO_UINT32(AP_GW_ADDR0, AP_GW_ADDR1, AP_GW_ADDR2, AP_GW_ADDR3);
-	LwIP_SetIP(NETIF_WLAN_AP_INDEX, ip_addr, netmask, gw);
+	LwIP_alloc_ip(NETIF_WLAN_AP_INDEX);
 	dhcps_init(pnetif_ap);
 	if (pool_specified) {
 		dhcps_set_addr_pool(pnetif_ap, 1, &start_ip, &end_ip);
@@ -1110,6 +1124,9 @@ void at_wlstate(u16 argc, char **argv)
 	print_rlocal_nhb();
 #endif
 	ipnat_dump();
+#endif
+#if defined(CONFIG_RNAPT)
+	rnapt_print_status();
 #endif
 
 	at_printf(ATCMD_OK_END_STR);
@@ -1426,17 +1443,35 @@ void at_wlp2p_start(u16 argc, char **argv)
 	int op_ch = 0;
 	u32 r = 0;
 	int i;
+	u8 band_type;
+	char *ssid_postfix = "-REALTEKDEV";
 
 	RTK_LOGI(NOTAG, "[+WLP2PSTART]: _AT_P2P_START_\n\r");
 
 	for (i = 1; i < argc; i += 2) {
 		if (os_strcmp(argv[i], "listen_ch") == 0) {
-			/* listen channel: ch1,6,11 for 2.4G. ch36,40,44,48 for 5G */
 			listen_ch = atoi(argv[i + 1]);
+
+			/* listen channel: ch1,6,11 for 2.4G */
+			if (listen_ch != 1 && listen_ch != 6 && listen_ch != 11) {
+				RTK_LOGA(NOTAG, "[+WLP2PSTART] Invalid listen ch,should be 1,6,11\r\n\n");
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
 		} else if (os_strcmp(argv[i], "op_ch") == 0) {
 			op_ch = atoi(argv[i + 1]);
+
+			wifi_get_band_type(&band_type);
+			if (op_ch >= 36 && (band_type & RTW_SUPPORT_BAND_5G) == 0) {
+				RTK_LOGE(NOTAG, "[+WLP2PSTART] Invalid operating ch, not support 5g!\n");
+				error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
+				goto end;
+			}
+		} else if (os_strcmp(argv[i], "ssid_postfix") == 0) {
+			ssid_postfix = argv[i + 1];
 		} else {
-			RTK_LOGA(NOTAG, "Unknown parameters!\n");
+			RTK_LOGA(NOTAG, "[+WLP2PSTART] Unknown parameters!\n");
+			error_no = RTW_AT_ERR_INVALID_PARAM_VALUE;
 			return;
 		}
 	}
@@ -1450,8 +1485,9 @@ void at_wlp2p_start(u16 argc, char **argv)
 		op_ch = 1 + (r % 3) * 5;
 	}
 
-	wifi_p2p_init(LwIP_GetMAC(0), listen_ch, op_ch);
+	wifi_p2p_init(LwIP_GetMAC(0), listen_ch, op_ch, ssid_postfix);
 
+end:
 	if (error_no == RTW_AT_OK) {
 		at_printf(ATCMD_OK_END_STR);
 	} else {
@@ -1537,7 +1573,6 @@ void at_wlp2p_autogo(u16 argc, char **argv)
 		/* channel */
 		else if (0 == strcmp("ch", argv[i])) {
 			if ((argc > j) && (0 != strlen(argv[j]))) {
-				/* listen channel: ch1,6,11 for 2.4G. ch36,40,44,48 for 5G */
 				param->channel = atoi(argv[j]);
 			}
 		} else {
@@ -1634,8 +1669,9 @@ void at_wlp2p_connect(u16 argc, char **argv)
 	params.config_method = config_method;
 	params.go_intent = go_intent;
 	params.timeout_sec = 30;
+	params.pd_before_go_neg = 0;
 
-	wifi_cmd_p2p_connect(&params);
+	wifi_p2p_connect_cmd(&params);
 
 end:
 	if (error_no == RTW_AT_OK) {
@@ -1656,7 +1692,7 @@ void at_wlp2p_disconnect(u16 argc, char **argv)
 	UNUSED(argv);
 
 	RTK_LOGI(NOTAG, "[+WLP2PDISCONN]: _AT_P2P_DISCONNECT_\n\r");
-	wifi_cmd_p2p_disconnect();
+	wifi_p2p_disconnect();
 
 	if (error_no == RTW_AT_OK) {
 		at_printf(ATCMD_OK_END_STR);
@@ -1664,22 +1700,7 @@ void at_wlp2p_disconnect(u16 argc, char **argv)
 		at_printf(ATCMD_ERROR_END_STR, error_no);
 	}
 }
-void at_wlp2p_state(u16 argc, char **argv)
-{
-	int error_no = RTW_AT_OK;
 
-	UNUSED(argc);
-	UNUSED(argv);
-
-	RTK_LOGI(NOTAG, "[+WLP2PSTATE]: _AT_P2P_STATE_\n\r");
-	wifi_cmd_p2p_state();
-
-	if (error_no == RTW_AT_OK) {
-		at_printf(ATCMD_OK_END_STR);
-	} else {
-		at_printf(ATCMD_ERROR_END_STR, error_no);
-	}
-}
 void at_wlp2p_find(u16 argc, char **argv)
 {
 	int error_no = RTW_AT_OK;
@@ -1692,7 +1713,7 @@ void at_wlp2p_find(u16 argc, char **argv)
 		RTK_LOGA(NOTAG, "\r\n%s(): timeout=%d\n", __func__, timeout);
 	}
 
-	wifi_cmd_p2p_find(timeout);
+	wifi_p2p_find(timeout);
 
 	if (error_no == RTW_AT_OK) {
 		at_printf(ATCMD_OK_END_STR);
@@ -1709,7 +1730,7 @@ void at_wlp2p_peers(u16 argc, char **argv)
 	UNUSED(argv);
 
 	RTK_LOGI(NOTAG, "[+WLP2PPEERS]: _AT_P2P_PEERS_\n\r");
-	wifi_cmd_p2p_peers();
+	wifi_p2p_show_peers();
 
 	if (error_no == RTW_AT_OK) {
 		at_printf(ATCMD_OK_END_STR);
@@ -2069,7 +2090,6 @@ const log_item_t at_wifi_items[ ] = {
 	{"+WLP2PGO", at_wlp2p_autogo},
 	{"+WLP2PCONN", at_wlp2p_connect},
 	{"+WLP2PDISCONN", at_wlp2p_disconnect},
-	{"+WLP2PSTATE", at_wlp2p_state},
 	{"+WLP2PFIND", at_wlp2p_find},
 	{"+WLP2PPEERS", at_wlp2p_peers},
 #endif

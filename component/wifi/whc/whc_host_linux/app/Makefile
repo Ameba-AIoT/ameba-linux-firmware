@@ -2,6 +2,7 @@ CC := $(CROSS_COMPILE)gcc
 O := $(shell pwd)
 
 CFLAGS += -I. -I.. -I../.. -I../common -I../common/include
+CFLAGS += -I../../whc_dev
 
 ccflags-y += -DCONFIG_FULLMAC
 CFLAGS += $(ccflags-y)

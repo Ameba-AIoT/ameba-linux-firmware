@@ -18,6 +18,7 @@ ameba_set_if_unset(v_MBEDTLS_VER 3.6.2)
 ameba_set_if_unset(v_HTTP2_VER 1.31.0)
 
 ameba_set_if_unset(v_GIC_VER 2)
+ameba_set_if_unset(c_BOOT_BINARY_NAME boot.bin)
 
 ############################## Global Definitions MUST NOT be Override Manually ################################
 
@@ -64,6 +65,7 @@ ameba_set(c_CMPT_ED25519_DIR      ${c_COMPONENT_DIR}/soc/common/rom_ed25519)
 ameba_set(c_CMPT_DIAGNOSE_DIR     ${c_COMPONENT_DIR}/soc/common/diagnose)
 ameba_set(c_CMPT_SOC_PQC_DIR      ${c_COMPONENT_DIR}/soc/common/pqc)
 ameba_set(c_CMPT_SOC_OTA_DIR      ${c_COMPONENT_DIR}/soc/common/soc_ota)
+ameba_set(c_CMPT_LIBC_WRAP_DIR    ${c_COMPONENT_DIR}/soc/common/libc_wrap)
 #-------------------------#
 
 # Define dynamic dirs under component/

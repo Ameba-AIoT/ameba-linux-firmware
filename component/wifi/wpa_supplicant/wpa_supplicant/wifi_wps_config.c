@@ -141,29 +141,6 @@ __weak int wps_registrar_wps_cancel(void *priv)
 	return 0;
 }
 
-__weak void wpas_wsc_ap_send_eap_reqidentity(void *priv, u8 *rx_buf)
-{
-	(void) priv;
-	(void) rx_buf;
-}
-
-__weak void wpas_wsc_ap_check_eap_rspidentity(void *priv, u8 *rx_buf)
-{
-	(void) priv;
-	(void) rx_buf;
-}
-
-__weak void wpas_wsc_registrar_send_eap_fail(void *priv)
-{
-	(void) priv;
-}
-
-__weak void wpas_wsc_registrar_handle_recvd(void *priv, u8 *rx_buf)
-{
-	(void) priv;
-	(void) rx_buf;
-}
-
 __weak void *eap_wsc_server_process_hdl(void *priv, void *req, u8 id)
 {
 	(void) priv;
@@ -275,44 +252,44 @@ void wps_check_and_show_connection_info(void)
 
 static void wps_config_wifi_setting(struct rtw_network_info *wifi, struct dev_credential *dev_cred)
 {
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "\nwps_config_wifi_setting:\n");
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "\nwps_config_wifi_setting:\n");
 	strncpy((char *)wifi->ssid.val, (char *)&dev_cred->ssid[0], dev_cred->ssid_len);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "ssid = %s\n", wifi->ssid.val);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "ssid = %s\n", wifi->ssid.val);
 	wifi->ssid.len = dev_cred->ssid_len;
 
 	if (dev_cred->auth_type & (WPS_AUTH_TYPE_WPA2_PERSONAL | WPS_AUTH_TYPE_WPA2_ENTERPRISE)) {
 		if ((dev_cred->encr_type & WPS_ENCR_TYPE_AES) && (dev_cred->encr_type & WPS_ENCR_TYPE_TKIP)) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WPA2_MIXED_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WPA2_MIXED_PSK\n");
 			wifi->security_type = RTW_SECURITY_WPA2_MIXED_PSK;
 		} else if (dev_cred->encr_type & WPS_ENCR_TYPE_AES) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WPA2_AES_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WPA2_AES_PSK\n");
 			wifi->security_type = RTW_SECURITY_WPA2_AES_PSK;
 		} else if (dev_cred->encr_type & WPS_ENCR_TYPE_TKIP) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WPA2_TKIP_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WPA2_TKIP_PSK\n");
 			wifi->security_type = RTW_SECURITY_WPA2_TKIP_PSK;
 		}
 	} else if (dev_cred->auth_type & (WPS_AUTH_TYPE_WPA_PERSONAL | WPS_AUTH_TYPE_WPA_ENTERPRISE)) {
 		if (dev_cred->encr_type & WPS_ENCR_TYPE_AES) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WPA_AES_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WPA_AES_PSK\n");
 			wifi->security_type = RTW_SECURITY_WPA_AES_PSK;
 		} else if (dev_cred->encr_type & WPS_ENCR_TYPE_TKIP) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WPA_TKIP_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WPA_TKIP_PSK\n");
 			wifi->security_type = RTW_SECURITY_WPA_TKIP_PSK;
 		}
 	} else if (dev_cred->auth_type & (WPS_AUTH_TYPE_OPEN | WPS_AUTH_TYPE_SHARED)) {
 		if (dev_cred->encr_type & WPS_ENCR_TYPE_WEP) {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_WEP_PSK\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_WEP_PSK\n");
 			wifi->security_type = RTW_SECURITY_WEP_PSK;
 			wifi->key_id = dev_cred->key_idx - 1;
 		} else {
-			RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = RTW_SECURITY_OPEN\n");
+			RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = RTW_SECURITY_OPEN\n");
 			wifi->security_type = RTW_SECURITY_OPEN;
 		}
 	}
 
 	//memcpy(wifi->password, dev_cred->key, dev_cred->key_len);
 	wifi->password = dev_cred->key;
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "password = %s\n", wifi->password);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "password = %s\n", wifi->password);
 	wifi->password_len = dev_cred->key_len;
 	wifi->is_wps_trigger = TRUE;
 	//rtos_sema_give(wps_reconnect_semaphore);
@@ -323,13 +300,13 @@ static int wps_connect_to_AP_by_certificate(struct rtw_network_info *wifi)
 	u8 join_status = RTW_JOINSTATUS_UNKNOWN;
 	int retry_count = wifi_user_config.wps_retry_count, ret;
 
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "=============== wifi_certificate_info ===============\n");
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "wps_wifi.ssid = %s\n", wifi->ssid.val);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "security_type = %d\n", (int)wifi->security_type);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "wps_wifi.password = %s\n", wifi->password);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "ssid_len = %d\n", wifi->ssid.len);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "password_len = %d\n", wifi->password_len);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "is_wps_trigger = %d\n", wifi->is_wps_trigger);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "=============== wifi_certificate_info ===============\n");
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "wps_wifi.ssid = %s\n", wifi->ssid.val);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "security_type = %d\n", (int)wifi->security_type);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "wps_wifi.password = %s\n", wifi->password);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "ssid_len = %d\n", wifi->ssid.len);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "password_len = %d\n", wifi->password_len);
+	RTK_LOGS(NOTAG, RTK_LOG_DEBUG, "is_wps_trigger = %d\n", wifi->is_wps_trigger);
 	while (1) {
 		ret = wifi_connect(wifi, 1);
 		if (ret == RTK_SUCCESS) {
@@ -1015,7 +992,6 @@ static int ap_wps_start(u16 wps_config, char *pin)
 
 	wps_phase = 1;
 	wifi_set_wps_phase(SOFTAP_WLAN_INDEX, ENABLE);
-	RTK_LOGS(NOTAG, RTK_LOG_INFO, "\n\r after wifi_set_wps_phase ENABLE\n");
 
 	if (wps_config == WPS_CONFIG_KEYPAD) {
 		pin_val = atoi(pin);

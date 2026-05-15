@@ -55,8 +55,8 @@ for feat in "$@"; do
 				cp ../../bluetooth/example/bt_host/linux_driver/rtb_spi.c ./common/spi
 				cp ../../bluetooth/example/bt_host/linux_driver/rtb_spi.h ./common/spi
 			elif [ "$INTF" == "sdio" ]; then
-				cp ../../bluetooth/example/bt_host/linux_driver/sdio/rtb_sdio.c ./common/sdio
-				cp ../../bluetooth/example/bt_host/linux_driver/sdio/rtb_sdio.h ./common/sdio
+				cp ../../../bluetooth/example/bt_host/linux_driver/sdio_dplus/rtb_sdio.c ./common/sdio
+				cp ../../../bluetooth/example/bt_host/linux_driver/sdio_dplus/rtb_sdio.h ./common/sdio
 			fi
 			;;
 		rmesh) mf_set CONFIG_RMESH ;;
@@ -139,8 +139,6 @@ cp ../../common/rtw_wifi_common.h ./common/include
 cp ../../common/rtw_inic_common.h ./common/include
 cp ../whc_def.h ./common/include
 cp ../whc_dev/whc_dev.h ./common/include
-cp ../whc_dev/whc_dev_common.h ./common/include
-cp ../whc_dev/whc_dev_intf.h ./common/include
 cp ../whc_dev/whc_dev_struct.h ./common/include
 cp ../whc_dev/whc_dev_protocal_offload.h ./common/include
 cp ../../api/wifi_api_types.h ./common/include

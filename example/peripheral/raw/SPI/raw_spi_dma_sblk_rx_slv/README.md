@@ -38,13 +38,18 @@
   - Connect `SPI0_MISO (_PA_31)` to `SPI1_MISO (_PB_9)`
   - Connect `SPI0_SCLK (_PA_29)` to `SPI1_SCLK (_PB_7)`
   - Connect `SPI0_CS (_PB_0)` to `SPI1_CS (_PB_10)`
+- On RTL8720F, connect as below
+  - Connect `SPI0_MOSI (_PA_8)` to `SPI1_MOSI (_PA_26)`
+  - Connect `SPI0_MISO (_PA_9)` to `SPI1_MISO (_PA_27)`
+  - Connect `SPI0_SCLK (_PA_7)` to `SPI1_SCLK (_PA_25)`
+  - Connect `SPI0_CS (_PA_10)` to `SPI1_CS (_PA_28)`
 
 2. If you have SPI master device, choose your own master's pins to connect instead of master's pins mentioned in step1, then ignore step3 and goto step4 of HW Configuration. Otherwise goto step3.
 3. We offer another example named "`raw_spi_dma_sblk_tx_mstr`", it can be used as SPI master device to communicate data with this example.
 Refer the README of example `raw_spi_dma_sblk_tx_mstr` to build master image and download into another EVB board.
 4. Reset Slave device first and then Master device.
 
-# SW configuration
+# SW Configuration
 
 - Build and Download:
    * Refer to the SDK Examples section of the online documentation to generate images.
@@ -53,7 +58,7 @@ Refer the README of example `raw_spi_dma_sblk_tx_mstr` to build master image and
   you can also modify pinmux group settings according to correct pinmux table.
 - For example, if you want to modify pinmux group setting in RTL8730E, then you should refer to `UM0602_RTL8730E_pinmux.xls`
 
-# Expect result
+# Expected Result
 
 1. After example finishes, SPI slave will print out "SPI rx Demo finished"
 2. If SPI master is selected as mentioned by step2(3), then "SPI RX test: OK!" will be shown after data received match sent.
@@ -74,3 +79,4 @@ RTL8713E
 RTL8710E
 RTL8721Dx
 RTL8721F
+RTL8720F

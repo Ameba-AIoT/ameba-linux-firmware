@@ -87,8 +87,8 @@
  * @{
  */
 #if ( configUSE_POSIX_ERRNO == 1 )
-    extern int *FreeRTOS_errno( void );
-    #define errno    ( *FreeRTOS_errno() )
+    extern int *FreeRTOS_errno_ptr( void );
+    #define errno ( *FreeRTOS_errno_ptr() )
 #endif /* configUSE_POSIX_ERRNO */
 /**@} */
 
