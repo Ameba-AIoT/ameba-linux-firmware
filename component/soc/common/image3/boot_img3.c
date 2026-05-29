@@ -15,8 +15,6 @@ extern void vPortFree(void *pv);
 extern void *pvPortMalloc(size_t xWantedSize);
 extern int internal_secure_func(void);
 
-extern const SAU_CFG_TypeDef sau_config[];
-
 void *img3_calloc(uint32_t elementNum, uint32_t elementSize)
 {
 	uint32_t sz = elementNum * elementSize;
@@ -43,7 +41,8 @@ void app_mbedtls_image3_init(void)
 }
 
 #if defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_AMEBADPLUS)
-/* amebagreen2 specific: TrustZone boot functions */
+extern const SAU_CFG_TypeDef sau_config[];
+
 __NO_RETURN void IMG3_NsStart(u32 Addr)
 {
 	nsfunc *fp = (nsfunc *)cmse_nsfptr_create(Addr);
@@ -67,9 +66,7 @@ void BOOT_IMG3(void)
 	/* reset img3 bss */
 	_memset((void *) __image3_bss_start__, 0, (__image3_bss_end__ - __image3_bss_start__));
 
-#if defined(CONFIG_AMEBADPLUS)
 	BOOT_CPU_TZCfg(sau_config);
-#endif
 
 #ifdef CONFIG_TRUSTZONE_MBEDTLS
 	app_mbedtls_image3_init();

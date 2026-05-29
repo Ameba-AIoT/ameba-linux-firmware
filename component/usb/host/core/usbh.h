@@ -396,6 +396,8 @@ typedef struct {
 
 	/**
 	* @brief Called at each Start-of-Frame (SOF) interrupt for class-specific timing process.
+	* @note  This callback is called within an interrupt service routine (ISR) context;
+	*        time-consuming operations (e.g., `malloc`, `rtos_sema_take`) are not permitted.
 	* @param[in] host: USB host.
 	* @return 0 on success, non-zero on failure.
 	*/
@@ -403,6 +405,8 @@ typedef struct {
 
 	/**
 	* @brief Called when a transfer on a specific pipe completes.
+	* @note  This callback is called within an interrupt service routine (ISR) context;
+	*        time-consuming operations (e.g., `malloc`, `rtos_sema_take`) are not permitted.
 	* @param[in] host: USB host.
 	* @param[in] pipe: Pipe number.
 	* @return 0 on success, non-zero on failure.
@@ -683,7 +687,7 @@ void usbh_resume(void);
 /**
  * @brief Sets the USB to enter Clock Gating (CG) state with a specific wakeup event.
  * @details This function configures the USB host to enter a low-power clock gated state.
- *          The wakeup mechanism depends on the value of the @ref sleep_ms parameter.
+ *          The wakeup mechanism depends on the value of the \p sleep_ms parameter.
  * @param[in] sleep_ms:
  *          - 0: Wakeup is triggered by a USB event.
  *          - others: Wakeup is triggered by an Anon timer event after the specified time.

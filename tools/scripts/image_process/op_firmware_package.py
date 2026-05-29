@@ -100,12 +100,14 @@ soc_configs:Dict[str, SocImageConfig] = {
             "ap": "CA32_IMG2",
             "np": "KM4NP_IMG2",
             "fp": "KM0_IMG2",
-            "mp": "KM4MP_IMG2",
+            "vp": "KM4VP_IMG2",
         },
         image3_section = None, #Not support rsip yet(maybe only support rdp)
         dsp_section = None
     ),
 }
+
+soc_configs["amebag2"] = soc_configs["amebagreen2"]
 
 class FirmwarePackage(OperationBase):
     cmd_help_msg = 'Generate final firmware image'

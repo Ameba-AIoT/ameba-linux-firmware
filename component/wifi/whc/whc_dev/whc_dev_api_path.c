@@ -25,6 +25,7 @@ const struct event_func_t whc_dev_api_handlers[] = {
 	{WHC_API_WIFI_CONNECT,	whc_event_wifi_connect},
 	{WHC_API_WIFI_ADD_KEY,	whc_event_wifi_add_key},
 	{WHC_API_WPA_PMKSA_OPS,	whc_event_wpa_pmksa_ops},
+	{WHC_API_WIFI_SET_OWE_PARAM,	whc_event_wifi_set_owe_param},
 	{WHC_API_WIFI_DISCONNECT,	whc_event_wifi_disconnect},
 	{WHC_API_WIFI_IS_RUNNING,	whc_event_wifi_is_running},
 	{WHC_API_WIFI_SET_CHANNEL,	whc_event_wifi_set_channel},
@@ -407,6 +408,13 @@ void whc_event_wpa_pmksa_ops(u32 api_id, u32 *param_buf)
 	whc_send_api_ret_value(api_id, (u8 *)&ret, sizeof(ret));
 }
 
+void whc_event_wifi_set_owe_param(u32 api_id, u32 *param_buf)
+{
+	int ret = 0;
+	wifi_set_owe_param((struct rtw_owe_param_t *)param_buf);
+	whc_send_api_ret_value(api_id, (u8 *)&ret, sizeof(ret));
+}
+
 void whc_event_wifi_get_countrycode(u32 api_id, u32 *param_buf)
 {
 	(void)param_buf;
@@ -556,14 +564,7 @@ void whc_event_wifi_scan_networks(u32 api_id, u32 *param_buf)
 	memcpy(&scan_param.scan_user_data, ptr, sizeof(u32));
 	ptr += sizeof(u32);
 
-	/* wait for xmit done to release skb, otherwise API/RET msg can't be received.
-		https://jira.realtek.com/browse/WQCCE-2914 */
-	if (!whc_dev_tx_path_avail()) {
-		RTK_LOGS(TAG_WLAN_INIC, RTK_LOG_DEBUG, "sdio tx path busy, scan fail\n");
-		ret = -1;
-	} else {
-		ret = wifi_scan_networks(&scan_param, 0);
-	}
+	ret = wifi_scan_networks(&scan_param, 0);
 
 	if (ssid) {
 		rtos_mem_free(ssid);
@@ -1109,11 +1110,10 @@ void whc_dev_api_message_send(u32 id, u8 *param, u32 param_len, u8 *ret, u32 ret
 
 	memcpy((void *)(info + 1), param, param_len);
 
-	/* send ret_msg + ret_val(buf, len) */
-	whc_dev_send((u8 *)info, sizeof(struct whc_api_info) + param_len, buf, 0);
-
 	/* wait for API calling done */
 	event_priv.b_waiting_for_ret = 1;
+	/* send ret_msg + ret_val(buf, len) */
+	whc_dev_send((u8 *)info, sizeof(struct whc_api_info) + param_len, buf, 0);
 	rtos_sema_take(event_priv.api_ret_sema, 0xFFFFFFFF);
 	event_priv.b_waiting_for_ret = 0;
 

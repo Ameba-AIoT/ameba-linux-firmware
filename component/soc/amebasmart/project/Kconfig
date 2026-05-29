@@ -142,6 +142,8 @@ rsource "../../../ota/Kconfig"
 
 rsource "../../../usb/Kconfig"
 
+rsource "../../usrcfg/amebasmart/Kconfig"
+
 menu "CONFIG APPLICATION"
 
     orsource "../../../ui/Kconfig"

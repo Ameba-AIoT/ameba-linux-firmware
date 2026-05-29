@@ -293,7 +293,7 @@ typedef struct {
 } GDMA_TypeDef;
 /// @endcond
 
-/** @addtogroup GDMA_Exported_Types
+/** @addtogroup GDMA_Exported_Types GDMA Exported Types
   * @{
   */
 

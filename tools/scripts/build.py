@@ -73,13 +73,12 @@ def main(argc, argv):
 
     # Track start time and register quiet-mode summary (runs on any exit path).
     _build_start = time.monotonic()
-    _build_state = {'success': False, 'final_image_dir': None, 'soc_name': None, 'build_dir': None}
+    _build_state = {'success': False, 'final_image_dir': None, 'build_dir': None}
 
     def _emit_quiet_summary():
         if not is_quiet():
             return
         print_quiet_summary(
-            soc=_build_state['soc_name'],
             filt=_build_filter,
             final_image_dir=_build_state['final_image_dir'],
             build_dir=_build_state['build_dir'],
@@ -146,7 +145,6 @@ def main(argc, argv):
                 # continue  # TODO
             if defs.startswith('FINAL_IMAGE_DIR='):
                 _build_state['final_image_dir'] = defs.split('=', 1)[1]
-                _build_state['soc_name'] = os.path.basename(_build_state['final_image_dir']).removeprefix('build_')
             cmake_config_cmd += f' -D{defs}'
     _build_state['build_dir'] = build_dir
 

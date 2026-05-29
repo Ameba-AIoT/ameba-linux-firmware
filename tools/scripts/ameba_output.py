@@ -158,7 +158,6 @@ def run_filtered(cmd, filt: BuildFilter, shell: bool = True) -> int:
 
 
 def print_quiet_summary(
-    soc: Optional[str],
     filt: BuildFilter,
     final_image_dir: Optional[str],
     build_dir: Optional[str],
