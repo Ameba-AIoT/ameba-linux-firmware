@@ -5,9 +5,10 @@
  */
 
 #include "ameba_soc.h"
-#include "FreeRTOS.h"
+#include "os_wrapper.h"
+#include "os_wrapper_specific.h"
 
-uint32_t PrevIrqStatus;
+static uint32_t PrevIrqStatus = 0;
 
 #ifdef CONFIG_ARM_CORE_CM4
 SRAMDRAM_ONLY_TEXT_SECTION
@@ -18,7 +19,6 @@ void FLASH_Write_IPC_Int(void *Data, u32 IrqStatus, u32 ChanNum)
 	(void) IrqStatus;
 	(void) ChanNum;
 
-	__disable_irq();
 
 	PIPC_MSG_STRUCT ipc_msg = (PIPC_MSG_STRUCT)ipc_get_message(IPC_AP_TO_NP, IPC_A2N_FLASHPG_REQ);
 	u8 *pflag = (u8 *)ipc_msg->msg;
@@ -34,7 +34,6 @@ void FLASH_Write_IPC_Int(void *Data, u32 IrqStatus, u32 ChanNum)
 		}
 	}
 
-	__enable_irq();
 }
 
 IPC_TABLE_DATA_SECTION
@@ -60,10 +59,11 @@ ALIGNMTO(CACHE_LINE_SIZE) u8 Flash_Sync_Flag[CACHE_LINE_ALIGNMENT(64)];
   * @retval none
   */
 SRAMDRAM_ONLY_TEXT_SECTION
+__weak
 void FLASH_Write_Lock(void)
 {
 	/* disable irq */
-	PrevIrqStatus = portSET_INTERRUPT_MASK_FROM_ISR();
+	PrevIrqStatus = irq_disable_save();
 
 	/* Add This Code For XIP when ca32 Program Flah */
 #ifdef CONFIG_ARM_CORE_CA32
@@ -101,6 +101,7 @@ void FLASH_Write_Lock(void)
   * @retval none
   */
 SRAMDRAM_ONLY_TEXT_SECTION
+__weak
 void FLASH_Write_Unlock(void)
 {
 #ifdef CONFIG_ARM_CORE_CA32
@@ -116,7 +117,7 @@ void FLASH_Write_Unlock(void)
 #endif
 
 	/* restore irq */
-	portCLEAR_INTERRUPT_MASK_FROM_ISR(PrevIrqStatus);
+	irq_enable_restore(PrevIrqStatus);
 }
 
 /**
@@ -281,12 +282,12 @@ int  FLASH_WriteStream(u32 address, u32 len, u8 *pbuf)
 	u32 size = addr_end - addr_begin;
 
 	if (len == 0) {
-		RTK_LOGW(NOTAG, "function %s, data length is invalid (0) \r\n", __func__);
+		RTK_LOGS(NOTAG, RTK_LOG_WARN, "function %s, data length is invalid (0) \r\n", __func__);
 		goto exit;
 	}
 
 	if (IS_FLASH_ADDR((u32)pbuf)) {
-		RTK_LOGE(NOTAG, "function %s, source address(%08x) can not be flash address\r\n", __func__, pbuf);
+		RTK_LOGS(NOTAG, RTK_LOG_ERROR, "function %s, source address(%08x) can not be flash address\r\n", __func__, pbuf);
 		assert_param(0);
 	}
 

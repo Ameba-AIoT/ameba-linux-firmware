@@ -56,11 +56,11 @@
 /**********************************************************************************************
  *                               Common task size
  *********************************************************************************************/
-#define WIFI_LITTLE_TASK_SIZE		                  ((368 + MCC_LITTE_TASK_SIZE + NAN_LITTE_TASK_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN) / 4)	/* rtw_if_wifi_create_task: size will *4 */
+#define WIFI_LITTLE_TASK_SIZE		                  ((400 + MCC_LITTE_TASK_SIZE + NAN_LITTE_TASK_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN) / 4)	/* rtw_if_wifi_create_task: size will *4 */
 
 #if defined (CONFIG_WHC_DEV)
 #if defined(CONFIG_WHC_INTF_IPC)
-#define WIFI_SINGLE_TASK_SIZE		                  ((1360 + WTN_SINGLE_TASK_SIZE + NAN_SINGLE_TASK_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN) / 4)	/* max 1648 in lite, rtw_if_wifi_create_task: size will *4 */
+#define WIFI_SINGLE_TASK_SIZE		                  ((1568 + WTN_SINGLE_TASK_SIZE + NAN_SINGLE_TASK_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN) / 4)	/* rtw_if_wifi_create_task: size will *4 */
 #else
 #define WIFI_SINGLE_TASK_SIZE		                  ((3056 + WTN_SINGLE_TASK_SIZE + NAN_SINGLE_TASK_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN) / 4)	/* 1k: for sdio fullmac proxy */
 #endif
@@ -72,10 +72,10 @@
  *                               IPC mode task size
  *********************************************************************************************/
 #define COEX_IPC_HST_API_BASIC_SIZE               376
-#define COEX_IPC_DEV_API_BASIC_SIZE               664
+#define COEX_IPC_DEV_API_BASIC_SIZE               560
 
 #define WIFI_WHC_IPC_HST_API_TASK_SIZE            (440 + CONTEXT_SAVE_SIZE_WITH_MARGIN)	// for psp overflow when update group key: jira: https://jira.realtek.com/browse/RSWLANQC-1027
-#define WIFI_WHC_IPC_HST_EVT_API_TASK_SIZE        (1856 + EAP_UNBLK_API_SIZE + WPS_UNBLK_API_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN)
+#define WIFI_WHC_IPC_HST_EVT_API_TASK_SIZE        (2272 + EAP_UNBLK_API_SIZE + WPS_UNBLK_API_SIZE + CONTEXT_SAVE_SIZE_WITH_MARGIN)
 
 #if defined(CONFIG_WHC_HOST)
 #define WIFI_WHC_IPC_MSG_Q_TASK_SIZE              (576 + CONTEXT_SAVE_SIZE_WITH_MARGIN)
@@ -90,7 +90,7 @@
 #elif defined(CONFIG_PLATFORM_ZEPHYR)
 #define WIFI_WHC_IPC_DEV_API_TASK_SIZE            (1024*4)
 #else
-#define WIFI_WHC_IPC_DEV_API_TASK_SIZE            (1280 + CONTEXT_SAVE_SIZE_WITH_MARGIN)	/* max 1072 in lite */
+#define WIFI_WHC_IPC_DEV_API_TASK_SIZE            (1272 + CONTEXT_SAVE_SIZE_WITH_MARGIN)	/* max 1536 in lite */
 #endif
 
 /**********************************************************************************************

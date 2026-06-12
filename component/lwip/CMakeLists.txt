@@ -14,7 +14,7 @@ ameba_list_append(public_includes
     lwip_${v_LWIP_VER}/src/include
     lwip_${v_LWIP_VER}/src/include/lwip/apps
     lwip_${v_LWIP_VER}/src/include/netif
-    lwip_${v_LWIP_VER}/src/core/ipv4/ip_nat
+    lwip_${v_LWIP_VER}/src/core/ipv4/ip_napt
     lwip_${v_LWIP_VER}/port/realtek
     lwip_${v_LWIP_VER}/port/realtek/freertos
     api
@@ -148,5 +148,5 @@ if (CONFIG_AMEBAGREEN2)
 ameba_library_section_prefix(${c_CURRENT_TARGET_NAME} .lwip.cache.efficient) #fix lwip section to cache efficient area
 endif()
 ##########################################################################################
-ameba_add_subdirectory(lwip_${v_LWIP_VER}/src/core/ipv4/ip_nat)
+ameba_add_subdirectory(lwip_${v_LWIP_VER}/src/core/ipv4/ip_napt)
 ameba_add_subdirectory(lwip_${v_LWIP_VER}/src/core/ipv6/ip6_rlocal)

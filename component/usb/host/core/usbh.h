@@ -151,9 +151,10 @@ typedef struct {
 	u16 bcdUSB;                   /**< USB specification version number (e.g., 0x0200 for USB 2.0). */
 	u8 bDeviceClass;              /**< Class code (assigned by the USB-IF). */
 	u8 bDeviceSubClass;           /**< Subclass code (assigned by the USB-IF). */
-	u8 bDeviceProtocol;           /**< Protocol code (assigned by the USB-IF). If equal to 0, each interface specifies its own class
-                                     code if equal to 0xFF, the class code is vendor specified.
-                                     Otherwise field is valid class code.*/
+	u8 bDeviceProtocol;           /**< Protocol code (assigned by the USB-IF).
+                                     If 0, each interface specifies its own class code.
+                                     If 0xFF, the class code is vendor specified.
+                                     Otherwise, this field is a valid class code. */
 	u8 bMaxPacketSize;            /**< Maximum packet size for endpoint zero (only 8, 16, 32, or 64 are valid). */
 	u16 idVendor;                 /**< Vendor ID (assigned by the USB-IF). */
 	u16 idProduct;                /**< Product ID (assigned by the manufacturer). */
@@ -203,16 +204,37 @@ typedef struct {
 } __PACKED usbh_itf_desc_t;
 
 /**
- * @brief A structure to hold information about all alternate settings for a single interface number.
- * @details This forms a linked list where each node represents a unique interface number.
- *          Inside each node, it points to another linked list (`itf_desc_array`) of all alternate settings for that interface.
+ * @brief Holds all parsed information for one unique bInterfaceNumber.
+ *
+ * @details The USB framework organises interfaces along two axes:
+ *
+ *   1. Same bInterfaceNumber, different bAlternateSetting
+ *      -> stored inside this node as itf_desc_array[0..alt_setting_cnt-1].
+ *      Example: CDC-ACM data interface has alt=0 (no endpoints, default) and alt=1 (BULK IN + BULK OUT, active).
+ *
+ *   2. Different bInterfaceNumber, same class/subclass/protocol
+ *      -> chained via the `next` pointer.
+ *      Example: a composite device with 3 CDC-ACM produces three separate nodes (one per ACM ctrl interface) linked as:
+ *        [itf1/ACM#1] -> [itf2/ACM#2] -> [itf3/ACM#3] -> NULL
+ *
+ *   usbh_get_interface_descriptor() returns the head of the matching chain.
+ *   The caller walks ->next to reach every interface of the same class.
  */
 typedef struct _usbh_itf_data_t {
-	struct _usbh_itf_data_t *next;       /**< Pointer to the next info structure for a different interface number but has the same class/subclass/protocol. */
-	usbh_itf_desc_t *itf_desc_array;     /**< Pointer to a linked list of all alternate settings for this interface number (bAlternateSetting 0, 1, 2...). */
-	u8 *raw_data;                        /**< Pointer to the start of the raw interface descriptor data for class-specific parsing. */
-	u16 raw_data_len;                    /**< The total length of the entire interface descriptor in bytes. */
-	u8 alt_setting_cnt;                  /**< Count of alternate settings for this interface number. */
+	struct _usbh_itf_data_t *next;   /**< Next node with a different bInterfaceNumber
+	                                      but identical class/subclass/protocol;
+	                                      NULL if this is the last in the chain. */
+	usbh_itf_desc_t *itf_desc_array; /**< Array of alt-setting descriptors for this
+	                                      interface number, indexed [0..alt_setting_cnt-1]
+	                                      by bAlternateSetting order. */
+	u8 *raw_data;                    /**< Start of the raw descriptor bytes for this interface;
+	                                      used by class drivers to parse class-specific (CS)
+	                                      descriptors that the generic framework does not decode. */
+	u16 raw_data_len;                /**< Byte length of the raw_data region
+	                                      (covers all alt settings and their
+	                                      CS/endpoint descriptors). */
+	u8 alt_setting_cnt;              /**< Number of alternate settings;
+	                                      equals the length of itf_desc_array. */
 } usbh_itf_data_t;
 
 /**
@@ -317,7 +339,7 @@ typedef struct {
 	u8 *xfer_buf;                     /**< Pointer to the transfer buffer. */
 	u32 xfer_len;                     /**< Total length of the data to transfer. */
 	u32 tick;                         /**< Host tick count at the start of the transfer (based on SOF or timestamp). */
-	u16 frame_num;                    /**< Frame number for the transfer (from HFNUM register, max 0x3FFF). */
+	__IO u16 frame_num;               /**< Frame number for the transfer (from HFNUM register, max 0x3FFF). */
 	u16 max_timeout_tick;             /**< Maximum wait timeout in ticks for this transfer. */
 	u16 ep_interval;                  /**< Endpoint polling interval in ticks. */
 
@@ -325,10 +347,10 @@ typedef struct {
 	u16 ep_mps;                       /**< Endpoint Maximum Packet Size in bytes.
 	                                     - FS: max 64 (CTRL/BULK/INTR), max 1023 (ISOC)
 	                                     - HS: max 64 (CTRL), max 512 (BULK), max 1024 (INTR/ISOC) */
+	__IO u8 xfer_state;               /**< Current transfer state. See @ref usbh_ep_xfer_state_t. */
 	u8 ep_addr;                       /**< Endpoint address (including direction bit). */
 
 	u8 pipe_num;                      /**< Host pipe/channel number assigned to this endpoint. */
-	u8 xfer_state;                    /**< Current transfer state. See @ref usbh_ep_xfer_state_t. */
 	u8 trx_zlp;                       /**< Flag to indicate if a Zero-Length Packet is required, only for BULK xfer with xfer_len is N*mps. */
 	u8 retry_cnt;                     /**< Current retry count for the transfer. */
 
@@ -449,7 +471,7 @@ typedef struct _usb_host_t {
 	 * @{
 	 * @details These fields are used for debugging time-sensitive transfers (like isochronous for audio applications)
 	 *          by measuring the execution time of the interrupt handler.
-	 *          Enabled by USBD_TP_TRACE_DEBUG.
+	 *          Enabled by USBH_TP_TRACE_DEBUG.
 	 * 	     - if the isr_process_time is relatively large, check whether the callback of the class has taken a long time.
 	 * 	     - if the isr_enter_period is relatively large, check whether there is an operation to mask interrupts in the class.
 	 */
@@ -463,7 +485,7 @@ typedef struct _usb_host_t {
 	const usbh_dev_id_t *dev_id;        /**< Pointer to the active device ID. */
 	usbh_dev_desc_t *dev_desc;          /**< Pointer to the device's descriptor. */
 	usbh_user_cb_t *cb;                 /**< Pointer to the user-provided callbacks. */
-	void *core;                         /**< Pointer for USB host core. */
+	void *hcd;                          /**< Pointer to the HCD handle. */
 
 	u8 dev_addr;                        /**< The address of the attached device. */
 	u8 dev_speed;                       /**< The speed of the attached device. */
@@ -495,6 +517,34 @@ int usbh_init(usbh_config_t *cfg, usbh_user_cb_t *cb);
  * @return 0 on success, non-zero on failure.
  */
 int usbh_deinit(void);
+
+/* Usbh CTS test operations. */
+/**
+ * @brief  USB Host enter suspend.
+ */
+void usbh_suspend(void);
+
+/**
+ * @brief  USB Host exit suspend.
+ */
+void usbh_resume(void);
+
+/**
+ * @brief Sets the USB to enter Clock Gating (CG) state with a specific wakeup event.
+ * @details This function configures the USB host to enter a low-power clock gated state.
+ *          The wakeup mechanism depends on the value of the \p sleep_ms parameter.
+ * @param[in] sleep_ms:
+ *          - 0: Wakeup is triggered by a USB event.
+ *          - others: Wakeup is triggered by a timer event after the specified time.
+ */
+void usbh_enter_cg(u32 sleep_ms);
+
+/**
+ * @brief  USB Host Port Test Control.
+ * @param[in] mode: Test mode.
+ * @return 0 on success, non-zero on failure.
+ */
+int usbh_select_test_mode(u8 mode);
 /** @} End of Host_Core_Functions_For_Applications group */
 
 /** @addtogroup Host_Core_Functions_For_Classes Host Core Functions For Classes
@@ -534,7 +584,7 @@ int usbh_close_pipe(usb_host_t *host, usbh_pipe_t *pipe);
 
 /* Config operations, choose the config index while bNumConfigurations > 1 */
 /**
- * @brief  Get the config idx by devicd id information.
+ * @brief  Get the config idx by device id information.
  * @param[in] host: Host Handle.
  * @param[in] id: Device id information.
  * @return config index
@@ -550,7 +600,7 @@ int usbh_set_configuration(usb_host_t *host, u8 cfg);
 
 /* Descriptor operations */
 /**
- * @brief  Get the interface descriptor by devicd id information.
+ * @brief  Get the interface descriptor by device id information.
  * @param[in] host: Host Handle.
  * @param[in] id: Device id information.
  * @return interface descriptor handler.
@@ -661,7 +711,7 @@ int usbh_transfer_data(usb_host_t *host, usbh_pipe_t *pipe);
  * @brief  Get the last transfer data size of specific pipe.
  * @param[in] host: Host Handle.
  * @param[in] pipe: Pipe struct handle.
- * @return None
+ * @return Last transfer data size in bytes
  */
 u32 usbh_get_last_transfer_size(usb_host_t *host, usbh_pipe_t *pipe);
 
@@ -672,34 +722,6 @@ u32 usbh_get_last_transfer_size(usb_host_t *host, usbh_pipe_t *pipe);
  * @return 0 on success, non-zero on failure.
  */
 int usbh_transfer_process(usb_host_t *host, usbh_pipe_t *pipe);
-
-/* Usbh CTS test operations. */
-/**
- * @brief  USB Host enter suspend.
- */
-void usbh_suspend(void);
-
-/**
- * @brief  USB Host exit suspend.
- */
-void usbh_resume(void);
-
-/**
- * @brief Sets the USB to enter Clock Gating (CG) state with a specific wakeup event.
- * @details This function configures the USB host to enter a low-power clock gated state.
- *          The wakeup mechanism depends on the value of the \p sleep_ms parameter.
- * @param[in] sleep_ms:
- *          - 0: Wakeup is triggered by a USB event.
- *          - others: Wakeup is triggered by an Anon timer event after the specified time.
- */
-void usbh_enter_cg(u32 sleep_ms);
-
-/**
- * @brief  USB Host Port Test Control.
- * @param[in] mode: Test mode.
- * @return 0 on success, non-zero on failure.
- */
-int usbh_select_test_mode(u8 mode);
 /** @} End of Host_Core_Functions_For_Classes group */
 /** @} End of USB_Host_Functions group */
 /** @} End of USB_Host_API group */

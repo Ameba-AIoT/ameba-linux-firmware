@@ -12,7 +12,7 @@
 #include "ameba_soc.h"
 #include "dhcp/dhcps.h"
 #include "wifi_api.h"
-#include "lwip_ipnat.h"
+#include "lwip_ipnapt.h"
 #if defined(CONFIG_LWIP_USB_ETHERNET)
 #include "usb_ethernet.h"
 #endif
@@ -21,8 +21,8 @@
 #define TAG "R-NAPT"
 #endif
 
-extern void ip_nat_reinitialize(void);
-extern void ip_nat_sync_dns_serever_data(void);
+extern void ip_napt_reinitialize(void);
+extern void ip_napt_sync_dns_server_data(void);
 
 /* ======================================================================== */
 /*                           Global Variables                               */
@@ -183,10 +183,10 @@ static void rnapt_netif_ext_callback(struct netif *netif,
 					 rnapt_netif->if_desc);
 
 			/* Reinitialize NAPT tables */
-			ip_nat_reinitialize();
+			ip_napt_reinitialize();
 
 			/* Sync DNS server data from the new WAN interface */
-			ip_nat_sync_dns_serever_data();
+			ip_napt_sync_dns_server_data();
 
 			/* Update default gateway */
 			rnapt_update_default_gw();
@@ -269,7 +269,7 @@ rnapt_netif_t *rnapt_netif_create(uint8_t idx, const rnapt_netif_config_t *confi
 	netif->ip_method = config->ip_method;
 	netif->priority = config->priority;
 	netif->is_active = false;
-	netif->lwip_netif = &xnetif[idx];
+	netif->lwip_netif = lwip_idx_get_netif(idx);
 	netif->dhcps_instance = NULL;
 	netif->status_callback = config->status_callback;
 	netif->callback_user_data = config->callback_user_data;
@@ -287,11 +287,10 @@ rnapt_netif_t *rnapt_netif_create(uint8_t idx, const rnapt_netif_config_t *confi
 	if (config->role == RNAPT_ROLE_LAN && config->ip_method == RNAPT_IP_METHOD_DHCP_SERVER) {
 		/* For DHCP Server: Check subnet conflict and alloc non-conflicting IP */
 
-		/* Stop and deinit existing DHCP Server */
-		if (netif->dhcps_instance) {
+		/* Stop pre-existing DHCP server on this lwIP netif */
+		if (dhcps_get_from_netif(netif->lwip_netif) != NULL) {
 			dhcps_stop(netif->lwip_netif);
 			dhcps_deinit(netif->lwip_netif);
-			netif->dhcps_instance = NULL;
 		}
 
 		struct ip_addr check_ip;
@@ -304,7 +303,7 @@ rnapt_netif_t *rnapt_netif_create(uint8_t idx, const rnapt_netif_config_t *confi
 					 ip4_addr3(&config->ip_info->ip), ip4_addr4(&config->ip_info->ip));
 
 			/* Check if custom IP subnet conflicts */
-			if (!lwip_subnet_is_used(&check_ip)) {
+			if (!lwip_subnet_is_used(&check_ip, netif->lwip_netif)) {
 				/* No conflict, use custom IP */
 				use_custom_ip = true;
 			} else {
@@ -375,9 +374,9 @@ int rnapt_netif_destroy(rnapt_netif_t *netif)
 		}
 	}
 
-	free(netif);
-
 	RTK_LOGS(TAG, RTK_LOG_INFO, "[%s] Destroyed\n", netif->if_desc);
+
+	free(netif);
 	return 0;
 }
 
@@ -708,7 +707,9 @@ int rnapt_netif_stop(rnapt_netif_t *netif)
 	case NETIF_WLAN_AP_INDEX:
 		/* AP: Deinit DHCP server and stop AP */
 		if (netif->ip_method == RNAPT_IP_METHOD_DHCP_SERVER) {
+			dhcps_stop(netif->lwip_netif);
 			dhcps_deinit(netif->lwip_netif);
+			netif->dhcps_instance = NULL;
 		}
 		wifi_stop_ap();
 		RTK_LOGS(TAG, RTK_LOG_INFO, "[%s] Stopped\n", netif->if_desc);

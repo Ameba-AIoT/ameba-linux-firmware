@@ -25,7 +25,6 @@
 extern struct netif *pnetif_usb_eth;
 
 extern void rltk_usb_eth_init(void);
-extern void rltk_usb_eth_deinit(void);
 
 extern void netif_adapter_usb_eth_recv(u8 *buf, u32 len);
 
@@ -98,21 +97,26 @@ static usbd_config_t cdc_ecm_cfg = {
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined(CONFIG_AMEBASMART)
 	.nptx_max_epmis_cnt = 1U,
+	.ext_intr_enable = USBD_SOF_INTR,
 #elif defined(CONFIG_AMEBAGREEN2)
 	.rx_fifo_depth = 644U,
 	.ptx_fifo_depth = {16U, 256U, 32U, 16U, 16U, },
+	.ext_intr_enable = USBD_SOF_INTR,
 #elif defined(CONFIG_AMEBAL2)
 	.rx_fifo_depth = 661U,
 	.ptx_fifo_depth = {256U, 16U, 32U, 16U, },
+	.ext_intr_enable = USBD_SOF_INTR,
 #elif defined(CONFIG_AMEBAPRO3)
 	.rx_fifo_depth = 1664U,
 	.ptx_fifo_depth = {256U, 32U, 16U, },
+	.ext_intr_enable = USBD_SOF_INTR,
 #endif
 };
 
 static rtos_sema_t cdc_ecm_attach_sema = NULL;
 static volatile u8 cdc_ecm_attach_status = 0;
 static volatile u8 cdc_ecm_hotplug_running = 0;
+static volatile u8 cdc_ecm_link_disconnected = 0;
 
 static int cdc_ecm_cb_init(void)
 {
@@ -178,6 +182,9 @@ static void cdc_ecm_cb_status_changed(u8 old_status, u8 status)
 	cdc_ecm_attach_status = status;
 	if (cdc_ecm_attach_sema != NULL) {
 		rtos_sema_give(cdc_ecm_attach_sema);
+	}
+	if (status == USBD_ATTACH_STATUS_DETACHED) {
+		cdc_ecm_link_disconnected = 1;
 	}
 }
 
@@ -327,6 +334,7 @@ static usbh_config_t usbh_ecm_cfg = {
 };
 
 static usb_os_sema_t cdc_ecm_detach_sema;
+static volatile u8 cdc_ecm_detach_pending = 0;
 
 static int cdc_ecm_cb_device_check(usb_host_t *host, u8 cfg_max)
 {
@@ -351,6 +359,7 @@ static int cdc_ecm_cb_attach(void)
 
 static int cdc_ecm_cb_detach(void)
 {
+	cdc_ecm_detach_pending = 1;
 	usb_os_sema_give(cdc_ecm_detach_sema);
 	return HAL_OK;
 }
@@ -393,14 +402,14 @@ static int usb_eth_do_usb_init(void)
 	ret = usbh_init(&usbh_ecm_cfg, &usbh_ecm_usr_cb);
 	if (ret != HAL_OK) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Init USBH fail\n");
-		return 0;
+		return -1;
 	}
 
 	ret = usbh_cdc_ecm_init(&cdc_ecm_usb_cb, &ecm_priv);
 	if (ret < 0) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Init CDC ECM fail\n");
 		usbh_deinit();
-		return 0;
+		return -1;
 	}
 
 	do {
@@ -410,7 +419,7 @@ static int usb_eth_do_usb_init(void)
 		rtos_time_delay_ms(1000);
 	} while (1);
 
-	return 1;
+	return 0;
 }
 
 static void usb_eth_hotplug_thread(void *param)
@@ -462,7 +471,7 @@ static void usb_eth_link_change_thread(void *param)
 
 #if defined(CONFIG_USBH_CDC_ECM)
 	/* Host mode: USB init blocks until device is ready */
-	if (usb_eth_do_usb_init() == 0) {
+	if (usb_eth_do_usb_init() != 0) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "USB init fail\n");
 		rtos_task_delete(NULL);
 		return;
@@ -473,9 +482,17 @@ static void usb_eth_link_change_thread(void *param)
 #if defined(CONFIG_USBD_CDC_ECM)
 		link_is_up = usbd_cdc_ecm_get_connect_status();
 		mac = (u8 *)usbd_cdc_ecm_get_mac_str();
+		if (cdc_ecm_link_disconnected) {
+			cdc_ecm_link_disconnected = 0;
+			link_is_up = 0;
+		}
 #elif defined(CONFIG_USBH_CDC_ECM)
 		link_is_up = usbh_cdc_ecm_get_connect_status();
 		mac = (u8 *)usbh_cdc_ecm_process_mac_str();
+		if (cdc_ecm_detach_pending) {
+			cdc_ecm_detach_pending = 0;
+			link_is_up = 0;
+		}
 #endif
 
 		if (link_is_up && state < ETH_STATUS_INIT) {
@@ -549,30 +566,6 @@ void usb_eth_init(void)
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create link thread fail\n");
 	}
-}
-
-void usb_eth_deinit(void)
-{
-#if defined(CONFIG_USBD_CDC_ECM)
-	usbd_cdc_ecm_deinit();
-	usbd_deinit();
-	if (cdc_ecm_attach_sema != NULL) {
-		rtos_sema_delete(cdc_ecm_attach_sema);
-		cdc_ecm_attach_sema = NULL;
-	}
-	cdc_ecm_hotplug_running = 0;
-#elif defined(CONFIG_USBH_CDC_ECM)
-	usbh_cdc_ecm_deinit();
-	usbh_deinit();
-	if (cdc_ecm_detach_sema != NULL) {
-		usb_os_sema_delete(cdc_ecm_detach_sema);
-		cdc_ecm_detach_sema = NULL;
-	}
-#endif
-
-	rltk_usb_eth_deinit();
-
-	g_usb_eth_link_cb = NULL;
 }
 
 #endif /* CONFIG_LWIP_USB_ETHERNET && CONFIG_RNAPT */

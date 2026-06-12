@@ -194,22 +194,26 @@ const size_t xNumPadding = portBYTE_ALIGNMENT / sizeof(uint32_t);
 
 #endif /* CONFIG_HEAP_CORRUPTION_DETECT_LITE */
 
-/* heapCACHE_TAG_OFFSET: offset from user_ptr to the block-type word.
- * Regular block:       word = xBlockSize|xBlockAllocatedBit  (bit0 == 0)
- * Cache-aligned block: word = (uintptr_t)pxBlock|1u          (bit0 == 1)
- * LITE: tag is placed before the head canary, so the offset is larger. */
-#if (defined(CONFIG_HEAP_PROTECTOR) && defined(CONFIG_HEAP_CORRUPTION_DETECT_LITE))
-#define heapCACHE_TAG_OFFSET   ( xHeadCanarySize + sizeof(uintptr_t) )
-#else
-#define heapCACHE_TAG_OFFSET   ( sizeof(uintptr_t) )
-#endif
-
-/* Header offset from BlockLink_t start to user_ptr in a regular (non-cache-aligned) block */
+/* heapCACHE_ALIGNED_HEADER_OFFSET — bytes between BlockLink_t start and
+ * user_ptr in a regular block. Equals xGap when a cache-aligned block
+ * needs no padding (the "tag-free" path in pvPortMallocCacheAlignedCore). */
 #if (defined(CONFIG_HEAP_PROTECTOR) && defined(CONFIG_HEAP_CORRUPTION_DETECT_LITE))
 #define heapCACHE_ALIGNED_HEADER_OFFSET  ( xHeapStructSize + xHeadCanarySize )
 #else
 #define heapCACHE_ALIGNED_HEADER_OFFSET  ( xHeapStructSize )
 #endif
+
+/* heapCACHE_TAG_OFFSET — distance from user_ptr to the "block-type" tag word.
+ *
+ * vPortFree() reads (pv - heapCACHE_TAG_OFFSET) and dispatches via bit0:
+ *   Regular block:       value = xBlockSize | xBlockAllocatedBit  →  bit0 == 0
+ *   Cache-aligned block: value = (uintptr_t)pxBlock | 1u          →  bit0 == 1
+ *
+ * Anchored to the BlockLink_t.xBlockSize field (offset = sizeof(uintptr_t)
+ * inside BlockLink_t), so the bit0=0 invariant holds for any xHeapStructSize
+ * — TRACE-extended layouts, large portBYTE_ALIGNMENT, cache-line-sized
+ * BlockLink, etc. */
+#define heapCACHE_TAG_OFFSET  ( heapCACHE_ALIGNED_HEADER_OFFSET - sizeof( uintptr_t ) )
 
 /* Find the BlockLink_t for any allocated user pointer (regular or cache-aligned). */
 static inline uint8_t *prvBlockFromPtr( const uint8_t *pv, size_t xHeaderOffset )
@@ -222,8 +226,20 @@ static inline uint8_t *prvBlockFromPtr( const uint8_t *pv, size_t xHeaderOffset 
 	return ( uint8_t * )pv - xHeaderOffset;               /* regular fixed offset */
 }
 
-/* Compute user_ptr, gap, and total block size for a cache-aligned alloc.
- * Applies the LITE push rule when CONFIG_HEAP_CORRUPTION_DETECT_LITE is active. */
+/* Compute user_ptr, gap and total block size for a cache-aligned allocation.
+ *
+ * Three layouts are possible at the chosen pxBlock:
+ *   xGap == xHeaderOffset  → "tag-free" path; layout is identical to a regular
+ *                            block. No tag is written.
+ *   xGap >= 2*xHeaderOffset - sizeof(uintptr_t)
+ *                          → tag-write position lies cleanly past the
+ *                            BlockLink_t / canary region; tag is written.
+ *   otherwise              → push xUserAddr to the next cache line so the
+ *                            tag-write would not corrupt header bytes.
+ *
+ * The push uses a `while` loop because degenerate configurations may need
+ * more than one advance; loop terminates as xGap grows by
+ * portBYTE_CACHE_ALIGNMENT and is bounded by pxBlock->xBlockSize. */
 static inline void prvCacheAlignedGap( const BlockLink_t *pxBlock,
                                         size_t xAlignedSize,
                                         size_t xHeaderOffset,
@@ -236,24 +252,16 @@ static inline void prvCacheAlignedGap( const BlockLink_t *pxBlock,
 	                   & ~( ( size_t )portBYTE_CACHE_ALIGNMENT_MASK );
 	size_t xGap = xUserAddr - ( size_t )pxBlock;
 
-#if ( defined( CONFIG_HEAP_PROTECTOR ) && defined( CONFIG_HEAP_CORRUPTION_DETECT_LITE ) )
-	if( xGap < xHeaderOffset )
+	while( xGap != xHeaderOffset &&
+	       xGap <  ( 2u * xHeaderOffset - sizeof( uintptr_t ) ) )
 	{
 		xUserAddr += portBYTE_CACHE_ALIGNMENT;
 		xGap      += portBYTE_CACHE_ALIGNMENT;
 	}
-	else if( xGap > xHeaderOffset )
-	{
-		size_t xTagOff = xGap - heapCACHE_TAG_OFFSET;
-		if( xTagOff >= xHeapStructSize && xTagOff < xHeapStructSize + xHeadCanarySize )
-		{
-			xUserAddr += portBYTE_CACHE_ALIGNMENT;
-			xGap      += portBYTE_CACHE_ALIGNMENT;
-		}
-	}
+
+#if ( defined( CONFIG_HEAP_PROTECTOR ) && defined( CONFIG_HEAP_CORRUPTION_DETECT_LITE ) )
 	*pxTotalSize = xGap + xAlignedSize + xTailCanarySize;
 #else
-	( void )xHeaderOffset;
 	*pxTotalSize = xGap + xAlignedSize;
 #endif
 	*pxUserAddr = xUserAddr;
@@ -1277,6 +1285,10 @@ void *pvPortCalloc(size_t xWantedCnt, size_t xWantedSize)
 {
 	void *p;
 
+	/* Reject overflow: if xWantedCnt * xWantedSize would wrap, bail out */
+	if (xWantedSize != 0 && xWantedCnt > (SIZE_MAX / xWantedSize)) {
+		return NULL;
+	}
 	/* allocate 'xWantedCnt' objects of size 'xWantedSize' */
 	p = pvPortMalloc(xWantedCnt * xWantedSize);
 	if (p) {
@@ -1374,6 +1386,8 @@ void *pvPortMallocCacheAlignedCore(size_t xWantedSize)
 	}
 
 	configASSERT(pxEnd != NULL);
+	configASSERT(xHeapStructSize >= 2u * sizeof(uintptr_t));
+	configASSERT(portBYTE_CACHE_ALIGNMENT >= portBYTE_ALIGNMENT);
 
 	taskENTER_CRITICAL();
 	{
@@ -1401,9 +1415,8 @@ void *pvPortMallocCacheAlignedCore(size_t xWantedSize)
 			}
 
 			if (pxBlock != pxEnd) {
-				/* Re-compute for the chosen block (same formula as above, via helper) */
-				prvCacheAlignedGap(pxBlock, xAlignedSize, xHeaderOffset,
-				                   &xUserAddr, &xGap, &xTotalSize);
+				/* Reuse xUserAddr / xGap / xTotalSize from the matching
+				 * iteration of the search loop. */
 				pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
 
 				if ((pxBlock->xBlockSize - xTotalSize) > heapMINIMUM_BLOCK_SIZE) {
