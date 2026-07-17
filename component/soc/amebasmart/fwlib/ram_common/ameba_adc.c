@@ -27,7 +27,7 @@ u8 vref_init_done = FALSE;
 
 /**
   * @brief Initialize the parameters in the ADC_InitStruct with default values.
-  * @param ADC_InitStruct Pointer to a ADC_InitTypeDef structure that contains
+  * @param ADC_InitStruct Pointer to an ADC_InitTypeDef structure that contains
   *         the configuration information of the ADC peripheral.
   */
 void ADC_StructInit(ADC_InitTypeDef *ADC_InitStruct)
@@ -49,7 +49,7 @@ void ADC_StructInit(ADC_InitTypeDef *ADC_InitStruct)
 
 /**
   * @brief Initialize ADC according to the specified parameters in ADC_InitStruct.
-  * @param ADC_InitStruct Pointer to a ADC_InitTypeDef structure that contains
+  * @param ADC_InitStruct Pointer to an ADC_InitTypeDef structure that contains
   *         the configuration information of the ADC peripheral.
   */
 void ADC_Init(ADC_InitTypeDef *ADC_InitStruct)
@@ -302,6 +302,45 @@ void ADC_ResetCSwList(void)
 }
 
 /**
+  * @brief  Set list length and channel ID of ADC channel switch list.
+  * @param  ChanIdBuf Pointer to ADC channel ID buffer, which contains value of @ref ADC_Chn_Selection.
+  * @param  ChanLen ADC channel list length, which can be 1 ~ 16.
+  */
+void ADC_SetChList(u8 *ChanIdBuf, u8 ChanLen)
+{
+	ADC_TypeDef	*adc = ADC;
+	u32 value;
+	u8 i, len;
+
+	assert_param(ChanLen >= 1 && ChanLen <= 16);
+
+	/* Set channel switch list length */
+	value = adc->ADC_CONF;
+	value &= ~ADC_MASK_CVLIST_LEN;
+	value |= ADC_CVLIST_LEN(ChanLen - 1);
+	adc->ADC_CONF = value;
+
+	/* Set channel switch list 0 (entries 0 ~ 7) */
+	value = adc->ADC_CHSW_LIST_0;
+	len = (ChanLen > 8) ? 8 : ChanLen;
+	for (i = 0; i < len; i++) {
+		value &= ~((u32)0x0000000F << ADC_SHIFT_CHSW0(i));
+		value |= (u32)(ChanIdBuf[i] & 0x0F) << ADC_SHIFT_CHSW0(i);
+	}
+	adc->ADC_CHSW_LIST_0 = value;
+
+	/* Set channel switch list 1 (entries 8 ~ 15) */
+	if (ChanLen > 8) {
+		value = adc->ADC_CHSW_LIST_1;
+		for (i = 8; i < ChanLen; i++) {
+			value &= ~((u32)0x0000000F << ADC_SHIFT_CHSW1(i));
+			value |= (u32)(ChanIdBuf[i] & 0x0F) << ADC_SHIFT_CHSW1(i);
+		}
+		adc->ADC_CHSW_LIST_1 = value;
+	}
+}
+
+/**
   * @brief Determine ADC FIFO is readable or not.
   * @return ADC FIFO is readable or not:
   *        - 0: Not readable
@@ -372,9 +411,10 @@ u32 ADC_GetStatus(void)
   * @param NewState This parameter can be one of the following values:
   *			@arg ENABLE: Enable the analog module and analog mux, then start a new channel conversion.
   *			@arg DISABLE: Disable the analog module and analog mux.
-  * @note Used in Software Trigger Mode.
-  * @note Every time this bit is set to 1, ADC module would switch to a new channel and do one conversion.
-  *		Every time a conversion is done, software must clear this bit manually.
+  * @note
+  *         - Used in Software Trigger Mode.
+  *         - Every time this bit is set to 1, ADC module would switch to a new channel and do one conversion.
+  *         - Every time a conversion is done, software must clear this bit manually.
   * @internal
   * @note Sync time: 6 ~ 7*sample_clk.
   * @endinternal
@@ -405,9 +445,10 @@ void ADC_SWTrigCmd(u32 NewState)
   * @param NewState This parameter can be one of the following values:
   *		@arg ENABLE: Enable the automatic channel switch.
   *		@arg DISABLE: Disable the automatic channel switch.
-  * @note Used in Automatic Mode
-  * @note When setting this bit, an automatic channel switch starts from the first channel in the channel switch list.
-  *		If an automatic channel switch is in progress, writing 0 will terminate the automatic channel switch.
+  * @note
+  *         - Used in Automatic Mode.
+  *         - When setting this bit, an automatic channel switch starts from the first channel in the channel switch list.
+  *         - If an automatic channel switch is in progress, writing 0 will terminate the automatic channel switch.
   * @internal
   * @note  Sync time: 6 ~ 7*sample_clk
   * @endinternal

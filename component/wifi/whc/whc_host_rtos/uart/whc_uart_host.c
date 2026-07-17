@@ -1,10 +1,8 @@
 #include "whc_host.h"
 
 struct whc_uart_host_priv_t uart_host_priv = {0};
-int whc_host_init_done;
+extern int whc_host_init_done;
 
-/* fix rx buf for gdma, should big enough */
-extern struct event_priv_t event_priv;
 //#define WHC_UART_DEBUG 1
 #ifdef WHC_UART_DEBUG
 static void dump_buf(char *info, uint8_t *buf, uint32_t len)
@@ -44,7 +42,7 @@ void whc_uart_irq_set(SerialIrq irq, u8 status)
 	}
 }
 
-void whc_uart_set_dma_len(u32 size, GDMA_InitTypeDef *GDMA_InitStruct)
+void whc_uart_set_dma_len(GDMA_InitTypeDef *GDMA_InitStruct, u32 size)
 {
 	GDMA_TypeDef *GDMA = ((GDMA_TypeDef *) GDMA_BASE);
 	GDMA->CH[GDMA_InitStruct->GDMA_ChNum].GDMA_CTLx_H = size;
@@ -141,35 +139,14 @@ bool whc_uart_host_rxdma_init(u8 UartIndex, GDMA_InitTypeDef *GDMA_InitStruct, v
 	return TRUE;
 }
 
-u32 whc_uart_host_rxdma_irq_handler(void *pData)
-{
-	GDMA_InitTypeDef *GDMA_InitStruct;
-	u32 int_status;
-
-	(void)pData;
-
-	GDMA_InitStruct = &uart_host_priv.UARTRxGdmaInitStruct;
-
-	int_status = GDMA_ClearINT(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum);
-
-	if (int_status & TransferType) {
-		rtos_sema_give(uart_host_priv.rxirq_sema);
-	}
-
-	if (int_status & ErrType) {
-		RTK_LOGS(TAG_WLAN_INIC, RTK_LOG_ERROR, "uart rxdma err occurs!!\n");
-	}
-
-	return 0;
-}
-
 void whc_uart_host_send_ack(void)
 {
 	struct whc_uart_hdr txhdr = {0};
 	u8 len = 0;
 	u8 *ptr = (u8 *)&txhdr;
+
 	txhdr.buf_size = sizeof(struct whc_uart_hdr);
-	txhdr.subtype = WHC_UART_HDR_ACK_REPLY;
+	txhdr.subtype = WHC_UART_ACK;
 
 	rtos_sema_take(uart_host_priv.tx_lock, RTOS_MAX_TIMEOUT);
 
@@ -190,11 +167,8 @@ void whc_uart_host_dma_tx_done_cb(void)
 
 	GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, DISABLE);
 
-	/* Dev TX complete, free tx skb or buffer */
-	if (whc_tx->is_skb) {
-		char *buf = whc_tx->ptr;
-		*buf = 0;
-	} else {
+	/* Dev TX complete, free buffer if need */
+	if (!whc_tx->is_skb) {
 		rtos_mem_free((u8 *)whc_tx->ptr);
 	}
 	rtos_mem_free((u8 *)whc_tx);
@@ -207,8 +181,8 @@ void whc_uart_host_dma_tx_done_cb(void)
 void whc_uart_host_txdma_irq_task(void *pData)
 {
 	(void)pData;
+
 	for (;;) {
-		/* Task blocked and wait the semaphore(events) here */
 		rtos_sema_take(uart_host_priv.txirq_sema, RTOS_MAX_TIMEOUT);
 		whc_uart_host_dma_tx_done_cb();
 	}
@@ -236,153 +210,92 @@ u32 whc_uart_host_txdma_irq_handler(void *pData)
 	return 0;
 }
 
-void whc_uart_host_rx_handler(u8 *buf)
+u32 whc_uart_host_rxdma_irq_handler(void *pData)
 {
-	struct whc_msg_info *msg_info = (struct whc_msg_info *)buf;
-	char *data = (char *)(buf + sizeof(struct whc_msg_info) + msg_info->pad_len);
-	/* allocate pbuf to store ethernet data from IPC. */
-	struct pbuf *p_buf = pbuf_alloc(PBUF_RAW, msg_info->data_len, PBUF_POOL);
-	struct pbuf *temp_buf = 0;
+	GDMA_InitTypeDef *GDMA_InitStruct;
+	u32 int_status;
 
-	if (p_buf == NULL) {
-		RTK_LOGE(TAG_WLAN_INIC,  "%s: Alloc skb rx buf Err\n", __func__);
-		//just send rsp when pbuf alloc fail
-		return;
-	}
-
-	/* cpoy data from skb(ipc data) to pbuf(ether net data) */
-	temp_buf = p_buf;
-	while (temp_buf) {
-		/* If tot_len > PBUF_POOL_BUFSIZE_ALIGNED, the skb will be
-		 * divided into several pbufs. Therefore, there is a while to
-		 * use to assigne data to pbufs.
-		 */
-
-		_memcpy(temp_buf->payload, data, temp_buf->len);
-		data = data + temp_buf->len;
-		temp_buf = temp_buf->next;
-	}
-
-	netif_adapter_wifi_recv_whc(msg_info->wlan_idx, p_buf);
-}
-
-int whc_uart_host_recv_process(void)
-{
-	int ret = 0;
-	u8 *recv_msg = uart_host_priv.rx_buf;
-	u32 event;
-#ifdef CONFIG_WHC_WIFI_API_PATH
-	struct whc_api_info *ret_msg;
-	u8 *buf = NULL;
-	int counter = 0;
-#endif
-	GDMA_InitTypeDef *GDMA_InitStruct = &uart_host_priv.UARTRxGdmaInitStruct;
-
-	GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, DISABLE);
-	DCache_Invalidate((u32)recv_msg, UART_BUFSZ);
-
-	event = *(u32 *)(recv_msg);
-
-	uart_host_priv.rx_buf = rtos_mem_zmalloc(UART_BUFSZ);
-	DCache_Invalidate((u32)uart_host_priv.rx_buf, UART_BUFSZ);
-	GDMA_SetDstAddr(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, (u32)uart_host_priv.rx_buf);
-
-#ifdef WHC_UART_DEBUG
-	dump_buf("host rx", (u8 *)recv_msg, 16);
-#endif
-
-	switch (event) {
-	case WHC_WIFI_EVT_RECV_PKTS:
-		whc_uart_host_rx_handler(recv_msg);
-		break;
-#ifdef CONFIG_WHC_WIFI_API_PATH
-	case WHC_WIFI_EVT_API_CALL:
-		buf = rtos_mem_zmalloc(uart_host_priv.payload_len);
-		memcpy(buf, recv_msg, uart_host_priv.payload_len);
-		/* wating for last done */
-		counter = 0;
-		while (event_priv.rx_api_msg) {
-			rtos_time_delay_ms(1);
-			counter ++;
-			if (counter == 500) {
-				counter = 0;
-				RTK_LOGE(TAG_WLAN_INIC,  "%s: waiting for last event \n", __func__);
-			}
-		};
-		event_priv.rx_api_msg = buf;
-		rtos_sema_give(event_priv.task_wake_sema);
-		break;
-	case WHC_WIFI_EVT_API_RETURN:
-		if (event_priv.b_waiting_for_ret) {
-			buf = rtos_mem_zmalloc(uart_host_priv.payload_len);
-			memcpy(buf, recv_msg, uart_host_priv.payload_len);
-			while (event_priv.rx_ret_msg) {
-				rtos_time_delay_ms(1);
-				counter ++;
-				if (counter == 500) {
-					counter = 0;
-					RTK_LOGE(TAG_WLAN_INIC,  "%s: waiting for last event \n", __func__);
-				}
-			};
-			event_priv.rx_ret_msg = buf;
-
-			/* unblock API calling func */
-			rtos_sema_give(event_priv.api_ret_sema);
-		} else {
-			ret_msg = (struct whc_api_info *)(recv_msg);
-			RTK_LOGE(TAG_WLAN_INIC, "too late to receive API ret, ID: 0x%x!\n", ret_msg->api_id);
-		}
-		break;
-#endif
-
-#ifndef CONFIG_WHC_CMD_PATH
-	default:
-		RTK_LOGE(TAG_WLAN_INIC, "%s: unknown event:%d\n", __func__, event);
-		break;
-#else
-#ifndef UART_TODO
-#endif
-	default:
-		/* RX DESC first 16bits for size */
-		whc_host_pkt_rx_to_user(recv_msg, (u32)uart_host_priv.payload_len);
-		break;
-#endif
-	}
-
-	rtos_mem_free(recv_msg);
-
-	return ret;
-}
-
-void whc_uart_host_rx_task(void *pData)
-{
 	(void)pData;
+
+	GDMA_InitStruct = &uart_host_priv.UARTRxGdmaInitStruct;
+
+	int_status = GDMA_ClearINT(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum);
+
+	if (int_status & TransferType) {
+		rtos_sema_give(uart_host_priv.rx_wakeup_sema);
+	}
+
+	if (int_status & ErrType) {
+		RTK_LOGS(TAG_WLAN_INIC, RTK_LOG_ERROR, "uart rxdma err occurs!!\n");
+	}
+
+	return 0;
+}
+
+void whc_uart_host_rx_process_task(void *pData)
+{
+	GDMA_InitTypeDef *GDMA_InitStruct = &uart_host_priv.UARTRxGdmaInitStruct;
+	u8 *recv_msg = NULL;
+	u8 *new_buf;
+
+	(void)pData;
+
 	for (;;) {
-		/* Task blocked and wait the semaphore(events) here */
-		rtos_sema_take(uart_host_priv.rxirq_sema, RTOS_MAX_TIMEOUT);
+		rtos_sema_take(uart_host_priv.rx_wakeup_sema, RTOS_MAX_TIMEOUT);
+
 		switch (uart_host_priv.rx_state) {
-		case WHC_UART_HOST_RX_REQ:
+		case WHC_UART_HOST_RX_HEADER:
+			/* send ACK */
 			whc_uart_host_send_ack();
-			uart_host_priv.rx_state = WHC_UART_HOST_RX_PAYLOAD;
+			if (uart_host_priv.tx_waiting_ack == 0) {
+				/* enable DMA immediately */
+				whc_uart_set_dma_len(GDMA_InitStruct, uart_host_priv.payload_len);
+				GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, ENABLE);
+				uart_host_priv.rx_state = WHC_UART_HOST_RX_PAYLOAD;
+			} else {
+				uart_host_priv.rx_state = WHC_UART_HOST_WAIT_PAYLOAD;
+			}
 			break;
-		default: /* WHC_UART_HOST_RX_END */
-			whc_uart_host_recv_process();
-			uart_host_priv.rx_state = WHC_UART_HOST_RX_DONE;
+		default:
+			GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, DISABLE);
+			DCache_Invalidate((u32)uart_host_priv.rx_buf, UART_BUFSZ);
+
+			/* take over the filled buffer, re-arm rx dma with a fresh one */
+			new_buf = rtos_mem_zmalloc(UART_BUFSZ);
+			if (new_buf) {
+				recv_msg = uart_host_priv.rx_buf;
+				uart_host_priv.rx_buf = new_buf;
+			} else {
+				recv_msg = NULL;
+				RTK_LOGE(TAG_WLAN_INIC, "uart rx_buf alloc fail, drop frame\n");
+			}
+
+			DCache_Invalidate((u32)uart_host_priv.rx_buf, UART_BUFSZ);
+			GDMA_SetDstAddr(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, (u32)uart_host_priv.rx_buf);
+
+			if (recv_msg) {
+				whc_host_recv_dispatch(recv_msg, uart_host_priv.payload_len);
+			}
+			uart_host_priv.rx_state = WHC_UART_HOST_RX_IDLE;
+
 			break;
 		}
-		whc_uart_irq_set(RxIrq, ENABLE);
+
+		if (uart_host_priv.rx_state != WHC_UART_HOST_RX_PAYLOAD) {
+			whc_uart_irq_set(RxIrq, ENABLE);
+		}
 	}
 }
 
-u32 whc_uart_host_irq(void *param)
+u32 whc_uart_host_irq_handler(void *param)
 {
-	u32 uart_irq;
-	(void)param;
-	u32 ret = 0;
-	struct whc_uart_hdr *buf_hdr = &(uart_host_priv.rx_hdr);
-	u8 data_read;
-	u8 *hdr_ptr = (u8 *)(&(uart_host_priv.rx_hdr));
 	GDMA_InitTypeDef *GDMA_InitStruct = &uart_host_priv.UARTRxGdmaInitStruct;
+	struct whc_uart_hdr *buf_hdr = &(uart_host_priv.rx_hdr);
+	u8 *hdr_ptr = (u8 *)(buf_hdr);
+	u32 uart_irq;
+	u8 data_read;
+
+	(void)param;
 
 	uart_irq = UART_LineStatusGet(WHC_UART_DEV);
 	if (uart_irq & RUART_BIT_TIMEOUT_INT) {
@@ -395,60 +308,60 @@ u32 whc_uart_host_irq(void *param)
 
 	while (UART_Readable(WHC_UART_DEV)) {
 		switch (uart_host_priv.rx_state) {
-		case WHC_UART_HOST_RX_DONE:
+		case WHC_UART_HOST_RX_IDLE:
 			/* reset state and hdr */
 			_memset(&(uart_host_priv.rx_hdr), 0, sizeof(struct whc_uart_hdr));
-			uart_host_priv.rx_state = WHC_UART_HOST_RX_HEADER;
+			uart_host_priv.rx_state = WHC_UART_HOST_RX_HANDSHAKE;
 			uart_host_priv.rx_size_total = sizeof(struct whc_uart_hdr);
 			uart_host_priv.rx_size_done = 0;
 			break;
-		case WHC_UART_HOST_RX_HEADER:
+		case WHC_UART_HOST_RX_HANDSHAKE:
 			UART_CharGet(WHC_UART_DEV, &data_read);
 			hdr_ptr[uart_host_priv.rx_size_done++] = data_read;
 			if (uart_host_priv.rx_size_done == uart_host_priv.rx_size_total) {
-				if ((uart_host_priv.rx_size_total) == 0 || (uart_host_priv.rx_size_total > UART_BUFSZ)) {
+				if (uart_host_priv.rx_size_total == 0 || (uart_host_priv.rx_size_total > UART_BUFSZ)) {
 					RTK_LOGS(TAG_WLAN_INIC,  RTK_LOG_ERROR, "payload len err uart_irq %x\r\n", uart_irq);
 				}
 
-				if (buf_hdr->subtype == WHC_UART_HDR_ACK_REQ) {
-					uart_host_priv.rx_state = WHC_UART_HOST_RX_REQ;
+				if (buf_hdr->subtype == WHC_UART_HDR) {
+					uart_host_priv.rx_state = WHC_UART_HOST_RX_HEADER;
 					uart_host_priv.payload_len = buf_hdr->buf_size;
 					uart_host_priv.rx_size_done = 0;
 					uart_host_priv.checksum = buf_hdr->checksum;
 
 					whc_uart_irq_set(RxIrq, DISABLE);
-					rtos_sema_give(uart_host_priv.rxirq_sema);
+					rtos_sema_give(uart_host_priv.rx_wakeup_sema);
 					goto exit;
 
-				} else if (buf_hdr->subtype == WHC_UART_HDR_ACK_REPLY) {
+				} else if (buf_hdr->subtype == WHC_UART_ACK) {
 					uart_host_priv.rx_size_done = 0;
 					uart_host_priv.rx_size_total = 0;
 					uart_host_priv.tx_waiting_ack = 0;
 					rtos_sema_give(uart_host_priv.hdr_reply);
-					uart_host_priv.rx_state = WHC_UART_HOST_RX_DONE;
+					uart_host_priv.rx_state = WHC_UART_HOST_RX_IDLE;
 				}
 			}
 			break;
-		case WHC_UART_HOST_RX_PAYLOAD:
-			if (uart_host_priv.tx_waiting_ack == 0) {
-				whc_uart_set_dma_len(uart_host_priv.payload_len, GDMA_InitStruct);
-				GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, ENABLE);
-				uart_host_priv.rx_state = WHC_UART_HOST_RX_DMA_EN;
-				whc_uart_irq_set(RxIrq, DISABLE);
+		case WHC_UART_HOST_WAIT_PAYLOAD:
+			if (uart_host_priv.tx_waiting_ack) {
+				if (uart_host_priv.rx_size_done < sizeof(struct whc_uart_hdr)) {
+					UART_CharGet(WHC_UART_DEV, &data_read);
+					hdr_ptr[uart_host_priv.rx_size_done++] = data_read;
 
-			}
-			if (uart_host_priv.tx_waiting_ack && (uart_host_priv.rx_size_done < sizeof(struct whc_uart_hdr))) {
-				UART_CharGet(WHC_UART_DEV, &data_read);
-				hdr_ptr[uart_host_priv.rx_size_done++] = data_read;
-			}
+				} else if (uart_host_priv.rx_size_done == sizeof(struct whc_uart_hdr)) {
+					uart_host_priv.rx_size_done = 0;
+					if (buf_hdr->subtype != WHC_UART_ACK) {
+						RTK_LOGE(TAG_WLAN_INIC, "err hdr\n");
+					}
+					uart_host_priv.tx_waiting_ack = 0;
+					rtos_sema_give(uart_host_priv.hdr_reply);
 
-			if (uart_host_priv.tx_waiting_ack && (uart_host_priv.rx_size_done == sizeof(struct whc_uart_hdr))) {
-				uart_host_priv.rx_size_done = 0;
-				if (buf_hdr->subtype != WHC_UART_HDR_ACK_REPLY) {
-					RTK_LOGE(TAG_WLAN_INIC, "err hdr\n");
+					/* payload bytes already in flight; enable DMA immediately */
+					whc_uart_set_dma_len(GDMA_InitStruct, uart_host_priv.payload_len);
+					GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, ENABLE);
+					uart_host_priv.rx_state = WHC_UART_HOST_RX_PAYLOAD;
+					whc_uart_irq_set(RxIrq, DISABLE);
 				}
-				uart_host_priv.tx_waiting_ack = 0;
-				rtos_sema_give(uart_host_priv.hdr_reply);
 			}
 			break;
 		default:
@@ -457,60 +370,47 @@ u32 whc_uart_host_irq(void *param)
 			break;
 		}
 	}
+
 exit:
 	UART_INT_Clear(WHC_UART_DEV, uart_irq);
-	return ret;
+	return 0;
 }
 
-static u32 uart_get_idx(UART_TypeDef *Uartx)
-{
-	u32 i;
-
-	for (i = 0; i < MAX_UART_INDEX; i++) {
-		if (Uartx == UART_DEV_TABLE[i].UARTx) {
-			return i;
-		}
-	}
-
-	return 0xFF;
-}
-
-static void whc_uart_host_drv_init(void)
+/**
+ * @brief  to initialize the whc host.
+ * @param  none.
+ * @return none.
+ */
+void whc_uart_host_init(void)
 {
 	struct whc_uart_host_priv_t *whc_uart_priv = &uart_host_priv;
-	UART_InitTypeDef *whc_uart_struct;
+	UART_InitTypeDef *whc_uart_struct = &whc_uart_priv->UART_InitStruct;
 	u8 whc_uart_idx = uart_get_idx(WHC_UART_DEV);
 
 	whc_uart_priv->uart_idx = whc_uart_idx;
-	whc_uart_struct = &whc_uart_priv->UART_InitStruct;
 
+	rtos_mutex_create(&whc_uart_priv->host_send);
 	rtos_sema_create(&whc_uart_priv->tx_lock, 1, 1);
-	rtos_sema_create(&whc_uart_priv->rx_lock, 1, 1);
-	rtos_sema_create(&whc_uart_priv->host_send, 1, 1);
 	rtos_sema_create(&whc_uart_priv->hdr_reply, 0, 1);
 	rtos_sema_create(&whc_uart_priv->session_lock, 1, 1);
 
 	rtos_sema_create(&whc_uart_priv->txirq_sema, 0, RTOS_SEMA_MAX_COUNT);
-	rtos_sema_create(&whc_uart_priv->rxirq_sema, 0, RTOS_SEMA_MAX_COUNT);
-	rtos_sema_create(&whc_uart_priv->free_skb_sema, 0, RTOS_SEMA_MAX_COUNT);
+	rtos_sema_create(&whc_uart_priv->rx_wakeup_sema, 0, RTOS_SEMA_MAX_COUNT);
 
 	/* enable uart clock and function */
 	RCC_PeriphClockCmd(APBPeriph_UARTx[whc_uart_idx], APBPeriph_UARTx_CLOCK[whc_uart_idx], ENABLE);
 
-#if defined(CONFIG_AMEBASMART)
 	/* Configure UART TX and RX pin */
+#if defined(CONFIG_AMEBASMART)
 	Pinmux_Config(UART_TX, PINMUX_FUNCTION_UART);
 	Pinmux_Config(UART_RX, PINMUX_FUNCTION_UART);
 #elif defined(CONFIG_AMEBALITE) || defined(CONFIG_AMEBADPLUS) || defined(CONFIG_AMEBAGREEN2)
-	/* Configure UART TX and RX pin */
 	Pinmux_Config(UART_TX, UART_TX_FID[whc_uart_idx]);
 	Pinmux_Config(UART_RX, UART_RX_FID[whc_uart_idx]);
-#elif defined(CONFIG_AMEBAL2)
-	RTK_LOGS(TAG_WLAN_INIC, RTK_LOG_ERROR, "%s, need to check !!\n", __func__);
 #endif
 
-	PAD_PullCtrl(UART_TX, GPIO_PuPd_UP); // pull up Tx/Rx pin
-	PAD_PullCtrl(UART_RX, GPIO_PuPd_UP); // pull up Tx/Rx pin
+	PAD_PullCtrl(UART_TX, GPIO_PuPd_UP);
+	PAD_PullCtrl(UART_RX, GPIO_PuPd_UP);
 
 	UART_StructInit(whc_uart_struct);
 	whc_uart_struct->Parity = RUART_PARITY_DISABLE;
@@ -528,9 +428,10 @@ static void whc_uart_host_drv_init(void)
 	whc_uart_irq_set(RxIrq, ENABLE);
 
 	/*arrange Uart IRQ Number and handler*/
-	InterruptRegister((IRQ_FUN)whc_uart_host_irq, UART_DEV_TABLE[whc_uart_priv->uart_idx].IrqNum, (u32)&uart_host_priv, INT_PRI_MIDDLE);
+	InterruptRegister((IRQ_FUN)whc_uart_host_irq_handler, UART_DEV_TABLE[whc_uart_priv->uart_idx].IrqNum, (u32)&uart_host_priv, INT_PRI_MIDDLE);
 	InterruptEn(UART_DEV_TABLE[whc_uart_priv->uart_idx].IrqNum, INT_PRI_MIDDLE);
 
+	/* configure RX DMA */
 	whc_uart_priv->rx_buf = rtos_mem_zmalloc(UART_BUFSZ);
 
 	DCache_Invalidate((u32)whc_uart_priv->rx_buf, UART_BUFSZ);
@@ -540,44 +441,24 @@ static void whc_uart_host_drv_init(void)
 	UART_RXDMACmd(WHC_UART_DEV, ENABLE);
 	UART_ClearRxFifo(WHC_UART_DEV);
 
-	if (rtos_task_create(NULL, "UART_HOST_RX_TASK", whc_uart_host_rx_task, (void *)whc_uart_priv, 1024 * 4, WHC_UART_RX_TASK_PRIO) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, "UART_HOST_RX_TASK", whc_uart_host_rx_process_task, (void *)whc_uart_priv, 1200, WHC_UART_RX_TASK_PRIO) != RTK_SUCCESS) {
 		RTK_LOGE(TAG_WLAN_INIC, "Create UART_RXDMA_IRQ_TASK Err!!\n");
 		return;
 	}
 
-
 	/* todo */
 	//pmu_register_sleep_callback(PMU_WHC_WIFI, (PSM_HOOK_FUN)whc_uart_host_suspend, NULL, (PSM_HOOK_FUN)whc_uart_host_resume, NULL);
 
-	if (rtos_task_create(NULL, "UART_TXDMA_IRQ_TASK", whc_uart_host_txdma_irq_task, (void *)whc_uart_priv, 1024 * 4, 7) != RTK_SUCCESS) {
+	if (rtos_task_create(NULL, "UART_TXDMA_IRQ_TASK", whc_uart_host_txdma_irq_task, (void *)whc_uart_priv, 300, 7) != RTK_SUCCESS) {
 		RTK_LOGE(TAG_WLAN_INIC, "Create UART_TXDMA_IRQ_TASK Err!!\n");
 		return;
 	}
 
 #ifdef CONFIG_WHC_WIFI_API_PATH
-	/* init event priv */
-	rtos_sema_create(&(event_priv.task_wake_sema), 0, 0xFFFFFFFF);
-	rtos_sema_create(&(event_priv.api_ret_sema), 0, 0xFFFFFFFF);
-	rtos_mutex_create(&(event_priv.send_mutex));
-
-	/* Initialize the event task */
-	if (RTK_SUCCESS != rtos_task_create(NULL, (const char *const)"whc_host_api_task", (rtos_task_function_t)whc_host_api_task, NULL,
-										g_rtw_task_size.whc_hst_api_task, 3)) {
-		RTK_LOGE(TAG_WLAN_INIC, "Create api_host_task Err\n");
-	}
+	whc_host_api_init();
 #endif
 
 	RTK_LOGI(TAG_WLAN_INIC, "UART init done!\n");
-}
-
-/**
- * @brief  to initialize the whc host.
- * @param  none.
- * @return none.
- */
-void whc_uart_host_init(void)
-{
-	whc_uart_host_drv_init();
 
 	whc_host_init_done = 1;
 }
@@ -588,16 +469,17 @@ void whc_uart_host_send_hdr(u16 size, u32 checksum)
 	u8 len = 0;
 	int ret;
 	u8 *ptr = (u8 *)&txhdr;
+
 	txhdr.buf_size = size;
-	txhdr.subtype = WHC_UART_HDR_ACK_REQ;
+	txhdr.subtype = WHC_UART_HDR;
 	txhdr.checksum	= checksum;
 
 retry:
-	while ((uart_host_priv.rx_state == WHC_UART_HOST_RX_PAYLOAD) || (uart_host_priv.rx_state == WHC_UART_HOST_RX_REQ)) {
+	while ((uart_host_priv.rx_state == WHC_UART_HOST_WAIT_PAYLOAD) || (uart_host_priv.rx_state == WHC_UART_HOST_RX_HEADER)) {
 		rtos_time_delay_ms(1);
 	}
 	rtos_sema_take(uart_host_priv.tx_lock, RTOS_MAX_TIMEOUT);
-	if ((uart_host_priv.rx_state == WHC_UART_HOST_RX_PAYLOAD) || (uart_host_priv.rx_state == WHC_UART_HOST_RX_REQ)) {
+	if ((uart_host_priv.rx_state == WHC_UART_HOST_WAIT_PAYLOAD) || (uart_host_priv.rx_state == WHC_UART_HOST_RX_HEADER)) {
 		rtos_sema_give(uart_host_priv.tx_lock);
 		goto retry;
 	}
@@ -609,7 +491,9 @@ retry:
 	}
 	uart_host_priv.tx_waiting_ack = 1;
 	rtos_sema_give(uart_host_priv.tx_lock);
+
 again:
+	/* block until rx header reply */
 	ret = rtos_sema_take(uart_host_priv.hdr_reply, 5000);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG_WLAN_INIC, RTK_LOG_ERROR, 	"fail to get hdr lock\n");
@@ -617,25 +501,34 @@ again:
 	}
 }
 
-void whc_uart_host_send_data(struct whc_buf_info *pbuf)
+void whc_uart_host_send(u8 *buf, u16 len, void *buf_alloc, u8 is_skb)
 {
 	GDMA_InitTypeDef *GDMA_InitStruct = &uart_host_priv.UARTTxGdmaInitStruct;
+	struct whc_txbuf_info_t *buf_info;
 	u32 i, checksum = 0;
-	u32 *data = (u32 *)pbuf->buf_addr;
+	u32 *data = (u32 *)buf;
 
-	for (i = 0; i < pbuf->buf_size / sizeof(u32); i++) {
+	buf_info = whc_host_alloc_buf_info(buf, len, buf_alloc, is_skb);
+	if (!buf_info) {
+		if (!is_skb) {
+			rtos_mem_free((u8 *)buf_alloc);
+		}
+		return;
+	}
+
+	for (i = 0; i < len / sizeof(u32); i++) {
 		checksum += data[i];
 	}
 
 	/* Serialize the full HDR→payload session; tx_lock is acquired only during actual byte transmission. */
 	rtos_sema_take(uart_host_priv.session_lock, RTOS_MAX_TIMEOUT);
-	DCache_CleanInvalidate(pbuf->buf_addr, pbuf->buf_size);
+	DCache_CleanInvalidate((u32)buf, len);
 
 	/* send_hdr: takes tx_lock, sends HDR bytes, releases tx_lock, then waits for ACK_REPLY */
-	whc_uart_host_send_hdr(pbuf->buf_size, checksum);
+	whc_uart_host_send_hdr(len, checksum);
 
 #ifdef WHC_UART_DEBUG
-	dump_buf("host send", (u8 *)pbuf->buf_addr, 32);
+	dump_buf("host send", buf, 32);
 #endif
 	/* ACK received — take tx_lock for payload DMA */
 	rtos_sema_take(uart_host_priv.tx_lock, RTOS_MAX_TIMEOUT);
@@ -644,13 +537,16 @@ void whc_uart_host_send_data(struct whc_buf_info *pbuf)
 	if (!uart_host_priv.txdma_initialized) {
 		/* setup tx dma */
 		UART_TXDMAConfig(WHC_UART_DEV, WHC_UART_TX_BURST_SIZE);
-		whc_uart_host_txdma_init(uart_host_priv.uart_idx, GDMA_InitStruct, WHC_UART_DEV, (IRQ_FUN)whc_uart_host_txdma_irq_handler, (u8 *)pbuf->buf_addr, UART_BUFSZ);
+		whc_uart_host_txdma_init(uart_host_priv.uart_idx, GDMA_InitStruct, WHC_UART_DEV, (IRQ_FUN)whc_uart_host_txdma_irq_handler, buf, UART_BUFSZ);
 		UART_TXDMACmd(WHC_UART_DEV, ENABLE);
 		uart_host_priv.txdma_initialized = 1;
 	} else {
-		GDMA_SetSrcAddr(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, pbuf->buf_addr);
+		GDMA_SetSrcAddr(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, (u32)buf);
 	}
-	whc_uart_set_dma_len(pbuf->buf_size, GDMA_InitStruct);
-	uart_host_priv.txbuf_info = pbuf;
+
+	uart_host_priv.txbuf_info = &buf_info->txbuf_info;
+
+	whc_uart_set_dma_len(GDMA_InitStruct, len);
 	GDMA_Cmd(GDMA_InitStruct->GDMA_Index, GDMA_InitStruct->GDMA_ChNum, ENABLE);
 }
+

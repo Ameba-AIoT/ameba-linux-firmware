@@ -17,7 +17,6 @@ static const char *const TAG = "APP";
 extern void newlib_locks_init(void);
 extern int main(void);
 extern u32 GlobalDebugEnable;
-void NS_ENTRY BOOT_IMG3(void);
 void app_init_psram(void);
 
 u32 app_mpu_nocache_check(u32 mem_addr)
@@ -110,17 +109,17 @@ static void dslp_wake_handler(void)
 		//RTK_LOGI(TAG, "dslp from aontimer\n");
 		RCC_PeriphClockCmd(APBPeriph_ATIM, APBPeriph_ATIM_CLOCK, ENABLE);
 		//AONTimer_INT(ENABLE);
-		InterruptRegister((IRQ_FUN)aontimer_dslp_handler, AON_TIM_IRQ, NULL, 3);
+		InterruptRegister((IRQ_FUN)aontimer_dslp_handler, AON_TIM_IRQ, (u32)NULL, 3);
 		InterruptEn(AON_TIM_IRQ, 3);
 	}
 
 	if (BootReason & AON_BIT_RTC_ISR_EVT) {
-		InterruptRegister((IRQ_FUN)rtc_dslp_handler, RTC_IRQ, NULL, 3);
+		InterruptRegister((IRQ_FUN)rtc_dslp_handler, RTC_IRQ, (u32)NULL, 3);
 		InterruptEn(RTC_IRQ, 3);
 	}
 
 	if (BootReason & (AON_BIT_GPIO_PIN0_WAKDET_EVT | AON_BIT_GPIO_PIN1_WAKDET_EVT | AON_BIT_GPIO_PIN2_WAKDET_EVT | AON_BIT_GPIO_PIN3_WAKDET_EVT)) {
-		InterruptRegister((IRQ_FUN)wakepin_dslp_handler, AON_WAKEPIN_IRQ, NULL, 3);
+		InterruptRegister((IRQ_FUN)wakepin_dslp_handler, AON_WAKEPIN_IRQ, (u32)NULL, 3);
 		InterruptEn(AON_WAKEPIN_IRQ, 3);
 	}
 }
@@ -170,10 +169,7 @@ void app_start(void)
 	/* 5. Confirm CPU secure state*/
 	cmse_address_info_t cmse_address_info = cmse_TT((void *)app_start);
 	RTK_LOGI(TAG, "IMG2 SECURE STATE: %d\n", cmse_address_info.flags.secure);
-	/* 6. Load secure image*/
-#if defined (CONFIG_TRUSTZONE_EN) && (CONFIG_TRUSTZONE_EN == 1U)
-	BOOT_IMG3();
-#endif
+	/* 6. image3 is booted from image1 before image2; no NS_ENTRY call needed here */
 
 	/* 7.For reference only, users can modify the function if need */
 	/* Attention, the handler is needed to clear NVIC pending int and ip int in dslp flow */

@@ -34,8 +34,8 @@
 #define USBH_BOT_DATA_LENGTH                      64U         /**< Generic data buffer length for small transfers. */
 
 #define USBH_MSC_MAX_LUN                          1U          /**< Maximum number of logical units (LUNs) supported. */
-/** @} End of Host_MSC_Constants group*/
-/** @} End of USB_Host_Constants group*/
+/** @} End of Host_MSC_Constants group */
+/** @} End of USB_Host_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -103,14 +103,14 @@ typedef enum {
 typedef struct {
 	usb_msc_bot_cbw_t *cbw;         /**< Pointer to the Command Block Wrapper. */
 	usb_msc_bot_csw_t *csw;         /**< Pointer to the Command Status Wrapper. */
-	u32 origin_tx_pbuf_len;         /**< Original length of the user's transmit buffer. */
 	u32 origin_rx_pbuf_len;         /**< Original length of the user's receive buffer. */
-	u8 *origin_tx_pbuf;             /**< Pointer to the original user transmit buffer. */
 	u8 *origin_rx_pbuf;             /**< Pointer to the original user receive buffer. */
 	u8 *pbuf;                       /**< Internal pointer to the current data buffer for transfer. */
 	u8 *data;                       /**< A general-purpose data buffer. */
+	u32 tag_counter;                /**< Per-CBW tag; incremented before each CBW send (BOT §6.3.1). */
 	u8 state;                       /**< Current state of the BOT state machine, @ref usbh_bot_state_t. */
 	u8 cmd_state;                   /**< Current state of the command processing, @ref usbh_bot_cmd_state_t. */
+	u8 reset_recovery;              /**< Set during BOT Reset Recovery to redirect BOT_ERROR_IN→BOT_SEND_CBW. */
 } usbh_bot_handle_t;
 
 /**
@@ -119,7 +119,7 @@ typedef struct {
  */
 typedef struct {
 	u32 block_nbr;                  /**< Total number of logical blocks on the medium. */
-	u16 block_size;                 /**< Size of each logical block in bytes. */
+	u32 block_size;                 /**< Size of each logical block in bytes. */
 } usbh_scsi_capacity_t;
 
 /* INQUIRY data */
@@ -171,8 +171,8 @@ typedef struct {
 	 */
 	int (*setup)(void);
 } usbh_msc_cb_t;
-/** @} End of Host_MSC_Types group*/
-/** @} End of USB_Host_Types group*/
+/** @} End of Host_MSC_Types group */
+/** @} End of USB_Host_Types group */
 
 /**
  * @brief MSC host structure.
@@ -183,7 +183,7 @@ typedef struct {
 	usbh_pipe_t bulk_out;                  /**< Pipe handle for the Bulk OUT endpoint. */
 	usbh_bot_handle_t hbot;                /**< Handle for the BOT protocol layer. */
 	usbh_msc_lun_t unit[USBH_MSC_MAX_LUN]; /**< Array to hold information for each LUN. */
-	usbh_msc_cb_t *cb;                     /**< Pointer to the user-registered callback structure. */
+	const usbh_msc_cb_t *cb;                     /**< Pointer to the user-registered callback structure. */
 	usb_host_t *host;                      /**< Pointer to the parent USB host structure. */
 	u8 *max_lun_buf;                       /**< Buffer to hold the result of GET MAX LUN request. */
 	u32 tick;                              /**< A tick counter for timeouts. */
@@ -192,6 +192,7 @@ typedef struct {
 	u8 state;                              /**< Current state of the main MSC state machine, @ref usbh_msc_state_t. */
 	u8 error;                              /**< Stores the last occurred error, @ref usbh_msc_error_t. */
 	u8 req_state;                          /**< Current state of the MSC control request state machine, @ref usbh_msc_req_state_t. */
+	u8 itf_num;                            /**< MSC interface number; used as wIndex in class requests (BOT §3.1). */
 } usbh_msc_host_t;
 
 /* Exported macros -----------------------------------------------------------*/
@@ -211,7 +212,7 @@ typedef struct {
  * @param[in] cb: Pointer to a user callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbh_msc_init(usbh_msc_cb_t *cb);
+int usbh_msc_init(const usbh_msc_cb_t *cb);
 
 /**
  * @brief De-initializes the MSC class driver.

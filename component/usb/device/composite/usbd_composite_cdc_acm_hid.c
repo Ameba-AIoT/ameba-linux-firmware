@@ -204,7 +204,7 @@ static int usbd_composite_setup(usb_dev_t *dev, usb_setup_req_t *req)
 		} else if (req->wIndex == USBD_COMP_HID_ITF) {
 			ret = cdev->hid->setup(dev, req);
 		} else {
-			RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid class req\n");
+			USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 0);
 		}
 		break;
 	default:
@@ -280,8 +280,12 @@ static int usbd_composite_handle_ep0_data_out(usb_dev_t *dev)
 	int ret = HAL_OK;
 	usbd_composite_dev_t *cdev = &usbd_composite_dev;
 
-	cdev->cdc->ep0_data_out(dev);
-	cdev->hid->ep0_data_out(dev);
+	if (cdev->cdc->ep0_data_out != NULL) {
+		cdev->cdc->ep0_data_out(dev);
+	}
+	if (cdev->hid->ep0_data_out != NULL) {
+		cdev->hid->ep0_data_out(dev);
+	}
 
 	return ret;
 }
@@ -400,7 +404,7 @@ static u16 usbd_composite_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u
 			break;
 		/* Add customer string here */
 		default:
-			//RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid str idx %d\n", USB_LOW_BYTE(req->wValue));
+			USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_GET_DESC, 0);
 			break;
 		}
 		break;
@@ -419,8 +423,8 @@ static u16 usbd_composite_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u
   * @param  cb: CDC ACM user callback
   * @retval Status
   */
-int usbd_composite_init(u32 cdc_bulk_out_xfer_size, u32 cdc_bulk_in_xfer_size, usbd_composite_cdc_acm_usr_cb_t *cdc_cb,
-						u32 hid_intr_in_xfer_size, usbd_composite_hid_usr_cb_t *hid_cb, usbd_composite_cb_t *cb)
+int usbd_composite_init(u32 cdc_bulk_out_xfer_size, u32 cdc_bulk_in_xfer_size, const usbd_composite_cdc_acm_usr_cb_t *cdc_cb,
+						u32 hid_intr_in_xfer_size, const usbd_composite_hid_usr_cb_t *hid_cb, const usbd_composite_cb_t *cb)
 {
 	int ret;
 	usbd_composite_dev_t *cdev = &usbd_composite_dev;

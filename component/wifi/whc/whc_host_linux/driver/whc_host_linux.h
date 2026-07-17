@@ -26,7 +26,7 @@
 
 #ifdef CONFIG_NAN
 #define CONFIG_NAN_PAIRING
-// #define NAN_CUSTOMER_NANDOW
+#define NAN_CUSTOMER_NANDOW
 #endif
 
 /******************************************************************/
@@ -48,6 +48,7 @@
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
 #include <linux/dma-mapping.h>
+#include <linux/unaligned.h>
 #include <net/cfg80211.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
@@ -86,7 +87,6 @@
 #include <linux/of_gpio.h>
 
 /* whc headers. */
-#include "autoconf.h"
 #include "whc_host_wiphy.h"
 #include "wifi_api_types.h"
 #include "wifi_api_event.h"
@@ -113,7 +113,6 @@
 #else
 /* non-ipc driver */
 #include "whc_def.h"
-#include "whc_host_cust_evt.h"
 #include "whc_host_protocal_offload.h"
 #if defined(CONFIG_WHC_HCI_SDIO)
 #include <linux/mmc/sdio_func.h>
@@ -134,10 +133,6 @@
 #endif
 #endif
 
-#ifdef NAN_CUSTOMER_NANDOW
-#include "WFPAL.h"
-#endif
-
 #include "whc_host_regd.h"
 #ifdef CONFIG_IEEE80211R
 #include "whc_host_ft.h"
@@ -152,6 +147,11 @@
 #include "whc_host_ethtool_ops.h"
 #include "whc_host_hci.h"
 #include "whc_host_function.h"
+
+#ifdef CONFIG_WHC_CMD_PATH
+#include "whc_host_cmd_path_api.h"
+#include "whc_host_netlink.h"
+#endif
 
 
 /******************************************************************/

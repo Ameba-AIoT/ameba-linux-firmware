@@ -66,8 +66,8 @@
 #define USBD_UAC_SAMPLING_FREQ_96K                  96000U  /**< Audio 96000 sample frequency. */
 #define USBD_UAC_SAMPLING_FREQ_192K                 192000U /**< Audio 192000 sample frequency. */
 
-/** @} End of Device_UAC_Constants group*/
-/** @} End of USB_Device_Constants group*/
+/** @} End of Device_UAC_Constants group */
+/** @} End of USB_Device_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -187,8 +187,8 @@ typedef struct {
 	__IO u8 next_xfer;         /**< Audio transfer continue flag. */
 } usbd_uac_buf_ctrl_t;
 
-/** @} End of Device_UAC_Types group*/
-/** @} End of USB_Device_Types group*/
+/** @} End of Device_UAC_Types group */
+/** @} End of USB_Device_Types group */
 
 /**
  * @brief Structure representing the UAC device instance.
@@ -200,7 +200,7 @@ typedef struct {
 	usbd_ep_t ep_isoc_out;             /**< ISOC OUT endpoint structure. */
 	usb_setup_req_t ctrl_req;          /**< Stores the current control request. */
 	usb_dev_t *dev;                    /**< Pointer to the USB device instance. */
-	usbd_uac_cb_t *cb;                 /**< Pointer to the user-defined callback structure. */
+	const usbd_uac_cb_t *cb;           /**< Pointer to the user-defined callback structure. */
 
 	u32 cur_sampling_freq;             /**< Current Audio sample freqnency. */
 	u16 cur_volume;                    /**< Current Audio volume . */
@@ -236,7 +236,7 @@ typedef struct {
  * @param[in] cb: Pointer to the user-defined callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbd_uac_init(usbd_uac_cb_t *cb);
+int usbd_uac_init(const usbd_uac_cb_t *cb);
 
 /**
   * @brief  DeInitialize UAC device
@@ -251,13 +251,13 @@ int usbd_uac_deinit(void);
   * @param[in] flag: Unused parameter
   * @retval 0 on success, non-zero on failure.
   */
-u8  usbd_uac_config(const usbd_audio_cfg_t *uac_cfg, u8 is_record, u32 flag);
+int usbd_uac_config(const usbd_audio_cfg_t *uac_cfg, u8 is_record, u32 flag);
 
 /**
   * @brief  USB audio start play
   * @retval 0 on success, non-zero on failure.
   */
-u32  usbd_uac_start_play(void);
+int usbd_uac_start_play(void);
 
 /**
   * @brief  USB audio stop play

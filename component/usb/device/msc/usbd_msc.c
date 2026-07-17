@@ -319,17 +319,17 @@ static void usbd_msc_abort(usb_dev_t *dev)
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
 	usb_msc_bot_cbw_t *cbw = cdev->cbw;
 
-	if ((cbw->field.bmCBWFlags == 0U) &&
-		(cbw->field.dCBWDataTransferLength != 0U) &&
-		(cdev->bot_status == USBD_MSC_STATUS_NORMAL)) {
+	/* BOT §6.6.1: stall OUT on any write-phase mismatch OR on invalid CBW
+	 * (RECOVERY); for invalid CBW do not re-arm OUT — host must issue
+	 * Bulk-Only Mass Storage Reset before communication can resume. */
+	if (((cbw->field.bmCBWFlags == 0U) &&
+		 (cbw->field.dCBWDataTransferLength != 0U) &&
+		 (cdev->bot_status == USBD_MSC_STATUS_NORMAL)) ||
+		(cdev->bot_status == USBD_MSC_STATUS_RECOVERY)) {
 		usbd_ep_set_stall(dev, &cdev->ep_bulk_out);
 	}
 
 	usbd_ep_set_stall(dev, &cdev->ep_bulk_in);
-
-	if (cdev->bot_status == USBD_MSC_STATUS_ERROR) {
-		usbd_msc_bulk_receive(dev, (u8 *)cbw, USB_MSC_CBW_LEN);
-	}
 }
 
 /**
@@ -368,6 +368,7 @@ static int usbd_msc_set_config(usb_dev_t *dev, u8 config)
 	cdev->is_open = 1;
 	cdev->ro = 0;
 	cdev->phase_error = 0;
+	cdev->bot_reset_pending = 0U;
 
 	/* Prepare to receive next BULK OUT packet */
 	usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USB_MSC_CBW_LEN);
@@ -385,7 +386,7 @@ static int usbd_msc_set_config(usb_dev_t *dev, u8 config)
   */
 static int usbd_msc_clear_config(usb_dev_t *dev, u8 config)
 {
-	int ret = 0U;
+	int ret = HAL_OK;
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
 	usbd_ep_t *ep_bulk_in = &cdev->ep_bulk_in;
 	usbd_ep_t *ep_bulk_out = &cdev->ep_bulk_out;
@@ -417,9 +418,6 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
 	usbd_ep_t *ep0_in = &dev->ep0_in;
-	usbd_ep_t *ep_bulk_in = &cdev->ep_bulk_in;
-	usbd_ep_t *ep_bulk_out = &cdev->ep_bulk_out;
-	usb_ep_info_t *info;
 	int ret = HAL_OK;
 
 	//RTK_LOGS(TAG, RTK_LOG_DEBUG, "SETUP: bmRequestType=0x%02x bRequest=0x%02x wLength=0x%04x wValue=%x\n",
@@ -456,31 +454,6 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			}
 			break;
 
-		case USB_REQ_CLEAR_FEATURE:
-
-			info = &ep_bulk_in->info;
-			info->mps = (dev->dev_speed == USB_SPEED_HIGH) ? USBD_MSC_HS_MAX_PACKET_SIZE : USBD_MSC_FS_MAX_PACKET_SIZE;
-			info = &ep_bulk_out->info;
-			info->mps = (dev->dev_speed == USB_SPEED_HIGH) ? USBD_MSC_HS_MAX_PACKET_SIZE : USBD_MSC_FS_MAX_PACKET_SIZE;
-
-			if ((((u8)req->wIndex) & USB_REQ_DIR_MASK) == USB_D2H) {
-				usbd_ep_deinit(dev, ep_bulk_in);
-				usbd_ep_init(dev, ep_bulk_in);
-			} else {
-				usbd_ep_deinit(dev, ep_bulk_out);
-				usbd_ep_init(dev, ep_bulk_out);
-			}
-
-			/* Handle BOT error */
-			if (cdev->bot_status == USBD_MSC_STATUS_ERROR) { /* Bad CBW Signature */
-				usbd_ep_set_stall(dev, ep_bulk_in);
-				cdev->bot_status = USBD_MSC_STATUS_NORMAL;
-			} else if (((((u8)req->wIndex) & USB_REQ_DIR_MASK) == USB_D2H) && (cdev->bot_status != USBD_MSC_STATUS_RECOVERY)) {
-				usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
-			} else {
-				// Do nothing
-			}
-			break;
 
 		default:
 			ret = HAL_ERR_PARA;
@@ -491,7 +464,7 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 	case USB_REQ_TYPE_CLASS:
 		switch (req->bRequest) {
 		case USB_MSC_REQUEST_GET_MAX_LUN:
-			if ((req->wValue  == 0U) && (req->wLength == 1U) &&
+			if ((req->wValue  == 0U) && (req->wIndex == 0U) && (req->wLength == 1U) &&
 				((req->bmRequestType & USB_REQ_DIR_MASK) == USB_D2H)) {
 				ep0_in->xfer_buf[0] = 0U;
 				ep0_in->xfer_len = 1U;
@@ -502,10 +475,11 @@ static int usbd_msc_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			break;
 
 		case USB_MSC_REQUEST_BOT_RESET :
-			if ((req->wValue  == 0U) && (req->wLength == 0U) &&
+			if ((req->wValue  == 0U) && (req->wIndex == 0U) && (req->wLength == 0U) &&
 				((req->bmRequestType & USB_REQ_DIR_MASK) != USB_D2H)) {
 				cdev->bot_state  = USBD_MSC_IDLE;
 				cdev->bot_status = USBD_MSC_STATUS_RECOVERY;
+				cdev->bot_reset_pending = 1U;
 				/* Prepare to receive BOT cmd */
 				usbd_msc_bulk_receive(dev, (u8 *)cdev->cbw, USB_MSC_CBW_LEN);
 			} else {
@@ -555,6 +529,7 @@ static int usbd_msc_handle_ep_data_in(usb_dev_t *dev, u8 ep_addr, u8 status)
 static void usbd_msc_tx_process(void)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
+	usb_msc_bot_cbw_t *cbw = cdev->cbw;
 	usb_dev_t *dev = cdev->dev;
 
 	usb_os_lock(usbd_msc_sd_lock);
@@ -562,7 +537,7 @@ static void usbd_msc_tx_process(void)
 	if (cdev->tx_status == HAL_OK) {
 		switch (cdev->bot_state) {
 		case USBD_MSC_DATA_IN:
-			if (usbd_scsi_process_cmd(cdev, &cdev->cbw->field.CBWCB[0]) < 0) {
+			if (usbd_scsi_process_cmd(cdev, cbw->field.CBWCB) != HAL_OK) {
 				usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 			}
 			break;
@@ -581,7 +556,7 @@ static void usbd_msc_tx_process(void)
 			break;
 		}
 	} else {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "TX err: %d\n", cdev->tx_status);
+		USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_XFER, USBD_MSC_BULK_IN_EP);
 	}
 
 	usb_os_unlock(usbd_msc_sd_lock);
@@ -618,6 +593,9 @@ static void usbd_msc_rx_process(void)
 	usb_msc_bot_cbw_t *cbw = cdev->cbw;
 	usb_msc_bot_csw_t *csw = cdev->csw;
 	usb_dev_t *dev = cdev->dev;
+	u8 *cbwcb = cbw->field.CBWCB;
+	u32 cbw_data_len = cbw->field.dCBWDataTransferLength;
+	u32 length;
 
 	usb_os_lock(usbd_msc_sd_lock);
 
@@ -625,23 +603,40 @@ static void usbd_msc_rx_process(void)
 	case USBD_MSC_IDLE:
 		/* Decode the CBW command */
 		csw->field.dCSWTag = cbw->field.dCBWTag;
-		csw->field.dCSWDataResidue = cbw->field.dCBWDataTransferLength;
+		csw->field.dCSWDataResidue = cbw_data_len;
 
 		if ((cdev->rx_data_length != USB_MSC_CBW_LEN) ||
 			(cbw->field.dCBWSignature != USB_MSC_CBW_SIGN) ||
-			(cbw->field.bCBWLUN > 1U) ||
+			((cbw->field.bmCBWFlags & 0x7FU) != 0U) ||  /* §6.2.2: bmCBWFlags reserved bits 6:0 must be 0 */
+			(cbw->field.bCBWLUN != 0U) ||  /* Only LUN 0 exists (GET_MAX_LUN reports 0) */
 			(cbw->field.bCBWCBLength < 1U) || (cbw->field.bCBWCBLength > 16U)) {
 			usbd_scsi_sense_code(cdev, SCSI_SENSE_KEY_ILLEGAL_REQUEST, SCSI_ASC_INVALID_COMMAND_OPERATION_CODE);
-			cdev->bot_status = USBD_MSC_STATUS_ERROR;
+			/* BOT §6.6.1: invalid CBW — use RECOVERY so abort() stalls
+			 * both endpoints and does not re-arm OUT. */
+			cdev->bot_status = USBD_MSC_STATUS_RECOVERY;
 			usbd_msc_abort(dev);
 		} else {
-			if (usbd_scsi_process_cmd(cdev, &cbw->field.CBWCB[0]) < 0) {
+			cdev->bot_status = USBD_MSC_STATUS_NORMAL;
+			if (usbd_scsi_process_cmd(cdev, cbwcb) != HAL_OK) {
 				if (cdev->phase_error == 1) {
 					usbd_msc_send_csw(dev, BOT_CSW_PHASE_ERROR);
 					cdev->phase_error = 0;
-				} else if (cdev->bot_state == USBD_MSC_NO_DATA) {
+				} else if (cbw_data_len == 0U) {
+					/* Case 1: Hn = Dn — no data stage, report failure directly */
+					usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
+				} else if ((cbw->field.bmCBWFlags & 0x80U) == 0U) {
+					/* Case 9: Ho > Dn — a failed OUT command (e.g. write-protected
+					 * or no-medium WRITE) consumes no data. STALL Bulk-Out to abort
+					 * the host data stage; the CSW still flows on the un-stalled
+					 * Bulk-In pipe. */
+					usbd_ep_set_stall(dev, &cdev->ep_bulk_out);
 					usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 				} else {
+					/* Case 4: Hi > Dn — a failed IN command (e.g. no-medium READ)
+					 * returns no data. Bulk-In carries both the (absent) data and
+					 * the CSW, so STALL it; the CSW can only be sent once the host
+					 * clears the halt (needs core Clear-Feature support, tracked
+					 * separately). */
 					usbd_msc_abort(dev);
 				}
 			}
@@ -650,13 +645,21 @@ static void usbd_msc_rx_process(void)
 					 (cdev->bot_state != USBD_MSC_DATA_OUT) &&
 					 (cdev->bot_state != USBD_MSC_LAST_DATA_IN)) {
 				if (cdev->data_length > 0U) {
-					u16 length = (u16)MIN(cbw->field.dCBWDataTransferLength, cdev->data_length);
-					csw->field.dCSWDataResidue -= cdev->data_length;
+					length = MIN(cbw_data_len, cdev->data_length);
+					/* Residue reflects bytes actually sent (clamped), not the SCSI payload size */
+					csw->field.dCSWDataResidue -= length;
 					csw->field.bCSWStatus = BOT_CSW_CMD_PASSED;
 					cdev->bot_state = USBD_MSC_SEND_DATA;
 
 					usbd_msc_bulk_transmit(dev, cdev->data, length);
 				} else if (cdev->data_length == 0U) {
+					if ((cbw_data_len != 0U) && ((cbw->field.bmCBWFlags & 0x80U) == 0U)) {
+						/* Case 9: Ho > Dn — command produced no data but the host
+						 * declared an OUT transfer (e.g. a stubbed MODE SELECT); STALL
+						 * Bulk-Out so its parameter bytes are not mis-read as the next
+						 * CBW. The CSW flows on the un-stalled Bulk-In pipe below. */
+						usbd_ep_set_stall(dev, &cdev->ep_bulk_out);
+					}
 					usbd_msc_send_csw(dev, BOT_CSW_CMD_PASSED);
 				} else {
 					usbd_msc_abort(dev);
@@ -666,7 +669,7 @@ static void usbd_msc_rx_process(void)
 		break;
 
 	case USBD_MSC_DATA_OUT:
-		if (usbd_scsi_process_cmd(cdev, &cbw->field.CBWCB[0]) < 0) {
+		if (usbd_scsi_process_cmd(cdev, cbwcb) != HAL_OK) {
 			usbd_msc_send_csw(dev, BOT_CSW_CMD_FAILED);
 		}
 
@@ -764,7 +767,7 @@ static u16 usbd_msc_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf
 			break;
 		/* Add customer string here */
 		default:
-			//RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid str idx %d\n", USB_LOW_BYTE(req->wValue));
+			USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_GET_DESC, 0);
 			break;
 		}
 		break;
@@ -854,7 +857,7 @@ int usbd_msc_disk_deinit(void)
   * @brief  Initialize MSC device
   * @retval Status
   */
-int usbd_msc_init(usbd_msc_cb_t *cb)
+int usbd_msc_init(const usbd_msc_cb_t *cb)
 {
 	usbd_msc_dev_t *cdev = &usbd_msc_dev;
 	usbd_msc_disk_ops_t *ops = &cdev->disk_ops;
@@ -882,7 +885,11 @@ int usbd_msc_init(usbd_msc_cb_t *cb)
 	ops->disk_write = usbd_msc_sd_writeblocks;
 #endif
 
-	usb_os_lock_create(&usbd_msc_sd_lock);
+	ret = usb_os_lock_create(&usbd_msc_sd_lock);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create lock fail\n");
+		return ret;
+	}
 
 	cdev->data = (u8 *)usb_os_malloc(USBD_MSC_BUFLEN);
 	if (cdev->data == NULL) {
@@ -902,8 +909,17 @@ int usbd_msc_init(usbd_msc_cb_t *cb)
 		goto csw_fail;
 	}
 
-	rtos_sema_create(&cdev->rx_sema, 0U, 1U);
-	rtos_sema_create(&cdev->tx_sema, 0U, 1U);
+	ret = rtos_sema_create(&cdev->rx_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create RX sema fail\n");
+		goto create_rx_sema_fail;
+	}
+
+	ret = rtos_sema_create(&cdev->tx_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create TX sema fail\n");
+		goto create_tx_sema_fail;
+	}
 
 	ret = rtos_task_create(&cdev->rx_task, "usbd_msc_rx_thread", usbd_msc_rx_thread, NULL, USBD_MSC_TRX_THREAD_STACK_SIZE, USBD_MSC_RX_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
@@ -935,7 +951,13 @@ create_tx_thread_fail:
 
 create_rx_thread_fail:
 	rtos_sema_delete(cdev->tx_sema);
+
+create_tx_sema_fail:
 	rtos_sema_delete(cdev->rx_sema);
+
+create_rx_sema_fail:
+	usb_os_mfree(cdev->csw);
+	cdev->csw = NULL;
 
 csw_fail:
 	usb_os_mfree(cdev->cbw);
@@ -1050,12 +1072,14 @@ void usbd_msc_send_csw(usb_dev_t *dev, u8 status)
 	csw->field.dCSWSignature = USB_MSC_CSW_SIGN;
 	csw->field.bCSWStatus = status;
 	cdev->bot_state = USBD_MSC_IDLE;
+	cdev->bot_status = USBD_MSC_STATUS_NORMAL;
 
 	usbd_msc_bulk_transmit(dev, (u8 *)csw, USB_MSC_CSW_LEN);
 
 #if USBD_MSC_FIX_CV_TEST_ISSUE
-	/* Fix CV test failure */
-	if (cdev->bot_status == USBD_MSC_STATUS_RECOVERY) {
+	/* After BOT Reset, do a one-time OUT endpoint reinit for CV test compliance. */
+	if (cdev->bot_reset_pending) {
+		cdev->bot_reset_pending = 0U;
 		usbd_ep_deinit(dev, ep_bulk_out);
 		usbd_ep_init(dev, ep_bulk_out);
 	}

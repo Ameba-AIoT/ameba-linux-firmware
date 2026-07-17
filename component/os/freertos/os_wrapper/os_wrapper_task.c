@@ -42,6 +42,14 @@ int rtos_sched_get_state(void)
 {
 	int status = RTK_FAIL;
 
+#if defined(RTOS_NUM_CORES) && (RTOS_NUM_CORES > 1)
+	extern volatile uint32_t uxPortSchedulerStart[configNUM_CORES];
+	if (uxPortSchedulerStart[portPrimaryCoreID] == pdFALSE) {
+		/* Scheduler not start */
+		return RTOS_SCHED_NOT_STARTED;
+	}
+#endif
+
 	if (xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED) {
 		status = RTOS_SCHED_NOT_STARTED;
 	} else if (xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED) {
@@ -165,7 +173,7 @@ void *rtos_task_get_thread_local_storage_pointer(rtos_task_t p_handle,  uint16_t
 #endif
 
 
-#ifdef CONFIG_CA32_FREERTOS_V11_1_0
+#if defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
 rtos_task_t rtos_task_handle_get_idle(uint32_t coreID)
 {
 	return (rtos_task_t) xTaskGetIdleTaskHandleForCore(coreID);
@@ -176,3 +184,34 @@ void rtos_task_set_affinity(rtos_task_t p_handle, uint32_t coreID)
 	vTaskCoreAffinitySet((TaskHandle_t) p_handle, 1 << coreID);
 }
 #endif
+
+/* Realtek: Bind idle tasks to their respective cores at scheduler startup.
+ * This ensures idle task affinity is set correctly in SMP mode.
+ * When configUSE_CORE_AFFINITY is not enabled the function is a no-op. */
+#if defined(configUSE_CORE_AFFINITY) && (configUSE_CORE_AFFINITY == 1)
+
+static void rtos_affinity_idle_task(void *param)
+{
+	UNUSED(param);
+	/* Bind the primary idle task to core 0 and the passive idle task
+	 * (core 1's idle task) to core 1. */
+	rtos_task_set_affinity(rtos_task_handle_get_idle(0), 0);
+	rtos_task_set_affinity(rtos_task_handle_get_idle(1), 1);
+	rtos_task_delete(NULL);
+}
+
+void rtos_start_affinity_idle_task(void)
+{
+	rtos_task_create(NULL, "Affinity Idle Task",
+					 (rtos_task_function_t)rtos_affinity_idle_task,
+					 NULL, 1024, 9);
+}
+
+#else
+
+void rtos_start_affinity_idle_task(void)
+{
+	/* configUSE_CORE_AFFINITY not enabled — nothing to do. */
+}
+
+#endif /* configUSE_CORE_AFFINITY */

@@ -20,50 +20,61 @@ static const char *const TAG = "ECM";
 extern void rltk_usb_eth_init(void);
 extern void rltk_usb_eth_deinit(void);
 
-#define ENABLE_USBH_CDC_ECM_HOT_PLUG            1     /* Hot plug */
-
-#define USBH_ECM_MAIN_THREAD_PRIORITY           5
-#define USBH_ECM_HOTPLUG_THREAD_PRIORITY        6
-#define USBH_ECM_ISR_PRIORITY                   INT_PRI_MIDDLE
+#define CONFIG_USBH_CDC_ECM_HOT_PLUG                               1     /* Hot plug */
 
 /*enable this used to check ecm init/deinit memory leakage*/
-#define ENABLE_ECM_MEM_CHECK                    0
+#define CONFIG_USBH_CDC_ECM_MEM_CHECK                              0
 
-#define ENABLE_DUMP_FILE                        0
-#define ENABLE_REMOTE_FILE_DOWNLOAD             0
+#define CONFIG_USBH_CDC_ECM_ENABLE_DUMP_FILE                       0
+#define CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD            0
 
-#define ENABLE_USER_SET_DONGLE_MAC              1
+// Thread priorities
+#define CONFIG_USBH_CDC_ECM_MAIN_THREAD_PRIORITY                   5
+#define CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_PRIORITY                6
+#define CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY                3
+#define CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_PRIORITY               2
 
-#if ENABLE_REMOTE_FILE_DOWNLOAD
-#define MD5_CHECK_BUFFER_LEN                    (2)
+// Thread stack sizes
+#define CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_STACK_SIZE              1024U
+#define CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE              1600U
+#if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
+#define CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_STACK_SIZE             (1024U * 5)
+#endif
+
+#define CONFIG_USBH_CDC_ECM_MAIN_TASK_STACK_SIZE                   1280U
+
+#define CONFIG_USBH_CDC_ECM_ENABLE_USER_SET_DONGLE_MAC             1
+
+#if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
+#define CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN                   (2)
 /* socket server info */
-#define SERVER_HOST                             "www.baidu.com"
-#define SERVER_PORT                             80
-#define RESOURCE                                "/"
-#define BUFFER_SIZE                             1000      //download test buffer length
-#define RECV_TO                                 60*1000   // ms
+#define CONFIG_USBH_CDC_ECM_SERVER_HOST                            "www.baidu.com"
+#define CONFIG_USBH_CDC_ECM_SERVER_PORT                            80
+#define CONFIG_USBH_CDC_ECM_RESOURCE                               "/"
+#define CONFIG_USBH_CDC_ECM_BUFFER_SIZE                            1000      //download test buffer length
+#define CONFIG_USBH_CDC_ECM_RECV_TO                                60*1000   // ms
 #endif
 
 
 /* Private variables ---------------------------------------------------------*/
-#if ENABLE_REMOTE_FILE_DOWNLOAD
-static unsigned char dl_buf[BUFFER_SIZE + 1];
+#if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
+static unsigned char dl_buf[CONFIG_USBH_CDC_ECM_BUFFER_SIZE + 1];
 static mbedtls_md5_context ctx;
-#if ENABLE_DUMP_FILE
-#define configTOTAL_PSRAM_HEAP_SIZE_TEST        (29000)
-static unsigned char dump_psRAMHeap[configTOTAL_PSRAM_HEAP_SIZE_TEST];
+#if CONFIG_USBH_CDC_ECM_ENABLE_DUMP_FILE
+#define CONFIG_USBH_CDC_ECM_PSRAM_HEAP_SIZE_TEST                   (29000)
+static unsigned char dump_psRAMHeap[CONFIG_USBH_CDC_ECM_PSRAM_HEAP_SIZE_TEST];
 #endif
-#endif  //ENABLE_REMOTE_FILE_DOWNLOAD
+#endif  //CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
 
-#if ENABLE_USER_SET_DONGLE_MAC
-static u16 led_color[1] = {0x1122};
-static u8 mac_valid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+#if CONFIG_USBH_CDC_ECM_ENABLE_USER_SET_DONGLE_MAC
+static const u16 led_color[1] = {0x1122};
+static const u8 mac_valid[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
 #endif
 
 static u8 dhcp_done = 0;
 static __IO u8 cdc_ecm_detach_pending = 0;
 static usb_os_sema_t cdc_ecm_detach_sema;
-#if ENABLE_USBH_CDC_ECM_HOT_PLUG
+#if CONFIG_USBH_CDC_ECM_HOT_PLUG
 rtos_task_t 	            hotplug_task;
 #endif
 
@@ -85,12 +96,12 @@ static int cdc_ecm_cb_process(usb_host_t *host, u8 msg);
 static int cdc_ecm_cb_bulk_receive(u8 *pbuf, u32 Len);
 static int cdc_ecm_cb_device_check(usb_host_t *host, u8 cfg_max);
 
-static usbh_config_t usbh_ecm_cfg = {
+static const usbh_config_t usbh_ecm_cfg = {
 	.speed = USB_SPEED_HIGH,
 	.ext_intr_enable = 0, //USBH_SOF_INTR
-	.isr_priority = USBH_ECM_ISR_PRIORITY,
-	.main_task_stack_size = 1280U,
-	.main_task_priority = USBH_ECM_MAIN_THREAD_PRIORITY,
+	.isr_priority = INT_PRI_MIDDLE,
+	.main_task_stack_size = CONFIG_USBH_CDC_ECM_MAIN_TASK_STACK_SIZE,
+	.main_task_priority = CONFIG_USBH_CDC_ECM_MAIN_THREAD_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
 	.hub_support = 1U,
 #if defined (CONFIG_AMEBAGREEN2)
@@ -111,7 +122,7 @@ static usbh_config_t usbh_ecm_cfg = {
 #endif
 };
 
-static usbh_cdc_ecm_state_cb_t cdc_ecm_usb_cb = {
+static const usbh_cdc_ecm_state_cb_t cdc_ecm_usb_cb = {
 	.init   = cdc_ecm_cb_init,
 	.deinit = cdc_ecm_cb_deinit,
 	.attach = cdc_ecm_cb_attach,
@@ -120,13 +131,13 @@ static usbh_cdc_ecm_state_cb_t cdc_ecm_usb_cb = {
 	.bulk_received = cdc_ecm_cb_bulk_receive,
 };
 
-static usbh_user_cb_t usbh_ecm_usr_cb = {
+static const usbh_user_cb_t usbh_ecm_usr_cb = {
 	.process = cdc_ecm_cb_process,
 	.validate = cdc_ecm_cb_device_check,
 };
 
-static usbh_cdc_ecm_priv_data_t ecm_priv = {
-#if ENABLE_USER_SET_DONGLE_MAC
+static const usbh_cdc_ecm_priv_data_t ecm_priv = {
+#if CONFIG_USBH_CDC_ECM_ENABLE_USER_SET_DONGLE_MAC
 	led_color,
 	mac_valid,
 	sizeof(led_color) / sizeof(led_color[0]),
@@ -182,7 +193,7 @@ static int cdc_ecm_cb_detach(void)
 	RTK_LOGS(TAG, RTK_LOG_INFO, "DETACH\n");
 
 	cdc_ecm_detach_pending = 1;
-#if ENABLE_USBH_CDC_ECM_HOT_PLUG
+#if CONFIG_USBH_CDC_ECM_HOT_PLUG
 	usb_os_sema_give(cdc_ecm_detach_sema);
 #endif
 	return HAL_OK;
@@ -261,10 +272,11 @@ static int cdc_ecm_do_init(void)
 	return 1;
 }
 
-static void ecm_link_change_thread(void *param)
+static void example_usbh_ecm_link_change_thread(void *param)
 {
 	u8 *mac;
 	u32 dhcp_status = 0;
+	u32 link_down_log_cnt = 0;
 	u8 link_is_up = 0;
 	eth_state_t ethernet_state = ETH_STATUS_IDLE;
 
@@ -319,17 +331,20 @@ static void ecm_link_change_thread(void *param)
 			netif_set_default(pnetif_sta);
 			RTK_LOGS(TAG, RTK_LOG_INFO, "Swicth to unlink\n");
 		} else {
+			if ((link_is_up == 0) && (++link_down_log_cnt % 10 == 1)) {
+				RTK_LOGS(TAG, RTK_LOG_INFO, "ECM link is down (%u)\n", link_down_log_cnt);
+			}
 			rtos_time_delay_ms(1000);
 		}
 	}
 }
 
-#if ENABLE_REMOTE_FILE_DOWNLOAD
+#if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
 static void save_to_memory(char *pdata, unsigned int length)
 {
-#if ENABLE_DUMP_FILE
+#if CONFIG_USBH_CDC_ECM_ENABLE_DUMP_FILE
 	static unsigned int psram_pos = 0;
-	if (configTOTAL_PSRAM_HEAP_SIZE_TEST >= psram_pos + length) {
+	if (CONFIG_USBH_CDC_ECM_PSRAM_HEAP_SIZE_TEST >= psram_pos + length) {
 		memcpy((void *)&dump_psRAMHeap[psram_pos], pdata, length);
 		psram_pos += length;
 	}
@@ -352,14 +367,14 @@ static int update_data_check(char *pdata, unsigned int length)
 
 static void write_data_to_flash(void)
 {
-#if ENABLE_DUMP_FILE
+#if CONFIG_USBH_CDC_ECM_ENABLE_DUMP_FILE
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Dump mem to flash start\n");
-	FLASH_WriteStream(0x100000, configTOTAL_PSRAM_HEAP_SIZE_TEST, dump_psRAMHeap);
+	FLASH_WriteStream(0x100000, CONFIG_USBH_CDC_ECM_PSRAM_HEAP_SIZE_TEST, dump_psRAMHeap);
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Dump mem to flash done\n");
 #endif
 }
 
-static void ecm_download_thread(void *param)
+static void example_usbh_ecm_download_thread(void *param)
 {
 	int server_fd = -1;
 	u8 heart_beat = 0;
@@ -367,12 +382,12 @@ static void ecm_download_thread(void *param)
 	struct hostent *server_host;
 	u32 resource_size = 0;
 	u32 content_len = 0;
-	unsigned char output[8 * MD5_CHECK_BUFFER_LEN];
+	unsigned char output[8 * CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN];
 	int pos = 0, read_size = 0,  header_removed = 0;
 	UNUSED(param);
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Enter donwload example\n");
-	memset(output, 0x00, 8 * MD5_CHECK_BUFFER_LEN);
+	memset(output, 0x00, 8 * CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN);
 
 	while (0 == dhcp_done) {
 		if (++heart_beat % 30 == 0) {
@@ -387,7 +402,7 @@ static void ecm_download_thread(void *param)
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Socket\n");
 		goto exit;
 	} else {
-		int recv_timeout_ms = RECV_TO;
+		int recv_timeout_ms = CONFIG_USBH_CDC_ECM_RECV_TO;
 		// lwip 1.5.0
 		struct timeval recv_timeout;
 		recv_timeout.tv_sec = recv_timeout_ms / 1000;
@@ -398,10 +413,10 @@ static void ecm_download_thread(void *param)
 	}
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Server_fd=%d\n", server_fd);
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(SERVER_PORT);
+	server_addr.sin_port = htons(CONFIG_USBH_CDC_ECM_SERVER_PORT);
 
-	// Support SERVER_HOST in IP or domain name
-	server_host = gethostbyname(SERVER_HOST);
+	// Support CONFIG_USBH_CDC_ECM_SERVER_HOST in IP or domain name
+	server_host = gethostbyname(CONFIG_USBH_CDC_ECM_SERVER_HOST);
 	if (server_host != NULL) {
 		memcpy((void *) &server_addr.sin_addr, (void *) server_host->h_addr, 4);
 	} else {
@@ -409,11 +424,11 @@ static void ecm_download_thread(void *param)
 		goto exit;
 	}
 
-	RTK_LOGS(TAG, RTK_LOG_INFO, "Will do connect %s\n", SERVER_HOST);
+	RTK_LOGS(TAG, RTK_LOG_INFO, "Will do connect %s\n", CONFIG_USBH_CDC_ECM_SERVER_HOST);
 	if (connect(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == 0) {
 		pos = 0, read_size = 0, resource_size = 0, content_len = 0, header_removed = 0;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Connect success\n");
-		sprintf((char *)dl_buf, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", RESOURCE, SERVER_HOST);
+		sprintf((char *)dl_buf, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", CONFIG_USBH_CDC_ECM_RESOURCE, CONFIG_USBH_CDC_ECM_SERVER_HOST);
 		u32 max = strlen((char const *)dl_buf);
 
 		if (0) {
@@ -431,7 +446,7 @@ static void ecm_download_thread(void *param)
 		mbedtls_md5_starts(&ctx);
 
 		while (((content_len == 0) || (resource_size < content_len)) /**/
-			   && ((read_size = read(server_fd, dl_buf + pos, BUFFER_SIZE - pos)) > 0)) {
+			   && ((read_size = read(server_fd, dl_buf + pos, CONFIG_USBH_CDC_ECM_BUFFER_SIZE - pos)) > 0)) {
 			if (header_removed == 0) {
 				char *header = NULL;
 
@@ -460,7 +475,7 @@ static void ecm_download_thread(void *param)
 						RTK_LOGS(TAG, RTK_LOG_INFO, "Content len: %d\n", content_len);
 					}
 				} else {
-					if (pos >= BUFFER_SIZE) {
+					if (pos >= CONFIG_USBH_CDC_ECM_BUFFER_SIZE) {
 						RTK_LOGS(TAG, RTK_LOG_ERROR, "HTTP header\n");
 						goto exit;
 					}
@@ -480,7 +495,7 @@ static void ecm_download_thread(void *param)
 		mbedtls_md5_free(&ctx);
 
 		RTK_LOGS(TAG, RTK_LOG_INFO, "mbedtls_md5_finish md5\n");
-		for (u8 hh = 0; hh < MD5_CHECK_BUFFER_LEN; hh++) {
+		for (u8 hh = 0; hh < CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN; hh++) {
 			RTK_LOGS(NOTAG, RTK_LOG_INFO, "md5 %d=%02x%02x%02x%02x%02x%02x%02x%02x\n\n", hh,
 					 output[8 * hh + 0], output[8 * hh + 1], output[8 * hh + 2], output[8 * hh + 3],
 					 output[8 * hh + 4], output[8 * hh + 5], output[8 * hh + 6], output[8 * hh + 7]);
@@ -509,8 +524,8 @@ exit:
 }
 #endif
 
-#if ENABLE_ECM_MEM_CHECK
-static void usbh_ecm_mem_check_thread(void *param)
+#if CONFIG_USBH_CDC_ECM_MEM_CHECK
+static void example_usbh_ecm_mem_check_thread(void *param)
 {
 	RTK_LOGS(TAG, RTK_LOG_INFO, "[test]ecm_link_toggle_thread \n");
 	rtos_task_t monitor_task;
@@ -520,7 +535,9 @@ static void usbh_ecm_mem_check_thread(void *param)
 	UNUSED(param);
 
 	while (1) {
-		status = rtos_task_create(&monitor_task, "usbh_ecm_link_thread", ecm_link_change_thread, NULL, 1024U * 2, 3U);
+		status = rtos_task_create(&monitor_task, "example_usbh_ecm_link_change_thread",
+								  example_usbh_ecm_link_change_thread, NULL,
+								  CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Loop create %d: all_free:0x%08x\r\n", loop, usb_os_get_free_heap_size());
 		rtos_time_delay_ms(5000);
 
@@ -540,8 +557,8 @@ static void usbh_ecm_mem_check_thread(void *param)
 }
 #endif
 
-#if ENABLE_USBH_CDC_ECM_HOT_PLUG
-static void ecm_hotplug_thread(void *param)
+#if CONFIG_USBH_CDC_ECM_HOT_PLUG
+static void example_usbh_ecm_hotplug_thread(void *param)
 {
 	int ret = 0;
 
@@ -583,7 +600,7 @@ int usb_ethernet_transmit(u8 *buf, u32 len, u8 block)
 
 void example_usbh_cdc_ecm(void)
 {
-	int status;
+	int ret;
 	rtos_task_t monitor_task;
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH ECM demo start\n");
@@ -591,28 +608,36 @@ void example_usbh_cdc_ecm(void)
 	usb_os_sema_create(&cdc_ecm_detach_sema);
 	rltk_usb_eth_init();
 
-#if ENABLE_USBH_CDC_ECM_HOT_PLUG
-	status = rtos_task_create(&hotplug_task, "usbh_ecm_hotplug_thread", ecm_hotplug_thread, NULL, 1024U, USBH_ECM_HOTPLUG_THREAD_PRIORITY);
-	if (status != RTK_SUCCESS) {
+#if CONFIG_USBH_CDC_ECM_HOT_PLUG
+	ret = rtos_task_create(&hotplug_task, "example_usbh_ecm_hotplug_thread",
+						   example_usbh_ecm_hotplug_thread, NULL,
+						   CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_PRIORITY);
+	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create hotplug check task fail\n");
 	}
 #endif
 
-#if ENABLE_ECM_MEM_CHECK
-	status = rtos_task_create(&monitor_task, "usbh_ecm_mem_check_thread", usbh_ecm_mem_check_thread, NULL, 1024U * 2, 3U);
-	if (status != RTK_SUCCESS) {
+#if CONFIG_USBH_CDC_ECM_MEM_CHECK
+	ret = rtos_task_create(&monitor_task, "example_usbh_ecm_mem_check_thread",
+						   example_usbh_ecm_mem_check_thread, NULL,
+						   CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
+	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
 	}
 #else
-	status = rtos_task_create(&monitor_task, "usbh_ecm_link_thread", ecm_link_change_thread, NULL, 1024U * 2, 3U);
-	if (status != RTK_SUCCESS) {
+	ret = rtos_task_create(&monitor_task, "example_usbh_ecm_link_change_thread",
+						   example_usbh_ecm_link_change_thread, NULL,
+						   CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
+	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
 	}
 
-#if ENABLE_REMOTE_FILE_DOWNLOAD
+#if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
 	rtos_task_t download_task;
-	status = rtos_task_create(&download_task, "usbh_ecm_download_thread", ecm_download_thread, NULL, 10 * 512U, 2U);
-	if (status != RTK_SUCCESS) {
+	ret = rtos_task_create(&download_task, "example_usbh_ecm_download_thread",
+						   example_usbh_ecm_download_thread, NULL,
+						   CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_PRIORITY);
+	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create download thread fail\n");
 	}
 #endif

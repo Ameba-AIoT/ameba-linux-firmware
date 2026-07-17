@@ -25,8 +25,10 @@ static const char *const TAG = "DRD";
 #define USB_DRD_SPEED							USB_SPEED_HIGH
 
 // Thread priorities
-#define USBH_MSC_RW_THREAD_PRIORITY				5U
-#define USBH_MSC_THREAD_STACK_SIZE				(256*46)
+#define USBH_MSC_RW_THREAD_PRIORITY        5U
+
+#define USBH_DRD_MAIN_TASK_PRIORITY        3U
+#define USBH_MSC_THREAD_STACK_SIZE         (1024 * 11 + 512)
 
 #define USBH_MSC_TEST_BUF_SIZE					4096
 #define USBH_MSC_TEST_ROUNDS					20
@@ -48,7 +50,7 @@ static void usbh_msc_cmd_test(u16 argc, char **argv);
 
 /* Private variables ---------------------------------------------------------*/
 
-static usbd_config_t usbd_msc_cfg = {
+static const usbd_config_t usbd_msc_cfg = {
 	.speed = USB_DRD_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined (CONFIG_AMEBAGREEN2)
@@ -61,7 +63,7 @@ static usbd_config_t usbd_msc_cfg = {
 #endif
 };
 
-static usbd_msc_cb_t usbd_msc_cb = {
+static const usbd_msc_cb_t usbd_msc_cb = {
 	.status_changed = usbd_msc_cb_status_changed
 };
 
@@ -71,11 +73,11 @@ static u8 file_cnt = 5;
 static u8 *msc_wt_buf;
 static u8 *msc_rd_buf;
 
-static usbh_config_t usbh_cfg = {
+static const usbh_config_t usbh_cfg = {
 	.speed = USB_DRD_SPEED,
 	.ext_intr_enable = USBH_SOF_INTR,
 	.isr_priority = INT_PRI_MIDDLE,
-	.main_task_priority = 3U,
+	.main_task_priority = USBH_DRD_MAIN_TASK_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
 #if defined (CONFIG_AMEBAGREEN2)
 	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
@@ -95,12 +97,12 @@ static usbh_config_t usbh_cfg = {
 #endif
 };
 
-static usbh_msc_cb_t usbh_msc_usr_cb = {
+static const usbh_msc_cb_t usbh_msc_usr_cb = {
 	.attach = usbh_msc_cb_attach,
 	.setup = usbh_msc_cb_setup,
 };
 
-static usbh_user_cb_t usbh_usr_cb = {
+static const usbh_user_cb_t usbh_usr_cb = {
 	.process = usbh_msc_cb_process
 };
 
@@ -216,7 +218,7 @@ end:
 	}
 }
 
-void usbh_msc_trx_test(void *param)
+void example_usb_drd_msc_trx_test(void *param)
 {
 	FATFS fs;
 	FIL f;
@@ -462,7 +464,8 @@ static void usbh_msc_cmd_test(u16 argc, char **argv)
 
 		RTK_LOGS(TAG, RTK_LOG_INFO, "USB host MSC R&W test started\n");
 
-		ret = rtos_task_create(&task, "usbh_msc_rw_test", usbh_msc_trx_test, NULL, USBH_MSC_THREAD_STACK_SIZE, USBH_MSC_RW_THREAD_PRIORITY);
+		ret = rtos_task_create(&task, "example_usb_drd_msc_trx_test", example_usb_drd_msc_trx_test, NULL,
+							   USBH_MSC_THREAD_STACK_SIZE, USBH_MSC_RW_THREAD_PRIORITY);
 		if (ret != RTK_SUCCESS) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to create USB host MSC R&W test thread\n");
 		}

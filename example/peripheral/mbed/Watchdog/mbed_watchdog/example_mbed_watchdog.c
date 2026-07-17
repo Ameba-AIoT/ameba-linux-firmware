@@ -21,6 +21,8 @@
 #define WDG_RESET_SRC	(AON_BIT_RSTF_IWDG | AON_BIT_RSTF_WDG0 | AON_BIT_RSTF_WDG1 | AON_BIT_RSTF_WDG2)
 #elif defined (CONFIG_AMEBAGREEN2) || defined (CONFIG_RTL8720F)
 #define WDG_RESET_SRC	(AON_BIT_RSTF_IWDG | AON_BIT_RSTF_WDG0_GLB | AON_BIT_RSTF_WDG1_GLB | AON_BIT_RSTF_WDG2_GLB)
+#elif defined (CONFIG_AMEBAPRO3)
+#define WDG_RESET_SRC	(AON_BIT_AON_WATCHDOG_STS | AON_BIT_NPWDT_STS | AON_BIT_MPWDT_STS | AON_BIT_FWWDT_STS | AON_BIT_CA32WDT_STS)
 #endif
 
 void small_task(void)
@@ -72,15 +74,11 @@ int example_mbed_watchdog(void)
 		DelayMs(50);
 		printf("reset by watchdog barks\r\n");
 		printf("watchdog mbed example exec succeed!\n");
-		rtos_sched_start();
-		while (1);
 	}
 
 	if (RTK_SUCCESS != rtos_task_create(NULL, "watchdog_task", (rtos_task_t)watchdog_task, (void *)NULL, (512 * 6), (1))) {
 		printf("Create watchdog_task Err!!\r\n");
 	}
-
-	// rtos_sched_start();
 
 	return RTK_SUCCESS;
 }

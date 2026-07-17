@@ -11,6 +11,8 @@
 #include "platform_autoconf.h"
 #include "usbd.h"
 #include "usb_cdc_ecm.h"
+#include "usb_os.h"
+#include "usb_ringbuf.h"
 
 /* Exported defines ----------------------------------------------------------*/
 
@@ -24,7 +26,15 @@
  * @{
  */
 
-#define CDC_ECM_MAC_STR_LEN                           (6)      /**< Length of the MAC address in bytes. */
+#define USBD_CDC_ECM_MAC_STR_LEN                           (6)      /**< Length of the MAC address in bytes. */
+
+/* Set to 1 to enable the periodic state-trace thread (default off).
+ * When enabled, a low-priority thread prints link/endpoint/TX-ring-buffer state,
+ * per-path completion counters (including an RX thread heartbeat) and TX/RX
+ * throughput once per USBD_CDC_ECM_TRACE_INTERVAL_MS so stalls can be diagnosed
+ * without a debugger.  Zero-cost when disabled: every dbg_* counter field and
+ * all instrumentation is compiled out. */
+#define USBD_CDC_ECM_STATE_TRACE_ENABLE               0
 
 /* Defines endpoint addresses for BULK and INTERRUPT transfers. */
 #if defined (CONFIG_AMEBAGREEN2)
@@ -43,8 +53,8 @@
 /* Number of ping-pong RX buffers used to decouple USB OUT from upper-layer RX. */
 #define USBD_CDC_ECM_RX_BUF_NUM                       2U
 
-/** @} End of Device_CDC_ECM_Constants group*/
-/** @} End of USB_Device_Constants group*/
+/** @} End of Device_CDC_ECM_Constants group */
+/** @} End of USB_Device_Constants group */
 
 /* Exported macros -----------------------------------------------------------*/
 
@@ -61,7 +71,7 @@
  * @brief USB CDC ECM Device Private Data Structure.
  */
 typedef struct {
-	u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
+	const u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
 } usbd_cdc_ecm_priv_data_t;
 
 /**
@@ -73,10 +83,10 @@ typedef struct {
 	/**
 	 * @brief Pointer to the USB CDC ECM private data structure.
 	 */
-	usbd_cdc_ecm_priv_data_t *priv;
+	const usbd_cdc_ecm_priv_data_t *priv;
 
 	/**
-	 * @brief Called when the CDC ECM class driver initialization for application resource setup.
+	 * @brief Called during CDC ECM class driver initialization to set up application resources.
 	 * @return 0 on success, non-zero on failure.
 	 */
 	int(* init)(void);
@@ -119,40 +129,64 @@ typedef struct {
  * @brief Structure representing the CDC ECM device instance.
  */
 typedef struct {
-	u8 *rx_buf[USBD_CDC_ECM_RX_BUF_NUM];  /**< Ping-pong RX buffers (ISR and RxThread). */
+	usbd_ep_t ep_bulk_in;           /**< BULK IN endpoint. */
+	usbd_ep_t ep_bulk_out;          /**< BULK OUT endpoint. */
+	usbd_ep_t ep_intr_in;           /**< INTERRUPT IN endpoint. */
 
-	usb_setup_req_t ctrl_req;   /**< Saved control request for EP0 OUT data phase. */
-	usbd_ep_t ep_bulk_in;       /**< BULK IN endpoint. */
-	usbd_ep_t ep_bulk_out;      /**< BULK OUT endpoint. */
-	usbd_ep_t ep_intr_in;       /**< INTERRUPT IN endpoint. */
+	usb_setup_req_t ctrl_req;       /**< Saved control request for EP0 OUT data phase. */
 
-	usb_os_sema_t bulk_tx_sema;       /**< Semaphore: unblocks caller when BULK IN transfer completes. */
-	usb_os_task_t rx_task;            /**< RX delivery thread handle. */
-	usb_os_sema_t rx_data_ready_sema; /**< ISR -> thread: signals a buffer holds a frame. */
+	usb_ringbuf_manager_t bulk_tx_rb;       /**< TX ring buffer: queues frames while a DMA is in flight. */
+	u8 *bulk_tx_dma_buf;                    /**< DMA source for BULK IN. A frame is copied here from the ring buffer
+	                                             head before each transfer, so the DMA never reads ring buffer
+	                                             memory directly.  Size = USBD_CDC_ECM_BULK_BUF_MAX_SIZE. */
+	usb_os_sema_t bulk_tx_slot_sema;        /**< ISR -> tcpip: given each time a ring buffer slot is freed. */
+	usb_os_sema_t rx_data_ready_sema;       /**< ISR -> thread: signals a buffer holds a frame. */
+	usb_os_task_t rx_task;                  /**< RX delivery thread handle. */
 
-	usb_dev_t *dev;        /**< USB device instance. */
-	usbd_cdc_ecm_cb_t *cb; /**< User-defined callback structure. */
-	u8 *rx_msg_buf;        /**< Buffer pointer handed to the RX thread for current frame. */
+	u8 *rx_buf[USBD_CDC_ECM_RX_BUF_NUM];    /**< Ping-pong RX buffers (ISR and RxThread). */
+	usb_dev_t *dev;                         /**< USB device instance. */
+	const usbd_cdc_ecm_cb_t *cb;           /**< User-defined callback structure. */
+	u8 *rx_msg_buf;                         /**< Buffer pointer handed to the RX thread for current frame. */
 
-	u32 rx_msg_len;             /**< Frame length handed to the RX thread. */
-	__IO u32 rx_pending_len;    /**< Deferred frame length waiting in rx_buf[rx_xfer_idx]. */
+	u32 rx_msg_len;                         /**< Frame length handed to the RX thread. */
+	__IO u32 rx_pending_len;               /**< Deferred frame length waiting in rx_buf[rx_xfer_idx]. ISR writes, task reads. */
 
-	u8 mac[CDC_ECM_MAC_STR_LEN];          /**< Device MAC address (6 bytes). */
+#if USBD_CDC_ECM_STATE_TRACE_ENABLE
+	usb_os_task_t trace_task;               /**< State-trace thread handle; NULL when not running. */
 
-	u8 connect_status;          /**< Current network connection state (1=connected, 0=disconnected). */
-	u8 notify_state;            /**< Active notification type, see usbd_cdc_ecm_notify_state. */
-	u8 alt_setting;             /**< Currently selected data alternate setting. */
-	u8 mac_valid;               /**< 1 when mac[] holds a valid address. */
-	u8 mac_src_type;            /**< MAC source, see usbd_cdc_ecm_dongle_mac_type_t. */
-	u8 rx_xfer_idx;             /**< Index of the buffer currently armed for USB OUT (0 or 1). */
-	u8 notify_retry;            /**< 1 when a notification send failed; SOF handler retries. */
-	__IO u8 bulk_tx_block;      /**< 1 while usbd_cdc_ecm_transmit is blocking on the semaphore. */
-	__IO u8 rx_buf_free;        /**< thread->ISR: 1=buffer available, 0=held by RX thread. */
-	__IO u8 rx_thread_running;  /**< RX thread loop guard; cleared to 0 to request exit. */
+	/* Debug counters - incremented in the relevant hot-paths and read by the
+	 * trace thread.  u32 wraps gracefully; a frozen value flags a wedged path. */
+	u32 dbg_tx_cnt;                         /**< usbd_cdc_ecm_transmit() call count. */
+	u32 dbg_bulk_in_done_cnt;               /**< BULK IN completion ISR count. */
+	u32 dbg_bulk_out_done_cnt;              /**< BULK OUT completion ISR count. */
+	u32 dbg_intr_in_done_cnt;               /**< INTR IN completion ISR count. */
+	u32 dbg_rx_deliver_cnt;                 /**< Frames delivered to upper-layer callback. */
+	u32 dbg_rx_loop_cnt;                    /**< RX thread heartbeat; frozen => thread wedged. */
+	u32 dbg_tx_bytes;                       /**< Bytes successfully submitted to BULK IN (speed calc). */
+	u32 dbg_rx_bytes;                       /**< Bytes delivered to upper layer via received() (speed calc). */
+
+	u8 trace_task_running;                  /**< State-trace thread loop guard; cleared to request exit. */
+#endif
+
+	u8 mac[USBD_CDC_ECM_MAC_STR_LEN];       /**< Device MAC address (6 bytes). */
+
+	__IO u8 connect_status;                 /**< Current network connection state (1=connected, 0=disconnected).
+	                                                   ISR writes (status_changed/clear_config/setup);
+	                                                   task reads (transmit/set_link_status).  Must be volatile. */
+	__IO u8 notify_state;                   /**< Active notification type.
+	                                                   ISR writes (send_notification/SOF/setup) and
+	                                                   task writes (set_link_status).  Must be volatile. */
+	u8 alt_setting;                         /**< Currently selected data alternate setting. */
+	u8 mac_valid;                           /**< 1 when mac[] holds a valid address. */
+	__IO u8 notify_retry;                   /**< 1 when a notification send failed or is queued;
+	                                               SOF handler (ISR) retries it.  Must be volatile. */
+	u8 rx_xfer_idx;                         /**< Index of the buffer currently armed for USB OUT (0 or 1). */
+	__IO u8 rx_buf_free;                    /**< thread->ISR: 1=buffer available, 0=held by RX thread. */
+	__IO u8 rx_thread_running;              /**< RX thread loop guard; cleared to 0 to request exit. */
 } usbd_cdc_ecm_dev_t;
 
-/** @} End of Device_CDC_ECM_Types group*/
-/** @} End of USB_Device_Types group*/
+/** @} End of Device_CDC_ECM_Types group */
+/** @} End of USB_Device_Types group */
 
 /* Exported variables --------------------------------------------------------*/
 
@@ -170,7 +204,7 @@ typedef struct {
  * @param[in] cb: Pointer to the user-defined callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbd_cdc_ecm_init(usbd_cdc_ecm_cb_t *cb);
+int usbd_cdc_ecm_init(const usbd_cdc_ecm_cb_t *cb);
 
 /**
  * @brief De-initializes the CDC ECM class driver.
@@ -188,17 +222,22 @@ int usbd_cdc_ecm_deinit(void);
 int usbd_cdc_ecm_transmit(u8 *buf, u32 len, u8 block);
 
 /**
- * @brief  Gets the device connect status.
- * @return 1: Device is connected to the host.
- *         0: Device is disconnected.
+ * @brief  Gets the current network link state (uplink status).
+ * @return 1: Network link is up (connected to uplink).
+ *         0: Network link is down (disconnected from uplink).
  */
-int usbd_cdc_ecm_get_connect_status(void);
+int usbd_cdc_ecm_get_link_status(void);
 
 /**
- * @brief  Gets the MAC address of the device.
- * @return Pointer to the 6-byte MAC address array on success, NULL on failure.
+ * @brief  Reports the upper-layer network link state to the host (edge-triggered).
+ * @details A NETWORK_CONNECTION notification is queued only when the state
+ *          actually changes; calling repeatedly with the same value is a no-op.
+ *          Call from the layer that owns the real uplink (e.g. Wi-Fi / cellular)
+ *          on link up/down events.
+ * @param[in] link_up: Non-zero when the link is up, zero when it is down.
+ * @return 0 on success.
  */
-const u8 *usbd_cdc_ecm_get_mac_str(void);
+int usbd_cdc_ecm_set_link_status(u8 link_up);
 
 /** @} End of Device_CDC_ECM_Functions group */
 /** @} End of USB_Device_Functions group */

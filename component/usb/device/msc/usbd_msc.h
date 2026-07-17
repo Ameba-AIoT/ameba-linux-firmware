@@ -25,7 +25,7 @@
  */
 #define USBD_MSC_TX_THREAD_PRIORITY                 5U                 /**< TX thread priority */
 #define USBD_MSC_RX_THREAD_PRIORITY                 5U                 /**< RX thread priority */
-#define USBD_MSC_TRX_THREAD_STACK_SIZE              768U               /**< TX/RX thread tack size */
+#define USBD_MSC_TRX_THREAD_STACK_SIZE              1024U              /**< TX/RX thread tack size */
 
 /* Defines configuration constants like VID/PID, USB strings, and power settings. */
 #define USBD_MSC_VID                                USB_VID            /**< Vendor ID. */
@@ -72,7 +72,6 @@
 #define USBD_MSC_DATA_IN                            2U          /**< Data In state */
 #define USBD_MSC_LAST_DATA_IN                       3U          /**< Last Data In state */
 #define USBD_MSC_SEND_DATA                          4U          /**< Send Immediate data */
-#define USBD_MSC_NO_DATA                            5U          /**< No data Stage */
 
 /* BOT status */
 #define USBD_MSC_STATUS_NORMAL                      0U          /**< Normal working status */
@@ -81,8 +80,8 @@
 
 #define USBD_MSC_SENSE_LIST_DEPTH                   4U          /**< Depth of the SCSI sense data list. */
 
-/** @} End of Device_MSC_Constants group*/
-/** @} End of USB_Device_Constants group*/
+/** @} End of Device_MSC_Constants group */
+/** @} End of USB_Device_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -140,8 +139,8 @@ typedef struct {
 	 */
 	void (*status_changed)(u8 old_status, u8 status);
 } usbd_msc_cb_t;
-/** @} End of Device_MSC_Types group*/
-/** @} End of USB_Device_Types group*/
+/** @} End of Device_MSC_Types group */
+/** @} End of USB_Device_Types group */
 
 /**
  * @brief Main structure for the MSC device class.
@@ -154,7 +153,7 @@ typedef struct {
 	usb_msc_bot_cbw_t *cbw;                         /**< Pointer to the Command Block Wrapper. */
 	usb_msc_bot_csw_t *csw;                         /**< Pointer to the Command Status Wrapper. */
 	usbd_msc_disk_ops_t disk_ops;                   /**< Structure with disk operation function pointers. */
-	usbd_msc_cb_t *cb;                              /**< Pointer to the user callback structure. */
+	const usbd_msc_cb_t *cb;                              /**< Pointer to the user callback structure. */
 	usb_dev_t *dev;                                 /**< Pointer to the USB device structure. */
 	rtos_task_t rx_task;                            /**< RTOS task handle for data reception. */
 	rtos_sema_t rx_sema;                            /**< RTOS semaphore to signal data reception. */
@@ -174,7 +173,8 @@ typedef struct {
 	u8 scsi_sense_tail;                             /**< Tail index of SCSI sense data list. */
 	u8 is_open : 1;                                 /**< MSC is ready for data transfer. */
 	u8 phase_error : 1;                             /**< SCSI check status. */
-	u8 ro : 1;                                       /**< Flag for media is write-protected. */
+	u8 ro : 1;                                      /**< Flag for media is write-protected. */
+	u8 bot_reset_pending : 1;                       /**< Set after BOT Reset; triggers one-time OUT EP reinit in send_csw. */
 } usbd_msc_dev_t;
 
 /* Exported functions --------------------------------------------------------*/
@@ -190,7 +190,7 @@ typedef struct {
  * @param[in] cb: Pointer to the user callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbd_msc_init(usbd_msc_cb_t *cb);
+int usbd_msc_init(const usbd_msc_cb_t *cb);
 
 /**
  * @brief De-initializes the MSC device class driver.
@@ -212,4 +212,4 @@ int usbd_msc_disk_deinit(void);
 /** @} End of USB_Device_Functions group */
 /** @} End of USB_Device_API group */
 
-#endif // USBD_MSC_H
+#endif /* USBD_MSC_H */

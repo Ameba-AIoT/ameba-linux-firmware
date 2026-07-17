@@ -1,5 +1,5 @@
-#define UTS_VERSION "2026-06-12 17:17:12"
-#define RTL_FW_COMPILE_TIME "2026-06-12 17:17:12"
+#define UTS_VERSION "2026-07-17 16:32:23"
+#define RTL_FW_COMPILE_TIME "2026-07-17 16:32:23"
 #define RTL_FW_COMPILE_BY "auto_jenkins_wlan5"
 #define RTL_FW_COMPILE_HOST "dell-t620"
 #define RTL_FW_COMPILER "arm-none-eabi-gcc"

@@ -292,6 +292,9 @@ macro(ameba_mcu_project_create name mcu_type)
     if (CONFIG_CA32_FREERTOS_V11_1_0)
         set(v_FREERTOS_VER v11.1.0)
     endif()
+    if (CONFIG_CA32_FREERTOS_V11_3_0)
+        set(v_FREERTOS_VER v11.3.0)
+    endif()
 
     ameba_reset_global_define()
     ameba_set_if(CONFIG_MP_INCLUDED BUILD_TYPE MFG p_ELSE NONE p_SCOPE both)
@@ -436,6 +439,14 @@ function(ameba_firmware_package output_app_name)
         DEPENDS
             ${postbuild_targets}
     )
+
+    # If the application registered a rolfs staging target via ameba_add_rolfs_content,
+    # wire it into firmware_package so ninja re-runs postbuild when any rolfs
+    # source file (.md / .lua / SKILL.md) changes — even without a C recompile.
+    get_property(rolfs_staging_target GLOBAL PROPERTY g_ROLFS_STAGING_TARGET)
+    if(rolfs_staging_target)
+        add_dependencies(firmware_package ${rolfs_staging_target})
+    endif()
 endfunction()
 
 function(ameba_soc_project_check)

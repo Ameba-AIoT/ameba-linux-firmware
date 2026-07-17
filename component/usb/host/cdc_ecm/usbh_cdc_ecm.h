@@ -36,14 +36,12 @@
 
 #define USBH_CDC_ECM_STATE_TRACE_ENABLE                         0        /**< Enable or disable CDC ECM state trace logging. */
 
-#define USB_DEFAULT_VID                                         USB_VID  /**< Default Vendor ID. */
+#define USBH_CDC_ECM_MAC_STR_LEN                                     (6)      /**< Length of the MAC address in bytes. */
+#define USBH_CDC_ECM_CTRL_REG_BUF_LEN                                (4)      /**< Length of the ECM dongle control register buffer. */
+#define USBH_CDC_ECM_MULTICAST_FILTER_STR_LEN                        (20)     /**< Length of the ECM multicast filter control buffer. */
 
-#define CDC_ECM_MAC_STR_LEN                                     (6)      /**< Length of the MAC address in bytes. */
-#define CDC_ECM_CTRL_REG_BUF_LEN                                (4)      /**< Length of the ECM dongle control register buffer. */
-#define CDC_ECM_MUTICAST_FILTER_STR_LEN                         (20)     /**< Length of the ECM multicast filter control buffer. */
-
-/** @} End of Host_CDC_ECM_Constants group*/
-/** @} End of USB_Host_Constants group*/
+/** @} End of Host_CDC_ECM_Constants group */
+/** @} End of USB_Host_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -58,8 +56,8 @@
  * @brief USB CDC ECM Host Private Data Structure.
  */
 typedef struct {
-	u16 *led_array;    /**< Pointer to the LED status array; each u16 element represents the state or brightness of an LED. */
-	u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
+	const u16 *led_array;    /**< Pointer to the LED status array; each u16 element represents the state or brightness of an LED. */
+	const u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
 	u8 led_cnt;        /**< LED count; indicates the number of valid elements in the led_array. */
 } usbh_cdc_ecm_priv_data_t;
 
@@ -118,18 +116,18 @@ typedef struct {
 	u8 valid;                                 /**< Validity flag for this pipe info. */
 } usbh_cdc_ecm_pipe_info_t;
 
-/** @} End of Host_CDC_ECM_Types group*/
-/** @} End of USB_Host_Types group*/
+/** @} End of Host_CDC_ECM_Types group */
+/** @} End of USB_Host_Types group */
 
 /**
  * @brief Structure representing the CDC ECM host instance.
  */
 typedef struct {
-	u8 muticast_filter[CDC_ECM_MUTICAST_FILTER_STR_LEN]; /**< Buffer for multicast filer control */
-	u8 mac[CDC_ECM_MAC_STR_LEN];                     /**< Buffer for saving MAC string */
-	u8 mac_ctrl_lock[CDC_ECM_CTRL_REG_BUF_LEN];      /**< Buffer for RTL8152 MAC change control */
-	u8 flow_ctrl[CDC_ECM_CTRL_REG_BUF_LEN];          /**< Buffer for RTL8152 flow control */
-	u8 rcr[CDC_ECM_CTRL_REG_BUF_LEN];                /**< Buffer for RTL8156 RCR register */
+	u8 multicast_filter[USBH_CDC_ECM_MULTICAST_FILTER_STR_LEN]; /**< Buffer for multicast filer control */
+	u8 mac[USBH_CDC_ECM_MAC_STR_LEN];                     /**< Buffer for saving MAC string */
+	u8 mac_ctrl_lock[USBH_CDC_ECM_CTRL_REG_BUF_LEN];      /**< Buffer for RTL8152 MAC change control */
+	u8 flow_ctrl[USBH_CDC_ECM_CTRL_REG_BUF_LEN];          /**< Buffer for RTL8152 flow control */
+	u8 rcr[USBH_CDC_ECM_CTRL_REG_BUF_LEN];                /**< Buffer for RTL8156 RCR register */
 
 	usbh_cdc_ecm_pipe_info_t intr_rx;                /**< Intr IN Endpoint Info */
 	usbh_cdc_ecm_pipe_info_t bulk_tx;                /**< Bulk OUT Endpoint Info */
@@ -137,7 +135,7 @@ typedef struct {
 
 	usb_os_sema_t bulk_tx_sema;                      /**< Semaphore for BULK TX synchronization */
 
-	usbh_cdc_ecm_state_cb_t  *cb;                    /**< User callback structure */
+	const usbh_cdc_ecm_state_cb_t  *cb;                    /**< User callback structure */
 	usb_host_t *host;                                /**< USB Host core handle */
 	u16 *led_array;                                  /**< Pointer to LED array */
 	u8  *dongle_ctrl_buf;                            /**< Buffer for control transfers (cache aligned) */
@@ -146,7 +144,7 @@ typedef struct {
 	u16 sub_status;                                  /**< ECM sub-status, see usbh_cdc_ecm_at_set_state_t */
 	u16 feature_selector;                            /**< Feature selector parameter */
 	u16 packet_filter;                               /**< Packet filter configuration */
-	u16 muticast_filter_len;                         /**< Length of multicast filter parameters */
+	u16 multicast_filter_len;                         /**< Length of multicast filter parameters */
 	u16 vid;                                         /**< Vendor ID */
 	u16 pid;                                         /**< Product ID */
 	u8 data_itf_id;                                  /**< Data Interface number */
@@ -176,7 +174,7 @@ typedef struct {
  * @param[in] priv: Pointer to the user-defined private parameter structure.
  * @return 0 (HAL_OK) on success, non-zero on failure.
  */
-int usbh_cdc_ecm_init(usbh_cdc_ecm_state_cb_t *cb, usbh_cdc_ecm_priv_data_t *priv);
+int usbh_cdc_ecm_init(const usbh_cdc_ecm_state_cb_t *cb, const usbh_cdc_ecm_priv_data_t *priv);
 
 /**
  * @brief  De-initializes the CDC ECM host class driver and releases resources.

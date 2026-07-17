@@ -9,7 +9,7 @@ struct whc_usb_priv_t whc_usb_priv = {0};
 
 u8 wifi_whc_usb_status = WIFI_WHC_USB_STATUS_ACTIVE;
 
-static usbd_config_t whc_usb_wifi_cfg = {
+static const usbd_config_t whc_usb_wifi_cfg = {
 	.speed = WIFI_WHC_USB_SPEED,
 	.isr_priority = 4,
 #if defined (CONFIG_AMEBAGREEN2)
@@ -78,13 +78,10 @@ static void whc_usb_dev_irq_task(void)
 				new_skb = skb_rcv;  // not need to malloc new skb
 			} else {
 				msg_info = (struct whc_msg_info *)skb_rcv->data;
-				if (((skbpriv.skb_buff_num - skbpriv.skb_buff_used) < 3) ||
-#ifdef CONFIG_WHCH
-					(rtw_xmit_check_txbd(msg_info->wlan_hw_queue) == FALSE) ||
-#endif
+				if (((skbpriv.skb_buff_num - skbpriv.skb_buff_used) < 2) ||
 					((new_skb = dev_alloc_skb(USB_BUFSZ, USB_SKB_RSVD_LEN)) == NULL)) {
-					new_skb = skb_rcv;
-					goto drop_pkt;
+					whc_usb_priv.irq_info.wait_xmit_skb = 1;
+					break;
 				}
 				skb_reserve(skb_rcv, sizeof(struct whc_msg_info));
 
@@ -93,7 +90,7 @@ static void whc_usb_dev_irq_task(void)
 				whc_dev_event_int_hdl((u8 *)msg_info, skb_rcv);
 				whc_usb_priv.rx_skb_addr[EPNUM_TO_IDX(ep_num)] = (u8 *)new_skb;
 			}
-drop_pkt:
+
 			whc_usb_priv.irq_info.rxdone_epnum[whc_usb_priv.irq_info.task_ridx] = 0;
 			whc_usb_priv.irq_info.len[whc_usb_priv.irq_info.task_ridx] = 0;
 			whc_usb_priv.irq_info.task_ridx = (whc_usb_priv.irq_info.task_ridx + 1) % (WIFI_WHC_USB_BULKOUT_EP_NUM);
@@ -130,13 +127,25 @@ void whc_usb_dev_status_changed_cb(u8 old_status, u8 new_status)
 	UNUSED(old_status);
 	if (new_status == USBD_ATTACH_STATUS_ATTACHED) {
 		wifi_whc_usb_status = WIFI_WHC_USB_STATUS_ACTIVE;
+
+#if defined (CONFIG_AMEBAGREEN2)
+		/* acquire lock */
+		whc_dev_ps_resume_cb();
+#endif
+
 	} else if (new_status == USBD_ATTACH_STATUS_DETACHED) {
 #if defined(CONFIG_USBD_WHC_HOTPLUG)
 		wifi_whc_usb_status = WIFI_WHC_USB_STATUS_DISABLED;
 #else
 		wifi_whc_usb_status = WIFI_WHC_USB_STATUS_SUSPEND;
 #endif
+
+#if defined (CONFIG_AMEBAGREEN2)
+		/* release lock */
+		whc_dev_ps_set_tickps_cmd(WHC_CMD_TICKPS_R);
+#endif
 	}
+
 #if defined(CONFIG_BT) && defined(CONFIG_BT_INIC_USB)
 	bt_inic_status_change_cb(old_status, new_status);
 #endif
@@ -250,7 +259,7 @@ static int whc_usb_dev_clear_config_cb(void)
 	return HAL_OK;
 }
 
-static usbd_inic_cb_t whc_usb_dev_cb = {
+static const usbd_inic_cb_t whc_usb_dev_cb = {
 	.init = whc_usb_dev_init_cb,
 	.deinit = whc_usb_dev_deinit_cb,
 	.setup = whc_usb_dev_setup_cb,
@@ -293,6 +302,11 @@ void whc_usb_dev_init(void)
 		RTK_LOGE(TAG_WLAN_INIC, "USB whc init fail!\n");
 	}
 
+#if defined (CONFIG_AMEBAGREEN2)
+	usbd_cg_register();
+	SOCPS_SetAPWakeEvent(WAKE_SRC_USB, ENABLE);
+#endif
+
 	rtos_mutex_create_static(&whc_usb_priv.tx_lock);
 	rtos_sema_create_static(&whc_usb_priv.usb_tx_sema, 1, 0xFFFFFFFF);
 	rtos_sema_create_static(&whc_usb_priv.usb_irq_sema, 0, 0xFFFFFFFF);
@@ -301,7 +315,7 @@ void whc_usb_dev_init(void)
 	rtos_sema_create_static(&whc_usb_priv.usb_attach_status_sema, 0, 1);
 	if (RTK_SUCCESS != rtos_task_create(NULL, (const char *const)"whc_usb_hotplug_task", (rtos_task_function_t)whc_usb_hotplug_task,
 										NULL, 1024, 8)) {
-		RTK_LOGI(NOTAG, "Create whc_usb_dev_irq_task Err!!\n");
+		RTK_LOGI(NOTAG, "Create whc_usb_hotplug_task Err!!\n");
 	}
 #endif
 
@@ -329,20 +343,27 @@ void whc_usb_dev_send(u8 *buf, u16 len, void *buf_alloc, u8 is_skb)
 	if (wifi_whc_usb_status == WIFI_WHC_USB_STATUS_SUSPEND) {
 		RTK_LOGS(NOTAG, RTK_LOG_ALWAYS, "DEV Send when suspend\n");
 		usbd_wake_host();
+
+		/* confirm host already resumed before send data to host*/
 		for (i = 0; i < WIFI_WHC_USB_WAKE_HOST_MAX_WAIT_CNT; i++) {
 			rtos_time_delay_ms(WIFI_WHC_USB_WAKE_HOST_UNIT);
 			if (wifi_whc_usb_status == WIFI_WHC_USB_STATUS_ACTIVE) {
 				break;
 			}
 		}
-		//rtos_time_delay_ms(500); /*todo: need confirm host already resumed before send data to host*/
 	}
 
 	rtos_mutex_take(whc_usb_priv.tx_lock, MUTEX_WAIT_TIMEOUT);
 
 	rtos_sema_take(whc_usb_priv.usb_tx_sema, MUTEX_WAIT_TIMEOUT);
 	whc_usb_priv.tx_buf = (u8 *)buf_info;
-	usbd_inic_transmit_data((u8)WIFI_WHC_USB_BULKIN_EP, (u8 *)pbuf->buf_addr, (u16)pbuf->buf_size, NULL);
+	if (usbd_inic_transmit_data((u8)WIFI_WHC_USB_BULKIN_EP, (u8 *)pbuf->buf_addr, (u16)pbuf->buf_size, NULL) != 0) {
+		whc_usb_priv.tx_buf = NULL;
+		rtos_sema_give(whc_usb_priv.usb_tx_sema);
+		rtos_mutex_give(whc_usb_priv.tx_lock);
+		goto drop;
+	}
+
 	rtos_mutex_give(whc_usb_priv.tx_lock);
 
 	return;
@@ -360,5 +381,13 @@ u8 whc_usb_dev_bus_is_idle(void)
 {
 	/*Not yet implemented*/
 	return TRUE;
+}
+
+void whc_usb_dev_trigger_rx_handle(void)
+{
+	if (whc_usb_priv.irq_info.wait_xmit_skb == 1) {
+		whc_usb_priv.irq_info.wait_xmit_skb = 0;
+		rtos_sema_give(whc_usb_priv.usb_irq_sema);
+	}
 }
 

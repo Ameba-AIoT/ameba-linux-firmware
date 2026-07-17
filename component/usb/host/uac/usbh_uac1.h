@@ -36,8 +36,8 @@
 
 #define USBH_UAC_ALT_SETTING_MAX       10        /**< Maximum number of Alternate Settings per interface */
 #define USBH_UAC_FREQ_FORMAT_MAX       6         /**< Maximum number of discrete sampling frequencies per format */
-/** @} End of Host_UAC_Constants group*/
-/** @} End of USB_Host_Constants group*/
+/** @} End of Host_UAC_Constants group */
+/** @} End of USB_Host_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -181,8 +181,8 @@ typedef struct {
 	u8 choose_freq_idx;                   /**< Index of the currently selected frequency */
 } usbh_uac_as_itf_info_t;
 
-/** @} End of Host_UAC_Types group*/
-/** @} End of USB_Host_Types group*/
+/** @} End of Host_UAC_Types group */
+/** @} End of USB_Host_Types group */
 
 /**
   * @brief  Main UAC Host Class Driver Handle.
@@ -193,7 +193,7 @@ typedef struct {
 	usbh_uac_ac_itf_info_t  ac_isoc_in;    /**< Audio Control Interface info (Topology) */
 	usbh_uac_as_itf_info_t *as_isoc_out;   /**< Pointer to Audio Streaming Output interface info */
 	usbh_uac_as_itf_info_t *as_isoc_in;    /**< Pointer to Audio Streaming Input interface info */
-	usbh_uac_cb_t *cb;                     /**< User callback structure */
+	const usbh_uac_cb_t *cb;               /**< User callback structure */
 	usb_host_t *host;                      /**< Pointer to the core USB Host handle */
 	u8 *audio_ctrl_buf;                    /**< Buffer for CTRL transfers */
 	u8 *isoc_tx_buf;                      /**< Buffer for ISOC out transfers. */
@@ -243,7 +243,7 @@ typedef struct {
   * @param  frame_cnt: Configuration for ring buffer size (frame count).
   * @retval Status (0: Success, <0: Failure)
   */
-int usbh_uac_init(usbh_uac_cb_t *cb, u8 frame_cnt);
+int usbh_uac_init(const usbh_uac_cb_t *cb, u8 frame_cnt);
 
 /**
   * @brief  De-initialize the UAC Class Driver and release resources.

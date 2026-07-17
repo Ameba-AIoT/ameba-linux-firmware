@@ -35,15 +35,15 @@
  * @{
  */
 
-#define USBH_CDC_ECM_STATE_DEBUG_ENABLE                              0      /**< Enable or disable CDC ECM state trace logging. */
+#define USBH_COMP_ECM_STATE_DEBUG_ENABLE                              0      /**< Enable or disable CDC ECM state trace logging. */
 
 /* Macro defines -----------------------------------------------------------*/
-#define USBH_CDC_ECM_MAC_STR_LEN                                     (6)    /**< Length of the MAC address in bytes. */
-#define USBH_CDC_ECM_CTRL_REG_BUF_LEN                                (4)    /**< Length of the ECM dongle control register buffer. */
-#define USBH_CDC_ECM_MUTICAST_FILTER_STR_LEN                         (20)   /**< Length of the ECM multicast filter control buffer. */
+#define USBH_COMP_ECM_MAC_STR_LEN                                     (6)    /**< Length of the MAC address in bytes. */
+#define USBH_COMP_ECM_CTRL_REG_BUF_LEN                                (4)    /**< Length of the ECM dongle control register buffer. */
+#define USBH_COMP_ECM_MUTICAST_FILTER_STR_LEN                         (20)   /**< Length of the ECM multicast filter control buffer. */
 
-/** @} End of Host_Composite_Constants group*/
-/** @} End of USB_Host_Constants group*/
+/** @} End of Host_Composite_Constants group */
+/** @} End of USB_Host_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -55,11 +55,11 @@
  */
 
 /**
- * @brief USB CDC ACM ECM Composite Host Private Data Structure.
+ * @brief USB CDC ECM Composite Host Private Data Structure.
  */
 typedef struct {
-	u16 *led_array;    /**< Pointer to the LED status array; each u16 element represents the state or brightness of an LED. */
-	u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
+	const u16 *led_array;    /**< Pointer to the LED status array; each u16 element represents the state or brightness of an LED. */
+	const u8 *mac_value;     /**< Pointer to the MAC address buffer; typically points to a 6-byte physical address. */
 	u8 led_cnt;        /**< LED count; indicates the number of valid elements in the led_array. */
 } usbh_composite_cdc_ecm_priv_data_t;
 
@@ -108,40 +108,42 @@ typedef struct {
 	*/
 	int(* bulk_received)(u8 *buf, u32 len);
 
-	usbh_composite_cdc_ecm_priv_data_t *priv;
+	const usbh_composite_cdc_ecm_priv_data_t *priv;
 } usbh_composite_cdc_ecm_usr_cb_t;
 
 typedef struct {
 	usbh_ep_desc_t ep_desc;                   /**< Endpoint descriptor. */
 	usbh_pipe_t pipe;                         /**< USB Host pipe handle. */
-#if USBH_CDC_ECM_STATE_DEBUG_ENABLE
+#if USBH_COMP_ECM_STATE_DEBUG_ENABLE
 	u32 trigger_cnt;                          /**< Debug trigger counter. */
 #endif
 	u8 valid;                                 /**< Validity flag for this pipe info. */
 } usbh_composite_cdc_ecm_pipe_info_t;
 
-/** @} End of Host_Composite_Types group*/
-/** @} End of USB_Host_Types group*/
+/** @} End of Host_Composite_Types group */
+/** @} End of USB_Host_Types group */
 
 /**
  * @brief Structure representing the CDC ECM host instance.
  */
 typedef struct {
-	u8                                      muticast_filter[USBH_CDC_ECM_MUTICAST_FILTER_STR_LEN]; /**< Buffer for multicast filer control */
-	u8                                      mac[USBH_CDC_ECM_MAC_STR_LEN];                     /**< Buffer for saving MAC string */
-	u8                                      mac_ctrl_lock[USBH_CDC_ECM_CTRL_REG_BUF_LEN];      /**< Buffer for RTL8152 MAC change control */
-	u8                                      flow_ctrl[USBH_CDC_ECM_CTRL_REG_BUF_LEN];          /**< Buffer for RTL8152 flow control */
-	u8                                      rcr[USBH_CDC_ECM_CTRL_REG_BUF_LEN];                /**< Buffer for RTL8156 RCR register */
+	u8                                      muticast_filter[USBH_COMP_ECM_MUTICAST_FILTER_STR_LEN]; /**< Buffer for multicast filer control */
+	u8                                      mac[USBH_COMP_ECM_MAC_STR_LEN];                     /**< Buffer for saving MAC string */
+	u8                                      mac_ctrl_lock[USBH_COMP_ECM_CTRL_REG_BUF_LEN];      /**< Buffer for RTL8152 MAC change control */
+	u8                                      flow_ctrl[USBH_COMP_ECM_CTRL_REG_BUF_LEN];          /**< Buffer for RTL8152 flow control */
+	u8                                      rcr[USBH_COMP_ECM_CTRL_REG_BUF_LEN];                /**< Buffer for RTL8156 RCR register */
 
 	usbh_composite_cdc_ecm_pipe_info_t      intr_rx;            /**< Intr IN Endpoint Info */
 	usbh_composite_cdc_ecm_pipe_info_t      bulk_tx;            /**< Bulk OUT Endpoint Info */
 	usbh_composite_cdc_ecm_pipe_info_t      bulk_rx;            /**< Bulk IN Endpoint Info */
 
 	usb_os_sema_t                           bulk_tx_sema;       /**<  Semaphore for BULK TX synchronization */
-	usbh_composite_cdc_ecm_usr_cb_t         *cb;                /**< User callback structure */
+	const usbh_composite_cdc_ecm_usr_cb_t         *cb;                /**< User callback structure */
 	usbh_composite_host_t                   *driver;            /**< Composite driver handle */
 	u16                                     *led_array;         /**< Pointer to LED array */
 	u8                                      *dongle_ctrl_buf;   /**< Buffer for control transfers (cache aligned)*/
+	u8                                      *intr_rx_buf;       /**< Pre-allocated INTR IN receive buffer */
+	u8                                      *bulk_rx_buf;       /**< Pre-allocated BULK IN receive buffer */
 
 	u32                                     eth_statistic_count;/**< Feature selector parameter: Statistic count */
 	u16                                     intr_check_tick;    /**< ECM Intr check tick, used to reduce the cpu load */
@@ -187,7 +189,7 @@ extern const usbh_class_driver_t usbh_composite_cdc_ecm_driver;  /**< Point to c
  * @param[in] cb: Pointer to the user-defined callback structure.
  * @return 0 (HAL_OK) on success, non-zero on failure.
  */
-int usbh_composite_cdc_ecm_init(usbh_composite_host_t *chost, usbh_composite_cdc_ecm_usr_cb_t *cb);
+int usbh_composite_cdc_ecm_init(usbh_composite_host_t *chost, const usbh_composite_cdc_ecm_usr_cb_t *cb);
 
 /**
  * @brief  De-initializes the CDC ECM host class driver and releases resources.

@@ -28,8 +28,11 @@ static const char *const TAG = "COMP";
 #define CONFIG_USBD_COMPOSITE_HID_HID_INTR_IN_XFER_SIZE			512U
 
 // Thread priorities
-#define CONFIG_USBD_COMPOSITE_INIT_THREAD_PRIORITY				5U
-#define CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_PRIORITY			8U
+#define CONFIG_USBD_COMPOSITE_INIT_THREAD_PRIORITY           5U
+#define CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_PRIORITY        8U
+// Thread stack sizes
+#define CONFIG_USBD_COMPOSITE_INIT_THREAD_STACK_SIZE           1024U
+#define CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_STACK_SIZE        1024U
 
 /* Private types -------------------------------------------------------------*/
 
@@ -58,7 +61,7 @@ static void composite_cb_status_changed(u8 old_status, u8 status);
 
 /* Private variables ---------------------------------------------------------*/
 
-static usbd_config_t composite_cfg = {
+static const usbd_config_t composite_cfg = {
 	.speed = CONFIG_USBD_COMPOSITE_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined(CONFIG_AMEBASMART)
@@ -76,7 +79,7 @@ static usbd_config_t composite_cfg = {
 #endif
 };
 
-static usbd_composite_cdc_acm_usr_cb_t composite_cdc_acm_usr_cb = {
+static const usbd_composite_cdc_acm_usr_cb_t composite_cdc_acm_usr_cb = {
 	.init = composite_cdc_acm_cb_init,
 	.deinit = composite_cdc_acm_cb_deinit,
 	.setup = composite_cdc_acm_cb_setup,
@@ -88,11 +91,11 @@ static usb_cdc_line_coding_t composite_cdc_acm_line_coding;
 static u16 composite_hid_protocol;
 static u16 composite_hid_idle_state;
 
-static usbd_composite_hid_usr_cb_t composite_hid_usr_cb = {
+static const usbd_composite_hid_usr_cb_t composite_hid_usr_cb = {
 	.setup = composite_hid_cb_setup,
 };
 
-static usbd_composite_cb_t composite_cb = {
+static const usbd_composite_cb_t composite_cb = {
 	.status_changed = composite_cb_status_changed,
 };
 
@@ -263,7 +266,8 @@ static int composite_cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 		*/
 		composite_cdc_acm_ctrl_line_state = req->wValue;
 		if (composite_cdc_acm_ctrl_line_state & 0x01) {
-			RTK_LOGS(TAG, RTK_LOG_INFO, "VCOM port activate\n");
+			/* VCOM port activate */
+			USB_DIAG(USB_LAYER_APP, USB_EVT_LINK, 0);
 		}
 		break;
 
@@ -272,7 +276,8 @@ static int composite_cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 		break;
 
 	default:
-		RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid CDC bRequest 0x%02x\n", req->bRequest);
+		/* Invalid CDC ACM bRequest */
+		USB_DIAG(USB_LAYER_APP, USB_EVT_ERR_SETUP, 0);
 		ret = HAL_ERR_PARA;
 		break;
 	}
@@ -308,7 +313,8 @@ static int composite_hid_cb_setup(usb_setup_req_t *req, u8 *buf)
 		buf[0] = (u8)(composite_hid_idle_state & 0xFF);
 		break;
 	default:
-		// RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid HID bRequest 0x%02x\n", req->bRequest);
+		/* Invalid HID bRequest */
+		USB_DIAG(USB_LAYER_APP, USB_EVT_ERR_SETUP, 1);
 		ret = HAL_ERR_PARA;
 		break;
 	}
@@ -374,7 +380,7 @@ static void composite_cb_status_changed(u8 old_status, u8 status)
 }
 
 #if CONFIG_USBD_COMPOSITE_HOTPLUG
-static void composite_hotplug_thread(void *param)
+static void example_usbd_comp_acm_hid_hotplug_thread(void *param)
 {
 	int ret = 0;
 
@@ -416,7 +422,7 @@ static void composite_hotplug_thread(void *param)
 }
 #endif // CONFIG_USBD_COMPOSITE_HOTPLUG
 
-static void example_usbd_composite_thread(void *param)
+static void example_usbd_comp_acm_hid_init_thread(void *param)
 {
 	int ret = 0;
 #if CONFIG_USBD_COMPOSITE_HOTPLUG
@@ -445,8 +451,9 @@ static void example_usbd_composite_thread(void *param)
 	}
 
 #if CONFIG_USBD_COMPOSITE_HOTPLUG
-	ret = rtos_task_create(&task, "composite_hotplug_thread", composite_hotplug_thread, NULL,
-						   1024, CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_PRIORITY);
+	ret = rtos_task_create(&task, "example_usbd_comp_acm_hid_hotplug_thread",
+						   example_usbd_comp_acm_hid_hotplug_thread, NULL,
+						   CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBD_COMPOSITE_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto exit_create_check_task_fail;
 	}
@@ -488,7 +495,9 @@ void example_usbd_composite(void)
 	int ret;
 	rtos_task_t task;
 
-	ret = rtos_task_create(&task, "example_usbd_composite_thread", example_usbd_composite_thread, NULL, 1024, CONFIG_USBD_COMPOSITE_INIT_THREAD_PRIORITY);
+	ret = rtos_task_create(&task, "example_usbd_comp_acm_hid_init_thread",
+						   example_usbd_comp_acm_hid_init_thread, NULL,
+						   CONFIG_USBD_COMPOSITE_INIT_THREAD_STACK_SIZE, CONFIG_USBD_COMPOSITE_INIT_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD COMP thread fail\n");
 	}

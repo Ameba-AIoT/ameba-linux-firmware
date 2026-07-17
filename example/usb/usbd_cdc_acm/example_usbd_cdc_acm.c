@@ -16,7 +16,7 @@
 // This configuration is used to enable a thread to check hotplug event
 // and reset USB stack to avoid memory leak, only for example.
 // while test suspend/resume, hotplug should be disabled
-#define CONFIG_USBD_CDC_ACM_HOTPLUG					0
+#define CONFIG_USBD_CDC_ACM_HOTPLUG					1
 
 // USB speed
 #ifdef CONFIG_SUPPORT_USB_FS_ONLY
@@ -37,9 +37,14 @@
 #define CONFIG_USBD_CDC_ACM_BULK_OUT_XFER_SIZE			2048U
 
 // Thread priorities
-#define CONFIG_CDC_ACM_INIT_THREAD_PRIORITY			5
-#define CONFIG_CDC_ACM_HOTPLUG_THREAD_PRIORITY		8
-#define CONFIG_CDC_ACM_XFER_THREAD_PRIORITY			5
+#define CONFIG_USBD_CDC_ACM_INIT_THREAD_PRIORITY           5
+#define CONFIG_USBD_CDC_ACM_HOTPLUG_THREAD_PRIORITY        8
+#define CONFIG_USBD_CDC_ACM_XFER_THREAD_PRIORITY           5
+
+// Thread stack sizes
+#define CONFIG_USBD_CDC_ACM_INIT_THREAD_STACK_SIZE           1024U
+#define CONFIG_USBD_CDC_ACM_HOTPLUG_THREAD_STACK_SIZE        1024U
+#define CONFIG_USBD_CDC_ACM_XFER_THREAD_STACK_SIZE           1024U
 
 /* Private types -------------------------------------------------------------*/
 
@@ -56,7 +61,7 @@ static void cdc_acm_cb_status_changed(u8 old_status, u8 status);
 /* Private variables ---------------------------------------------------------*/
 static const char *const TAG = "ACM";
 
-static usbd_cdc_acm_cb_t cdc_acm_cb = {
+static const usbd_cdc_acm_cb_t cdc_acm_cb = {
 	.init = cdc_acm_cb_init,
 	.deinit = cdc_acm_cb_deinit,
 	.setup = cdc_acm_cb_setup,
@@ -68,7 +73,7 @@ static usb_cdc_line_coding_t cdc_acm_line_coding;
 
 static u16 cdc_acm_ctrl_line_state;
 
-static usbd_config_t cdc_acm_cfg = {
+static const usbd_config_t cdc_acm_cfg = {
 	.speed = CONFIG_USBD_CDC_ACM_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined(CONFIG_AMEBASMART)
@@ -233,7 +238,8 @@ static int cdc_acm_cb_setup(usb_setup_req_t *req, u8 *buf)
 		*/
 		cdc_acm_ctrl_line_state = req->wValue;
 		if (cdc_acm_ctrl_line_state & 0x01) {
-			// RTK_LOGS(TAG, RTK_LOG_INFO, "VCOM port activate\n");
+			/* VCOM port activate */
+			USB_DIAG(USB_LAYER_APP, USB_EVT_LINK, 0);
 #if CONFIG_USBD_CDC_ACM_NOTIFY
 			usbd_cdc_acm_notify_serial_state(USB_CDC_ACM_CTRL_DSR | USB_CDC_ACM_CTRL_DCD);
 #endif
@@ -281,7 +287,7 @@ static void cdc_acm_cb_status_changed(u8 old_status, u8 status)
 }
 
 #if CONFIG_USBD_CDC_ACM_HOTPLUG
-static void cdc_acm_hotplug_thread(void *param)
+static void example_usbd_cdc_acm_hotplug_thread(void *param)
 {
 	int ret = 0;
 
@@ -319,7 +325,7 @@ static void cdc_acm_hotplug_thread(void *param)
 #endif // CONFIG_USBD_MSC_CHECK_USB_STATUS
 
 #if CONFIG_USBD_CDC_ACM_ASYNC_XFER
-static void cdc_acm_xfer_thread(void *param)
+static void example_usbd_cdc_acm_xfer_thread(void *param)
 {
 	int ret;
 	u8 *xfer_buf;
@@ -396,7 +402,9 @@ static void example_usbd_cdc_acm_thread(void *param)
 	}
 
 #if CONFIG_USBD_CDC_ACM_HOTPLUG
-	ret = rtos_task_create(&check_task, "cdc_acm_hotplug_thread", cdc_acm_hotplug_thread, NULL, 1024, CONFIG_CDC_ACM_HOTPLUG_THREAD_PRIORITY);
+	ret = rtos_task_create(&check_task, "example_usbd_cdc_acm_hotplug_thread",
+						   example_usbd_cdc_acm_hotplug_thread, NULL,
+						   CONFIG_USBD_CDC_ACM_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBD_CDC_ACM_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto exit_create_check_task_fail;
 	}
@@ -404,7 +412,9 @@ static void example_usbd_cdc_acm_thread(void *param)
 
 #if CONFIG_USBD_CDC_ACM_ASYNC_XFER
 	// The priority of transfer thread shall be lower than USB isr priority
-	ret = rtos_task_create(&xfer_task, "cdc_acm_xfer_thread", cdc_acm_xfer_thread, NULL, 1024, CONFIG_CDC_ACM_XFER_THREAD_PRIORITY);
+	ret = rtos_task_create(&xfer_task, "example_usbd_cdc_acm_xfer_thread",
+						   example_usbd_cdc_acm_xfer_thread, NULL,
+						   CONFIG_USBD_CDC_ACM_XFER_THREAD_STACK_SIZE, CONFIG_USBD_CDC_ACM_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto exit_create_xfer_task_fail;
 	}
@@ -457,7 +467,8 @@ void example_usbd_cdc_acm(void)
 	int ret;
 	rtos_task_t task;
 
-	ret = rtos_task_create(&task, "example_usbd_cdc_acm_thread", example_usbd_cdc_acm_thread, NULL, 1024U, CONFIG_CDC_ACM_INIT_THREAD_PRIORITY);
+	ret = rtos_task_create(&task, "example_usbd_cdc_acm_thread", example_usbd_cdc_acm_thread, NULL,
+						   CONFIG_USBD_CDC_ACM_INIT_THREAD_STACK_SIZE, CONFIG_USBD_CDC_ACM_INIT_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD CDC ACM thread fail\n");
 	}

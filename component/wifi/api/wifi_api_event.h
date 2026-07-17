@@ -73,6 +73,7 @@ enum rtw_event_id {
 	RTW_EVENT_WPA_EAPOL_RECVD,        /**< STA mode: EAPOL packet received during WPA enterprise authentication  */
 	RTW_EVENT_DHCP_STATUS,            /**< STA mode: DHCP status report (see @ref rtw_event_dhcp_status)  */
 	RTW_EVENT_RADAR_REPORT,           /**< Radar report ready (see example_wifi_radar.c) */
+	RTW_EVENT_DFS_RADAR_DETECTED,     /**< SoftAP DFS master: radar detected on the operating channel (see @ref rtw_event_dfs_radar_detected_info) */
 
 	RTW_EVENT_MAX,
 };
@@ -241,7 +242,7 @@ struct rtw_event_csi_report_info {
  * @brief  Layout of Radar report info.
  */
 struct rtw_event_radar_report_info {
-	u8 rpt_type : 2;               /**< Radar report type (see @ref rtw_radar_type) */
+	u8 rpt_type : 3;               /**< Radar report type (see @ref rtw_radar_type) */
 	u8 rpt_seg_start : 1;          /**< Instructions for segmented reporting, invalid after integration. */
 	u8 rpt_seg_end : 1;            /**< Instructions for segmented reporting, invalid after integration. */
 	u8 bw_idx : 2;                 /**< Operating bandwidth (0: 70MHz, 1: 40MHz, 2: 20M). */
@@ -258,11 +259,20 @@ struct rtw_event_radar_report_info {
 	u16 doppler_sample_num;
 	float aagc_gain;
 	float dagc_gain_normal_mode[4];
-	u8 rsvd[6];                   /**< Ensure the total sizes of struct is 4-byte alignment */
+	s16 isolation;                /**< Antenna isolation in dBm (carried from NP via IPC) */
+	s16 range_leakage_dBx10;     /**< Range leakage power encoded as 5-bit exp + 11-bit mantissa */
+	u8  rsvd[1];                  /**< Ensure 4-byte alignment */
 	u32 radar_data_length;        /**< radar raw data length, unit: byte. [segments report raw data len or complete repoprt raw data len] */
 	u8 radar_data[];              /**< radar raw data head address */
 };
 #pragma pack()
+
+/**
+  * @brief  Report info for event @ref RTW_EVENT_DFS_RADAR_DETECTED
+  */
+struct rtw_event_dfs_radar_detected_info {
+	u8 channel;                    /**< DFS channel the radar was detected on (now vacated and put into NOP) */
+};
 
 /** @} End of WIFI_Exported_Structure_Types group*/
 /** @} End of WIFI_Exported_Types group*/

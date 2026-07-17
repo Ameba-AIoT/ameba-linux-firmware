@@ -7,9 +7,11 @@
 #include "ameba_soc.h"
 #include "ameba_secure_boot.h"
 #include "bootloader_hp.h"
+#ifndef __ZEPHYR__
 #include "boot_ota_hp.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
+#endif
 
 static const char *const TAG = "BOOT";
 typedef struct {
@@ -27,6 +29,7 @@ CPU_S_BackUp_TypeDef PMC_S_BK;
         } \
     } while (0)
 
+#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 PRAM_START_FUNCTION BOOT_SectionInit(void)
 {
@@ -55,11 +58,15 @@ __attribute__((noinline)) void BOOT_NsStart(u32 Addr)
 	_memset((void *)stack_top, 0, stack_mid - stack_top);
 	DCache_CleanInvalidate(stack_top, stack_mid - stack_top);
 
-	/* jump to ns world */
-	nsfunc *fp = (nsfunc *)cmse_nsfptr_create(Addr);
-	fp();
+	/* TZ-ON: image1 jumps to image3 (S->S).
+	 * TZ-OFF: image2 runs in Secure state (configRUN_FREERTOS_SECURE_ONLY=1), direct call correct. */
+	FuncPtr pFunc = (FuncPtr)Addr;
+	pFunc();
 
+	/* avoid compiler to pop stack when exit BOOT_NsStart */
+	while (1);
 }
+#endif
 
 /* open some always on functions in this function */
 BOOT_RAM_TEXT_SECTION
@@ -303,6 +310,7 @@ void BOOT_PSRAM_Init(void)
 	PSRAM_AutoGating(ENABLE, Psram_IDLETIME, Psram_RESUME_TIME / PsramInfo.PSRAMC_Clk_Unit);
 }
 
+#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 void BOOT_SCBConfig_HP(void)
 {
@@ -387,6 +395,7 @@ u32 BOOT_LoadImages(void)
 #endif
 	return TRUE;
 }
+#endif
 
 /**
   * @brief  Copy Boot reason to a common register and clear Boot Reason.
@@ -454,7 +463,7 @@ void BOOT_Enable_KM0(void)
 	temp |= LSYS_BIT_BOOT_KM0_RUN;
 	HAL_WRITE32(SYSTEM_CTRL_BASE_LP, REG_LSYS_BOOT_CFG, temp);
 
-	asm volatile("sev");
+	__asm__ volatile("sev");
 }
 
 BOOT_RAM_TEXT_SECTION
@@ -630,6 +639,7 @@ void BOOT_Enable_AP(void)
 	ca32->CA32_C0_RST_CTRL |= (CA32_NCOREPORESET(CORE_NUM) | CA32_NCORERESET(CORE_NUM) | CA32_BIT_NRESETSOCDBG | CA32_BIT_NL2RESET | CA32_BIT_NGICRESET);
 }
 
+#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 void BOOT_WakeFromPG(void)
 {
@@ -704,10 +714,16 @@ void BOOT_WakeFromPG(void)
 	/* Start non-secure state software application */
 	//RTK_LOGD(TAG, "Start NonSecure @ 0x%x ...\r\n", NonSecure_ResetHandler);
 	//RTK_LOGD(TAG, "Cache Enable:%x\r\n", DCache_IsEnabled());
+#ifndef CONFIG_TRUSTZONE
 	BOOT_NsStart(vector_table[1]);
+#else
+	PRAM_START_FUNCTION Image3EntryFun = (PRAM_START_FUNCTION)__ram_image3_start__;
+	BOOT_NsStart((u32)Image3EntryFun->RamWakeupFun);
+#endif
 
 	return;
 }
+#endif /* !__ZEPHYR__ BOOT_WakeFromPG */
 
 BOOT_RAM_TEXT_SECTION
 u32 BOOT_Share_Memory_Patch(void)
@@ -803,7 +819,8 @@ void Peripheral_Reset(void)
 }
 
 /* To avoid RRAM holding incorrect data, incorporate a MAGIC_NUMBER for verification. */
-static bool BOOT_RRAM_InfoValid(void)
+/* Non-static: also called by the Zephyr KM4 MCUboot boot_prepare.c */
+bool BOOT_RRAM_InfoValid(void)
 {
 	if (RRAM->MAGIC_NUMBER != 0x6969A5A5) {
 		return FALSE;
@@ -812,6 +829,7 @@ static bool BOOT_RRAM_InfoValid(void)
 	}
 }
 
+#ifndef __ZEPHYR__
 //3 Image 1
 BOOT_RAM_TEXT_SECTION
 void BOOT_Image1(void)
@@ -854,6 +872,10 @@ void BOOT_Image1(void)
 		SWR_AUDIO_Manual(DISABLE);
 		SWR_AUDIO(ENABLE);
 	}
+
+	/* Enable divide-by-zero fault for both S and NS worlds */
+	SCB->CCR    |= SCB_CCR_DIV_0_TRP_Msk;
+	SCB_NS->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
 	BOOT_SOC_ClkSet();
 
@@ -1000,7 +1022,13 @@ void BOOT_Image1(void)
 	/* Start non-secure state software application */
 	RTK_LOGI(TAG, "Start NonSecure @ 0x%x ...\r\n", vector_table[1]);
 
+#ifndef CONFIG_TRUSTZONE
 	BOOT_NsStart(vector_table[1]);
+#else
+	PRAM_START_FUNCTION Image3EntryFun = (PRAM_START_FUNCTION)__ram_image3_start__;
+	RTK_LOGI(TAG, "Start IMG3 @ 0x%x ...\r\n", (u32)Image3EntryFun->RamStartFun);
+	BOOT_NsStart((u32)Image3EntryFun->RamStartFun);
+#endif
 
 	return;
 
@@ -1009,6 +1037,7 @@ INVALID_IMG2:
 		DelayMs(1000);//each delay is 100us
 	}
 }
+#endif /* !__ZEPHYR__ BOOT_Image1 */
 
 IMAGE1_VALID_PATTEN_SECTION
 const u8 RAM_IMG1_VALID_PATTEN[] = {
@@ -1020,13 +1049,25 @@ BOOT_EXPORT_SYMB_TABLE boot_export_symbol = {
 	.rdp_decrypt_func = NULL,
 };
 
+#ifdef __ZEPHYR__
+extern void z_arm_reset(void);
+#endif
+
 IMAGE1_ENTRY_SECTION
 RAM_FUNCTION_START_TABLE RamStartTable = {
 	.RamStartFun = NULL,
 	.RamWakeupFun = NULL,
+#ifdef __ZEPHYR__
+	.RamPatchFun0 = NULL,
+#else
 	.RamPatchFun0 = BOOT_WakeFromPG,
+#endif
 	.RamPatchFun1 = NULL,
 	.RamPatchFun2 = NULL,
+#ifdef __ZEPHYR__
+	.FlashStartFun = z_arm_reset,
+#else
 	.FlashStartFun = BOOT_Image1,
+#endif
 	.ExportTable = &boot_export_symbol
 };

@@ -1209,6 +1209,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 		break;
 	}
 
+#if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 	case RTK_BT_LE_GAP_EVT_DATA_LEN_CHANGE_IND: {
 		rtk_bt_le_data_len_change_ind_t *data_len_change =
 			(rtk_bt_le_data_len_change_ind_t *)param;
@@ -1228,7 +1229,9 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 					data_len_change->max_rx_time);
 		break;
 	}
+#endif
 
+#if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
 	case RTK_BT_LE_GAP_EVT_PHY_UPDATE_IND: {
 		rtk_bt_le_phy_update_ind_t *phy_update_ind =
 			(rtk_bt_le_phy_update_ind_t *)param;
@@ -1249,6 +1252,7 @@ static rtk_bt_evt_cb_ret_t ble_scatternet_gap_app_callback(uint8_t evt_code, voi
 		}
 		break;
 	}
+#endif
 
 	case RTK_BT_LE_GAP_EVT_AUTH_PAIRING_CONFIRM_IND: {
 		rtk_bt_le_auth_pair_cfm_ind_t *pair_cfm_ind =
@@ -2826,10 +2830,10 @@ static void rtk_bt_a2dp_demo_src_send_data_control(bool enable)
 		}
 		if (!bt_a2dp_demo_src_send_timer.handler) {
 #if defined(CONFIG_BT_AUDIO_SOURCE_OUTBAND) && CONFIG_BT_AUDIO_SOURCE_OUTBAND
-			a2dp_src_data_send_interval_us = (src_a2dp_send_data_size * 2 * 1000) / (demo_in_rate * demo_in_channels * (16 / 8) / 1000);
+			a2dp_src_data_send_interval_us = (src_a2dp_send_data_size * 2 * 1000000) / (demo_in_rate * demo_in_channels * (16 / 8));
 #else
 			if (g_audio_resample_t) {
-				a2dp_src_data_send_interval_us = 1000 * (resample_out_frames * 1000 / g_audio_resample_t->out_rate);
+				a2dp_src_data_send_interval_us = resample_out_frames * 1000000 / g_audio_resample_t->out_rate;
 			}
 #endif
 			BT_LOGA("[A2DP Demo] rtk_bt_a2dp_demo_src_send_data_control send interval(us) is %d \r\n", a2dp_src_data_send_interval_us);
@@ -3200,11 +3204,15 @@ int bt_a2dp_scatternet_main(uint8_t role, uint8_t enable)
 		bt_app_conf.mtu_size = 180;
 		bt_app_conf.master_init_mtu_req = true;
 		bt_app_conf.slave_init_mtu_req = false;
+#if defined(RTK_BLE_5_0_SET_PHYS_SUPPORT) && RTK_BLE_5_0_SET_PHYS_SUPPORT
 		bt_app_conf.prefer_all_phy = RTK_BT_LE_PHYS_PREFER_ALL;
 		bt_app_conf.prefer_tx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
 		bt_app_conf.prefer_rx_phy = RTK_BT_LE_PHYS_PREFER_1M | RTK_BT_LE_PHYS_PREFER_2M | RTK_BT_LE_PHYS_PREFER_CODED;
+#endif
+#if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 		bt_app_conf.max_tx_octets = 0x40;
 		bt_app_conf.max_tx_time = 0x200;
+#endif
 #if defined(RTK_BLE_PRIVACY_SUPPORT) && RTK_BLE_PRIVACY_SUPPORT
 		bt_app_conf.irk_auto_gen = true;
 #endif

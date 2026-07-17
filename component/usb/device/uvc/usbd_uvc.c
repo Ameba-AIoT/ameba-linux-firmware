@@ -40,7 +40,7 @@ static void usbd_uvc_get_frame_handler(void *parm);
 
 static const char *const TAG = "USBD_UVC";
 
-static u8 usbd_uvc_dev_desc[USB_LEN_DEV_DESC] USB_DMA_ALIGNED = {
+static const u8 usbd_uvc_dev_desc[USB_LEN_DEV_DESC] USB_DMA_ALIGNED = {
 	USB_LEN_DEV_DESC,                               /* bLength */
 	USB_DESC_TYPE_DEVICE,                           /* bDescriptorType */
 	0x00,                                           /* bcdUSB */
@@ -62,7 +62,7 @@ static u8 usbd_uvc_dev_desc[USB_LEN_DEV_DESC] USB_DMA_ALIGNED = {
 };
 
 /* USB Standard String Descriptor 0 */
-static u8 usbd_uvc_lang_id_desc[USB_LEN_LANGID_STR_DESC] USB_DMA_ALIGNED = {
+static const u8 usbd_uvc_lang_id_desc[USB_LEN_LANGID_STR_DESC] USB_DMA_ALIGNED = {
 	USB_LEN_LANGID_STR_DESC,                        /* bLength */
 	USB_DESC_TYPE_STRING,                           /* bDescriptorType */
 	USB_LOW_BYTE(USBD_UVC_LANGID_STRING),           /* wLANGID */
@@ -71,7 +71,7 @@ static u8 usbd_uvc_lang_id_desc[USB_LEN_LANGID_STR_DESC] USB_DMA_ALIGNED = {
 
 #ifndef CONFIG_USB_FS
 /* USB Standard Device Qualifier Descriptor */
-static u8 usbd_uvc_device_qualifier_desc[USB_LEN_DEV_QUALIFIER_DESC] USB_DMA_ALIGNED = {
+static const u8 usbd_uvc_device_qualifier_desc[USB_LEN_DEV_QUALIFIER_DESC] USB_DMA_ALIGNED = {
 	USB_LEN_DEV_QUALIFIER_DESC,                     /* bLength */
 	USB_DESC_TYPE_DEVICE_QUALIFIER,                 /* bDescriptorType */
 	0x00,                                           /* bcdUSB */
@@ -858,7 +858,7 @@ int usbd_uvc_init(void)
 	// Mark as initialized before creating tasks, so tasks can run properly
 	usbd_uvc_dev.init_done = 1;
 
-	ret = rtos_task_create(NULL, "usbd_uvcd_cmd_handler", usbd_uvc_cmd_handler, NULL, 1024U, 5);
+	ret = rtos_task_create(NULL, "usbd_uvc_cmd_handler", usbd_uvc_cmd_handler, NULL, 1024U, 5);
 	if (ret != SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Create USBD USBD_UVC CMD thread fail\n", __FUNCTION__);
 		ret = -1;

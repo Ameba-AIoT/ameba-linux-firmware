@@ -88,6 +88,9 @@ const struct event_func_t whc_dev_api_handlers[] = {
 	{WHC_API_WIFI_SME_AUTH, whc_event_sme_auth},
 	{WHC_API_WIFI_SME_SET_ASSOCREQ_IE, whc_event_sme_set_assocreq_ie},
 #endif
+#ifdef CONFIG_WHCH
+	{WHC_API_WIFI_WHCH_STATES_SYNC, whc_event_wifi_stats_update},
+#endif
 #endif
 	{WHC_API_WIFI_ON,	whc_event_wifi_on},
 	{WHC_API_WIFI_DRIVE_IS_MP,	whc_event_wifi_driver_is_mp},
@@ -689,6 +692,19 @@ void whc_event_wifi_ip_update(u32 api_id, u32 *param_buf)
 	whc_send_api_ret_value(api_id, (u8 *)&ret, sizeof(ret));
 }
 
+#ifdef CONFIG_WHCH
+void rtw_recv_rx_stats_count_update(struct rtw_stats_info *pstats_info);
+void whc_event_wifi_stats_update(u32 api_id, u32 *param_buf)
+{
+	int ret = 0;
+	struct rtw_stats_info *pstats = (struct rtw_stats_info *)param_buf;
+
+	rtw_recv_rx_stats_count_update(pstats);
+
+	whc_send_api_ret_value(api_id, (u8 *)&ret, sizeof(ret));
+}
+#endif
+
 #ifdef CONFIG_NAN
 void whc_event_nan_init(u32 api_id, u32 *param_buf)
 {
@@ -1078,10 +1094,13 @@ void whc_event_wifi_driver_is_mp(u32 api_id, u32 *param_buf)
 }
 
 /**
- * @brief  send a inic message and wait resut.
+ * @brief  send a whc message and wait result.
  * @param  ID[in]: api_id.
- * @param  param_buf[inout]: pointer to API parameter.
- * @return result of API.
+ * @param  param[in]: pointer to API parameter.
+ * @param  param_len[in]: length of param in bytes.
+ * @param  ret[out]: pointer to buffer for return value.
+ * @param  ret_len[in]: length of ret buffer in bytes.
+ * @return none.
  */
 void whc_dev_api_message_send(u32 id, u8 *param, u32 param_len, u8 *ret, u32 ret_len)
 {
@@ -1163,7 +1182,7 @@ void whc_dev_wifi_event_indicate(u32 event_cmd, u8 *evt_info, s32 evt_len)
 	if (no_need_malloc) {
 		param = (u32 *)evt_info;
 		size = evt_len;
-		event_cmd &= ~((u32)1 << 31);  /* clear bit13 */
+		event_cmd &= ~((u32)1 << 31);  /* clear bit31 */
 	} else {
 		size = 2 * sizeof(u32) + evt_len;
 		param = (u32 *)rtos_mem_zmalloc(size);
@@ -1335,7 +1354,7 @@ void whc_dev_update_regd_event_indicate(struct rtw_country_code_table *table)
 
 
 /**
- * @brief  to initialize the host for WIFI api.
+ * @brief  to initialize the device for WIFI api.
  * @param  none.
  * @return none.
  */

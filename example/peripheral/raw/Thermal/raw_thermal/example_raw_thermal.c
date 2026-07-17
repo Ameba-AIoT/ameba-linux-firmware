@@ -93,7 +93,7 @@ void raw_thermal_task(void)
 
 	TM_Init(&TM_InitStruct);
 
-	InterruptRegister((IRQ_FUN)TMIrqHandler, THERMAL_IRQ, NULL, 5);
+	InterruptRegister((IRQ_FUN)TMIrqHandler, THERMAL_IRQ, (u32)NULL, 5);
 	InterruptEn(THERMAL_IRQ, 5);
 
 	TM_Display_Result(TM_GetTempResult());
@@ -114,8 +114,6 @@ int example_raw_thermal(void)
 	if (rtos_task_create(NULL, "THERMAL DEMO", (rtos_task_t)raw_thermal_task, NULL, 3072, (1)) != RTK_SUCCESS) {
 		printf("Cannot create thermal task\n\r");
 	}
-
-	//rtos_sched_start();
 
 	return 0;
 }

@@ -56,7 +56,7 @@ void raw_adc_vbat_demo(void)
 	ADC_Init(&ADC_InitStruct);
 	ADC_INTConfig(ADC_BIT_IT_FIFO_FULL_EN, ENABLE);
 
-	InterruptRegister((IRQ_FUN)adc_irq_handle, ADC_IRQ, NULL, INT_PRI_MIDDLE);
+	InterruptRegister((IRQ_FUN)adc_irq_handle, ADC_IRQ, (u32)NULL, INT_PRI_MIDDLE);
 	InterruptEn(ADC_IRQ, INT_PRI_MIDDLE);
 
 	ADC_Cmd(ENABLE);
@@ -71,8 +71,6 @@ int example_raw_adc_tim_trig_vbat(void)
 	if (rtos_task_create(NULL, "RAW_ADC_VBAT_TASK", (rtos_task_t)raw_adc_vbat_demo, NULL, (2048), (1)) != RTK_SUCCESS) {
 		RTK_LOGI(NOTAG, "Cannot create RAW_ADC_VBAT_TASK\n");
 	}
-
-	//rtos_sched_start();
 
 	return 0;
 }

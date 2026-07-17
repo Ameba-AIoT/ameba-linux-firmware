@@ -41,8 +41,15 @@ struct whc_msg_node *whc_host_dequeue_tx_packet(struct xmit_priv_t *xmit_priv)
 int whc_host_xmit_pending_q_num(void)
 {
 	struct xmit_priv_t *xmit_priv = &global_idev.xmit_priv;
+	int val;
 
-	return atomic_read(&xmit_priv->msg_num);
+	val = atomic_read(&xmit_priv->msg_num);
+
+#ifdef CONFIG_WHCH
+	val += whc_host_hal_pending_q_status(WHC_STA_PORT);
+#endif
+
+	return val;
 }
 
 void whc_host_xmit_wakeup_thread(void)
@@ -94,30 +101,14 @@ int whc_host_xmit_thread(void *data)
 	return ret;
 }
 
-int whc_host_xmit_entry(int idx, struct sk_buff *pskb)
+int whc_host_xmit_posthandle(int idx, struct sk_buff *pskb)
 {
-	int ret = NETDEV_TX_OK;
 	bool b_dropped = false;
 	struct whc_msg_info *msg = NULL;
-	struct xmit_priv_t *xmit_priv = &global_idev.xmit_priv;
 	struct net_device_stats *pstats = &global_idev.stats[idx];
-	struct net_device *pndev = global_idev.pndev[idx];
 	struct whc_msg_node *p_node = NULL;
+	struct xmit_priv_t *xmit_priv = &global_idev.xmit_priv;
 	u32 need_headroom, pad_len;
-
-	if (!global_idev.host_init_done) {
-		dev_err(global_idev.pwhc_dev, "Host xmit err: wifi not init\n");
-		return -1;
-	}
-
-	if (whc_host_xmit_pending_q_num() >= QUEUE_STOP_THRES) {
-		netif_tx_stop_all_queues(pndev);
-		if (whc_host_xmit_pending_q_num() >= PKT_DROP_THRES) {
-			dev_warn(global_idev.pwhc_dev, "buffered too much pkts, drop!\n");
-			b_dropped = true;
-			goto exit;
-		}
-	}
 
 	need_headroom = SIZE_TX_DESC + sizeof(struct whc_msg_info);
 
@@ -152,7 +143,45 @@ int whc_host_xmit_entry(int idx, struct sk_buff *pskb)
 	up(&xmit_priv->tx_sema);
 
 	pstats->tx_packets++;
-	pstats->tx_bytes += msg->data_len;
+	pstats->tx_bytes += msg->data_len;	// TODO, currently msg->data_len include txdesc & machdr & iv/icv
+
+exit:
+	return b_dropped;
+}
+
+int whc_host_xmit_entry(int idx, struct sk_buff *pskb)
+{
+	int ret = NETDEV_TX_OK;
+	bool b_dropped = false;
+	struct net_device_stats *pstats = &global_idev.stats[idx];
+	struct net_device *pndev = global_idev.pndev[idx];
+
+	if (!global_idev.host_init_done) {
+		dev_err(global_idev.pwhc_dev, "Host xmit err: wifi not init\n");
+		return -1;
+	}
+
+	if (whc_host_xmit_pending_q_num() >= QUEUE_STOP_THRES) {
+		netif_tx_stop_all_queues(pndev);
+		if (whc_host_xmit_pending_q_num() >= PKT_DROP_THRES) {
+			dev_warn(global_idev.pwhc_dev, "buffered too much pkts, drop!\n");
+			b_dropped = true;
+			goto exit;
+		}
+	}
+
+#ifdef CONFIG_WHCH
+	ret = whc_host_xmit_prehandle(idx, pskb);
+	if (ret == RTK_TX_DROP) {
+		b_dropped = true;
+		goto exit;
+	} else if (ret == RTK_TX_ENQUEUE) {
+		ret = NETDEV_TX_OK;
+		goto exit;
+	}
+#endif
+
+	b_dropped = whc_host_xmit_posthandle(idx, pskb);
 
 exit:
 	skb_tx_timestamp(pskb);
@@ -202,8 +231,8 @@ int whc_host_xmit_deinit(void)
 	/* de initialize queue */
 	while ((p_node = whc_host_dequeue_tx_packet(xmit_priv)) != NULL) {
 		/* release the memory */
-		kfree(p_node);
 		kfree(p_node->msg);
+		kfree(p_node);
 	}
 
 	return 0;

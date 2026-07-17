@@ -55,7 +55,7 @@ void whc_dev_xmit_init(void)
 
 /**
  * @brief  receiving function to send the received data to host.
- * @param  idx_wlan[in]: which port of wifi to set.
+ * @param  idx[in]: wlan interface index.
  * @return none.
  */
 void whc_dev_netif_rx(int idx)
@@ -140,38 +140,29 @@ void whch_dev_netif_rx(struct sk_buff *skb)
 }
 #endif
 
-void whc_dev_flowctrl(u8 *status, u8 send_cmd)
+void whc_dev_send_flowctrl_cmd(u8 fc_state)
 {
 	struct whc_msg_info *msg_info = NULL;
-	u8 status_change = 0;
 
-	if (skbpriv.skb_buff_num - skbpriv.skb_buff_used < WHC_FLOWCTRL_LOW_THRESHOLD) {
-		if (!dev_xmit_priv.flowctrl_en) {
-			dev_xmit_priv.flowctrl_en = 1;
-			status_change = 1;
-		}
-	} else if (skbpriv.skb_buff_num - skbpriv.skb_buff_used > WHC_FLOWCTRL_HIGH_THRESHOLD) {
-		if (dev_xmit_priv.flowctrl_en) {
-			dev_xmit_priv.flowctrl_en = 0;
-			status_change = 1;
-		}
+	msg_info = rtos_mem_zmalloc(sizeof(struct whc_msg_info));
+	if ((u32)msg_info % DEV_DMA_ALIGN) {
+		RTK_LOGE(TAG_WLAN_INIC, "msg_info not 4-bytes aligned!\n");
+		return;
 	}
 
-	if (status) {
-		*status = dev_xmit_priv.flowctrl_en;
-	}
+	msg_info->event = WHC_WIFI_EVT_FLOWCTRL;
+	msg_info->wlan_idx = 0;
+	msg_info->data_len = 0;
+	msg_info->pad_len = 0;
+	msg_info->flow_ctrl_en = fc_state;
 
-	if (send_cmd && status_change) {
-		msg_info = rtos_mem_zmalloc(sizeof(struct whc_msg_info));
-		msg_info->event = WHC_WIFI_EVT_FLOWCTRL;
-		msg_info->wlan_idx = 0;
-		msg_info->data_len = 0;
-		msg_info->pad_len = 0;
-		msg_info->flow_ctrl_en = dev_xmit_priv.flowctrl_en;
+	/* send msg_info + pad + rx_pkt_data(skb->data, skb->len) */
+	whc_dev_send((u8 *)msg_info, sizeof(struct whc_msg_info), msg_info, 0);
+}
 
-		/* send msg_info + pad + rx_pkt_data(skb->data, skb->len) */
-		whc_dev_send((u8 *)msg_info, sizeof(struct whc_msg_info), msg_info, 0);
-	}
+void whc_dev_trigger_rx(void)
+{
+	whc_dev_trigger_rx_handle();
 }
 
 void whc_dev_dispatch_event_copy(const u8 *src, u32 size)
@@ -220,11 +211,10 @@ struct whc_txbuf_info_t *whc_dev_alloc_buf_info(u8 *buf, u16 len, void *alloc_bu
 }
 
 /**
- * @brief  to haddle the inic message interrupt. If the message queue is
+ * @brief  to handle the whc message interrupt. If the message queue is
  * 	initialized, it will enqueue the message and wake up the message
- * 	task to haddle the message. If last send message cannot be done, I will
- * 	set pending for next sending message.
- * @param  rxbuf: rx data.
+ * 	task to handle the message.
+ * @param  rxbuf[in]: rx data.
  * @return none.
  */
 void whc_dev_event_int_hdl(u8 *rxbuf, struct sk_buff *skb)

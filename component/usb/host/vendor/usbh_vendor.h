@@ -34,8 +34,8 @@
 #define USBH_VENDOR_MASK_INTR_OUT    (BIT3)  /**< Mask for Interrupt OUT transfer */
 #define USBH_VENDOR_MASK_ISOC_IN     (BIT4)  /**< Mask for Isochronous IN transfer */
 #define USBH_VENDOR_MASK_ISOC_OUT    (BIT5)  /**< Mask for Isochronous OUT transfer */
-/** @} End of Host_Vendor_Constants group*/
-/** @} End of USB_Host_Constants group*/
+/** @} End of Host_Vendor_Constants group */
+/** @} End of USB_Host_Constants group */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -144,14 +144,14 @@ typedef struct {
 	usbh_vendor_xfer_t intr_out_xfer;   /**< Interrupt OUT transfer handle */
 	usbh_vendor_xfer_t isoc_in_xfer;    /**< Isochronous IN transfer handle */
 	usbh_vendor_xfer_t isoc_out_xfer;   /**< Isochronous OUT transfer handle */
-	usbh_vendor_cb_t *cb;               /**< Pointer to user callback structure */
+	const usbh_vendor_cb_t *cb;         /**< Pointer to user callback structure */
 	usb_host_t *host;                   /**< Pointer to USB Host core handle */
 	u8 *ctrl_buf;                       /**< Buffer for control transfer */
 	u8 ep_mask;                         /**< Active endpoint mask */
 	u8 state;                           /**< Current class state machine state, @ref usbh_vendor_state_t. */
 } usbh_vendor_host_t;
-/** @} End of Host_Vendor_Types group*/
-/** @} End of USB_Host_Types group*/
+/** @} End of Host_Vendor_Types group */
+/** @} End of USB_Host_Types group */
 
 /* Exported macros -----------------------------------------------------------*/
 
@@ -170,7 +170,7 @@ typedef struct {
  * @param  cb: Pointer to the application callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbh_vendor_init(usbh_vendor_cb_t *cb);
+int usbh_vendor_init(const usbh_vendor_cb_t *cb);
 
 /**
  * @brief  De-Initialize the Vendor Class driver.

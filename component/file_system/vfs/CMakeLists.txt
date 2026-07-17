@@ -52,6 +52,7 @@ ameba_list_append(private_sources
 ameba_list_append_if(CONFIG_SUPPORT_NAND_FLASH private_sources
     vfs_nand_ftl.c
     vfs_nand_ftl_mfg.c
+    lbm_core.c
 )
 
 if(CONFIG_FATFS_SECOND_FLASH OR CONFIG_LITTLEFS_SECOND_FLASH)
@@ -63,6 +64,33 @@ endif()
 if(CONFIG_VFS_FATFS_INCLUDED)
     ameba_list_append(private_sources
         vfs_fatfs.c
+    )
+endif()
+
+if(CONFIG_VFS_REALFS_INCLUDED)
+    ameba_list_append(private_sources vfs_realfs.c)
+    if(CONFIG_REALFS_SD_MODE)
+        ameba_list_append(private_sources
+            ${c_CMPT_FILE_SYSTEM_DIR}/realfs/port/realfs_bdev_sd.c
+        )
+    endif()
+    if(CONFIG_REALFS_FLASH)
+        ameba_list_append(private_sources
+            ${c_CMPT_FILE_SYSTEM_DIR}/realfs/port/realfs_bdev_flash.c
+        )
+        if(CONFIG_REALFS_FLASH_NAND_LBM)
+            ameba_list_append(private_sources
+                ${c_CMPT_FILE_SYSTEM_DIR}/realfs/port/realfs_erasedev_lbm.c
+            )
+        endif()
+        if(CONFIG_REALFS_FLASH_NOR_MAP)
+            ameba_list_append(private_sources
+                ${c_CMPT_FILE_SYSTEM_DIR}/realfs/port/realfs_erasedev_nor.c
+            )
+        endif()
+    endif()
+    ameba_list_append(private_includes
+        ${c_CMPT_FILE_SYSTEM_DIR}/realfs/port
     )
 endif()
 

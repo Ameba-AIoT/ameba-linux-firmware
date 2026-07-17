@@ -818,7 +818,7 @@ static void usbd_composite_uac_append_data(void)
 
 	//used for usb read
 	//if (usb_ringbuf_get_count(buf_list) >= usbd_composite_uac_get_buf_cnt())
-	if (usb_ringbuf_is_empty(buf_list) == 0) { // not empty
+	if ((buf_ctrl->sema_active_status) && (usb_ringbuf_is_empty(buf_list) == 0)) { // not empty
 		usb_os_sema_give(buf_ctrl->isoc_sema);
 	}
 }
@@ -923,7 +923,7 @@ static u8 usbd_composite_uac_get_ch_config(u8 ch_cnt)
 	return 0x03;
 }
 
-static inline void usbd_composite_uac_format_change(usbd_composite_uac_usr_cb_t *cb, usbd_audio_cfg_t *audio_cfg)
+static inline void usbd_composite_uac_format_change(const usbd_composite_uac_usr_cb_t *cb, usbd_audio_cfg_t *audio_cfg)
 {
 	if ((NULL == cb) || (NULL == audio_cfg) || (NULL == cb->format_changed)) {
 		return;
@@ -1255,7 +1255,9 @@ static void usbd_composite_uac_isoc_in_process_xfer(usb_dev_t *dev)
 	if (!usb_ringbuf_is_empty(buf_list)) {
 		// check valid data
 		read_len = usb_ringbuf_remove_head(buf_list, usbd_composite_uac_tx_buf, USBD_COMPOSITE_ISOC_BUF_LENGTH, &zlp);
-		usb_os_sema_give(buf_ctrl->isoc_sema);
+		if (buf_ctrl->sema_active_status) {
+			usb_os_sema_give(buf_ctrl->isoc_sema);
+		}
 		if (read_len > 0) {
 			ep->is_busy = 1U;
 			ep->xfer_state = 1U;
@@ -1290,7 +1292,7 @@ static void usbd_composite_uac_isoc_in_process_complete(usb_dev_t *dev)
 static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 {
 	usbd_composite_uac_device_t *uac = &usbd_composite_uac_device;
-	usbd_composite_uac_usr_cb_t *cb = uac->cb;
+	const usbd_composite_uac_usr_cb_t *cb = uac->cb;
 	usbd_audio_cfg_t *audio_cfg = NULL;
 	usbd_ep_t *ep0_in = &dev->ep0_in;
 	usbd_ep_t *ep0_out = &dev->ep0_out;
@@ -1404,18 +1406,18 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						usbd_composite_uac_sampling_freq_ctrl_range_req(dev, req->wLength, 0);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 0);
 						ret = HAL_ERR_PARA;
 					}
 				} else if (controlSelector == USB_UAC2_CS_CLK_VALID_CONTROL) {
 					if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_CUR) {
 						usbd_composite_uac_clk_valid_req(dev, uac->cur_clk_valid);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 1);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 2);
 					ret = HAL_ERR_PARA;
 				}
 				break;
@@ -1426,11 +1428,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						ch_cnt = uac->isoc_out.audio_config.ch_cnt;
 						usbd_composite_uac_connect_ctrl_req(dev, ch_cnt, usbd_composite_uac_get_ch_config(ch_cnt), req->wLength);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 3);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 4);
 					ret = HAL_ERR_PARA;
 				}
 				break;
@@ -1442,7 +1444,7 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						ep0_in->xfer_len = 1U;
 						usbd_ep_transmit(dev, ep0_in);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 5);
 						ret = HAL_ERR_PARA;
 					}
 				} else if (controlSelector == USB_UAC2_CTRL_FU_VOLUME_CONTROL_SELECTOR) { //volume ctrl  //02
@@ -1462,11 +1464,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						ep0_in->xfer_len = sizeof(response);
 						usbd_ep_transmit(dev, ep0_in);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 6);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 7);
 					ret = HAL_ERR_PARA;
 				}
 				break;
@@ -1480,11 +1482,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						usbd_composite_uac_sampling_freq_ctrl_range_req(dev, req->wLength, 1);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 8);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 9);
 					ret = HAL_ERR_PARA;
 				}
 				break;
@@ -1494,11 +1496,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_CUR) {
 						usbd_composite_uac_connect_ctrl_req(dev, 1, 0x1, req->wLength);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 10);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 11);
 					ret = HAL_ERR_PARA;
 				}
 				break;
@@ -1510,7 +1512,7 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						ep0_in->xfer_len = 1U;
 						usbd_ep_transmit(dev, ep0_in);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 12);
 						ret = HAL_ERR_PARA;
 					}
 				} else if (controlSelector == USB_UAC2_CTRL_FU_VOLUME_CONTROL_SELECTOR) { //volume ctrl  //02
@@ -1530,17 +1532,17 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						ep0_in->xfer_len = sizeof(response);
 						usbd_ep_transmit(dev, ep0_in);
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bRequest err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 13);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: wValue err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 14);
 					ret = HAL_ERR_PARA;
 				}
 				break;
 
 			default:
-				RTK_LOGS(TAG, RTK_LOG_ERROR, "D2H SETUP: wIndex err %d\n", entityId);
+				USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 15);
 				break;
 			}
 		} else {
@@ -1556,11 +1558,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						// Do nothing
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set sampling_freq err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 16);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "Set sampling_freq ctrl err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 17);
 					ret = HAL_ERR_PARA;
 				}
 				break;/* case USBD_UAC_CTRL_ENTITYID_CLOCK_HEADSET_HEADPHONES */
@@ -1574,7 +1576,7 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						// Do nothing
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set cur mute err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 18);
 						ret = HAL_ERR_PARA;
 					}
 				} else if (controlSelector == USB_UAC2_CTRL_FU_VOLUME_CONTROL_SELECTOR) { //volume
@@ -1584,11 +1586,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						usbd_ep_receive(dev, ep0_out);
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set cur volume range err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 19);
 						ret = HAL_ERR_HW;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "Set fu err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 20);
 					ret = HAL_ERR_HW;
 				}
 				break;/* case USBD_UAC_CTRL_ENTITYID_OUTPUTTERMINAL_FEATUREUNIT */
@@ -1603,11 +1605,11 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						// Do nothing
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set sampling_freq err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 21);
 						ret = HAL_ERR_PARA;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "Set sampling_freq ctrl err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 22);
 					ret = HAL_ERR_PARA;
 				}
 				break;/* case USBD_UAC_CTRL_ENTITYID_CLOCK_HEADSET_MICROPHONE */
@@ -1621,7 +1623,7 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 						// Do nothing
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set cur mute err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 23);
 						ret = HAL_ERR_PARA;
 					}
 				} else if (controlSelector == USB_UAC2_CTRL_FU_VOLUME_CONTROL_SELECTOR) { //volume
@@ -1631,16 +1633,16 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 						usbd_ep_receive(dev, ep0_out);
 					} else if (req->bRequest == USB_UAC2_CLASS_REQ_CODE_RANGE) {
 					} else {
-						RTK_LOGS(TAG, RTK_LOG_ERROR, "Set cur volume range err %d-%d\n", entityId, req->bRequest);
+						USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 24);
 						ret = HAL_ERR_HW;
 					}
 				} else {
-					RTK_LOGS(TAG, RTK_LOG_ERROR, "Set fu err %d-%d\n", entityId, controlSelector);
+					USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 25);
 					ret = HAL_ERR_HW;
 				}
 				break;/* case USBD_UAC_CTRL_ENTITYID_INPUTTERMINAL_FEATUREUNIT */
 			default:
-				RTK_LOGS(TAG, RTK_LOG_ERROR, "H2D SETUP: wIndex err %d\n", entityId);
+				USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 26);
 				break;
 			}
 		}
@@ -1665,7 +1667,7 @@ static int usbd_composite_uac_setup(usb_dev_t *dev, usb_setup_req_t *req)
 		break;
 
 	default:
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "SETUP: bmRequestType err\n");
+		USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 27);
 		ret = HAL_ERR_HW;
 		break;
 	}
@@ -1690,7 +1692,7 @@ static int usbd_composite_uac_handle_ep0_data_out(usb_dev_t *dev)
 	s16 volume_value = 0;
 	u32 sampling_freq;
 	usbd_composite_uac_device_t *uac = &usbd_composite_uac_device;
-	usbd_composite_uac_usr_cb_t *cb = uac->cb;
+	const usbd_composite_uac_usr_cb_t *cb = uac->cb;
 	usb_setup_req_t *p_ctrl_req = &(uac->ctrl_req);
 	usbd_audio_cfg_t *audio_cfg = NULL;
 	usbd_ep_t *ep0_out = &dev->ep0_out;
@@ -1879,7 +1881,7 @@ static int usbd_composite_uac_handle_ep_data_out(usb_dev_t *dev, u8 ep_addr, u32
 
 				//used for usb read
 				//if (usb_ringbuf_get_count(buf_list) >= usbd_composite_uac_get_buf_cnt())
-				if (usb_ringbuf_is_empty(buf_list) == 0) { //not empty
+				if ((buf_ctrl->sema_active_status) && (usb_ringbuf_is_empty(buf_list) == 0)) { //not empty
 					usb_os_sema_give(buf_ctrl->isoc_sema);
 				}
 			}
@@ -2029,17 +2031,13 @@ static void usbd_composite_uac_ep_buf_ctrl_deinit(usbd_composite_uac_buf_ctrl_t 
 	buf_ctrl->mps = 0;
 	buf_ctrl->xfer_continue = 0;
 
-	if (buf_ctrl->sema_valid) {
-		buf_ctrl->sema_valid = 0;
+	buf_ctrl->sema_active_status = 0;
 
-		if (buf_ctrl->wait_sema) {
-			usb_os_sema_give(buf_ctrl->isoc_sema);
-		}
-		do {
-			usb_os_delay_us(100U);
-		} while (buf_ctrl->wait_sema);
-
-		usb_os_sema_delete(buf_ctrl->isoc_sema);
+	if ((buf_ctrl->isoc_sema != NULL) && (buf_ctrl->sema_wait_status)) {
+		usb_os_sema_give(buf_ctrl->isoc_sema);
+	}
+	while (buf_ctrl->sema_wait_status) {
+		usb_os_delay_us(100U);
 	}
 	usb_ringbuf_manager_deinit(&(buf_ctrl->buf_list));
 }
@@ -2071,8 +2069,14 @@ static int usbd_composite_uac_ep_buf_ctrl_init(usbd_composite_uac_buf_ctrl_t *bu
 
 		usb_ringbuf_manager_init(&(buf_ctrl->buf_list), buf_list_cnt, buf_ctrl->mps, 1);
 
-		usb_os_sema_create(&(buf_ctrl->isoc_sema));
-		buf_ctrl->sema_valid = 1;
+		if (buf_ctrl->isoc_sema == NULL) {
+			if (usb_os_sema_create(&(buf_ctrl->isoc_sema)) != HAL_OK) {
+				RTK_LOGS(TAG, RTK_LOG_ERROR, "Create isoc sema fail\n");
+				return HAL_ERR_MEM;
+			}
+		}
+		buf_ctrl->sema_active_status = 1;
+		buf_ctrl->sema_wait_status  = 0;
 	} else {
 		usbd_composite_uac_ep_buf_ctrl_deinit(buf_ctrl);
 	}
@@ -2103,7 +2107,7 @@ int usbd_composite_uac_receive_data(usbd_composite_uac_buf_ctrl_t *buf_ctrl)
 		buf_ctrl->data_idx = 0;
 
 #if USBD_COMPOSITE_UAC_DEBUG
-		RTK_LOGS(TAG, RTK_LOG_INFO, "First trigger sema %d cnt %d-%d \n", buf_ctrl->wait_sema, usbd_composite_uac_get_read_buf_cnt(), buf_ctrl->mps);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "First trigger sema %d cnt %d-%d \n", buf_ctrl->sema_wait_status, usbd_composite_uac_get_read_buf_cnt(), buf_ctrl->mps);
 #endif
 	} else {
 		RTK_LOGS(TAG, RTK_LOG_INFO, "No support rx\n");
@@ -2127,16 +2131,16 @@ static int usbd_composite_uac_wait_isoc_with_status_check(usbd_composite_uac_buf
 	while (elapsed < timeout_ms) {
 		wait_time = (timeout_ms - elapsed > USBD_UAC_WAIT_SLICE_MS) ? USBD_UAC_WAIT_SLICE_MS : (timeout_ms - elapsed);
 
-		buf_ctrl->wait_sema = 1;
+		buf_ctrl->sema_wait_status = 1;
 		if (usb_os_sema_take(buf_ctrl->isoc_sema, wait_time) == HAL_OK) {
-			buf_ctrl->wait_sema = 0;
+			buf_ctrl->sema_wait_status = 0;
 			return HAL_OK;
 		}
 
 		elapsed += wait_time;
 	}
 
-	buf_ctrl->wait_sema = 0;
+	buf_ctrl->sema_wait_status = 0;
 	return ret;
 }
 
@@ -2217,7 +2221,7 @@ static int usbd_composite_uac_write_ring_buf(usbd_composite_uac_buf_ctrl_t *buf_
 
 /* Exported functions --------------------------------------------------------*/
 
-int usbd_composite_uac_init(usbd_composite_dev_t *cdev, usbd_composite_uac_usr_cb_t *cb)
+int usbd_composite_uac_init(usbd_composite_dev_t *cdev, const usbd_composite_uac_usr_cb_t *cb)
 {
 	int ret = HAL_OK;
 	usbd_composite_uac_device_t *uac = &usbd_composite_uac_device;
@@ -2313,6 +2317,15 @@ int usbd_composite_uac_deinit(void)
 
 	usbd_composite_uac_ep_buf_ctrl_deinit(&(uac->isoc_in));
 	usbd_composite_uac_ep_buf_ctrl_deinit(&(uac->isoc_out));
+
+	if (uac->isoc_in.isoc_sema != NULL) {
+		usb_os_sema_delete(uac->isoc_in.isoc_sema);
+		uac->isoc_in.isoc_sema = NULL;
+	}
+	if (uac->isoc_out.isoc_sema != NULL) {
+		usb_os_sema_delete(uac->isoc_out.isoc_sema);
+		uac->isoc_out.isoc_sema = NULL;
+	}
 
 	return HAL_OK;
 }
@@ -2422,13 +2435,18 @@ u32 usbd_composite_uac_read(u8 *buffer, u32 size, u32 time_out_ms, u32 *zero_pkt
 			// if (usb_ringbuf_get_count(&(buf_ctrl->buf_list)) < usbd_composite_uac_get_buf_cnt())
 			if (usb_ringbuf_is_empty(&(buf_ctrl->buf_list))) { //empty,need wait
 				//wait sema
-				buf_ctrl->wait_sema = 1;
+				buf_ctrl->sema_wait_status = 1;
+
+				if (!buf_ctrl->sema_active_status) {
+					buf_ctrl->sema_wait_status = 0;
+					break;
+				}
 				if (usb_os_sema_take(buf_ctrl->isoc_sema, time_out_ms) != HAL_OK) {
-					buf_ctrl->wait_sema = 0;
+					buf_ctrl->sema_wait_status = 0;
 					break;
 				}
 
-				buf_ctrl->wait_sema = 0;
+				buf_ctrl->sema_wait_status = 0;
 			} else {
 				/* if did not read any pkt, loop to check the wr/rd pos*/
 				if (usbd_composite_uac_read_ring_buf(buf_ctrl, buffer, size, &copy_len, &pkt_cnt, zero_pkt_flag) == 0) {
@@ -2535,7 +2553,7 @@ u32 usbd_composite_uac_write(u8 *buffer, u32 size, u32 timeout_ms)
 	u32 try_len, just_written;
 	u8 need_wait = 0, last_zero = 0;
 
-	if (buf_ctrl->mps == 0 || !buf_ctrl->sema_valid) {
+	if (buf_ctrl->mps == 0 || !buf_ctrl->sema_active_status) {
 		return 0;
 	}
 

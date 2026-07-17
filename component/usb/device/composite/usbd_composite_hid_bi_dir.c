@@ -421,7 +421,7 @@ static int composite_hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			}
 			break;
 		default:
-			RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid bRequest 0x%02x\n", req->bRequest);
+			USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 0);
 			ret = HAL_ERR_PARA;
 			break;
 		}
@@ -444,7 +444,7 @@ static int composite_hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 		}
 		break;
 	default:
-		RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid bmRequestType 0x%02x\n", req->bmRequestType);
+		USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_SETUP, 1);
 		ret = HAL_ERR_PARA;
 		break;
 	}
@@ -547,7 +547,7 @@ static int composite_hid_handle_ep_data_in(usb_dev_t *dev, u8 ep_addr, u8 status
 	UNUSED(dev);
 
 	if (status != HAL_OK) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "EP%02x TX err: %d\n", ep_addr, status);
+		USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_XFER, ep_addr);
 	} else {
 		if (ep_addr == USBD_COMP_HID_INTR_IN_EP) { // priv hid cmmand
 			ep_hid_priv_in->xfer_state = 0U;
@@ -790,7 +790,7 @@ static int usbd_composite_hid_ring_buf_ctrl_init(void)
 
 /* Exported functions --------------------------------------------------------*/
 
-int usbd_composite_hid_init(usbd_composite_dev_t *cdev, usbd_composite_hid_usr_cb_t *cb)
+int usbd_composite_hid_init(usbd_composite_dev_t *cdev, const usbd_composite_hid_usr_cb_t *cb)
 {
 	int ret = HAL_OK;
 	usbd_composite_hid_device_t *hid = &composite_hid_device;
@@ -847,8 +847,8 @@ int usbd_composite_hid_init(usbd_composite_dev_t *cdev, usbd_composite_hid_usr_c
 
 usbd_composite_hid_clean_all_exit:
 	if (ep_hid_in->xfer_buf) {
-		usb_os_mfree(ep_hid_priv_in->xfer_buf);
-		ep_hid_priv_in->xfer_buf = NULL;
+		usb_os_mfree(ep_hid_in->xfer_buf);
+		ep_hid_in->xfer_buf = NULL;
 	}
 
 usbd_composite_hid_clean_priv_exit:

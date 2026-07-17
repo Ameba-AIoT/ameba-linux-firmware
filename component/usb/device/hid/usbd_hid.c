@@ -523,8 +523,8 @@ static int hid_setup(usb_dev_t *dev, usb_setup_req_t *req)
 
 		case USBD_HID_GET_REPORT:
 			/* send an empty report */
-			memset(ep0_in->xfer_buf, 0x0, req->wLength);
-			ep0_in->xfer_len = req->wLength;
+			ep0_in->xfer_len = MIN(req->wLength, ep0_in->xfer_buf_len);
+			usb_os_memset(ep0_in->xfer_buf, 0x0, ep0_in->xfer_len);
 			usbd_ep_transmit(dev, ep0_in);
 			break;
 		case USBD_HID_SET_REPORT:
@@ -641,11 +641,12 @@ static int hid_handle_ep_data_in(usb_dev_t *dev, u8 ep_addr, u8 status)
 	usbd_ep_t *ep_intr_in = &hid->ep_intr_in;
 
 	UNUSED(dev);
+	UNUSED(ep_addr);
 
 	if (status == HAL_OK) {
 		/*TX done*/
 	} else {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "EP%02x TX err: %d\n", ep_addr, status);
+		USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_XFER, ep_addr);
 	}
 
 	hid->cb->transmitted(status);
@@ -750,7 +751,7 @@ static u16 hid_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf)
 			break;
 		/* Add customer string here */
 		default:
-			//RTK_LOGS(TAG, RTK_LOG_WARN, "Invalid str idx %d\n", USB_LOW_BYTE(req->wValue));
+			USB_DIAG(USB_LAYER_CLASS, USB_EVT_ERR_GET_DESC, 0);
 			break;
 		}
 		break;
@@ -784,7 +785,7 @@ static void hid_status_changed(usb_dev_t *dev, u8 old_status, u8 status)
 
 /* Exported functions --------------------------------------------------------*/
 
-int usbd_hid_init(u32 tx_buf_len, usbd_hid_usr_cb_t *cb)
+int usbd_hid_init(u32 tx_buf_len, const usbd_hid_usr_cb_t *cb)
 {
 	int ret = HAL_OK;
 	usbd_hid_t *hid = &hid_device;
@@ -877,7 +878,7 @@ int usbd_hid_deinit(void)
 	return HAL_OK;
 }
 
-int usbd_hid_send_data(u8 *data, u32 len)
+int usbd_hid_send_data(const u8 *data, u32 len)
 {
 	int ret = HAL_ERR_HW;
 	usbd_hid_t *hid = &hid_device;

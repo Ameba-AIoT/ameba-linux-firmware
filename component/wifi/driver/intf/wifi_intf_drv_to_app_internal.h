@@ -89,6 +89,8 @@ enum  {
 
 	RTW_EVENT_ADDBA_NEGO				= 126,
 
+	RTW_EVENT_DFS_CAC_DONE				= 127, /**< DFS master: CAC passed, host brings AP netif link up */
+
 	RTW_EVENT_INTERNAL_MAX,
 };
 
@@ -193,6 +195,15 @@ struct rtw_kvr_param_t {
 	u32 ielen;
 #endif
 #endif
+};
+
+/**
+ * @brief  The structure is ethernet hdr format.
+ */
+struct wlan_ethhdr_t {
+	unsigned char		daddr[ETH_ALEN];
+	unsigned char		saddr[ETH_ALEN];
+	unsigned short		type;
 };
 
 struct rtw_event_deauth_info_flash {

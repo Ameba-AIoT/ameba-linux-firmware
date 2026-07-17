@@ -11,6 +11,7 @@
 
 #include "usb_os.h"
 #include "usb_ch9.h"
+#include "usb_diag.h"
 
 /* Exported defines ----------------------------------------------------------*/
 
@@ -111,6 +112,7 @@ typedef enum {
 	USBH_MSG_USER_SET_CONFIG = 0U,/**< Message to request user to set the configuration. */
 	USBH_MSG_CONNECTED,           /**< Message indicating a device has been successfully connected and configured. */
 	USBH_MSG_DISCONNECTED,        /**< Message indicating a device has been disconnected. */
+	USBH_MSG_WAKEUP,              /**< Message indicating the host has been woken from suspend by a device-initiated remote wakeup. */
 	USBH_MSG_PROBE_FAIL,          /**< Message indicating that device probing failed due to mismatched device properties. */
 	USBH_MSG_ATTACH_FAIL,         /**< Message indicating device attachment failed. */
 	USBH_MSG_ERROR,               /**< Message indicating a general error occurred. */
@@ -129,7 +131,7 @@ typedef enum {
 	USBH_TICK_ERROR,              /**< Error state for tick source. */
 } usbh_tick_source_t;
 
-// Forward declarations to resolve circular dependencies.
+/* Forward declarations to resolve circular dependencies. */
 struct _usbh_itf_data_t;
 struct _usb_host_t;
 
@@ -314,12 +316,14 @@ typedef struct {
 	                                     Min value 16 and max value restricted by SoC hardware. */
 #endif
 	u16 main_task_stack_size;         /**< USB main task stack size. */
+	u16 diag_depth;                   /**< Diag ring buffer depth in entries; 0 uses @ref USB_DIAG_DEFAULT_DEPTH. Requires `diag_enable`. */
+	u16 diag_poll_ms;                 /**< Diag task polling interval in ms; 0 uses @ref USB_DIAG_DEFAULT_POLL_MS. Requires `diag_enable`. */
 	u8 main_task_priority;            /**< USB main task priority, the main task processes the USB host messages. */
 	u8 isr_priority;                  /**< USB ISR priority. */
 
 	u8 xfer_retry_max_cnt;            /**< Maximum number of retries for a failed transfer. */
 
-	u8 tick_source : 4;               /**< Tick source for getting the usb host tick of USB host core driver, see @ref usbh_tick_source_t.
+	u8 tick_source : 3;               /**< Tick source for getting the usb host tick of USB host core driver, see @ref usbh_tick_source_t.
 	                                     Which is used to trigger periodic transfers based on the endpoint interval and to detect transfer timeouts.*/
 	/**
 	 * @brief USB speed mode. See @ref usb_speed_type_t.
@@ -330,6 +334,9 @@ typedef struct {
 	u8 speed : 2;
 	u8 isr_in_critical : 1;               /**< Flag to process USB ISR within a critical section (0: Disable, 1: Enable). */
 	u8 hub_support : 1;                   /**< Support 1-level HUB (0: Disable, 1: Enable). */
+	u8 diag_enable : 1;                   /**< Enable USB diag ring buffer and polling task (0: Disable, 1: Enable).
+                                              When disabled, error diagnostic information is silently lost.
+                                              Enable this to capture USB error events for debugging. */
 } usbh_config_t;
 
 /**
@@ -484,7 +491,7 @@ typedef struct _usb_host_t {
 #endif
 	const usbh_dev_id_t *dev_id;        /**< Pointer to the active device ID. */
 	usbh_dev_desc_t *dev_desc;          /**< Pointer to the device's descriptor. */
-	usbh_user_cb_t *cb;                 /**< Pointer to the user-provided callbacks. */
+	const usbh_user_cb_t *cb;           /**< Pointer to the user-provided callbacks. */
 	void *hcd;                          /**< Pointer to the HCD handle. */
 
 	u8 dev_addr;                        /**< The address of the attached device. */
@@ -510,7 +517,7 @@ typedef struct _usb_host_t {
  * @param[in] cb: USB user callback.
  * @return 0 on success, non-zero on failure.
  */
-int usbh_init(usbh_config_t *cfg, usbh_user_cb_t *cb);
+int usbh_init(const usbh_config_t *cfg, const usbh_user_cb_t *cb);
 
 /**
  * @brief Deinitialize USB host core driver.
@@ -530,14 +537,19 @@ void usbh_suspend(void);
 void usbh_resume(void);
 
 /**
- * @brief Sets the USB to enter Clock Gating (CG) state with a specific wakeup event.
- * @details This function configures the USB host to enter a low-power clock gated state.
- *          The wakeup mechanism depends on the value of the \p sleep_ms parameter.
- * @param[in] sleep_ms:
- *          - 0: Wakeup is triggered by a USB event.
- *          - others: Wakeup is triggered by a timer event after the specified time.
+ * @brief Register the sleep callbacks for USB host Clock Gating (CG).
+ * @details Registers the PMU sleep callbacks so the USB host can be suspended/resumed
+ *          when the AP enters/exits the low-power clock gated state.
+ *          Wakelock operations and wake event configuration are handled by the caller,
+ *          not inside this function.
  */
-void usbh_enter_cg(u32 sleep_ms);
+void usbh_cg_register(void);
+
+/**
+ * @brief Unregister the sleep callbacks for USB host Clock Gating (CG).
+ * @note  Wakelock operations are handled by the caller, not inside this function.
+ */
+void usbh_cg_unregister(void);
 
 /**
  * @brief  USB Host Port Test Control.
@@ -708,12 +720,19 @@ int usbh_ctrl_request(usb_host_t *host, usbh_setup_req_t *req, u8 *buf);
 int usbh_transfer_data(usb_host_t *host, usbh_pipe_t *pipe);
 
 /**
- * @brief  Get the last transfer data size of specific pipe.
+ * @brief Get the actual number of bytes received in the last D2H transfer of specific pipe.
  * @param[in] host: Host Handle.
  * @param[in] pipe: Pipe struct handle.
  * @return Last transfer data size in bytes
  */
 u32 usbh_get_last_transfer_size(usb_host_t *host, usbh_pipe_t *pipe);
+
+/**
+ * @brief  Get the actual number of bytes received in the last D2H control transfer (EP0 IN data phase).
+ * @param[in] host: Host Handle.
+ * @return Bytes received; 0 if a ZLP was received.
+ */
+u32 usbh_get_last_ctrl_in_size(usb_host_t *host);
 
 /**
  * @brief  Start one transfer and handle result.

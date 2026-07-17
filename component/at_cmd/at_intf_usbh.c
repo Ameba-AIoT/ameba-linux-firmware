@@ -56,9 +56,6 @@ static const char *const TAG = "ACM";
 static u8 cdc_acm_loopback_tx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
 static u8 cdc_acm_loopback_rx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
 
-static u8 uart_show_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] = {0};
-static char uart_format_buffer[FORMAT_LEN];
-
 static rtos_sema_t cdc_acm_detach_sema;
 static rtos_sema_t cdc_acm_attach_sema;
 static rtos_sema_t cdc_acm_receive_sema;
@@ -78,14 +75,11 @@ static RingBuffer *at_usbh_tx_ring_buf = NULL;
 
 static __IO int cdc_acm_is_ready = 0;
 
-static char uart_irq_buffer[MAX_CMD_LEN] = {0};
-static u32 uart_irq_count = 0;
-
 extern volatile UART_LOG_CTL shell_ctl;
 extern UART_LOG_BUF shell_rxbuf;
 extern int atcmd_service(char *line_buf);
 
-static usbh_config_t usbh_cfg = {
+static const usbh_config_t usbh_cfg = {
 	.speed = USB_SPEED_HIGH,
 	.ext_intr_enable = USBH_SOF_INTR,
 	.isr_priority = INT_PRI_MIDDLE,
@@ -105,7 +99,7 @@ static usbh_config_t usbh_cfg = {
 #endif
 };
 
-static usbh_cdc_acm_cb_t cdc_acm_usr_cb = {
+static const usbh_cdc_acm_cb_t cdc_acm_usr_cb = {
 	.init   = cdc_acm_cb_init,
 	.deinit = cdc_acm_cb_deinit,
 	.attach = cdc_acm_cb_attach,
@@ -116,7 +110,7 @@ static usbh_cdc_acm_cb_t cdc_acm_usr_cb = {
 	.line_coding_changed = cdc_acm_cb_line_coding_changed
 };
 
-static usbh_user_cb_t usbh_usr_cb = {
+static const usbh_user_cb_t usbh_usr_cb = {
 	.process = cdc_acm_cb_process
 };
 

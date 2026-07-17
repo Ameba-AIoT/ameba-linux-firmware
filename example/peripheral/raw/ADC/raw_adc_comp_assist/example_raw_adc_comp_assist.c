@@ -98,7 +98,7 @@ void adc_comp_demo(void)
 
 	/* When input voltage of each channel (0~4) matches the criteria, comparator will send
 	wakeup signal to system and trigger ADC to sample */
-	InterruptRegister((IRQ_FUN)CMPIrqHandle, ADC_COMP_IRQ, NULL, INT_PRI_MIDDLE);
+	InterruptRegister((IRQ_FUN)CMPIrqHandle, ADC_COMP_IRQ, (u32)NULL, INT_PRI_MIDDLE);
 	InterruptEn(ADC_COMP_IRQ, INT_PRI_MIDDLE);
 
 	while (1);
@@ -109,8 +109,6 @@ int example_raw_adc_comp_assist(void)
 	if (rtos_task_create(NULL, "RAW_ADC_COMP_TASK", (rtos_task_t)adc_comp_demo, NULL, (2048), (1)) != RTK_SUCCESS) {
 		RTK_LOGE(NOTAG, "Cannot create RAW_ADC_COMP_TASK\n");
 	}
-
-	//rtos_sched_start();
 
 	return 0;
 }

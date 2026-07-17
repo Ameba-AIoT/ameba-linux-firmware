@@ -33,9 +33,14 @@ static const char *const TAG = "VND";
 #define CONFIG_USBD_VENDOR_BULK_ASYNC_XFER				0
 
 // Thread priorities
-#define CONFIG_USBD_VENDOR_INIT_THREAD_PRIORITY			5U
-#define CONFIG_USBD_VENDOR_HOTPLUG_THREAD_PRIORITY		8U // Should be higher than CONFIG_USBD_VENDOR_ISR_THREAD_PRIORITY
-#define CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY			6U // Should be lower than CONFIG_USBD_VENDOR_ISR_THREAD_PRIORITY
+#define CONFIG_USBD_VENDOR_INIT_THREAD_PRIORITY           5U
+#define CONFIG_USBD_VENDOR_HOTPLUG_THREAD_PRIORITY        8U
+#define CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY           6U
+
+// Thread stack sizes
+#define CONFIG_USBD_VENDOR_INIT_THREAD_STACK_SIZE           1024U
+#define CONFIG_USBD_VENDOR_HOTPLUG_THREAD_STACK_SIZE        1024U
+#define CONFIG_USBD_VENDOR_XFER_THREAD_STACK_SIZE           1024U
 
 /* Private types -------------------------------------------------------------*/
 
@@ -55,7 +60,7 @@ static void vendor_cb_status_changed(u8 old_status, u8 status);
 
 /* Private variables ---------------------------------------------------------*/
 
-static usbd_config_t vendor_cfg = {
+static const usbd_config_t vendor_cfg = {
 	.speed = CONFIG_USBD_VENDOR_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
 #if defined(CONFIG_AMEBASMART) || defined(CONFIG_AMEBAD) || defined(CONFIG_AMEBADPLUS)
@@ -76,7 +81,7 @@ static usbd_config_t vendor_cfg = {
 #endif
 };
 
-static usbd_vendor_cb_t vendor_cb = {
+static const usbd_vendor_cb_t vendor_cb = {
 	.init = vendor_cb_init,
 	.deinit = vendor_cb_deinit,
 	.setup = vendor_cb_setup,
@@ -187,7 +192,7 @@ static int vendor_cb_intr_received(u8 *buf, u32 len)
 }
 
 #if CONFIG_USBD_VENDOR_INTR_ASYNC_XFER
-static void vendor_intr_xfer_thread(void *param)
+static void example_usbd_vendor_intr_xfer_thread(void *param)
 {
 	UNUSED(param);
 
@@ -223,7 +228,7 @@ static int vendor_cb_isoc_received(u8 *buf, u32 len)
 }
 
 #if CONFIG_USBD_VENDOR_ISOC_ASYNC_XFER
-static void vendor_isoc_xfer_thread(void *param)
+static void example_usbd_vendor_isoc_xfer_thread(void *param)
 {
 	UNUSED(param);
 
@@ -258,7 +263,7 @@ static int vendor_cb_bulk_received(u8 *buf, u32 len)
 }
 
 #if CONFIG_USBD_VENDOR_BULK_ASYNC_XFER
-static void vendor_bulk_xfer_thread(void *param)
+static void example_usbd_vendor_bulk_xfer_thread(void *param)
 {
 	UNUSED(param);
 
@@ -294,7 +299,7 @@ static void vendor_cb_status_changed(u8 old_status, u8 status)
 }
 
 #if CONFIG_USBD_VENDOR_HOTPLUG
-static void vendor_hotplug_thread(void *param)
+static void example_usbd_vendor_hotplug_thread(void *param)
 {
 	int ret = 0;
 
@@ -380,28 +385,36 @@ static void example_usbd_vendor_thread(void *param)
 	}
 
 #if CONFIG_USBD_VENDOR_HOTPLUG
-	ret = rtos_task_create(&check_status_task, "vendor_hotplug_thread", vendor_hotplug_thread, NULL, 1024U, CONFIG_USBD_VENDOR_HOTPLUG_THREAD_PRIORITY);
+	ret = rtos_task_create(&check_status_task, "example_usbd_vendor_hotplug_thread",
+						   example_usbd_vendor_hotplug_thread, NULL,
+						   CONFIG_USBD_VENDOR_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBD_VENDOR_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto clear_usb_class_exit;
 	}
 #endif // CONFIG_USBD_VENDOR_HOTPLUG
 #if CONFIG_USBD_VENDOR_INTR_ASYNC_XFER
 	// The priority of transfer thread shall be lower than USB isr priority
-	ret = rtos_task_create(&intr_async_xfer_task, "vendor_intr_xfer_thread", vendor_intr_xfer_thread, NULL, 1024U, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
+	ret = rtos_task_create(&intr_async_xfer_task, "example_usbd_vendor_intr_xfer_thread",
+						   example_usbd_vendor_intr_xfer_thread, NULL,
+						   CONFIG_USBD_VENDOR_XFER_THREAD_STACK_SIZE, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto clear_check_status_task;
 	}
 #endif // CONFIG_USBD_VENDOR_INTR_ASYNC_XFER
 #if CONFIG_USBD_VENDOR_ISOC_ASYNC_XFER
 	// The priority of transfer thread shall be lower than USB isr priority
-	ret = rtos_task_create(&isoc_async_xfer_task, "vendor_isoc_xfer_thread", vendor_isoc_xfer_thread, NULL, 1024U, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
+	ret = rtos_task_create(&isoc_async_xfer_task, "example_usbd_vendor_isoc_xfer_thread",
+						   example_usbd_vendor_isoc_xfer_thread, NULL,
+						   CONFIG_USBD_VENDOR_XFER_THREAD_STACK_SIZE, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto clear_intr_async_task;
 	}
 #endif // CONFIG_USBD_VENDOR_ISOC_ASYNC_XFER
 #if CONFIG_USBD_VENDOR_BULK_ASYNC_XFER
 	// The priority of transfer thread shall be lower than USB isr priority
-	ret = rtos_task_create(&bulk_async_xfer_task, "vendor_bulk_xfer_thread", vendor_bulk_xfer_thread, NULL, 1024U, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
+	ret = rtos_task_create(&bulk_async_xfer_task, "example_usbd_vendor_bulk_xfer_thread",
+						   example_usbd_vendor_bulk_xfer_thread, NULL,
+						   CONFIG_USBD_VENDOR_XFER_THREAD_STACK_SIZE, CONFIG_USBD_VENDOR_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		goto clear_isoc_async_task;
 	}
@@ -460,11 +473,12 @@ exit:
 
 void example_usbd_vendor(void)
 {
-	int status;
+	int ret;
 	rtos_task_t task;
 
-	status = rtos_task_create(&task, "example_usbd_vendor_thread", example_usbd_vendor_thread, NULL, 1024U, CONFIG_USBD_VENDOR_INIT_THREAD_PRIORITY);
-	if (status != RTK_SUCCESS) {
+	ret = rtos_task_create(&task, "example_usbd_vendor_thread", example_usbd_vendor_thread, NULL,
+						   CONFIG_USBD_VENDOR_INIT_THREAD_STACK_SIZE, CONFIG_USBD_VENDOR_INIT_THREAD_PRIORITY);
+	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create USBD vendor thread fail\n");
 	}
 }

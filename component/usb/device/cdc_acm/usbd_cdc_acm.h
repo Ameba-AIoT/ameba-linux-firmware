@@ -40,7 +40,7 @@
 #define USBD_CDC_ACM_PID                              USB_PID               /**< Product ID. */
 #define USBD_CDC_ACM_SELF_POWERED                     1U                    /**< Device is self-powered. */
 #define USBD_CDC_ACM_REMOTE_WAKEUP_EN                 1U                    /**< Remote wakeup is enabled. */
-#define USBD_CDC_ACM_LANGID_STRING                    0x0409U               /**< Language ID for string descriptors (0x0409 = English */
+#define USBD_CDC_ACM_LANGID_STRING                    0x0409U               /**< Language ID for string descriptors (0x0409 = English) */
 #define USBD_CDC_ACM_MFG_STRING                       "Realtek"             /**< Manufacturer string. */
 #define USBD_CDC_ACM_PROD_HS_STRING                   "Realtek CDC ACM (HS)"/**< Product string for High-Speed mode. */
 #define USBD_CDC_ACM_PROD_FS_STRING                   "Realtek CDC ACM (FS)"/**< Product string for Full-Speed mode. */
@@ -59,10 +59,13 @@
 #define USBD_CDC_ACM_HS_INTR_IN_INTERVAL              8U     /**< High speed INTR IN interval */
 #define USBD_CDC_ACM_FS_INTR_IN_INTERVAL              8U     /**< Full speed INTR IN interval */
 
+#define USBD_CDC_ACM_COMM_ITF_NUM                     0x00U  /**< CDC communication interface number */
+#define USBD_CDC_ACM_DATA_ITF_NUM                     0x01U  /**< CDC data interface number */
+
 #define USBD_CDC_ACM_CTRL_BUF_SIZE                    512U   /**< Control transfer buffer size. */
 
-/** @} End of Device_CDC_ACM_Constants group*/
-/** @} End of USB_Device_Constants group*/
+/** @} End of Device_CDC_ACM_Constants group */
+/** @} End of USB_Device_Constants group */
 
 /* Exported macros -----------------------------------------------------------*/
 
@@ -145,6 +148,14 @@ typedef struct {
 	 * @param[in] status: The new attach status.
 	 */
 	void (*status_changed)(u8 old_status, u8 status);
+
+	/**
+	 * @brief Called when the USB device resumes from suspend (wakeup).
+	 * @note   This function is called within an interrupt service routine (ISR) context;
+	 *         time-consuming operations (e.g., `malloc`, `rtos_sema_take`) are not permitted.
+	 * @details Indicates that the USB bus is active again and the upper layer can resume normal TRX.
+	 */
+	void (*wakeup)(void);
 } usbd_cdc_acm_cb_t;
 
 /**
@@ -156,14 +167,14 @@ typedef struct {
 	usbd_ep_t ep_bulk_out;      /**< BULK OUT endpoint structure. */
 	usbd_ep_t ep_intr_in;       /**< INTERRUPT IN endpoint structure. */
 	usb_dev_t *dev;             /**< Pointer to the USB device instance. */
-	usbd_cdc_acm_cb_t *cb;      /**< Pointer to the user-defined callback structure. */
+	const usbd_cdc_acm_cb_t *cb;      /**< Pointer to the user-defined callback structure. */
 #if defined(CONFIG_USBD_CDC_ACM_NOTIFY_LOOP_TEST) && (CONFIG_USBD_CDC_ACM_NOTIFY_LOOP_TEST == 1)
 	u16 intr_notify_idx;        /**< Index for managing interrupt notifications. */
 #endif
 } usbd_cdc_acm_dev_t;
 
-/** @} End of Device_CDC_ACM_Types group*/
-/** @} End of USB_Device_Types group*/
+/** @} End of Device_CDC_ACM_Types group */
+/** @} End of USB_Device_Types group */
 
 /* Exported variables --------------------------------------------------------*/
 
@@ -183,7 +194,7 @@ typedef struct {
  * @param[in] cb: Pointer to the user-defined callback structure.
  * @return 0 on success, non-zero on failure.
  */
-int usbd_cdc_acm_init(u32 bulk_out_xfer_size, u32 bulk_in_xfer_size, usbd_cdc_acm_cb_t *cb);
+int usbd_cdc_acm_init(u32 bulk_out_xfer_size, u32 bulk_in_xfer_size, const usbd_cdc_acm_cb_t *cb);
 
 /**
  * @brief De-initializes the CDC ACM class driver.
