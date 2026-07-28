@@ -1,0 +1,65 @@
+*.d
+*.o
+*.su
+*.i
+*.ii
+*.s
+
+# project build files
+/build_*/*
+/**/image/*
+/**/image_mp/*
+/**/build/*
+/**/menuconfig/*
+/**/soc_info.json
+# !/**/image/.gitignore
+# !/**/image_mp/.gitignore
+# !/**/build/.gitignore
+
+# python intermediate files
+/**/__pycache__/
+*.pyc
+
+# all bin files
+*.bin
+*.axf
+!/component/soc/*/project/**/*.bin
+!/component/soc/*/project/**/*.axf
+!/tools/**/*.bin
+
+# project library files
+
+# log files
+*.log
+
+# git version files
+lib_*_git_version.c
+__tmp_*_build_info.c
+
+# wifi ext noused c files
+/**/wifi_feature_disable/wifi_intf_drv_to_app_ext_noused.c
+
+# fiptool
+/**/fiptool/fiptool
+/**/fiptool/fiptool.exe
+
+# trusted-firmware-m build files
+/**/build_tfm/
+
+# build info
+/**/inc/build_info.h
+
+# IAR
+*.dep
+*.ewt
+/**/EWARM-RELEASE/Debug/
+
+# IDE extra files
+compile_commands.json
+.repo/
+.git/
+.vscode
+.cache
+.venv
+
+# ignore submodules end

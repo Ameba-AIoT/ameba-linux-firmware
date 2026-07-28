@@ -1,0 +1,65 @@
+menu "CONFIG VFS"
+    config VFS_LITTLEFS_INCLUDED
+        bool "Enable VFS LITTLEFS"
+        default n
+    if VFS_LITTLEFS_INCLUDED
+        config LITTLEFS_SECOND_FLASH_MENU
+            bool "Second FLASH"
+            select LITTLEFS_SECOND_FLASH
+    endif
+    config VFS_FATFS_INCLUDED
+        bool "Enable VFS FATFS"
+    if VFS_FATFS_INCLUDED
+        choice
+            prompt "FATFS Memory Type"
+            config FATFS_FLASH
+                bool "FLASH"
+            config FATFS_SECOND_FLASH_MENU
+                bool "Second FLASH"
+                select FATFS_SECOND_FLASH
+            config FATFS_DISK_SD_MENU   #amebasmart  green2
+                depends on SUPPORT_SDIOH
+                bool "SD MODE"
+                select FATFS_SD_MODE
+            config FATFS_SD_SPI_MENU
+                bool "SD SPI MODE"
+                select FATFS_SD_SPI_MODE
+            config FATFS_USB_HOST_MENU
+                depends on SUPPORT_FATFS_USB
+                bool "USB Host MODE"
+                select FATFS_USB_HOST
+                select USB_OTG_EN if WHC_HOST || WHC_NONE
+                select USB_HOST_EN if WHC_HOST || WHC_NONE
+                select USBH_MSC if WHC_HOST || WHC_NONE
+        endchoice
+        if FATFS_SD_MODE
+            config FATFS_SD_HOTPLUG_MENU
+                bool "FATFS SDcard HOTPLUG"
+                select FATFS_SD_HOTPLUG
+        endif
+        config FATFS_WITHIN_APP_IMG
+            bool "FATFS within APP Image"
+        config FATFS_READ_ONLY
+            bool "FATFS Read Only"
+        config FATFS_SUPPORT_EXFAT
+            bool "FATFS Support EXFAT"
+    endif
+endmenu
+
+config LITTLEFS_SECOND_FLASH
+    bool
+
+config FATFS_SECOND_FLASH
+    bool
+
+config FATFS_SD_MODE
+    bool
+
+config FATFS_SD_SPI_MODE
+    bool
+
+config FATFS_USB_HOST
+    bool
+
+config FATFS_SD_HOTPLUG
+    bool

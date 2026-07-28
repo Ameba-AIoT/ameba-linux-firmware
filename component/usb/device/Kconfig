@@ -1,0 +1,131 @@
+config USBD_CDC_ACM_MENU
+    bool "CDC ACM"
+    select USBD_CDC_ACM if WHC_HOST || WHC_NONE
+
+config USBD_CDC_ECM_MENU
+    bool "CDC ECM"
+    select USBD_CDC_ECM if WHC_HOST || WHC_NONE
+    select USB_ETHERNET_PROVIDER
+
+config USBD_COMPOSITE_MENU
+    bool "Composite"
+    select USBD_COMPOSITE if WHC_HOST || WHC_NONE
+
+if USBD_COMPOSITE_MENU
+    choice
+        prompt "Select Composite Class"
+        config USBD_COMPOSITE_CDC_ACM_HID_MENU
+            bool "CDC ACM + HID"
+            select USBD_COMPOSITE_CDC_ACM_HID if WHC_HOST || WHC_NONE
+        config USBD_COMPOSITE_CDC_ACM_MSC_MENU
+            bool "CDC ACM + MSC"
+            select USBD_COMPOSITE_CDC_ACM_MSC if WHC_HOST || WHC_NONE
+            choice
+                prompt "Select storage media"
+                depends on USBD_COMPOSITE_CDC_ACM_MSC_MENU
+                default USBD_COMPOSITE_MSC_SD_MODE
+                config USBD_COMPOSITE_MSC_RAM_DISK
+                    bool "RAM"
+                config USBD_COMPOSITE_MSC_SD_MODE
+                    bool "SD Card (SD mode)"
+                    depends on SUPPORT_SDIOH
+                    select VFS_FATFS_INCLUDED if WHC_HOST || WHC_NONE
+                    select FATFS_SD_MODE if WHC_HOST || WHC_NONE
+                config USBD_COMPOSITE_MSC_SECOND_FLASH
+                    bool "Second FLASH"
+                    depends on SUPPORT_USBD_MSC_SECOND_FLASH
+                    select VFS_FATFS_INCLUDED if WHC_HOST || WHC_NONE
+                    select FATFS_SECOND_FLASH if WHC_HOST || WHC_NONE
+            endchoice
+        config USBD_COMPOSITE_CDC_ACM_UAC_MENU
+            bool "CDC ACM + UAC"
+            depends on SUPPORT_USBD_UAC
+            select USBD_COMPOSITE_CDC_ACM_UAC if WHC_HOST || WHC_NONE
+            select AUDIO_FWK_MENU if SUPPORT_AUDIO_FOR_USB
+            choice
+                prompt "Select UAC Version"
+                depends on USBD_COMPOSITE_CDC_ACM_UAC_MENU
+                config USBD_COMPOSITE_CDC_ACM_UAC1_MENU
+                    bool "UAC 1.0"
+                    select USBD_COMPOSITE_CDC_ACM_UAC1 if WHC_HOST || WHC_NONE
+                config USBD_COMPOSITE_CDC_ACM_UAC2_MENU
+                    bool "UAC 2.0"
+                    select USBD_COMPOSITE_CDC_ACM_UAC2 if WHC_HOST || WHC_NONE
+            endchoice
+        config USBD_COMPOSITE_HID_UAC_MENU
+            bool "HID + UAC"
+            depends on SUPPORT_USBD_UAC
+            select USBD_COMPOSITE_HID_UAC if WHC_HOST || WHC_NONE
+            select AUDIO_FWK_MENU if SUPPORT_AUDIO_FOR_USB
+            choice
+                prompt "Select UAC Version"
+                depends on USBD_COMPOSITE_HID_UAC_MENU
+                config USBD_COMPOSITE_HID_UAC1_MENU
+                    bool "UAC 1.0"
+                    select USBD_COMPOSITE_HID_UAC1 if WHC_HOST || WHC_NONE
+                config USBD_COMPOSITE_HID_UAC2_MENU
+                    bool "UAC 2.0"
+                    select USBD_COMPOSITE_HID_UAC2 if WHC_HOST || WHC_NONE
+            endchoice
+    endchoice
+endif
+
+config USBD_HID_MENU
+    bool "HID"
+    select USBD_HID if WHC_HOST || WHC_NONE
+
+config USBD_INIC_MENU
+    bool "INIC"
+    depends on SUPPORT_USBD_INIC
+    select USBD_INIC if WHC_HOST || WHC_NONE
+
+config USBD_MSC_MENU
+    bool "MSC"
+    select USBD_MSC if WHC_HOST || WHC_NONE
+    if USBD_MSC_MENU
+        choice
+            prompt "Select storage media"
+            default USBD_MSC_SD_MODE
+            config USBD_MSC_RAM_DISK
+                bool "RAM"
+            config USBD_MSC_SD_MODE
+                bool "SD Card (SD mode)"
+                depends on SUPPORT_SDIOH
+                select VFS_FATFS_INCLUDED if WHC_HOST || WHC_NONE
+                select FATFS_SD_MODE if WHC_HOST || WHC_NONE
+            config USBD_MSC_SECOND_FLASH
+                bool "Second FLASH"
+                depends on SUPPORT_USBD_MSC_SECOND_FLASH
+                select VFS_FATFS_INCLUDED if WHC_HOST || WHC_NONE
+                select FATFS_SECOND_FLASH if WHC_HOST || WHC_NONE
+        endchoice
+    endif
+
+config USBD_UAC_MENU
+    bool "UAC"
+    depends on SUPPORT_USBD_UAC
+    select USBD_UAC if WHC_HOST || WHC_NONE
+    select AUDIO_FWK_MENU if SUPPORT_AUDIO_FOR_USB
+    choice
+        prompt "Select UAC Version"
+        depends on USBD_UAC_MENU
+        config USBD_UAC1_MENU
+            bool "UAC 1.0"
+            select USBD_UAC1 if WHC_HOST || WHC_NONE
+        config USBD_UAC2_MENU
+            bool "UAC 2.0"
+            select USBD_UAC2 if WHC_HOST || WHC_NONE
+    endchoice
+
+config USBD_VENDOR_MENU
+    bool "VENDOR"
+    select USBD_VENDOR if WHC_HOST || WHC_NONE
+
+config USBD_DFU_MENU
+    bool "DFU"
+    select USBD_DFU if WHC_HOST || WHC_NONE
+
+config USBD_UVC_MENU
+    bool "UVC"
+    depends on SUPPORT_USBD_UVC
+    select USBD_UVC if WHC_HOST || WHC_NONE
