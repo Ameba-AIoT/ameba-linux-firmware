@@ -53,6 +53,7 @@ if(CONFIG_AMEBASMART OR CONFIG_AMEBADPLUS OR CONFIG_AMEBAPRO3)
 else()
     ameba_list_append(c_GLOBAL_COMMON_COMPILE_C_OPTIONS -Os)
 endif()
+
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 # +++++++++++++++ c_GLOBAL_COMMON_COMPILE_CPP_OPTIONS ++++++++++++++ #

@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "sha256.h"
 #include "rtw_nan_cmd_api.h"
 #include "rtw_nan_cmd.h"
 #include "nan_event.h"
 #include "rtw_nan_vendor_def.h"
 
-#define MAX_NANDOW_PARA_LEN 2600
+#define MAX_NANDOW_PARA_LEN 1514
 #define MAX_NANDOW_REPLY_LEN 512
 #define OUI_REALTEK 0x00E04C
 #define NL80211_SUBCMD_NAN_RANGE_START 0x1900
@@ -30,6 +31,7 @@ enum rtw_nan_vendor_subcmd {
 	NAN_SUBCMD_PAIRING_SET_PW,                      	/* 0x1907 */
 	NAN_SUBCMD_PASN_START,                          	/* 0x1908 */
 	NAN_SUBCMD_PASN_SET_KEY,                          	/* 0x1909 */
+	NAN_SUBCMD_SET_NIK_CACHE,                          	/* 0x190A */
 };
 
 union nandow_para {
@@ -53,9 +55,6 @@ union nandow_para {
 	struct rtw_nan_datapath_end datapath_end;
 	struct rtw_nan_datapath_response datapath_rsp;
 	struct rtw_nan_datapath_confirm datapath_confirm;
-	struct rtw_nan_committed_availability avail_cmt;
-	struct rtw_nan_potential_availability avail_pot;
-	struct rtw_nan_data_cluster_availability avail_ndc;
 	struct rtw_nan_set_scan_control set_scan_ctl;
 	struct rtw_nan_country_code_data country_code;
 };
@@ -182,9 +181,6 @@ void nandow_pre_actions(struct nan_customer_nandow *nandow_test)
 	case RTW_NAN_CMD_DATAPATH_END:
 		nandow_test->para_len = sizeof(struct rtw_nan_datapath_end);
 		break;
-	case RTW_NAN_CMD_NDC_AVAIL:
-		nandow_test->para_len = sizeof(struct rtw_nan_data_cluster_availability);
-		break;
 	case RTW_NAN_CMD_SCAN_CONTROL:
 		nandow_test->para_len = sizeof(struct rtw_nan_set_scan_control);
 		break;
@@ -258,8 +254,8 @@ void nandow_parse_cmd_reply(struct nan_customer_nandow *nandow_test, char *cmdre
 	sprintf(cmd, "sed -e \"s/vendor response://g\" -i %s", cmdreply_file);
 	system(cmd);
 
-	sprintf(cmd, "cat %s", cmdreply_file);
-	system(cmd);
+	// sprintf(cmd, "cat %s", cmdreply_file);
+	// system(cmd);
 
 	/* read as hex and fill in nandow_test */
 	rawfile = fopen(cmdreply_file, "r");
@@ -432,6 +428,48 @@ bool _nan_check_phy(uint32_t phy_num)
 	return ret;
 }
 
+RTW_RET_STATUS rtw_nan_api_restore_pairing_info()
+{
+	struct nan_nik_cache_data nik_cache_data = {0};
+	uint32_t input_len = 0;
+	unsigned int cmd_id = 0;
+	void *input = NULL;
+	FILE *f = NULL;
+
+	INFO_PRINT("[rtw_cmd] %s \n", __func__);
+
+	/* restore NIK cache from file */
+	mkdir("/var/lib/nan", 0700);
+	f = fopen("/var/lib/nan/nik_cache", "rb");
+	if (f) {
+		if (fread(&nik_cache_data, sizeof(nik_cache_data), 1, f) == 1 &&
+			nik_cache_data.version == 1) {
+			cmd_id = NAN_SUBCMD_SET_NIK_CACHE;
+			/* send rtw vendor command */
+			input = &nik_cache_data;
+			input_len = sizeof(struct nan_nik_cache_data);
+			send_vendor_cmd(cmd_id, input, input_len, tmp_file, nan_intf, rtw_iw);
+		} else {
+			INFO_PRINT("[rtw_cmd] nik cache err! \n");
+			return RTW_RET_STATUS_INVALID_INPUT;
+		}
+		fclose(f);
+	}
+	return RTW_RET_STATUS_SUCCESS;
+}
+
+RTW_RET_STATUS rtw_nan_api_clear_pairing_info()
+{
+	struct nan_nik_cache_data nik_cache_data = {0};
+	system("rm -r /var/lib/nan");
+	/* Push a zeroed NIK cache to the NP to also drop its in-RAM copy. */
+	send_vendor_cmd(NAN_SUBCMD_SET_NIK_CACHE, &nik_cache_data,
+					sizeof(struct nan_nik_cache_data),
+					tmp_file, nan_intf, rtw_iw);
+	return RTW_RET_STATUS_SUCCESS;
+}
+
+
 RTW_RET_STATUS rtw_nan_api_get_capability(char *intf, uint16_t *nan_cap)
 {
 	struct nan_customer_nandow nandow_cmd = {0};
@@ -504,6 +542,9 @@ RTW_RET_STATUS rtw_nan_api_init(uint16_t phy_num, char *intf)
 	}
 
 	DEBUG_PRINT("[rtw_cmd] %s<=\n", __func__);
+
+	/* restore NIK cache from file */
+	rtw_nan_api_restore_pairing_info();
 
 	return RTW_RET_STATUS_SUCCESS;
 }
@@ -1153,9 +1194,9 @@ RTW_RET_STATUS rtw_nan_api_send_datapath_req(struct datapath_info *info)
 		dp_req->cipher_suite_id = RTW_NAN_CIPHER_ID_OPEN;
 	}
 
-	/* Qos */
-	dp_req->qos.max_service_internal = 1;
-	dp_req->qos.low_latency_required = 1;
+	/* Qos, subscriber not set qos requirement by default*/
+	// dp_req->qos.max_service_internal = 1;
+	// dp_req->qos.low_latency_required = 1;
 
 	/* send nandow command */
 	input = &nandow_cmd;

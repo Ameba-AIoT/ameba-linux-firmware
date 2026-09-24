@@ -7,11 +7,9 @@
 #include "ameba_soc.h"
 #include "ameba_secure_boot.h"
 #include "bootloader_hp.h"
-#ifndef __ZEPHYR__
 #include "boot_ota_hp.h"
 #include "ameba_v8m_crashdump.h"
 #include "ameba_fault_handle.h"
-#endif
 
 static const char *const TAG = "BOOT";
 typedef struct {
@@ -29,7 +27,6 @@ CPU_S_BackUp_TypeDef PMC_S_BK;
         } \
     } while (0)
 
-#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 PRAM_START_FUNCTION BOOT_SectionInit(void)
 {
@@ -66,7 +63,6 @@ __attribute__((noinline)) void BOOT_NsStart(u32 Addr)
 	/* avoid compiler to pop stack when exit BOOT_NsStart */
 	while (1);
 }
-#endif
 
 /* open some always on functions in this function */
 BOOT_RAM_TEXT_SECTION
@@ -267,7 +263,6 @@ void BOOT_DDR_Init(void)
 	DDR_PHY_AutoGating();
 
 	/* The DIW switch dynamically method is the same as before. Setting 0 means off.*/
-	//DDRC_DEV->DDRC_DPERF0 = (DDRC_DEV->DDRC_DPERF0 & ~DDRC_MASK_DIW) | DDRC_DIW(diw);
 #ifdef CONFIG_LINUX_FW_EN
 	rxi316_DynSre_init(0x700, ENABLE);		//for linux lcdc, set the max count, set max to 1800 After ECO
 #else
@@ -310,7 +305,6 @@ void BOOT_PSRAM_Init(void)
 	PSRAM_AutoGating(ENABLE, Psram_IDLETIME, Psram_RESUME_TIME / PsramInfo.PSRAMC_Clk_Unit);
 }
 
-#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 void BOOT_SCBConfig_HP(void)
 {
@@ -395,7 +389,6 @@ u32 BOOT_LoadImages(void)
 #endif
 	return TRUE;
 }
-#endif
 
 /**
   * @brief  Copy Boot reason to a common register and clear Boot Reason.
@@ -639,7 +632,6 @@ void BOOT_Enable_AP(void)
 	ca32->CA32_C0_RST_CTRL |= (CA32_NCOREPORESET(CORE_NUM) | CA32_NCORERESET(CORE_NUM) | CA32_BIT_NRESETSOCDBG | CA32_BIT_NL2RESET | CA32_BIT_NGICRESET);
 }
 
-#ifndef __ZEPHYR__
 BOOT_RAM_TEXT_SECTION
 void BOOT_WakeFromPG(void)
 {
@@ -723,7 +715,6 @@ void BOOT_WakeFromPG(void)
 
 	return;
 }
-#endif /* !__ZEPHYR__ BOOT_WakeFromPG */
 
 BOOT_RAM_TEXT_SECTION
 u32 BOOT_Share_Memory_Patch(void)
@@ -818,6 +809,42 @@ void Peripheral_Reset(void)
 				0UL);
 }
 
+/* RAE/WAE are the ULL memory read/write assist enables, i.e. memory interface timing. In every
+ * FTC_ULL_1 register below the 1.0V pair resets to 0 while the 0.9V pair resets to 1, and 0 is the
+ * wrong value for this IC. Align 1P0 with 0P9 during init, before the core voltage is raised. */
+BOOT_RAM_TEXT_SECTION
+static void BOOT_Mem_AssistSet(void)
+{
+	/* Each domain pairs its own offset with its own bit macros, so a future bit move in one of
+	 * them only changes this table. The bits happen to be identical today. */
+	static const struct {
+		u16 reg;
+		u32 bits;
+	} tbl[] = {
+		{REG_CTRL_LSYS_E0_FTC_ULL_1,				CTRL_BIT_LSYS_E0_RAE_1P0			| CTRL_BIT_LSYS_E0_WAE_1P0},
+		{REG_CTRL_HSYS_E0_FTC_ULL_1,				CTRL_BIT_HSYS_E0_RAE_1P0			| CTRL_BIT_HSYS_E0_WAE_1P0},
+		{REG_CTRL_WLK4_E0_FTC_ULL_1,				CTRL_BIT_WLK4_E0_RAE_1P0			| CTRL_BIT_WLK4_E0_WAE_1P0},
+		{REG_CTRL_WPOFF_E0_FTC_ULL_1,				CTRL_BIT_WPOFF_E0_RAE_1P0			| CTRL_BIT_WPOFF_E0_WAE_1P0},
+		{REG_CTRL_WPON_E0_FTC_ULL_1,				CTRL_BIT_WPON_E0_RAE_1P0			| CTRL_BIT_WPON_E0_WAE_1P0},
+		{REG_CTRL_BTONK4_E0_FTC_ULL_1,				CTRL_BIT_BTONK4_E0_RAE_1P0			| CTRL_BIT_BTONK4_E0_WAE_1P0},
+		{REG_CTRL_BTONK4_E1_FTC_ULL_1,				CTRL_BIT_BTONK4_E1_RAE_1P0			| CTRL_BIT_BTONK4_E1_WAE_1P0},
+		{REG_CTRL_BTOFFK4_E0_FTC_ULL_1,				CTRL_BIT_BTOFFK4_E0_RAE_1P0			| CTRL_BIT_BTOFFK4_E0_WAE_1P0},
+		{REG_CTRL_BTOFFK4_E1_FTC_ULL_1,				CTRL_BIT_BTOFFK4_E1_RAE_1P0			| CTRL_BIT_BTOFFK4_E1_WAE_1P0},
+		{REG_CTRL_KM0_DCACHE_DATA_FTC_ULL_SPRAM_1,	CTRL_BIT_KM0_DCACHE_DATA_RAE_1P0	| CTRL_BIT_KM0_DCACHE_DATA_WAE_1P0},
+		{REG_CTRL_KM0_DCACHE_TAG_FTC_ULL_SPRAM_1,	CTRL_BIT_KM0_DCACHE_TAG_RAE_1P0		| CTRL_BIT_KM0_DCACHE_TAG_WAE_1P0},
+		{REG_CTRL_KM0_ICACHE_DATA_FTC_ULL_SPRAM_1,	CTRL_BIT_KM0_ICACHE_DATA_RAE_1P0	| CTRL_BIT_KM0_ICACHE_DATA_WAE_1P0},
+		{REG_CTRL_KM0_ICACHE_TAG_FTC_ULL_SPRAM_1,	CTRL_BIT_KM0_ICACHE_TAG_RAE_1P0		| CTRL_BIT_KM0_ICACHE_TAG_WAE_1P0},
+	};
+	u32 i;
+
+	for (i = 0; i < sizeof(tbl) / sizeof(tbl[0]); i++) {
+		HAL_WRITE32(SYSTEM_MEM_CTRL_BASE, tbl[i].reg,
+					HAL_READ32(SYSTEM_MEM_CTRL_BASE, tbl[i].reg) | tbl[i].bits);
+	}
+
+	__DSB();
+}
+
 /* To avoid RRAM holding incorrect data, incorporate a MAGIC_NUMBER for verification. */
 /* Non-static: also called by the Zephyr KM4 MCUboot boot_prepare.c */
 bool BOOT_RRAM_InfoValid(void)
@@ -829,16 +856,17 @@ bool BOOT_RRAM_InfoValid(void)
 	}
 }
 
-#ifndef __ZEPHYR__
 //3 Image 1
 BOOT_RAM_TEXT_SECTION
-void BOOT_Image1(void)
+__weak void BOOT_Image1(void)
 {
 	u32 ret;
 	u32 *vector_table = NULL;
 	PRAM_START_FUNCTION Image2EntryFun = BOOT_SectionInit();
 	STDLIB_ENTRY_TABLE *prom_stdlib_export_func = (STDLIB_ENTRY_TABLE *)__rom_stdlib_text_start__;
 	RRAM_TypeDef *rram = RRAM;
+
+	BOOT_Mem_AssistSet();
 
 	_memset((void *) __image1_bss_start__, 0, (__image1_bss_end__ - __image1_bss_start__)); /*clear bss first*/
 
@@ -1037,7 +1065,6 @@ INVALID_IMG2:
 		DelayMs(1000);//each delay is 100us
 	}
 }
-#endif /* !__ZEPHYR__ BOOT_Image1 */
 
 IMAGE1_VALID_PATTEN_SECTION
 const u8 RAM_IMG1_VALID_PATTEN[] = {
@@ -1048,10 +1075,6 @@ IMAGE1_EXPORT_SYMB_SECTION
 BOOT_EXPORT_SYMB_TABLE boot_export_symbol = {
 	.rdp_decrypt_func = NULL,
 };
-
-#ifdef __ZEPHYR__
-extern void z_arm_reset(void);
-#endif
 
 IMAGE1_ENTRY_SECTION
 RAM_FUNCTION_START_TABLE RamStartTable = {
@@ -1064,10 +1087,6 @@ RAM_FUNCTION_START_TABLE RamStartTable = {
 #endif
 	.RamPatchFun1 = NULL,
 	.RamPatchFun2 = NULL,
-#ifdef __ZEPHYR__
-	.FlashStartFun = z_arm_reset,
-#else
 	.FlashStartFun = BOOT_Image1,
-#endif
 	.ExportTable = &boot_export_symbol
 };

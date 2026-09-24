@@ -407,6 +407,7 @@ typedef enum {
  */
 typedef enum {
 	RTK_BT_GATTS_ACT_REGISTER_SERVICE = 1,
+	RTK_BT_GATTS_ACT_UNREGISTER_SERVICE,
 	RTK_BT_GATTS_ACT_NOTIFY,
 	RTK_BT_GATTS_ACT_INDICATE,
 	RTK_BT_GATTS_ACT_READ_RSP,
@@ -1336,6 +1337,15 @@ void rtk_bt_event_free(rtk_bt_evt_t *pevt);
         if (RTK_BT_OK != __func_ret) {                      \
             BT_LOGE("[APP] %s failed! line: %d, err: 0x%x\r\n", __func__, __LINE__, __func_ret);   \
             return -1;                                      \
+        }                                                   \
+    } while (0)
+
+#define BT_APP_EVT_CB_PROCESS(func)                                \
+    do {                                                    \
+        uint16_t __func_ret = func;                         \
+        if (RTK_BT_OK != __func_ret) {                      \
+            BT_LOGE("[APP] %s failed! line: %d, err: 0x%x\r\n", __func__, __LINE__, __func_ret);   \
+            return RTK_BT_EVT_CB_FAIL;                                      \
         }                                                   \
     } while (0)
 

@@ -91,6 +91,8 @@ enum  {
 
 	RTW_EVENT_DFS_CAC_DONE				= 127, /**< DFS master: CAC passed, host brings AP netif link up */
 
+	RTW_EVENT_RADAR_PROC_RPT				= 128, /**< Radar report ready */
+
 	RTW_EVENT_INTERNAL_MAX,
 };
 
@@ -242,6 +244,31 @@ struct rtw_event_report_frame {
 	u8 frame[];
 };
 
+
+struct rtw_event_radar_proc_rpt_info {
+	u8 rpt_type : 3;
+	u8 rpt_seg_start : 1;
+	u8 rpt_seg_end : 1;
+	u8 bw_idx : 2;
+	u8 chirp_width : 2;
+	u8 channel;
+	u8 frame_num;
+	u8 frame_interval;             /**< unit ms */
+	u8 fft_num_sub;
+	s16 fft_strt_idx;
+	u16 chirp_num;
+	u8 doppler_t2f_step[3];
+	s16 doppler_t2f_strt_idx[3];
+	s16 doppler_t2f_end_idx[3];
+	u16 doppler_sample_num;
+	float aagc_gain;
+	float dagc_gain_normal_mode[4];
+	s16 isolation;                /**< Antenna isolation in dBm (carried from NP via IPC) */
+	s16 range_leakage_dBx10;     /**< Range leakage power encoded as 5-bit exp + 11-bit mantissa */
+	u32 radar_data_length;
+	u8 radar_data[];
+};
+
 struct rtw_task_size {
 	/* common task size */
 #if defined(CONFIG_WHC_NONE) || defined(CONFIG_WHC_DEV)
@@ -324,6 +351,7 @@ struct rtw_stats_info_by_port {
 
 struct rtw_stats_info_by_sta {
 	u8 macid;
+	u8 port;	/* iface port this sta belongs to: WHC_STA/AP/NAN_PORT */
 	u8 mac_addr[6];
 	u16 stainfo_rx_data_pkts_in2s;
 	u32 stainfo_rx_byte_uni_in2s;
@@ -347,7 +375,7 @@ struct rtw_event_addba_nego {
 #endif
 
 #ifdef CONFIG_NAN
-#define MAX_MATCHING_FILTERS           (16)
+#define MAX_MATCHING_FILTERS           (8)
 #define MAX_MATCHING_FILTER_LEN        (32)
 /**
  * @brief Describes a NAN function Rx / Tx filter.
@@ -522,6 +550,14 @@ int wifi_start_join_cmd(void);
 int wifi_sae_status_indicate(u8 wlan_idx, u16 status, u8 *mac_addr);
 
 /**
+ * @brief  notify NP that external auth (SAE) is starting.
+ * @param[in] wlan_idx: STA_WLAN_INDEX.
+ * @return  RTK_SUCCESS if setting is successful.
+ * @return  RTK_FAIL otherwise.
+ */
+int wifi_external_auth_start(u8 wlan_idx);
+
+/**
  * @brief  send raw frame
  * @param[in]  raw_data_desc: the pointer of struct _raw_data_desc_t,
  * 	which describe related information, include the pointer of raw frame and so on.
@@ -637,7 +673,7 @@ void wifi_indication_ext(u32 event, u8 *info_buf, s32 info_len, u8 *frame_buf, s
 int wifi_event_handle(u32 event_cmd, u8 *evt_info);
 void wifi_set_task_size(void);
 s32 wifi_radar_send_data(u16 frame_num, u8 frame_type, u8 *data);
-
+s32 wifi_dev_dhcp(u8 idx, u32 *ipinfo);
 extern struct rtw_task_size g_rtw_task_size;
 
 #ifdef __cplusplus

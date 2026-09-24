@@ -20,22 +20,46 @@ u8 ota_get_cur_index(u8 img_id)
 {
 	u32 PhyAddr;
 	u32 AddrStart;
-	RSIP_REG_TypeDef *RSIP = ((RSIP_REG_TypeDef *) RSIP_REG_BASE);
 
 #if defined(CONFIG_AMEBASMART)
 	if (img_id == OTA_IMGID_BOOT) {
-		AddrStart = RSIP->FLASH_MMU[MMU_BOOTLOADER_IDX].RSIP_REMAPxOR;
 		// Compatiable Nand and Nor Flash
 		u32 BootInfo = BKUP_Read(BKUP_REG0);
 		u32 BootVer = (BootInfo & BOOT_VER_NUM) >> 30;
 		return BootVer;
 	} else {
-		AddrStart = RSIP->FLASH_MMU[MMU_LP_IDX].RSIP_REMAPxOR;
+		AddrStart = RRAM->OTA_APP_REMAP;
 	}
-#elif defined(CONFIG_RTL8720F)
-	AddrStart = RSIP->FLASH_MMU[img_id].RSIP_REMAP_x_OFFSET;
+#elif (defined(CONFIG_RTL8720F) || defined(CONFIG_RLE1509))
+#ifdef CONFIG_SOLO
+	/* SOLO: the km4tz bootloader records the running OTA slots in GBSS retention RAM
+	 * (OTA_NP_IMG_IDX for iot/km4ns, OTA_IMG_REMAP[] for mcu/AP) and km4ns reads them
+	 * here. app_mpu_nocache_init() maps GBSS non-cacheable in this app, so the read
+	 * comes straight from SRAM and needs no cache maintenance. The cross-core coherency
+	 * is handled entirely on the writer side: the bootloader runs with the MPU disabled
+	 * (GBSS cacheable there) so it DCache_Clean()s GBSS after each write. */
+	if (img_id == OTA_IMGID_NP) {
+		return GBSS_DEV->OTA_NP_IMG_IDX;
+	}
+#endif
+	AddrStart = GBSS_DEV->OTA_IMG_REMAP[img_id];
+#elif defined(CONFIG_AMEBAPRO3)
+	{
+		(void)AddrStart;
+
+		if (img_id == OTA_IMGID_BOOT) {
+			/* The NP ROM bootloader records the selected bootloader slot in
+			 * AON_WDT_TIMER[5:1] via PLATFORM_BOOTLMT_Write() before handing
+			 * off.  BOOTLMT_BIT_BOOT_VER_NUM (BIT3 of BKUPR_REG0) set
+			 * means OTA2 is active; clear means OTA1. */
+			return (BKUPR_Read(BKUPR_REG0) & BOOTLMT_BIT_BOOT_VER_NUM) ? OTA_INDEX_2 : OTA_INDEX_1;
+		} else {
+			/* APP slot: BKUP_REG0[17] set = OTA2, clear = OTA1 */
+			return (BKUP_Read(BKUP_REG0) & BKUP_BIT_FW_OTA_INDEX) ? OTA_INDEX_2 : OTA_INDEX_1;
+		}
+	}
 #else
-	AddrStart = RSIP->FLASH_MMU[img_id].RSIP_REMAPxOR;
+	AddrStart = RRAM_DEV->OTA_IMG_REMAP[img_id];
 #endif
 
 #if defined(CONFIG_AMEBASMART)

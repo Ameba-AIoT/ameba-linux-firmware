@@ -16,6 +16,7 @@
 
 /* Private defines -----------------------------------------------------------*/
 extern void rltk_usb_eth_init(void);
+extern void rltk_usb_eth_deinit(void);
 
 #define ENABLE_USBH_CDC_ECM_HOT_PLUG            1     /* Hot plug */
 
@@ -72,9 +73,14 @@ static const usbh_config_t usbh_ecm_cfg = {
 	.main_task_priority = USBH_ECM_MAIN_THREAD_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
 	.hub_support = 1U,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
+	/*FIFO total 1024 DWORD, resv 12 DWORD for DMA*/
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	/*FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -208,12 +214,17 @@ static int cdc_ecm_do_init(void)
 		return 0;
 	}
 
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
+
 	do {
 		if (usbh_cdc_ecm_usb_is_ready()) {
 			break;
 		}
 		rtos_time_delay_ms(1000);
 	} while (1); //wait usb init success
+
+	usbh_cdc_ecm_prepare_done();
 
 	return 1;
 }
@@ -300,23 +311,23 @@ static void get_packet_attrib(struct pbuf *p, pkt_attrib_t *pattrib)
 	pattrib->dst_port = dst_port;
 	pattrib->type = type;
 	pattrib->flags = flags;
-	memcpy(&pattrib->src_mac, src_addr, sizeof(struct eth_addr));
-	memcpy(&pattrib->dst_mac, dst_addr, sizeof(struct eth_addr));
+	usb_os_memcpy((void *)&pattrib->src_mac, (const void *)src_addr, sizeof(struct eth_addr));
+	usb_os_memcpy((void *)&pattrib->dst_mac, (const void *)dst_addr, sizeof(struct eth_addr));
 	if (src_ip != NULL) {
-		memcpy(pattrib->src_ip, src_ip, ETH_ILEN);
+		usb_os_memcpy((void *)pattrib->src_ip, (const void *)src_ip, sizeof(pattrib->src_ip));
 	}
 	if (dst_ip != NULL) {
-		memcpy(pattrib->dst_ip, dst_ip, ETH_ILEN);
+		usb_os_memcpy((void *)pattrib->dst_ip, (const void *)dst_ip, sizeof(pattrib->dst_ip));
 	}
 }
 
 static u32_t send_to_wifi(pkt_attrib_t *pattrib, struct pbuf *p)
 {
 	if (pattrib->protocol == lwip_htons(ETHTYPE_ARP)) {
-		memcpy(&host_mac, (u8 *)p->payload + ETH_ALEN, ETH_ALEN);
+		usb_os_memcpy((void *)&host_mac, (const void *)((u8 *)p->payload + ETH_ALEN), ETH_ALEN);
 	}
 
-	memcpy((u8 *)p->payload + ETH_ALEN, pnetif_sta->hwaddr, ETH_ALEN);
+	usb_os_memcpy((void *)((u8 *)p->payload + ETH_ALEN), (const void *)pnetif_sta->hwaddr, ETH_ALEN);
 #if ECMBDEBUG
 	RTK_LOGS(TAG, RTK_LOG_INFO, "%s(%d) src_port = %d\n", __func__, __LINE__, pattrib->src_port);
 
@@ -329,7 +340,7 @@ static u32_t send_to_wifi(pkt_attrib_t *pattrib, struct pbuf *p)
 	/* send to etharp_output */
 	if (pattrib->protocol == lwip_htons(ETHTYPE_IP)) {
 	} else if (pattrib->protocol == lwip_htons(ETHTYPE_ARP)) {
-		memcpy((u8 *)p->payload + ETH_ALEN + 16, pnetif_sta->hwaddr, ETH_ALEN);
+		usb_os_memcpy((void *)((u8 *)p->payload + ETH_ALEN + 16), (const void *)pnetif_sta->hwaddr, ETH_ALEN);
 	}
 
 	pnetif_sta->linkoutput(pnetif_sta, p);
@@ -354,14 +365,14 @@ static err_t usb_in_wifi_out(struct pbuf *p, struct netif *netif)
 		return ERR_VAL;
 	}
 
-	pattrib = (pkt_attrib_t *)malloc(sizeof(pkt_attrib_t));
+	pattrib = (pkt_attrib_t *)usb_os_malloc(sizeof(pkt_attrib_t));
 	get_packet_attrib(p, pattrib);
 
 	//RTK_LOGS(TAG, RTK_LOG_INFO, "%s(%d) portnum=%d, protocol=0x%x\n", __FUNCTION__, __LINE__, netif->num, lwip_ntohs(pattrib->protocol));
 
 	if (pattrib->protocol == lwip_htons(ETHTYPE_IPV6)) {
 		pbuf_free(p);
-		free(pattrib);
+		usb_os_mfree((void *)pattrib);
 		return ERR_OK;
 	}
 	pattrib->port_idx = netif->num;
@@ -374,7 +385,7 @@ static err_t usb_in_wifi_out(struct pbuf *p, struct netif *netif)
 	send_to_wifi(pattrib, p);
 
 	pbuf_free(p);
-	free(pattrib);
+	usb_os_mfree((void *)pattrib);
 
 	return ERR_OK;
 }
@@ -387,13 +398,13 @@ static err_t wifi_in_usb_out(struct pbuf *p, struct netif *netif)
 		return ERR_VAL;
 	}
 
-	pattrib = (pkt_attrib_t *)malloc(sizeof(pkt_attrib_t));
+	pattrib = (pkt_attrib_t *)usb_os_malloc(sizeof(pkt_attrib_t));
 	get_packet_attrib(p, pattrib);
 	//RTK_LOGS(TAG, RTK_LOG_INFO, "%s(%d) portnum=%d, protocol=0x%x\n", __FUNCTION__, __LINE__, netif->num, lwip_ntohs(pattrib->protocol));
 
 	if (pattrib->protocol == lwip_htons(ETHTYPE_IPV6)) {
 		pbuf_free(p);
-		free(pattrib);
+		usb_os_mfree((void *)pattrib);
 		return ERR_OK;
 	}
 	pattrib->port_idx = netif->num;
@@ -411,16 +422,16 @@ static err_t wifi_in_usb_out(struct pbuf *p, struct netif *netif)
 #endif
 
 	if (pattrib->protocol == lwip_htons(ETHTYPE_ARP)) {
-		memcpy((u8 *)p->payload + ETH_HLEN + 18, &host_mac, ETH_ALEN);
+		usb_os_memcpy((void *)((u8 *)p->payload + ETH_HLEN + 18), (const void *)&host_mac, ETH_ALEN);
 	}
 
 	//dst mac
-	memcpy(p->payload, &host_mac, ETH_ALEN);
+	usb_os_memcpy((void *)p->payload, (const void *)&host_mac, ETH_ALEN);
 
 	send_to_usb(pattrib, p);
 
 	pbuf_free(p);
-	free(pattrib);
+	usb_os_mfree((void *)pattrib);
 	return ERR_OK;
 }
 
@@ -439,7 +450,7 @@ static void example_usbh_bridge_monitor_thread(void *param)
 	}
 
 	while (1) {
-		link_is_up = usbh_cdc_ecm_get_connect_status();
+		link_is_up = usbh_cdc_ecm_get_link_status();
 
 		if (1 == link_is_up && (ethernet_unplug < ETH_STATUS_INIT)) {	// unlink -> link
 			ethernet_unplug = ETH_STATUS_INIT;
@@ -476,30 +487,27 @@ static void example_usbh_wifi_bridge_init_thread(void *param)
 #if ENABLE_USBH_CDC_ECM_HOT_PLUG
 static void example_usbh_bridge_hotplug_thread(void *param)
 {
-	int ret = 0;
-
 	UNUSED(param);
 
 	for (;;) {
 		usb_os_sema_take(cdc_ecm_detach_sema, USB_OS_SEMA_TIMEOUT);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Hot plug\n");
 		//stop isr
+		usbh_stop();
 		usbh_cdc_ecm_deinit();
 		usbh_deinit();
 
 		rtos_time_delay_ms(10);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Free heap size: 0x%08x\n", usb_os_get_free_heap_size());
 
-		ret = usbh_init(&usbh_ecm_cfg, &usbh_ecm_usr_cb);
-		if (ret != HAL_OK) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "Init USBH fail\n");
-			break;
-		}
-
-		ret = usbh_cdc_ecm_init(&cdc_ecm_usb_cb, NULL);
-		if (ret < 0) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "Init CDC ECM fail\n");
-			usbh_deinit();
+		/*
+		 * Reuse the full init routine (init + start + wait-until-ready +
+		 * prepare_done) so the reattach path also opens the RX/link gate.
+		 * Without prepare_done() ready_to_xfer stays 0 after replug, so
+		 * bulk-IN receive scheduling and link status never resume.
+		 */
+		if (cdc_ecm_do_init() == 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Hot plug reinit fail\n");
 			break;
 		}
 	}
@@ -518,31 +526,56 @@ void example_usbh_wifi_bridge(void)
 	rtos_task_t monitor_task;
 	rtos_task_t bridge_task;
 
-	usb_os_sema_create(&cdc_ecm_detach_sema);
+	ret = usb_os_sema_create(&cdc_ecm_detach_sema);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create detach sema fail\n");
+		return;
+	}
+
 	rltk_usb_eth_init();
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USB host usbh_wifi_bridge demo started\n");
 
 #if ENABLE_USBH_CDC_ECM_HOT_PLUG
-	ret = rtos_task_create(&hotplug_task, "example_usbh_bridge_hotplug_thread",
+	ret = rtos_task_create(&hotplug_task, "usbh_bridge_hotplug_thread",
 						   example_usbh_bridge_hotplug_thread, NULL,
 						   USBH_ECM_HOTPLUG_THREAD_STACK_SIZE, USBH_ECM_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create hotplug check task fail\n");
+		goto exit_release;
 	}
 #endif
 
-	ret = rtos_task_create(&monitor_task, "example_usbh_bridge_monitor_thread",
+	ret = rtos_task_create(&monitor_task, "usbh_bridge_monitor_thread",
 						   example_usbh_bridge_monitor_thread, NULL,
 						   USBH_ECM_MONITOR_THREAD_STACK_SIZE, USBH_ECM_MONITOR_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to create USB host monitor_link_change thread: %d\n", ret);
+		goto exit_release;
 	}
 
-	ret = rtos_task_create(&bridge_task, "example_usbh_wifi_bridge_init_thread",
+	ret = rtos_task_create(&bridge_task, "usbh_wifi_bridge_init_thread",
 						   example_usbh_wifi_bridge_init_thread, NULL,
 						   USBH_ECM_BRIDGE_THREAD_STACK_SIZE, USBH_ECM_BRIDGE_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to create USBH cdc_ecm_bridge_task thread\n");
+		goto exit_delete_monitor;
 	}
+
+	return;
+
+exit_delete_monitor:
+	rtos_task_delete(monitor_task);
+
+exit_release:
+	/* Stop the threads that reference the detach sema before it is freed. */
+#if ENABLE_USBH_CDC_ECM_HOT_PLUG
+	if (hotplug_task != NULL) {
+		rtos_task_delete(hotplug_task);
+		hotplug_task = NULL;
+	}
+#endif
+	rltk_usb_eth_deinit();
+	usb_os_sema_delete(cdc_ecm_detach_sema);
+	cdc_ecm_detach_sema = NULL;
 }

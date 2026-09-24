@@ -72,6 +72,8 @@ struct event_priv_t {
 
 	struct completion			api_ret_sema; /* sema to wait for API calling done */
 
+	spinlock_t				api_ret_lock; /* pairs b_waiting_for_ret with rx_api_ret_msg */
+
 	u8					b_waiting_for_ret: 1;
 };
 
@@ -91,12 +93,14 @@ struct xmit_priv_t {
 	struct semaphore 		tx_sema;
 
 	u8 				initialized: 1;
-	u8				flowctrl_en: 1;
 };
 
 struct hci_ops_t {
 	void (*send_data)(u8 *buf, u32 len, struct sk_buff *pskb);
 	void (*recv_data)(void *intf_priv);
+#ifdef WHCH_TXAGG
+	void (*send_xmitbuf)(struct whc_xmit_buf *pxmitbuf);
+#endif
 };
 #endif
 
@@ -213,7 +217,6 @@ struct whc_device {
 #endif
 
 	u8 host_init_done: 1;
-	u8 ipv6_addr_updated: 1;
 };
 
 extern struct whc_device global_idev;

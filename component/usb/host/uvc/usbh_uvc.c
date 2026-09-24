@@ -41,12 +41,17 @@ int usbh_uvc_init(const usbh_uvc_ctx_t *cfg, const usbh_uvc_cb_t *cb)
 	usbh_uvc_stream_t *stream = NULL;
 	u8 i;
 
-	if (cb == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid user CB\n");
+	if ((cb == NULL) || (cfg == NULL)) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid cb/cfg\n");
 		return HAL_ERR_PARA;
 	}
 
-	usb_os_memset(uvc, 0x00, sizeof(usbh_uvc_host_t));
+	if (cfg->frame_buf_size == 0U) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid buf size\n");
+		return HAL_ERR_PARA;
+	}
+
+	usb_os_memset((void *)uvc, 0x00, sizeof(usbh_uvc_host_t));
 	uvc->request_buf = (u8 *)usb_os_malloc(USBH_UVC_REQUEST_BUF_LEN);
 	if (uvc->request_buf == NULL) {
 		return HAL_ERR_MEM;
@@ -60,8 +65,6 @@ int usbh_uvc_init(const usbh_uvc_ctx_t *cfg, const usbh_uvc_cb_t *cb)
 #if USBH_UVC_USE_HW
 	uvc->hw_isr_pri = cfg->hw_isr_pri;
 	uvc->hw_irq_ref_cnt = 0U;
-#else
-	UNUSED(cfg);
 #endif
 
 	usbh_uvc_class_init();
@@ -75,10 +78,35 @@ int usbh_uvc_init(const usbh_uvc_ctx_t *cfg, const usbh_uvc_cb_t *cb)
 			 * does not leak request_buf or leave the class registered.
 			 * (Any DEBUG dump task is torn down by usbh_uvc_deinit if needed.) */
 			usbh_uvc_class_deinit();
-			if (uvc->request_buf != NULL) {
-				usb_os_mfree(uvc->request_buf);
-				uvc->request_buf = NULL;
+			usb_os_mfree((void *)uvc->request_buf);
+			uvc->request_buf = NULL;
+			return ret;
+		}
+	}
+
+	/* Allocate per-stream runtime resources for every stream (frame buffers,
+	 * worker threads, HW channels) and bring them to READY here. This absorbs the
+	 * former usbh_uvc_open(): the per-stream frame buffer size comes from
+	 * cfg->frame_buf_size. Device transfer still begins later in usbh_uvc_start(). */
+	for (i = 0; i < USBH_UVC_VS_DESC_MAX_NUM; i++) {
+		stream = &uvc->stream[i];
+		stream->frame_buffer_size = CACHE_LINE_ALIGNMENT(cfg->frame_buf_size);
+		ret = usbh_uvc_stream_open(stream);
+		if (ret != HAL_OK) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "S%d open fail(%d)\n", i, ret);
+			stream->stream_state = UVC_STREAM_OFF;
+			/* Roll back: close streams already opened in this loop, then undo the
+			 * user init, class registration and request_buf allocated above. */
+			while (i > 0U) {
+				i--;
+				usbh_uvc_stream_close(&uvc->stream[i]);
 			}
+			if ((uvc->cb != NULL) && (uvc->cb->deinit != NULL)) {
+				uvc->cb->deinit();
+			}
+			usbh_uvc_class_deinit();
+			usb_os_mfree((void *)uvc->request_buf);
+			uvc->request_buf = NULL;
 			return ret;
 		}
 	}
@@ -132,15 +160,17 @@ void usbh_uvc_deinit(void)
 
 	usbh_uvc_class_deinit();
 
-	for (i = 0U; i < uvc->uvc_desc.vs_num; i++) {
+	/* Close every stream opened in usbh_uvc_init(). Use USBH_UVC_VS_DESC_MAX_NUM
+	 * (not uvc_desc.vs_num): resources are allocated at init for all streams
+	 * regardless of how many the device actually enumerated. stream_close is a
+	 * no-op for streams still in UVC_STREAM_OFF. */
+	for (i = 0U; i < USBH_UVC_VS_DESC_MAX_NUM; i++) {
 		stream = &uvc->stream[i];
 		usbh_uvc_stream_close(stream);
 	}
 
-	if (uvc->request_buf != NULL) {
-		usb_os_mfree(uvc->request_buf);
-		uvc->request_buf = NULL;
-	}
+	usb_os_mfree((void *)uvc->request_buf);
+	uvc->request_buf = NULL;
 
 #if USBH_UVC_USE_HW && USBH_UVC_DEBUG
 	if (uvc->hw_dump_task_alive != 0U) {
@@ -187,79 +217,13 @@ void usbh_uvc_deinit(void)
 }
 
 /**
-  * @brief	Open a UVC stream: acquire all runtime resources for the interface.
-  *         Resource-axis entry of the public lifecycle; pair with usbh_uvc_close().
-  *         Delegates the actual allocation to the stream mechanic usbh_uvc_stream_open().
-  * @param	para: user parameter (frame buffer size, etc.)
-  * @param	itf_num: Interface number
-  * @retval Status
-  */
-int usbh_uvc_open(usbh_uvc_s_ctx_t *para, u8 itf_num)
-{
-	usbh_uvc_host_t *uvc = &uvc_host;
-	usbh_uvc_stream_t *stream;
-	int ret;
-
-	if ((itf_num >= USBH_UVC_VS_DESC_MAX_NUM) || ((para == NULL) || (para->frame_buf_size == 0U))) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Paras err\n");
-		return HAL_ERR_PARA;
-	}
-
-#if USBH_UVC_USE_HW
-	if (para->frame_buf_size <= USBH_HW_UVC_ISOC_MPS) {
-		RTK_LOGS(TAG, RTK_LOG_WARN, "Buf size err\n");
-		return HAL_ERR_PARA;
-	}
-#endif
-
-	stream = &uvc->stream[itf_num];
-	if (stream->stream_state != UVC_STREAM_OFF) {
-		RTK_LOGS(TAG, RTK_LOG_DEBUG, "S%d was on\n", itf_num);
-		return HAL_OK;
-	}
-
-	stream->frame_buffer_size = CACHE_LINE_ALIGNMENT(para->frame_buf_size);
-	ret = usbh_uvc_stream_open(stream);
-	if (ret != HAL_OK) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "S%d open fail(%d)\n", itf_num, ret);
-		stream->stream_state = UVC_STREAM_OFF;
-		return ret;
-	}
-
-	return HAL_OK;
-}
-
-/**
-  * @brief	Close a UVC stream: release all runtime resources for the interface.
-  *         Resource-axis exit of the public lifecycle; pair with usbh_uvc_open().
-  *         Delegates the actual release to the stream mechanic usbh_uvc_stream_close().
-  * @param	itf_num: Interface number
-  * @retval Status
-  */
-int usbh_uvc_close(u8 itf_num)
-{
-	usbh_uvc_host_t *uvc = &uvc_host;
-	usbh_uvc_stream_t *stream = NULL;
-
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
-		return HAL_ERR_PARA;
-	}
-
-	stream = &uvc->stream[itf_num];
-
-	usbh_uvc_stream_close(stream);
-
-	return HAL_OK;
-}
-
-/**
   * @brief	Set video parameter
   * @param	para: user parameter, such as FPS, resolution
   * @retval Status
   * The CFG may have been rewritten to the closest configuration supported by the device.
   * Consumers, such as RTSP, need to proceed with subsequent operations based on the updated CFG
   */
-int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num)
+int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 stream_index)
 {
 	int ret;
 	usbh_uvc_host_t *uvc = &uvc_host;
@@ -280,11 +244,11 @@ int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num)
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Unknown fmt type, just capture not save\n");
 	}
 
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
 		return HAL_ERR_PARA;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 	uvc->stream_ctrl_idx = stream->stream_idx;
 	/*Find format and closest resolution*/
 	ret = usbh_uvc_desc_find_format_frame(stream, para, &format_idx, &frame_idx);
@@ -303,7 +267,7 @@ int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num)
 	ctrl = &stream->stream_ctrl;
 	max_frame_size = ctrl->dwMaxVideoFrameSize;
 	max_xfer_size = ctrl->dwMaxPayloadTransferSize;
-	usb_os_memset(ctrl, 0U, sizeof(usbh_uvc_stream_control_t));
+	usb_os_memset((void *)ctrl, 0U, sizeof(usbh_uvc_stream_control_t));
 	ctrl->bmHint = 1U;  /* dwFrameInterval */
 	ctrl->bFormatIndex = format_idx;
 	ctrl->bFrameIndex = frame_idx;
@@ -315,7 +279,7 @@ int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num)
 	uvc->state = UVC_STATE_CTRL;
 	stream->state = STREAM_STATE_SET_PARA;
 	if (uvc->host != NULL) {
-		usbh_notify_class_state_change(uvc->host, 0U);
+		usbh_notify(uvc->host, 0U, &usbh_uvc_driver);
 	}
 
 	return HAL_OK;
@@ -323,10 +287,10 @@ int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num)
 
 /**
   * @brief	Get a frame from video streaming
-  * @param	itf_num: Interface number
+  * @param	stream_index: Stream Index
   * @retval Status
   */
-usbh_uvc_frame_t *usbh_uvc_get_frame(u8 itf_num)
+usbh_uvc_frame_t *usbh_uvc_get_frame(u8 stream_index)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
 	usbh_uvc_frame_t *frame;
@@ -341,12 +305,12 @@ usbh_uvc_frame_t *usbh_uvc_get_frame(u8 itf_num)
 	u32 frame_done_size;
 #endif
 
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Intf num ovfl\n");
 		return NULL;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 
 	if (stream->get_valid == 0U) {
 		stream->get_valid = 1U;
@@ -385,6 +349,11 @@ usbh_uvc_frame_t *usbh_uvc_get_frame(u8 itf_num)
 #if USBH_UVC_DEBUG
 			frame->get_frame_ts = usb_os_get_timestamp_ms();
 #endif
+			/* Clear get_valid on the success path too, not only at 'exit:'. Otherwise
+			 * it stays 1 after the last frame of a completed capture, and a later
+			 * detach makes usbh_uvc_exit_get_frame() (in deinit->stream_close) spin
+			 * forever waiting for a get_frame that has long since returned. */
+			stream->get_valid = 0U;
 			return frame;
 		}
 	} else {
@@ -425,6 +394,9 @@ usbh_uvc_frame_t *usbh_uvc_get_frame(u8 itf_num)
 
 		/* cache invalidate — HW decoder writes to PSRAM, CPU cache stale */
 		DCache_Invalidate((u32)frame->buf, CACHE_LINE_ALIGNMENT(frame->byteused));
+		/* Clear get_valid on the success path too (see SW branch note above) so a
+		 * post-completion detach does not hang usbh_uvc_exit_get_frame(). */
+		stream->get_valid = 0U;
 		return frame;
 	} else {
 		goto exit;
@@ -444,10 +416,10 @@ exit:
 /**
   * @brief	Put frame buffer back to video streaming empty list
   * @param	frame: uvc frame buffer to put
-  * @param	itf_num: Interface number
+  * @param	stream_index: Stream Index
   * @retval HAL_OK on success, HAL_ERR_PARA on invalid parameters
   */
-int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 itf_num)
+int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 stream_index)
 {
 #if (USBH_UVC_USE_HW == 0)
 	usbh_uvc_host_t *uvc = &uvc_host;
@@ -458,12 +430,12 @@ int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 itf_num)
 	u32 get_frame_ts;
 #endif
 
-	if ((frame == NULL) || (itf_num >= USBH_UVC_VS_DESC_MAX_NUM)) {
+	if ((frame == NULL) || (stream_index >= USBH_UVC_VS_DESC_MAX_NUM)) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Intf num ovfl\n");
 		return HAL_ERR_PARA;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 #if USBH_UVC_DEBUG
 	get_frame_ts = frame->get_frame_ts;
 
@@ -504,12 +476,12 @@ int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 itf_num)
 	usbh_uvc_stream_t *stream;
 	u32 idx;
 
-	if ((frame == NULL) || (itf_num >= USBH_UVC_VS_DESC_MAX_NUM)) {
+	if ((frame == NULL) || (stream_index >= USBH_UVC_VS_DESC_MAX_NUM)) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Intf num ovfl\n");
 		return HAL_ERR_PARA;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 	if (stream->uvc_dec != NULL) {
 		/* Release the per-buffer lock set by the ISR at hand-off, so the HW may
 		 * recycle this buffer again (R4 safe-drop ownership handshake). */
@@ -526,6 +498,66 @@ int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 itf_num)
 }
 
 /**
+ * @brief    Stop video streaming and return to the ready state (resources retained)
+ * @param    stream_index: Stream Index
+ * @retval HAL_OK on success or if the stream is not active,
+ *         HAL_ERR_PARA on invalid Stream Index
+ * @note     Data-flow-axis exit of the public lifecycle; pair with usbh_uvc_start().
+ *           Delegates to the stream mechanic usbh_uvc_stream_stop().
+ */
+int usbh_uvc_stop(u8 stream_index)
+{
+	usbh_uvc_host_t *uvc = &uvc_host;
+	usbh_uvc_stream_t *stream = NULL;
+
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
+		return HAL_ERR_PARA;
+	}
+
+	stream = &uvc->stream[stream_index];
+
+	/* Send SET_INTERFACE(bInterfaceNumber, 0) to the camera so it stops transmitting
+	 * ISOC data. Guard: only when device is still connected and an alt was selected.
+	 * Fire-and-forget via ctrl state machine (set_alt=0 → no probe after reset). */
+	if ((uvc->host != NULL) &&
+		(uvc->host->connect_state >= USBH_STATE_SETUP) &&
+		(stream->cur_setting.valid != 0U)) {
+		stream->set_alt = 0U;
+		stream->set_alt_retry = 0U;
+		stream->state = STREAM_STATE_RESET_ALT;
+		uvc->state = UVC_STATE_CTRL;
+		uvc->stream_ctrl_idx = stream->stream_idx;
+		usbh_notify(uvc->host, 0U, &usbh_uvc_driver);
+	}
+
+	return usbh_uvc_stream_stop(stream);
+}
+
+/**
+ * @brief    Start video streaming and kick off isochronous data transfer
+ * @param    stream_index: Stream Index
+ * @retval HAL_OK on success or if the stream is already active,
+ *         HAL_ERR_PARA on invalid Stream Index,
+ *         HAL_ERR_HW if the stream is not in the ready state or the pipe is invalid
+ * @note     Data-flow-axis entry of the public lifecycle; pair with usbh_uvc_stop().
+ *           Delegates to the stream mechanic usbh_uvc_stream_start().
+ */
+int usbh_uvc_start(u8 stream_index)
+{
+	usbh_uvc_host_t *uvc = &uvc_host;
+	usbh_uvc_stream_t *stream = NULL;
+
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
+		return HAL_ERR_PARA;
+	}
+
+	stream = &uvc->stream[stream_index];
+
+	return usbh_uvc_stream_start(stream);
+}
+
+#if USBH_UVC_DEBUG
+/**
   * @brief  Dump dev capability info (format, frame, resolution, fps).
   * @retval None.
   */
@@ -540,10 +572,10 @@ void usbh_uvc_dump_dev_info(void)
 	u32 i = 0;
 	u32 j = 0;
 	u32 fps = 0;
-	u8 itf_num = 0;
+	u8 stream_index = 0;
 
-	for (itf_num = 0; itf_num < USBH_UVC_VS_DESC_MAX_NUM; itf_num++) {
-		stream = &uvc->stream[itf_num];
+	for (stream_index = 0; stream_index < USBH_UVC_VS_DESC_MAX_NUM; stream_index++) {
+		stream = &uvc->stream[stream_index];
 		vs = stream->vs_intf;
 		if (vs == NULL) {
 			continue;
@@ -552,7 +584,7 @@ void usbh_uvc_dump_dev_info(void)
 			continue;
 		}
 
-		RTK_LOGS(TAG, RTK_LOG_INFO, "Intf %d:\n", itf_num);
+		RTK_LOGS(TAG, RTK_LOG_INFO, "Intf %d:\n", stream_index);
 		for (i = 0; i < vs->format_num; i++) {
 			fmt = &vs->format[i];
 			if (fmt->type == USBH_UVC_FORMAT_YUV) {
@@ -582,66 +614,21 @@ void usbh_uvc_dump_dev_info(void)
 	}
 }
 
-/**
- * @brief    Stop video streaming and return to the ready state (resources retained)
- * @param    itf_num: Interface number
- * @retval HAL_OK on success or if the stream is not active,
- *         HAL_ERR_PARA on invalid interface number
- * @note     Data-flow-axis exit of the public lifecycle; pair with usbh_uvc_start().
- *           Delegates to the stream mechanic usbh_uvc_stream_stop().
- */
-int usbh_uvc_stop(u8 itf_num)
-{
-	usbh_uvc_host_t *uvc = &uvc_host;
-	usbh_uvc_stream_t *stream = NULL;
-
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
-		return HAL_ERR_PARA;
-	}
-
-	stream = &uvc->stream[itf_num];
-
-	return usbh_uvc_stream_stop(stream);
-}
-
-/**
- * @brief    Start video streaming and kick off isochronous data transfer
- * @param    itf_num: Interface number
- * @retval HAL_OK on success or if the stream is already active,
- *         HAL_ERR_PARA on invalid interface number,
- *         HAL_ERR_HW if the stream is not in the ready state or the pipe is invalid
- * @note     Data-flow-axis entry of the public lifecycle; pair with usbh_uvc_stop().
- *           Delegates to the stream mechanic usbh_uvc_stream_start().
- */
-int usbh_uvc_start(u8 itf_num)
-{
-	usbh_uvc_host_t *uvc = &uvc_host;
-	usbh_uvc_stream_t *stream = NULL;
-
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
-		return HAL_ERR_PARA;
-	}
-
-	stream = &uvc->stream[itf_num];
-
-	return usbh_uvc_stream_start(stream);
-}
-
-#if (USBH_UVC_USE_HW == 0) && USBH_UVC_DEBUG
+#if (USBH_UVC_USE_HW == 0)
 /**
  * @brief  Clear class-layer frame and drop statistics via RTK_LOGS.
  *         Call from the application at the start of each measurement round.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: Stream Index.
  */
-void usbh_uvc_clear_stats(u8 itf_num)
+void usbh_uvc_clear_stats(u8 stream_index)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
 	usbh_uvc_stream_t *stream = NULL;
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
 		return;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 
 	/* stream-level debug counters */
 	stream->rx_frame_cnt = 1;//this app should be called after get frame access first frame
@@ -667,17 +654,17 @@ void usbh_uvc_clear_stats(u8 itf_num)
 /**
  * @brief  Print class-layer frame and drop statistics via RTK_LOGS.
  *         Call from the application at the end of each measurement round.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: Stream Index.
  */
-void usbh_uvc_print_stats(u8 itf_num)
+void usbh_uvc_print_stats(u8 stream_index)
 {
 	usbh_uvc_host_t *uvc = &uvc_host;
 	usbh_uvc_stream_t *stream = NULL;
-	if (itf_num >= USBH_UVC_VS_DESC_MAX_NUM) {
+	if (stream_index >= USBH_UVC_VS_DESC_MAX_NUM) {
 		return;
 	}
 
-	stream = &uvc->stream[itf_num];
+	stream = &uvc->stream[stream_index];
 
 	RTK_LOGS(TAG, RTK_LOG_INFO,
 			 "class: rx=%d err=%d drop=%d reuse=%d\n",
@@ -692,4 +679,5 @@ void usbh_uvc_print_stats(u8 itf_num)
 			 uvc->max_combine_cost_us, uvc->max_memcpy_cost_us,
 			 uvc->max_publish_cost_us);
 }
+#endif
 #endif

@@ -9,6 +9,11 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "basic_types.h"
+#include "usb_cdc.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Exported defines ----------------------------------------------------------*/
 
@@ -19,35 +24,10 @@
  * @{
  */
 
-/* CDC Class Codes */
-#define USB_CDC_NCM_CLASS_CODE                              0x02U /**< USB Communication Device Class (CDC) Code */
-#define USB_CDC_NCM_COMM_INTERFACE_CLASS_CODE               0x02U /**< CDC Communication Interface Class Code */
-#define USB_CDC_NCM_DATA_INTERFACE_CLASS_CODE               0x0AU /**< CDC Data Interface Class Code */
-
-/* CDC Communication Subclass Codes */
-#define USB_CDC_NCM_SUBCLASS_RESERVED                       0x00U /**< CDC Subclass Code: Reserved */
-
-/* CDC Communication Interface Class Control Protocol Codes */
-#define USB_CDC_NCM_CTRL_PROTOCOL_NO_CLASS_SPECIFIC         0x00U  /**< CDC Protocol Code: No class specific protocol */
-#define USB_CDC_NCM_CTRL_PROTOCOL_VENDOR_SPECIFIC           0xFFU  /**< CDC Protocol Code: Vendor specific */
-
-/* Data Interface Class Protocol Codes */
-#define USB_CDC_NCM_DATA_PROTOCOL_NO_CLASS_SPECIFIC         0x00U  /**< CDC Data Protocol: No class specific protocol */
-#define USB_CDC_NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK    0x01U  /**< CDC Data Protocol: Network Transfer Block */
-
-/* CDC Functional Descriptor Types */
-#define USB_CDC_NCM_CS_INTERFACE                            0x24U /**< Class-Specific Interface Descriptor Type */
-#define USB_CDC_NCM_CS_ENDPOINT                             0x25U /**< Class-Specific Endpoint Descriptor Type */
-
-/* CDC Functional Descriptor Subtypes */
-#define USB_CDC_NCM_FUNC_DESC_HEADER                        0x00U /**< Header Functional Descriptor */
-#define USB_CDC_NCM_FUNC_DESC_UNION                         0x06U /**< Union Functional Descriptor */
-#define USB_CDC_NCM_FUNC_DESC_ETHERNET_NETWORKING           0x0FU /**< Ethernet Networking Functional Descriptor */
-
 /* CDC NCM Subclass Code */
 #define USB_CDC_NCM_SUBCLASS_CODE                       0x0DU /**< CDC Subclass Code: Network Control Model (NCM) */
 
-/* NCM Functional Descriptor Subtypes */
+/* NCM Functional Descriptor Subtype -- NCM-specific (0x1A, not in usb_cdc.h) */
 #define USB_CDC_NCM_FUNC_DESC                           0x1AU /**< NCM Functional Descriptor */
 
 /* NCM Class-Specific Request Codes */
@@ -63,10 +43,12 @@
 #define USB_CDC_NCM_GET_CRC_MODE                        0x89U /**< Get CRC mode */
 #define USB_CDC_NCM_SET_CRC_MODE                        0x8AU /**< Set CRC mode */
 
-/* NCM Notifications */
-#define USB_CDC_NCM_NOTIFY_NETWORK_CONNECTION           0x00U /**< Network Connection Notification */
-#define USB_CDC_NCM_NOTIFY_RESPONSE_AVAILABLE           0x01U /**< Response Available Notification */
-#define USB_CDC_NCM_NOTIFY_CONNECTION_SPEED_CHANGE      0x2AU /**< Connection Speed Change Notification */
+/* Response sizes of the NCM Device-to-Host requests handled by the application.
+ * Both lengths are defined by the request, not by the host.
+ * Ref NCM 1.0 6.2.2: GET_NET_ADDRESS returns the 6-byte EUI-48 address.
+ * Ref NCM 1.0 6.2.10: GET_CRC_MODE returns a 16-bit bmCrcMode. */
+#define USB_CDC_NCM_NET_ADDRESS_RSP_LEN                 6U    /**< GET_NET_ADDRESS response size */
+#define USB_CDC_NCM_CRC_MODE_RSP_LEN                    2U    /**< GET_CRC_MODE response size */
 
 /* NCM NTB Format Signatures */
 #define USB_CDC_NCM_NTH16_SIGNATURE                     0x484D434EU /**< "NCMH" - NTB16 header signature */
@@ -86,8 +68,13 @@
 
 /* NCM Default Values */
 #define USB_CDC_NCM_DEFAULT_NTB_INPUT_SIZE              4096U /**< Default NTB input size */
+#define USB_CDC_NCM_MIN_NTB_INPUT_SIZE                  2048U /**< Minimum dwNtbInMaxSize the host may negotiate for NTB-16.
+                                                                   Ref NCM 1.0 Table 6-3: a device shall accept any value
+                                                                   down to 2048 bytes for the 16-bit NTB format. */
 #define USB_CDC_NCM_MAX_NTB_INPUT_SIZE                  65535U /**< Maximum NTB input size (16-bit limit) */
 #define USB_CDC_NCM_NTH16_LENGTH                        12U   /**< NTH16 header length */
+#define USB_CDC_NCM_NDP16_HEADER_LENGTH                 8U    /**< NDP16 header length, i.e. offset of aEntry[0]
+                                                                   (dwSignature + wLength + wNextFpIndex) */
 #define USB_CDC_NCM_NDP16_MIN_LENGTH                    16U   /**< Minimum NDP16 length (2 datagram entries + terminator) */
 #define USB_CDC_NCM_NDP16_ENTRY_LENGTH                  4U    /**< Each NDP16 datagram entry length */
 #define USB_CDC_NCM_DATAGRAM_ALIGN                      4U    /**< Default datagram alignment */
@@ -155,16 +142,16 @@ typedef struct {
 typedef struct {
 	u16 wLength;                 /**< Size of this structure in bytes (28) */
 	u16 bmNtbFormatsSupported;   /**< Bitmap of supported NTB formats (bit0=NTB16, bit1=NTB32) */
-	u32 dwNtbInMaxSize;          /**< Maximum NTB size for host-to-device direction */
-	u16 wNdbInDivisor;           /**< Divisor for datagram alignment in host-to-device direction */
-	u16 wNdbInPayloadRemainder;  /**< Required payload remainder in host-to-device direction */
-	u16 wNdbInAlignment;         /**< Alignment for NDP in host-to-device direction */
+	u32 dwNtbInMaxSize;          /**< Max NTB the device may send to the host (IN, device-to-host) */
+	u16 wNdbInDivisor;           /**< Datagram divisor for device-to-host (IN) NTBs */
+	u16 wNdbInPayloadRemainder;  /**< Datagram payload remainder for device-to-host (IN) NTBs */
+	u16 wNdbInAlignment;         /**< NDP alignment for device-to-host (IN) NTBs */
 	u16 wReserved1;              /**< Reserved (offset 14, set to 0) per NCM 1.0 Table 6-3 */
-	u32 dwNtbOutMaxSize;         /**< Maximum NTB size for device-to-host direction */
-	u16 wNdbOutDivisor;         /**< Divisor for datagram alignment in device-to-host direction */
-	u16 wNdbOutPayloadRemainder; /**< Required payload remainder in device-to-host direction */
-	u16 wNdbOutAlignment;       /**< Alignment for NDP in device-to-host direction */
-	u16 wNtbOutMaxDatagrams;    /**< Maximum number of datagrams per NTB in device-to-host direction */
+	u32 dwNtbOutMaxSize;         /**< Max NTB the host may send to the device (OUT, host-to-device) */
+	u16 wNdbOutDivisor;         /**< Datagram divisor for host-to-device (OUT) NTBs */
+	u16 wNdbOutPayloadRemainder; /**< Datagram payload remainder for host-to-device (OUT) NTBs */
+	u16 wNdbOutAlignment;       /**< NDP alignment for host-to-device (OUT) NTBs */
+	u16 wNtbOutMaxDatagrams;    /**< Max datagrams per host-to-device (OUT) NTB (0 = no limit) */
 } __PACKED usb_cdc_ncm_ntb_parameters_t;
 
 /**
@@ -199,5 +186,9 @@ typedef struct {
 
 /** @} End of USB_Common_Types group */
 /** @} End of USB_Common_API group */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  /* USB_CDC_NCM_H */

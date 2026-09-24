@@ -35,13 +35,14 @@ void usbh_uvc_stream_free_urb_buffer(usbh_uvc_stream_t *stream);
 int usbh_uvc_stream_alloc_urb_buffer(usbh_uvc_stream_t *stream);
 void usbh_uvc_stream_process_sof(usb_host_t *host);
 int usbh_uvc_stream_process_completed(usb_host_t *host, u8 pipe_num);
-#if USBH_UVC_DEBUG
-void usbh_uvc_sw_status_dump_thread(void *param);
-#endif
 #endif
 
-#if USBH_UVC_USE_HW && USBH_UVC_DEBUG
+#if USBH_UVC_DEBUG
+#if (USBH_UVC_USE_HW == 0)
+void usbh_uvc_sw_status_dump_thread(void *param);
+#else
 void usbh_uvc_hw_status_dump_thread(void *param);
+#endif
 #endif
 
 #endif /* USBH_UVC_STREAM_H */

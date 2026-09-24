@@ -1,9 +1,7 @@
 menu "CONFIG WIFI MODE"
-if WHC_DEV_MENU
     config WIFI_NAN_ENABLE
         bool "Enable NAN"
         default n
-endif
     config WIFI_P2P_ENABLE
         bool "Enable P2P"
         default n
@@ -47,6 +45,14 @@ config WIFI_SPEAKER_ENABLE
     bool "Enable WIFI SPEAKER"
     default n
 
+config WIFI_CAST_ENABLE
+    bool "Enable WIFI CAST"
+    default n
+
+config HIGH_TP_TEST
+    bool "Enable HIGH TP"
+    default n
+
 config RMESH_EN
     bool "Enable R-mesh"
     default n
@@ -64,6 +70,18 @@ if RMESH_SOCKET_EN
     config RMESH_OTA_EN
         bool "Enable R-mesh OTA"
         default n
+endif
+
+if !RNAT_EN
+    config WIFI_RMESH_MAX_REFUGEE_NUM
+        int "Rmesh maximum refugee number"
+        depends on AMEBAGREEN2 || AMEBADPLUS || RTL8720F
+        default 32 if AMEBAGREEN2
+        default 14 if RTL8720F
+        default 4 if AMEBADPLUS
+        range 1 32 if AMEBAGREEN2
+        range 1 14 if RTL8720F
+        range 1 4 if AMEBADPLUS
 endif
 
 endif
@@ -120,3 +138,11 @@ endif
 config WLAN_CRITICAL_CODE_IN_RAM
     bool "Enable Critical code in RAM"
     default y
+
+config WIFI_AP_STA_NUM
+    int "SoftAP maximum station number"
+    default 12 if AMEBASMART
+    default 5
+    range 1 25 if AMEBAGREEN2 || AMEBADPLUS || AMEBALITE || AMEBASMART
+    range 1 26 if RTL8720F
+    range 1 5

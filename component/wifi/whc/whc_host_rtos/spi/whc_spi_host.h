@@ -4,10 +4,20 @@
 #include "spi_api.h"
 #include "spi_ex_api.h"
 
-#ifdef CONFIG_AMEBAGREEN2  // need use QFN100
+#ifdef CONFIG_RTL8720F
 #define PINMUX_FUNCTION_SPIM	    PINMUX_FUNCTION_SPI0
-#define DEV_READY_PIN				_PA_18
-#define DEV_TX_REQ_PIN				_PA_19
+#define DEV_READY_PIN				_PA_4	//_PA_11
+#define DEV_TX_REQ_PIN				_PA_5	//_PA_12
+#define SPIM_MOSI                   _PA_1	//_PA_8
+#define SPIM_MISO                   _PA_2	//_PA_9
+#define SPIM_SCLK                   _PA_0	//_PA_7
+#define SPIM_SW_CS                  _PA_3	//_PA_10
+#define SPI_CLOCK_DIVIDER           4
+
+#elif defined(CONFIG_AMEBAGREEN2)  // need use QFN100
+#define PINMUX_FUNCTION_SPIM	    PINMUX_FUNCTION_SPI0
+#define DEV_READY_PIN				_PA_18//TODO
+#define DEV_TX_REQ_PIN				_PA_19//TODO
 #define SPIM_MOSI                   _PA_30
 #define SPIM_MISO                   _PA_31
 #define SPIM_SCLK                   _PA_29
@@ -71,6 +81,17 @@
 #define whc_host_send_data			whc_spi_host_send
 #define whc_host_init				whc_spi_host_init
 
+//#define WHC_SPI_DEBUG   1
+#if defined(WHC_SPI_DEBUG)
+#if defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_RTL8720F)
+#define WHC_DBG_MARK(pin)   do { GPIO_WriteBit((pin), 1); GPIO_WriteBit((pin), 0); } while (0)
+#else
+#define WHC_DBG_MARK(pin)   do { GPIO_WriteBit_Critical((pin), 1); GPIO_WriteBit_Critical((pin), 0); } while (0)
+#endif
+#else
+#define WHC_DBG_MARK(pin)   do { } while (0)
+#endif
+
 enum whc_spi_dma_type {
 	WHC_SPI_TXDMA,
 	WHC_SPI_RXDMA
@@ -99,7 +120,7 @@ struct whc_spi_host_priv_t {
 	u8 used_buf_num;
 	u8 txdma_initialized: 1;
 
-	u8 tx_buf[TX_BUF_NUM][4 + SPI_BUFSZ] __attribute__((aligned(4)));
+	u8 tx_buf[TX_BUF_NUM][SPI_BUFSZ] __attribute__((aligned(32)));
 };
 
 static inline void set_sw_cs_pin(u8 status)

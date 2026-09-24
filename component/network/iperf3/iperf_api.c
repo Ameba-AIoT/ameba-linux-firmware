@@ -42,6 +42,7 @@
 #endif
 
 #include <sys/time.h>
+#include <time.h>
 #include <setjmp.h>
 #if defined(HAVE_CPUSET_SETAFFINITY)
 #include <sys/param.h>
@@ -2061,6 +2062,7 @@ static cJSON *
 JSON_read(int fd)
 {
 	int hsize, nsize;
+	size_t strsize;
 	char *str;
 	cJSON *json = NULL;
 	int rc;
@@ -2073,24 +2075,29 @@ JSON_read(int fd)
 	if (Nread(fd, (char *) &nsize, sizeof(nsize), Ptcp) >= 0) {
 		hsize = ntohl(nsize);
 		/* Allocate a buffer to hold the JSON */
-		str = (char *) calloc(sizeof(char), hsize + 1);	/* +1 for trailing null */
-		if (str != NULL) {
-			rc = Nread(fd, str, hsize, Ptcp);
-			if (rc >= 0) {
-				/*
-				 * We should be reading in the number of bytes corresponding to the
-				 * length in that 4-byte integer.  If we don't the socket might have
-				 * prematurely closed.  Only do the JSON parsing if we got the
-				 * correct number of bytes.
-				 */
-				if (rc == hsize) {
-					json = cJSON_Parse(str);
-				} else {
-					printf("WARNING:  Size of data read does not correspond to offered length\n");
+		strsize = hsize + 1;              /* +1 for trailing NULL */
+		if (strsize) {
+			str = (char *) calloc(strsize, sizeof(char));
+			if (str != NULL) {
+				rc = Nread(fd, str, hsize, Ptcp);
+				if (rc >= 0) {
+					/*
+					 * We should be reading in the number of bytes corresponding to the
+					 * length in that 4-byte integer.  If we don't the socket might have
+					 * prematurely closed.  Only do the JSON parsing if we got the
+					 * correct number of bytes.
+					 */
+					if (rc == hsize) {
+						json = cJSON_Parse(str);
+					} else {
+						printf("WARNING:  Size of data read does not correspond to offered length\n");
+					}
 				}
 			}
+			free(str);
+		} else {
+			printf("WARNING:  Data length overflow\n");
 		}
-		free(str);
 	}
 	return json;
 }

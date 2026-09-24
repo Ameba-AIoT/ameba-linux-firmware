@@ -48,7 +48,6 @@
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
 #include <linux/dma-mapping.h>
-#include <linux/unaligned.h>
 #include <net/cfg80211.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
@@ -85,6 +84,13 @@
 #include <linux/ieee80211.h>
 #include <net/cfg80211.h>
 #include <linux/of_gpio.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+#include <linux/unaligned.h>
+#else
+#include <asm/unaligned.h>
+#endif
+#include <linux/gpio.h>
+#include <linux/device.h>
 
 /* whc headers. */
 #include "whc_host_wiphy.h"
@@ -100,6 +106,9 @@
 #include "whch_host_trx.h"
 #include "whch_host_hal.h"
 #include "whch_host_adapter.h"
+#ifdef CONFIG_NAN
+#include "whch_host_nan.h"
+#endif
 #endif
 #include "ameba_wificfg_common.h"
 
@@ -130,6 +139,12 @@
 #elif defined(CONFIG_WHC_HCI_USB)
 #include <linux/usb.h>
 #include "whc_usb_host.h"
+#elif defined(CONFIG_WHC_HCI_GSPI)
+#include <linux/spi/spi.h>
+#include "whc_gspi_host.h"
+#ifdef CONFIG_BT_INIC
+#include "rtb_gspi.h"
+#endif
 #endif
 #endif
 

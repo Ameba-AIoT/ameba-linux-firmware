@@ -141,6 +141,12 @@ extern unsigned int sys_now(void);
 #define IP_REASS_MAX_PBUFS              60
 #endif
 
+#if defined(CONFIG_WIFI_AP_STA_NUM) && (CONFIG_WIFI_AP_STA_NUM > 5)
+#define ARP_TABLE_SIZE                  (CONFIG_WIFI_AP_STA_NUM + 5)
+#else
+#define ARP_TABLE_SIZE                  10
+#endif
+
 #if defined(CONFIG_RNAT)
 #define IP_FORWARD                      1
 #define IP_NAT                          1
@@ -158,6 +164,64 @@ extern unsigned int sys_now(void);
 #endif
 
 #if defined(CONFIG_HIGH_TP_TEST)
+#if (defined(CONFIG_AMEBAPRO3) && (CONFIG_AMEBAPRO3 == 1))
+#undef	LWIP_WND_SCALE
+#define	LWIP_WND_SCALE                  1
+
+#undef	TCP_RCV_SCALE
+#define	TCP_RCV_SCALE                   1
+
+#undef MEM_SIZE
+#define MEM_SIZE (512*1024)
+
+#undef PBUF_POOL_SIZE
+#define PBUF_POOL_SIZE 880
+
+#undef MEMP_NUM_NETBUF
+#define MEMP_NUM_NETBUF 60
+
+#undef IP_REASS_MAX_PBUFS
+#define IP_REASS_MAX_PBUFS 40
+
+#undef TCP_SND_BUF
+#define TCP_SND_BUF (80*TCP_MSS)
+
+#undef TCP_SND_QUEUELEN
+#define TCP_SND_QUEUELEN (6*TCP_SND_BUF/TCP_MSS)
+
+#undef MEMP_NUM_TCP_SEG
+#define MEMP_NUM_TCP_SEG TCP_SND_QUEUELEN
+
+#undef TCP_WND
+#define TCP_WND (80*TCP_MSS)
+
+#undef MEMP_NUM_NETCONN
+#define MEMP_NUM_NETCONN        64
+
+#undef MEMP_NUM_UDP_PCB
+#define MEMP_NUM_UDP_PCB        MEMP_NUM_NETCONN
+
+#undef MEMP_NUM_TCP_PCB
+#define MEMP_NUM_TCP_PCB        MEMP_NUM_NETCONN
+
+#undef MEMP_NUM_TCP_PCB_LISTEN
+#define MEMP_NUM_TCP_PCB_LISTEN MEMP_NUM_NETCONN
+
+#undef TCPIP_MBOX_SIZE
+#define TCPIP_MBOX_SIZE                 600
+
+#undef DEFAULT_UDP_RECVMBOX_SIZE
+#define DEFAULT_UDP_RECVMBOX_SIZE       600
+
+#undef DEFAULT_TCP_RECVMBOX_SIZE
+#define DEFAULT_TCP_RECVMBOX_SIZE       600
+
+#undef DEFAULT_RAW_RECVMBOX_SIZE
+#define DEFAULT_RAW_RECVMBOX_SIZE       600
+
+#undef DEFAULT_ACCEPTMBOX_SIZE
+#define DEFAULT_ACCEPTMBOX_SIZE         600
+#else
 #undef TCP_WND
 #define TCP_WND                         (16 * TCP_MSS)
 #undef TCP_SND_BUF
@@ -168,6 +232,7 @@ extern unsigned int sys_now(void);
 #define DEFAULT_UDP_RECVMBOX_SIZE       18
 #undef DEFAULT_TCP_RECVMBOX_SIZE
 #define DEFAULT_TCP_RECVMBOX_SIZE       18
+#endif
 #endif
 
 #if defined(CONFIG_WPAN_THREAD_BORDER_ROUTER_EN) && CONFIG_WPAN_THREAD_BORDER_ROUTER_EN
@@ -200,6 +265,26 @@ extern unsigned int sys_now(void);
 #define CHECKSUM_CHECK_UDP              0
 #else
 #define CHECKSUM_CHECK_UDP              1
+#endif
+
+#if defined(CONFIG_WHC_HOST) && (!defined(CONFIG_WHC_INTF_IPC))
+#define LWIP_NETIF_EXT_STATUS_CALLBACK  1
+#endif
+
+#if defined(CONFIG_WHC_INTF_IPC) && defined(CONFIG_WHC_DEV_TCPIP_KEEPALIVE)
+#if defined(CONFIG_WHC_DEV)
+#define TCP_LOCAL_PORT_RANGE_START        0xc000
+#define TCP_LOCAL_PORT_RANGE_END          0xdfff
+#define UDP_LOCAL_PORT_RANGE_START        0xc000
+#define UDP_LOCAL_PORT_RANGE_END          0xdfff
+#elif defined(CONFIG_WHC_HOST)
+#define TCP_LOCAL_PORT_RANGE_START        0xe000
+#define TCP_LOCAL_PORT_RANGE_END          0xffff
+#define UDP_LOCAL_PORT_RANGE_START        0xe000
+#define UDP_LOCAL_PORT_RANGE_END          0xffff
+#endif
+#define TCP_ENSURE_LOCAL_PORT_RANGE(port) ((u16_t)(TCP_LOCAL_PORT_RANGE_START + ((port) % (TCP_LOCAL_PORT_RANGE_END - TCP_LOCAL_PORT_RANGE_START))))
+#define UDP_ENSURE_LOCAL_PORT_RANGE(port) ((u16_t)(UDP_LOCAL_PORT_RANGE_START + ((port) % (UDP_LOCAL_PORT_RANGE_END - UDP_LOCAL_PORT_RANGE_START))))
 #endif
 
 #endif /* LWIP_HDR_LWIPOPTS_H */

@@ -13,8 +13,11 @@ None
 	```
 	[*] Enable USB
 			USB Mode (Device)  --->
-	[*] Composite
-			Select Composite Class (CDC ACM + HID)  --->
+		*** USB Device Global Settings ***
+	[*] Composite function enable
+		*** USB Device Class Selection ***
+	[*] CDC ACM
+	[*] HID
 	```
 	Save and exit.
 

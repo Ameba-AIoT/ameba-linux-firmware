@@ -77,7 +77,11 @@ _WEAK void wifi_set_user_config(void)
 	wifi_user_config.uapsd_ac_enable = 0;
 
 	/* Softap related */
-	wifi_user_config.ap_sta_num = 12;	/*should not exceed 12 */
+#if defined(CONFIG_WIFI_AP_STA_NUM)
+	wifi_user_config.ap_sta_num = CONFIG_WIFI_AP_STA_NUM;
+#else
+	wifi_user_config.ap_sta_num = 12;	/*should not exceed 25 */
+#endif
 	wifi_user_config.ap_polling_sta = 0;
 	wifi_user_config.ap_bypass_forwarding = 0;
 
@@ -118,11 +122,10 @@ _WEAK void wifi_set_user_config(void)
 #endif
 	}
 
-	/* ensure ap_sta_num not exceed 12*/
-	if (wifi_user_config.ap_sta_num > 12) {
-		wifi_user_config.ap_sta_num = 12;
+	if (wifi_user_config.ap_sta_num > 25) {
+		wifi_user_config.ap_sta_num = 25;
 #ifndef CONFIG_WHC_HOST_LINUX
-		RTK_LOGW(TAG_WLAN_DRV, "change ap_sta_num to 12\n");
+		RTK_LOGW(TAG_WLAN_DRV, "change ap_sta_num to 25\n");
 #endif
 	}
 

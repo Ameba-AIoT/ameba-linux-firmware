@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Realtek wireless local area network IC driver.
+ *
+ * Copyright(c) 2024 Realtek Corporation. All rights reserved.
+ */
 #include <whc_host_linux.h>
 
 // for host change detect
@@ -5,6 +11,8 @@
 #include <linux/device.h>
 #include <linux/kallsyms.h>
 #include <linux/kprobes.h>
+
+#include "whc_host_log_fwd.h"
 
 struct whc_sdio whc_sdio_priv = {0};
 extern u32 rtw_sdio_enable_func(struct whc_sdio *priv);
@@ -159,15 +167,10 @@ exit:
 
 int whc_sdio_host_suspend_common(struct whc_sdio *priv)
 {
-#if defined(CONFIG_WHC_WIFI_API_PATH)
-	/* staion mode */
-	if (global_idev.mlme_priv.rtw_join_status == RTW_JOINSTATUS_SUCCESS) {
-		/* update ip address success */
-		if (whc_host_update_ip_addr()) {
-			return -EPERM;
-		}
+	/* disable log fwd before RPWM SUSPEND; once SDIO_SetReady(DISABLE) host cannot command device */
+	if (whc_host_log_forward_pause()) {
+		return -EAGAIN;
 	}
-#endif
 
 	/* set wowlan_state, stop schedule rx/tx work */
 	global_idev.wowlan_state = 1;
@@ -175,6 +178,7 @@ int whc_sdio_host_suspend_common(struct whc_sdio *priv)
 
 	/* suspend device */
 	if (!whc_sdio_host_rpwm_notify(priv, RPWM2_PWR_SUSPEND)) {
+		(void)whc_host_log_forward_resume();   /* rollback */
 		return -EPERM;
 	}
 	return 0;
@@ -243,6 +247,8 @@ int whc_sdio_host_resume_common(struct whc_sdio *priv)
 
 	global_idev.wowlan_state = 0;
 
+	(void)whc_host_log_forward_resume();
+
 	return 0;
 }
 
@@ -274,10 +280,8 @@ int whc_sdio_host_resume(struct device *dev)
 	rtw_sdio_init_txavailbd_threshold(priv);
 #endif
 
-#ifdef CONFIG_SDIO_RX_AGGREGATION
-	if (rtw_sdio_init_agg_setting(priv) == false) {
-		return -EPERM;
-	}
+#ifdef WHC_RX_AGG
+	rtw_sdio_enable_rx_agg(priv);
 #endif
 	rtw_sdio_query_txbd_status(priv);
 

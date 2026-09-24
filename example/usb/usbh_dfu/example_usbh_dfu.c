@@ -10,7 +10,6 @@
 #include "platform_stdlib.h"
 #include "basic_types.h"
 #include "os_wrapper.h"
-#include "usbh.h"
 #include "usbh_dfu.h"
 
 /* Private defines -----------------------------------------------------------*/
@@ -35,8 +34,13 @@ static const usbh_config_t usbh_cfg = {
 	.main_task_priority   = USBH_DFU_MAIN_TASK_PRIORITY,
 	.tick_source          = USBH_SOF_TICK,
 #if defined(CONFIG_AMEBAGREEN2)
-	/* FIFO total depth is 1024, reserve 12 for DMA addr */
+	/* FIFO total 1024 DWORD, resv 12 DWORD for DMA */
 	.rx_fifo_depth   = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth  = 256,
+#elif defined(CONFIG_RLE1509)
+	/* FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth   = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth  = 256,
 #elif defined(CONFIG_AMEBAL2)
@@ -89,7 +93,7 @@ static int dfu_cb_get_block(u16 block_num, u8 *buf, u32 max_len)
 	if (remaining > max_len) {
 		remaining = max_len;
 	}
-	memcpy(buf, dfu_demo_fw + offset, remaining);
+	usb_os_memcpy((void *)buf, (const void *)(dfu_demo_fw + offset), remaining);
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Send blk %u offset %u/%u B\n",
 			 block_num, offset, dfu_demo_fw_size);
 	return (int)remaining;
@@ -170,10 +174,29 @@ static void example_usbh_dfu_thread(void *param)
 
 	UNUSED(param);
 
-	rtos_sema_create(&dfu_attach_sema,   0U, 1U);
-	rtos_sema_create(&dfu_detach_sema,   0U, 1U);
-	rtos_sema_create(&dfu_download_sema, 0U, 1U);
-	rtos_sema_create(&dfu_upload_sema,   0U, 1U);
+	ret = rtos_sema_create(&dfu_attach_sema,   0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit;
+	}
+
+	ret = rtos_sema_create(&dfu_detach_sema,   0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit;
+	}
+
+	ret = rtos_sema_create(&dfu_download_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit;
+	}
+
+	ret = rtos_sema_create(&dfu_upload_sema,   0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit;
+	}
 
 	/* Use fixed firmware size for DFU download/upload test */
 	dfu_demo_fw_size = USBH_DFU_DEMO_FW_SIZE;
@@ -194,6 +217,9 @@ static void example_usbh_dfu_thread(void *param)
 		usbh_deinit();
 		goto exit;
 	}
+
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH DFU demo start\n");
 
@@ -243,6 +269,7 @@ static void example_usbh_dfu_thread(void *param)
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH DFU demo stop\n");
 deinit:
+	usbh_stop();
 	usbh_dfu_deinit();
 	usbh_deinit();
 
@@ -261,7 +288,7 @@ void example_usbh_dfu(void)
 	int status;
 	rtos_task_t task;
 
-	status = rtos_task_create(&task, "example_usbh_dfu_thread", example_usbh_dfu_thread, NULL,
+	status = rtos_task_create(&task, "usbh_dfu_thread", example_usbh_dfu_thread, NULL,
 							  USBH_DFU_INIT_THREAD_STACK_SIZE, USBH_DFU_INIT_THREAD_PRIORITY);
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create thread fail\n");

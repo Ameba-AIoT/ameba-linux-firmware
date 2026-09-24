@@ -697,9 +697,9 @@ static rtk_bt_evt_cb_ret_t app_bt_le_iso_gap_app_callback(uint8_t evt_code, void
 			if (rtk_bt_le_gap_get_dev_state(&dev_state) == RTK_BT_OK &&
 				dev_state.gap_adv_state == RTK_BT_LE_ADV_STATE_IDLE) {
 #if defined(RTK_BLE_5_0_USE_EXTENDED_ADV) && RTK_BLE_5_0_USE_EXTENDED_ADV
-				BT_APP_PROCESS(rtk_bt_le_gap_start_ext_adv(bt_le_iso_demo_cis_acceptor_ext_adv_handle, 0, 0));
+				BT_APP_EVT_CB_PROCESS(rtk_bt_le_gap_start_ext_adv(bt_le_iso_demo_cis_acceptor_ext_adv_handle, 0, 0));
 #else
-				BT_APP_PROCESS(rtk_bt_le_gap_start_adv(&bt_le_iso_demo_cis_acceptor_adv_param));
+				BT_APP_EVT_CB_PROCESS(rtk_bt_le_gap_start_adv(&bt_le_iso_demo_cis_acceptor_adv_param));
 #endif
 			}
 		}
@@ -1146,7 +1146,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_iso_app_conf, (void *)p_le_iso_conf, sizeof(rtk_bt_le_iso_app_conf_t));
 			}
@@ -1222,7 +1222,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_iso_app_conf, (void *)p_le_iso_conf, sizeof(rtk_bt_le_iso_app_conf_t));
 			}
@@ -1278,7 +1278,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_iso_app_conf, (void *)p_le_iso_conf, sizeof(rtk_bt_le_iso_app_conf_t));
 			}
@@ -1333,7 +1333,7 @@ int bt_le_iso_main(uint8_t role, uint8_t enable)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_iso_app_conf, (void *)p_le_iso_conf, sizeof(rtk_bt_le_iso_app_conf_t));
 			}

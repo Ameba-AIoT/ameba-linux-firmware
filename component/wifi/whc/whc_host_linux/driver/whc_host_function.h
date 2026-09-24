@@ -34,6 +34,7 @@ int whc_host_wpa_4way_status_indicate(struct rtw_wpa_4way_status *rpt_4way);
 int whc_host_set_EDCA_params(struct rtw_edca_param *pedca_param);
 int whc_host_tx_mgnt(u8 wlan_idx, const u8 *buf, size_t buf_len, u8 need_wait_ack);
 int whc_host_sae_status_indicate(u8 wlan_idx, u16 status, u8 *mac_addr);
+int whc_host_external_auth_start(u8 wlan_idx);
 int whc_host_pmksa_ops(dma_addr_t pmksa_ops_addr);
 int whc_host_channel_switch(dma_addr_t csa_param_addr);
 u32 whc_host_update_ip_addr(void);
@@ -139,6 +140,9 @@ int whc_host_mp_cmd(dma_addr_t cmd_addr, unsigned int cmd_len, dma_addr_t user_a
 
 #else
 void whc_host_send_data(u8 *buf, u32 len, struct sk_buff *pskb);
+#ifdef WHCH_TXAGG
+void whc_host_send_xmitbuf(struct whc_xmit_buf *pxmitbuf);
+#endif
 void whc_host_send_event(u32 id, u8 *param, u32 param_len, u8 *ret, u32 ret_len);
 void whc_host_recv_data(void *intf_priv);
 void whc_host_event_task(struct work_struct *data);
@@ -171,7 +175,13 @@ u8 rtw_sdio_query_txbd_status(struct whc_sdio *priv);
 int rtw_sdio_alloc_irq(struct whc_sdio *priv);
 #elif defined (CONFIG_WHC_HCI_SPI)
 
-
+#elif defined(CONFIG_WHC_HCI_GSPI)
+u32 rtw_gspi_init(struct whc_gspi *priv);
+void rtw_gspi_deinit(struct whc_gspi *priv);
+int whc_gspi_host_suspend(struct device *dev);
+int whc_gspi_host_resume(struct device *dev);
+int whc_gspi_host_resume_common(struct whc_gspi *priv);
+u8 rtw_gspi_query_txbd_status(struct whc_gspi *priv);
 #endif
 
 #endif
@@ -181,6 +191,14 @@ void whc_host_unregister_genl_family(void);
 #ifdef CONFIG_RMESH
 void whc_host_rmesh_to_user(u32 *param_buf);
 #endif
+#endif
+
+#ifdef WHC_TX_AGG
+/* Drain the tx queue coalescing queued frames into bus transfers (SDIO only). */
+void whc_host_txagg_xmit(struct xmit_priv_t *xmit_priv);
+struct whc_msg_node *whc_host_dequeue_tx_packet(struct xmit_priv_t *xmit_priv);
+void whc_host_requeue_tx_packet_head(struct xmit_priv_t *xmit_priv, struct whc_msg_node *p_node);
+void whc_host_xmit_wake_tx_queue(void);
 #endif
 
 #endif // __RTW_FUNCTIONS_H__

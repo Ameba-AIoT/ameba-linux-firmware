@@ -14,11 +14,12 @@ None
 	```
 	[*] Enable USB
 			USB Mode (Device)  --->
-	[*] Composite
-			Select Composite Class (CDC ACM + UAC)  --->
-	- Choose UAC Version 1.0 or 2.0 :
-	(X) CDC ACM + UAC
-			Select UAC Version (UAC 2.0)  --->
+		*** USB Device Global Settings ***
+	[*] Composite function enable
+		*** USB Device Class Selection ***
+	[*] CDC ACM
+	[*] UAC
+			Select UAC Version (UAC 1.0)  --->
 	```
 	- Choose `CONFIG APPLICATION --->` -> `Audio Config --->`:
 	```

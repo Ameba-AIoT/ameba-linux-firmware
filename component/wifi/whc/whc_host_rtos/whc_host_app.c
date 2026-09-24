@@ -2,13 +2,15 @@
 #include "os_wrapper.h"
 #include "atcmd_service.h"
 
+struct whc_host_cmd_path_priv whc_host_cmdpath_data;
+
 /**
 * @brief  send buf to dev using CMD path
 * @param  buf: data buf to be sent.
 * @param  len: length of buf in bytes.
 * @return none.
 */
-void whc_host_api_send_to_dev(u8 *buf, u32 len)
+void whc_host_send_cmd_data_to_dev(u8 *buf, u32 len)
 {
 	struct whc_cmd_path_hdr *hdr = NULL;
 	u8 *txbuf = NULL;
@@ -28,7 +30,7 @@ void whc_host_api_send_to_dev(u8 *buf, u32 len)
 
 	whc_host_send_data(txbuf, txsize, txbuf, 0);
 
-#ifdef CONFIG_WHC_INTF_SDIO
+#ifdef CONFIG_WHC_INTF_SPDIO
 	rtos_mem_free(txbuf);
 #endif
 }
@@ -45,42 +47,96 @@ void whc_host_scan_result(uint8_t *buf)
 	RTK_LOGS(NOTAG, RTK_LOG_INFO, "%02d %s", buf[1], ap_info);
 }
 
-__weak void whc_host_pkt_rx_to_user(u8 *payload, u32 len)
+/**
+ * @brief  Deliver a CMD-path buffer to the dedicated cmd task.
+ *         Ownership of the original buffer (including the RX descriptor
+ *         and whc_cmd_path_hdr) is transferred to the cmd task, which
+ *         will free it after processing.  This is a weak default; RTOS
+ *         ports that define their own strong override bypass the task.
+ * @param  buf:      pointer to the original buffer (including RX descriptor).
+ * @param  buf_size: total size of buf in bytes.
+ * @return none.
+ */
+void whc_host_deliver_rxbuf_to_user(u8 *buf, u32 buf_size)
 {
-	(void)len;
-	u32 event = *(u32 *)payload;
-	u8 *ptr = payload;
-	u8 id;
-	u32 ipaddr, netmask, gw;
-	uint8_t idx = 0;
-	if (event == WHC_WIFI_TEST) {
-		ptr += 4;
-		id = *ptr;
-		ptr += 1;
-		switch (id) {
-		case WHC_WIFI_TEST_GET_MAC_ADDR:
-			idx = *ptr;
-			ptr += 1;
-			lwip_wlan_set_netif_info(idx, NULL, ptr);
-			break;
+	(void)buf_size;
 
-		case WHC_WIFI_TEST_GET_IP:
-			ipaddr = CONCAT_TO_UINT32(ptr[0], ptr[1], ptr[2], ptr[3]);
-			netmask = CONCAT_TO_UINT32(NETMASK_ADDR0, NETMASK_ADDR1, NETMASK_ADDR2, NETMASK_ADDR3);
-			gw = CONCAT_TO_UINT32(ptr[0], ptr[1], ptr[2], 1);
-			lwip_set_ip(NETIF_WLAN_STA_INDEX, ipaddr, netmask, gw);
-			lwip_netif_set_link_up(NETIF_WLAN_STA_INDEX);
-			break;
+	/* wait for the task to consume the previous message */
+	while (whc_host_cmdpath_data.whc_rx_buf) {
+		rtos_time_delay_ms(1);
+	}
 
-		case WHC_WIFI_TEST_SCAN_RESULT:
-			whc_host_scan_result(payload + 4);
-			break;
+	whc_host_cmdpath_data.whc_rx_buf = buf;
+	rtos_sema_give(whc_host_cmdpath_data.whc_user_rx_sema);
+}
 
-		default:
-			break;
+/**
+ * @brief  Dedicated task that processes CMD-path messages received
+ *         from the device (WHC_WIFI_TEST sub-commands).
+ *         Never use blocking whc_dev_api_send_to_host calls here.
+ */
+static void whc_host_cmd_rx_to_user_task(void)
+{
+	u8 *ptr;
+	u32 event;
+
+	while (1) {
+		rtos_sema_take(whc_host_cmdpath_data.whc_user_rx_sema, RTOS_MAX_TIMEOUT);
+
+		if (whc_host_cmdpath_data.whc_rx_buf) {
+			ptr = whc_host_cmdpath_data.whc_rx_buf + SIZE_RX_DESC + sizeof(struct whc_cmd_path_hdr);
+			event = *(u32 *)ptr;
+
+			if (event == WHC_WIFI_TEST) {
+				ptr += 4;
+				u8 id = *ptr;
+				ptr += 1;
+				u8 idx;
+				u32 ipaddr, netmask, gw;
+
+				switch (id) {
+				case WHC_WIFI_TEST_GET_MAC_ADDR:
+					idx = *ptr;
+					lwip_wlan_set_netif_info(idx, NULL, ptr + 1);
+					break;
+
+				case WHC_WIFI_TEST_GET_IP:
+					ipaddr = CONCAT_TO_UINT32(ptr[0], ptr[1], ptr[2], ptr[3]);
+					netmask = CONCAT_TO_UINT32(NETMASK_ADDR0, NETMASK_ADDR1, NETMASK_ADDR2, NETMASK_ADDR3);
+					gw = CONCAT_TO_UINT32(ptr[0], ptr[1], ptr[2], 1);
+					lwip_set_ip(NETIF_WLAN_STA_INDEX, ipaddr, netmask, gw);
+					lwip_netif_set_link_up(NETIF_WLAN_STA_INDEX);
+					lwip_netif_set_up(NETIF_WLAN_STA_INDEX);
+					RTK_LOGI(TAG_WLAN_INIC, "wifi got ip:\"%d.%d.%d.%d\"\r\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+					break;
+
+				case WHC_WIFI_TEST_SCAN_RESULT:
+					whc_host_scan_result(ptr - 1);
+					break;
+
+				default:
+					break;
+				}
+			}
+
+			rtos_mem_free(whc_host_cmdpath_data.whc_rx_buf);
+			whc_host_cmdpath_data.whc_rx_buf = NULL;
 		}
+	}
+}
 
+void whc_host_cmd_path_init(void)
+{
+	memset(&whc_host_cmdpath_data, 0, sizeof(struct whc_host_cmd_path_priv));
 
+	rtos_sema_create(&whc_host_cmdpath_data.whc_user_rx_sema, 0, 0xFFFFFFFF);
+
+	if (RTK_SUCCESS != rtos_task_create(NULL,
+										(const char *const)"whc_host_cmd_rx_to_user_task",
+										(rtos_task_function_t)whc_host_cmd_rx_to_user_task,
+										NULL, WHC_HOST_CMD_USER_TASK_STACK_SIZE,
+										CONFIG_WHC_HOST_CMD_USER_TASK_PRIO)) {
+		RTK_LOGE(TAG_WLAN_INIC, "Create whc_host_cmd_rx_to_user_task Err!!\n");
 	}
 }
 
@@ -100,7 +156,7 @@ void whc_host_get_mac_addr(uint8_t idx)
 	ptr += 1;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 }
 
 void whc_host_get_ip(uint8_t idx)
@@ -119,7 +175,32 @@ void whc_host_get_ip(uint8_t idx)
 	ptr += 1;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
+}
+
+void whc_host_update_network_info(u8 wlan_idx)
+{
+	u8 buf[18 + 16]; /* WHC_WIFI_TEST(4) + subcmd(1) + wlan_idx(1) + ip(4) + gw(4) + gw_mask(4) + ipv6(16) */
+	u8 *ptr = buf;
+
+	if (wlan_idx > 1) {
+		return;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	*(u32 *)ptr = WHC_WIFI_TEST;
+	ptr += 4;
+	*ptr = WHC_WIFI_TEST_NETWORK_INFO_UPDATE;
+	ptr += 1;
+	*ptr = wlan_idx;
+	ptr += 1;
+	*(u32 *)ptr = *((u32 *)lwip_get_ip(wlan_idx));
+	ptr += 4;
+	*(u32 *)ptr = *((u32 *)lwip_get_gw(wlan_idx));
+	ptr += 4;
+	*(u32 *)ptr = *((u32 *)lwip_get_mask(wlan_idx));
+
+	whc_host_send_cmd_data_to_dev(buf, sizeof(buf));
 }
 
 void whc_host_set_rdy(uint8_t state)
@@ -137,7 +218,7 @@ void whc_host_set_rdy(uint8_t state)
 	*ptr = state;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 }
 
 void whc_host_set_wifi_on(void)
@@ -153,23 +234,7 @@ void whc_host_set_wifi_on(void)
 	ptr += 1;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
-}
-
-void whc_host_dhcp(void)
-{
-	uint8_t buf[12] = {0};
-	uint8_t *ptr = buf;
-	uint32_t buf_len = 0;
-	*(uint32_t *)ptr = WHC_WIFI_TEST;
-	ptr += 4;
-	buf_len += 4;
-
-	*ptr = WHC_WIFI_TEST_DHCP;
-	ptr += 1;
-	buf_len += 1;
-
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 }
 
 void whc_host_set_host(void)
@@ -185,7 +250,7 @@ void whc_host_set_host(void)
 	ptr += 1;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 }
 
 void whc_host_wifi_scan(void)
@@ -202,7 +267,7 @@ void whc_host_wifi_scan(void)
 	ptr += 1;
 	buf_len += 1;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 }
 
 void whc_host_wifi_connect(char *ssid, char *pwd)
@@ -242,7 +307,7 @@ void whc_host_wifi_connect(char *ssid, char *pwd)
 
 	buf_len = ptr - buf;
 
-	whc_host_api_send_to_dev(buf, buf_len);
+	whc_host_send_cmd_data_to_dev(buf, buf_len);
 
 	rtos_mem_free(buf);
 }
@@ -264,7 +329,6 @@ u32 cmd_whc_test(u16 argc, u8  *argv[])
 	}
 
 	if (_strcmp((const char *)argv[0], "setrdy") == 0) {
-		lwip_netif_set_up(NETIF_WLAN_STA_INDEX);
 		if (argc > 1) {
 			if (_strcmp((const char *)argv[1], "unready") == 0) {
 				state = 0;
@@ -277,11 +341,6 @@ u32 cmd_whc_test(u16 argc, u8  *argv[])
 
 	if (_strcmp((const char *)argv[0], "wifion") == 0) {
 		whc_host_set_wifi_on();
-		goto exit;
-	}
-
-	if (_strcmp((const char *)argv[0], "dhcp") == 0) {
-		whc_host_dhcp();
 		goto exit;
 	}
 
@@ -302,6 +361,15 @@ u32 cmd_whc_test(u16 argc, u8  *argv[])
 		whc_host_wifi_connect((char *)argv[1], pwd);
 		goto exit;
 	}
+
+	/* start dhcp in host */
+	if (_strcmp((const char *)argv[0], "dhcp") == 0) {
+		lwip_netif_set_link_up(NETIF_WLAN_STA_INDEX);
+		/* Start DHCPClient */
+		lwip_request_ip(STA_WLAN_INDEX);
+		goto exit;
+	}
+
 exit:
 	return 0;
 }

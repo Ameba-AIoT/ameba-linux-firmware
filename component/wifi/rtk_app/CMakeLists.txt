@@ -14,17 +14,23 @@ set(public_libraries)               #public libraries(files), NOTE: linked with 
 set(TARGET_LIB wifi_rtk_app)
 set(TARGET_LIB_OPEN wifi_rtk_app_open)
 
+if(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD AND CONFIG_WHC_DEV)
+    set(TARGET_LIB wifi_rtk_app_wpaod)
+    set(TARGET_LIB_OPEN wifi_rtk_app_open_wpaod)
+endif()
+
 ameba_list_append(public_includes
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_cast
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_fast_connect
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_auto_reconnect
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_tunnel_app
     ${CMAKE_CURRENT_SOURCE_DIR}/wifi_radar
+    ${CMAKE_CURRENT_SOURCE_DIR}/wifi_xmesh_app
 )
 
 set(need_external_lib OFF)
 
-if(CONFIG_WHC_NONE OR CONFIG_WHC_HOST)
+if(CONFIG_WHC_NONE OR CONFIG_WHC_HOST OR CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
     if(NOT CONFIG_MP_SHRINK)
         set(need_external_lib ON)
     endif()
@@ -38,7 +44,9 @@ ameba_list_append_if(need_external_lib public_libraries ${c_SDK_LIB_APPLICATION_
 
 # NAN host control app is shipped closed-source: link the prebuilt lib_nan.a
 # (built from source before release by ameba_add_external_app_library below).
+if(CONFIG_WHC_HOST OR CONFIG_WHC_NONE)
 ameba_list_append_if(CONFIG_WIFI_NAN_HOST_APP public_libraries ${c_SDK_LIB_APPLICATION_DIR}/lib_nan.a)
+endif()
 
 # Component public part, user config end
 #----------------------------------------#
@@ -71,10 +79,10 @@ set(private_compile_options_open)         #private compile_options
 #------------------------------#
 # Component private part, user config begin
 if(NOT CONFIG_MP_SHRINK)
-    if(CONFIG_WHC_NONE OR CONFIG_WHC_HOST)
+    if(CONFIG_WHC_NONE OR CONFIG_WHC_HOST OR CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
         ameba_list_append(private_sources wifi_acs/wifi_acs.c)
         ameba_list_append(private_sources wifi_radar/wifi_radar.c)
-        if (CONFIG_TFLITE_MICRO_EN)
+        if (CONFIG_WIFI_RADAR_ENABLE AND CONFIG_TFLITE_MICRO_EN)
             ameba_list_append(private_sources wifi_radar/nn_interface.cc)
             ameba_list_append(private_sources wifi_radar/models/radar_int8.c)
             ameba_list_append(private_definitions TF_LITE_STATIC_MEMORY)
@@ -83,6 +91,7 @@ if(NOT CONFIG_MP_SHRINK)
     endif()
     if(NOT CONFIG_PLATFORM_ZEPHYR)
         ameba_list_append_if(CONFIG_WHC_HOST private_sources wifi_cast/wifi_intf_drv_to_app_cast.c)
+        ameba_list_append_if(CONFIG_WHC_HOST private_sources wifi_xmesh_app/wifi_xmesh_xgravitation_demo.c)
     endif()
 endif()
 
@@ -140,6 +149,7 @@ ameba_add_internal_library(${TARGET_LIB_OPEN}
 # ported-from-Linux code stays isolated here; the -Wno-error relaxations cover
 # legacy style only (unused vars, K&R prototypes, char/uint8 signedness,
 # debug-print formats); revisit for a cleanup pass.
+if(CONFIG_WHC_HOST OR CONFIG_WHC_NONE)
 if(CONFIG_WIFI_NAN_HOST_APP)
     ameba_add_external_app_library(nan
         p_SOURCES
@@ -159,6 +169,7 @@ if(CONFIG_WIFI_NAN_HOST_APP)
             -Wno-error=format
             -Wno-error=address
     )
+endif()
 endif()
 ##########################################################################################
 

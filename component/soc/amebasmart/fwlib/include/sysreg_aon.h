@@ -550,7 +550,9 @@ typedef struct {
 	__IO u8 MEM_TYPE;
 	__IO u8 CHIP_INFO;
 	__IO u8 PSRAM_LATENCY;
-	__IO u8 RRAM_USER_RSVD[107];            /* Rsvd for user */
+	__IO u8 RRAM_ALIGN_RSVD[3];             /* fill gap to 4B-align OTA_APP_REMAP */
+	__IO u32 OTA_APP_REMAP;
+	__IO u8 RRAM_USER_RSVD[100];            /* Rsvd for user, shrunk 3B for RRAM_ALIGN_RSVD */
 
 	__IO u8 RRAM_PCR_RSVD[128];             /* Rsvd for PCR */
 } RRAM_TypeDef;

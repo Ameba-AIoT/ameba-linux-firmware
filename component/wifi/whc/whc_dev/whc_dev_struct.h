@@ -10,7 +10,7 @@
 #ifndef __WHC_DEV_STRUCT_H__
 #define __WHC_DEV_STRUCT_H__
 
-#if defined(CONFIG_WHC_INTF_SDIO)
+#if defined(CONFIG_WHC_INTF_SPDIO)
 #include "spdio_api.h"
 #endif
 
@@ -24,7 +24,7 @@ struct whc_buf_info {
 };
 
 struct whc_txbuf_info_t {
-#if defined(CONFIG_WHC_INTF_SDIO)
+#if defined(CONFIG_WHC_INTF_SPDIO)
 	struct spdio_buf_t txbuf_info;
 #else
 	struct whc_buf_info txbuf_info;
@@ -37,6 +37,16 @@ struct whc_msg_node {
 	struct list_head	list;
 	void				*msg;
 };
+
+#ifdef WHCH_TXAGG
+struct whch_buff {
+	struct list_head	list;
+	unsigned char		*buf;		/* Head of buffer */
+	/* list and buf cannot be changed after initialization */
+	unsigned int		status;		/* per bit per pkt, 0: free, 1: busy (still referenced by WiFi TX) */
+	unsigned char		agg_num;	/* the number of pkts in the buffer */
+};
+#endif
 
 #endif /* __WHC_DEV_STRUCT_H__ */
 

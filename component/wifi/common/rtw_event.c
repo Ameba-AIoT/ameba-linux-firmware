@@ -21,7 +21,8 @@
 #if defined(CONFIG_WIFI_P2P_ENABLE) && !defined(CONFIG_WPA_STD)
 #include "wifi_p2p_supplicant.h"
 #endif
-#if !defined(CONFIG_WHC_DEV)|| defined(CONFIG_WPA_LOCATION_DEV) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
+/* case: 1.whc none 2. whc host and with api path 3. for wpa offload */
+#if defined(CONFIG_WHC_NONE) || (defined(CONFIG_WHC_HOST) && defined(CONFIG_WHC_WIFI_API_PATH)) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
 #include "atcmd_service.h"
 #include "wpa_lite_intf.h"
 #ifndef CONFIG_WPA_STD
@@ -39,8 +40,7 @@
 /**********************************************************************************************
  *                                          Globals
  *********************************************************************************************/
-/* 1. single core or host 2.WPAoD. */
-#if (!(defined CONFIG_WHC_DEV) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD))
+#if defined(CONFIG_WHC_NONE) || (defined(CONFIG_WHC_HOST) && defined(CONFIG_WHC_WIFI_API_PATH)) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
 #ifndef CONFIG_WPA_STD
 
 extern int (*p_store_fast_connect_info)(unsigned int data1, unsigned int data2);
@@ -49,12 +49,15 @@ extern int join_fail_reason;
 extern struct internal_block_param *join_block_param;
 extern void (*p_wifi_join_info_free)(u8 iface_type);
 extern void eap_disconnected_hdl(void);
-#if !defined(CONFIG_MP_SHRINK) && defined (CONFIG_WHC_HOST)
+#if defined(CONFIG_WIFI_CAST_ENABLE) && !defined(CONFIG_MP_SHRINK) && defined (CONFIG_WHC_HOST)
 extern u8 wifi_cast_get_initialized(void);
 extern void wifi_cast_wifi_join_status_ev_hdl(u8 *evt_info);
 #endif
 #if defined(CONFIG_WHC_HOST) && !defined(CONFIG_PLATFORM_ZEPHYR) && !defined(CONFIG_MP_SHRINK) && defined(CONFIG_RMESH_EN)
 extern void wtn_zrpp_get_ap_info_evt_hdl(u8 *evt_info);
+#endif
+#ifdef CONFIG_RADAR
+extern void wifi_radar_report_evt_hdl(u8 *evt_info);
 #endif
 /**********************************************************************************************
  *                                          Internal events
@@ -135,7 +138,7 @@ void wifi_event_join_status_internal_hdl(u8 *evt_info)
 	rtw_reconn_join_status_hdl(evt_info);
 #endif
 
-#if defined(CONFIG_WHC_HOST) && !defined(CONFIG_PLATFORM_ZEPHYR)
+#if defined(CONFIG_WIFI_CAST_ENABLE) && defined(CONFIG_WHC_HOST) && !defined(CONFIG_PLATFORM_ZEPHYR)
 	if (wifi_cast_get_initialized()) {
 		wifi_cast_wifi_join_status_ev_hdl(evt_info);
 	}
@@ -311,6 +314,9 @@ const struct rtw_event_hdl_func_t event_internal_hdl[] = {
 #if defined(CONFIG_WHC_HOST) && !defined(CONFIG_PLATFORM_ZEPHYR) && !defined(CONFIG_MP_SHRINK) && defined(CONFIG_RMESH_EN)
 	{RTW_EVENT_WTN_ZRPP_GET_AP_INFO, wtn_zrpp_get_ap_info_evt_hdl},
 #endif
+#ifdef CONFIG_RADAR
+	{RTW_EVENT_RADAR_PROC_RPT,		wifi_radar_report_evt_hdl},
+#endif
 };
 
 __attribute__((noinline)) void wifi_event_handle_internal(u32 event_cmd, u8 *evt_info)
@@ -392,8 +398,7 @@ int wifi_event_handle(u32 event_cmd, u8 *evt_info)
 		return -RTK_ERR_BADARG;
 	}
 
-	/* 1. single core or host 2.WPAoD. */
-#if (!(defined CONFIG_WHC_DEV) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD))
+#if defined(CONFIG_WHC_NONE) || (defined(CONFIG_WHC_HOST) && defined(CONFIG_WHC_WIFI_API_PATH)) || defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
 #ifndef CONFIG_WPA_STD
 	wifi_event_handle_internal(event_cmd, evt_info + prepend_len); //prepend_len = 0
 #endif
@@ -410,7 +415,7 @@ void wifi_indication(u32 event, u8 *evt_info, s32 evt_len)
 	(void)evt_len;
 
 	/* 1. ipc dev 2. WPAoH */
-#if defined(CONFIG_WHC_DEV) && !defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD)
+#if defined(CONFIG_WHC_DEV) && !defined(CONFIG_WHC_WPA_SUPPLICANT_OFFLOAD) && defined(CONFIG_WHC_WIFI_API_PATH)
 	extern void whc_dev_wifi_event_indicate(u32 event_cmd, u8 * evt_info, s32 evt_len);
 	whc_dev_wifi_event_indicate(event, evt_info, evt_len);
 #endif

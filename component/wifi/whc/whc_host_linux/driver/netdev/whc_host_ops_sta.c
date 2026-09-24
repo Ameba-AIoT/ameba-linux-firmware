@@ -388,7 +388,7 @@ static int whc_host_connect_ops(struct wiphy *wiphy, struct net_device *ndev, st
 
 	dev_dbg(global_idev.pwhc_dev, "=>"FUNC_NDEV_FMT" - Start to Connection\n", FUNC_NDEV_ARG(ndev));
 	dev_dbg(global_idev.pwhc_dev,
-			"ssid=%s, ssid_len=%d, freq=%d, bssid=[0x%x:0x%x:0x%x:0x%x:0x%x:0x%x], privacy=%d, key=%p, key_len=%d, key_idx=%d, auth_type=%d\n",
+			"ssid=%s, ssid_len=%ld, freq=%d, bssid=[0x%x:0x%x:0x%x:0x%x:0x%x:0x%x], privacy=%d, key=%p, key_len=%d, key_idx=%d, auth_type=%d\n",
 			sme->ssid, sme->ssid_len, sme->channel->center_freq,
 			sme->bssid[0], sme->bssid[1], sme->bssid[2], sme->bssid[3], sme->bssid[4], sme->bssid[5],
 			sme->privacy, sme->key, sme->key_len, sme->key_idx, sme->auth_type);
@@ -645,9 +645,11 @@ static int whc_host_disconnect_ops(struct wiphy *wiphy, struct net_device *ndev,
 
 	wait_for_completion_interruptible(&global_idev.mlme_priv.disconnect_done_sema);
 
+#ifdef CONFIG_IEEE80211R
 	if ((rtw_netdev_idx(ndev) == WHC_STA_PORT) && (ret == 0) && !netif_dormant(ndev)) {
 		netif_dormant_on(ndev);
 	}
+#endif
 	netif_carrier_off(ndev);
 
 	return ret;
@@ -1257,8 +1259,14 @@ static int whc_host_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev, stru
 	frame_styp = le16_to_cpu(((struct rtw_ieee80211_hdr_3addr *)buf)->frame_ctl) & IEEE80211_FCTL_STYPE;
 
 	if (frame_styp == IEEE80211_STYPE_AUTH) {
+		struct ieee80211_mgmt *auth = (struct ieee80211_mgmt *)buf;
+		u16 auth_alg = le16_to_cpu(auth->u.auth.auth_alg);
+
 		dev_dbg(global_idev.pwhc_dev, "wpa_s tx auth\n");
 		//dev_dbg(global_idev.pwhc_dev, "tx_ch=%d, no_cck=%u, da="MAC_FMT"\n", tx_ch, no_cck, MAC_ARG(GetAddr1Ptr(buf)));
+		if (auth_alg == WLAN_AUTH_SAE && le16_to_cpu(auth->u.auth.auth_transaction) == 1) {
+			whc_host_external_auth_start(wlan_idx);
+		}
 		goto dump;
 	} else if (frame_styp == IEEE80211_STYPE_ACTION) {
 		dev_dbg(global_idev.pwhc_dev, "issue action.\n");

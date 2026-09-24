@@ -7,6 +7,7 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "usbh_uvc.h"
+#include "usbh_uvc_class.h"
 #include "usbh_uvc_stream.h"
 #include "usbh_uvc_parse.h"
 
@@ -250,16 +251,12 @@ static int usbh_uvc_set_urb(usbh_uvc_stream_t *stream)
 			k = i;
 			while (k > 0U) {
 				k--;
-				if (stream->urb[k] != NULL) {
-					usb_os_mfree(stream->urb[k]);
-					stream->urb[k] = NULL;
-				}
+				usb_os_mfree((void *)stream->urb[k]);
+				stream->urb[k] = NULL;
 			}
 
-			if (stream->urb_buffer != NULL) {
-				usb_os_mfree(stream->urb_buffer);
-				stream->urb_buffer = NULL;
-			}
+			usb_os_mfree((void *)stream->urb_buffer);
+			stream->urb_buffer = NULL;
 			return HAL_ERR_MEM;
 		}
 		stream->urb[i]->addr = stream->urb_buffer + (i * stream->urb_buffer_size);
@@ -302,16 +299,14 @@ static void usbh_uvc_reset_urb(usbh_uvc_stream_t *stream)
 			stream->urb[i]->regive_us = 0U;
 			stream->urb[i]->owner = 0U;
 #endif
-			usb_os_mfree(stream->urb[i]);
+			usb_os_mfree((void *)stream->urb[i]);
 			stream->urb[i] = NULL;
 		}
 	}
 
-	if (stream->urb_buffer != NULL) {
-		usb_os_mfree(stream->urb_buffer);
-		stream->urb_buffer = NULL;
-		stream->urb_buffer_size = 0U;
-	}
+	usb_os_mfree((void *)stream->urb_buffer);
+	stream->urb_buffer = NULL;
+	stream->urb_buffer_size = 0U;
 }
 
 
@@ -722,7 +717,7 @@ static void usbh_uvc_combine_urb(usbh_uvc_stream_t *stream, usbh_uvc_urb_t *urb)
 		}
 
 		header_len = data[0];
-		header = (usbh_uvc_vs_payload_header_t *)(void *)data;
+		header = (usbh_uvc_vs_payload_header_t *)data;
 
 		if ((header_len < USBH_UVC_PAYLOAD_HEADER_MIN_LEN) || (length < header_len)) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Err: payload len(%d) < header len(%d)\n", length, header_len);
@@ -775,7 +770,7 @@ static void usbh_uvc_combine_urb(usbh_uvc_stream_t *stream, usbh_uvc_urb_t *urb)
 			maxlen = stream->frame_buffer_size - frame_buffer->byteused;
 			bytes = MIN(maxlen, payload_len);
 
-			usb_os_memcpy((frame_buffer->buf + frame_buffer->byteused), (data + header_len), bytes);
+			usb_os_memcpy((void *)(frame_buffer->buf + frame_buffer->byteused), (const void *)(data + header_len), bytes);
 			frame_buffer->byteused += bytes;
 		}
 
@@ -901,6 +896,10 @@ int usbh_uvc_stream_process_completed(usb_host_t *host, u8 pipe_num)
 					return HAL_OK;
 				}
 
+				if (stream->urb[*urb_index] == NULL) {
+					pipe->xfer_state = USBH_EP_XFER_IDLE;
+					return HAL_OK;
+				}
 				urb_state = usbh_get_urb_state(host, pipe);
 				if (urb_state == USBH_URB_DONE) {
 
@@ -1017,7 +1016,7 @@ void usbh_uvc_stream_process_sof(usb_host_t *host)
 			}
 
 			if (stream->state != STREAM_STATE_CTRL_IDLE) {
-				usbh_notify_class_state_change(host, 0x00);
+				usbh_notify(host, 0x00, &usbh_uvc_driver);
 			}
 		}
 	}
@@ -1225,8 +1224,8 @@ int usbh_uvc_stream_ctrl_set_video(usbh_uvc_stream_t *stream, u8 probe)
 	ctrl_struct_size = sizeof(usbh_uvc_stream_control_t);
 
 	/* minimal UVC 1.5 compat: zero buf so offset 34-47 are 0, then copy known fields */
-	usb_os_memset(uvc->request_buf, 0U, size);
-	usb_os_memcpy(uvc->request_buf, (void *) ctrl, (size < ctrl_struct_size) ? size : ctrl_struct_size);
+	usb_os_memset((void *)uvc->request_buf, 0U, size);
+	usb_os_memcpy((void *)uvc->request_buf, (const void *)ctrl, (size < ctrl_struct_size) ? size : ctrl_struct_size);
 
 	if (USB_IS_MEM_DMA_ALIGNED(uvc->request_buf)) {
 		DCache_Clean((u32)uvc->request_buf, size);
@@ -1356,7 +1355,7 @@ int usbh_uvc_stream_ctrl_apply(usbh_uvc_stream_t *stream)
   * @brief  Allocate and initialize all runtime resources of a UVC stream.
   *         Creates the frame buffers, frame lists, semaphores/mutexes and the
   *         worker threads for one stream instance. This is the resource-layer
-  *         (stream mechanic) back-end of the public usbh_uvc_open(); on any step
+  *         (stream mechanic) back-end invoked by usbh_uvc_init(); on any step
   *         failure it rolls back whatever was already allocated.
   * @param	stream: uvc stream interface
   * @retval HAL_OK on success, non-zero on failure
@@ -1423,7 +1422,10 @@ int usbh_uvc_stream_open(usbh_uvc_stream_t *stream)
 	}
 
 	uvc_dec = stream->uvc_dec;
-	uvc_dec->dev_addr = uvc->host->dev_addr;
+	/* NOTE: dev_addr is NOT captured here. stream_open now runs at usbh_uvc_init()
+	 * time (before enumeration), when uvc->host->dev_addr is not yet valid. The
+	 * device address is captured in usbh_uvc_stream_start() (post-attach), right
+	 * before usbh_hw_uvc_prepare(). */
 	for (j = 0; j < USBH_UVC_VIDEO_FRAME_NUMS; j ++) {
 		uvc_dec->buf[j].buf_start_addr = (u32)stream->frame_buffer[j].buf;
 		uvc_dec->buf[j].buf_size = frame_buf_size;
@@ -1433,12 +1435,12 @@ int usbh_uvc_stream_open(usbh_uvc_stream_t *stream)
 	stream->uvc_dec->err_cb = uvc->hw_error;
 	usbh_hw_uvc_init(stream->uvc_dec);	/* create dec_sema once; prepare+start deferred to stream_start */
 
-	rtos_critical_enter(RTOS_CRITICAL_USB);
+	usb_os_enter_critical(0U);
 	if (uvc->hw_irq_ref_cnt == 0U) {
 		usbh_hw_uvc_irq_en(uvc->hw_isr_pri);
 	}
 	uvc->hw_irq_ref_cnt++;
-	rtos_critical_exit(RTOS_CRITICAL_USB);
+	usb_os_exit_critical(0U);
 
 #endif
 
@@ -1474,7 +1476,7 @@ static void usbh_uvc_exit_get_frame(usbh_uvc_stream_t *stream)
   * @brief  Release all runtime resources of a UVC stream.
   *         Stops the worker threads, frees the frame buffers/frame lists and
   *         destroys the semaphores/mutexes allocated by usbh_uvc_stream_open().
-  *         Resource-layer (stream mechanic) back-end of the public usbh_uvc_close().
+  *         Resource-layer (stream mechanic) back-end invoked by usbh_uvc_deinit().
   * @param	stream: uvc stream interface
   * @retval None
   */
@@ -1499,14 +1501,14 @@ void usbh_uvc_stream_close(usbh_uvc_stream_t *stream)
 	uvc = &uvc_host;
 	dec = stream->uvc_dec;
 	if (dec != NULL) {
-		rtos_critical_enter(RTOS_CRITICAL_USB);
+		usb_os_enter_critical(0U);
 		if (uvc->hw_irq_ref_cnt > 0U) {
 			uvc->hw_irq_ref_cnt--;
 			if (uvc->hw_irq_ref_cnt == 0U) {
 				usbh_hw_uvc_irq_dis();
 			}
 		}
-		rtos_critical_exit(RTOS_CRITICAL_USB);
+		usb_os_exit_critical(0U);
 
 		usbh_hw_uvc_stop(dec);
 		usbh_hw_uvc_deinit(dec);
@@ -1561,10 +1563,8 @@ void usbh_uvc_stream_close(usbh_uvc_stream_t *stream)
 		frame->state = UVC_FRAME_INIT;
 	}
 
-	if (stream->frame_buf != NULL) {
-		usb_os_mfree(stream->frame_buf);
-		stream->frame_buf = NULL;
-	}
+	usb_os_mfree((void *)stream->frame_buf);
+	stream->frame_buf = NULL;
 }
 
 /**
@@ -1611,8 +1611,8 @@ void usbh_uvc_stream_flush(usbh_uvc_stream_t *stream)
 
 	stream->is_resource_safe = 1;
 #else
-	/* HW path: per-round state reset only. free_buf_cnt must be restored to its
-	 * initial value (2) so the 3-buffer rotation in usbh_hw_uvc_handle_frame_done()
+	/* HW path: per-round state reset only. The HW decode buffers must be reset to a
+	 * known 3-buffer layout so the rotation in usbh_hw_uvc_handle_frame_done()
 	 * starts from a known position, and stale dec_sema tokens are drained. */
 	if (stream->uvc_dec != NULL) {
 		/* usbh_hw_uvc_flush() discards any HW frame-done/error status latched in
@@ -1663,11 +1663,15 @@ int usbh_uvc_stream_start(usbh_uvc_stream_t *stream)
 #if (USBH_UVC_USE_HW == 0)
 	stream->next_xfer = 1U;
 #else
+	/* Capture the enumerated device address here (post-attach). This used to be
+	 * done in usbh_uvc_stream_open(), but that now runs at usbh_uvc_init() time
+	 * when the device address is not yet assigned. */
+	stream->uvc_dec->dev_addr = uvc->host->dev_addr;
 	usbh_hw_uvc_prepare(stream->uvc_dec, pipe);
 	usbh_hw_uvc_start(stream->uvc_dec);
 #endif
 
-	usbh_notify_class_state_change(uvc->host, pipe->pipe_num);
+	usbh_notify(uvc->host, pipe->pipe_num, &usbh_uvc_driver);
 	return HAL_OK;
 }
 
@@ -1681,6 +1685,7 @@ int usbh_uvc_stream_start(usbh_uvc_stream_t *stream)
   */
 int usbh_uvc_stream_stop(usbh_uvc_stream_t *stream)
 {
+	u8 wait = 0U;
 	if (stream->stream_state != UVC_STREAM_ACTIVE) {
 		return HAL_OK;
 	}
@@ -1691,5 +1696,27 @@ int usbh_uvc_stream_stop(usbh_uvc_stream_t *stream)
 #endif
 	stream->stream_state = UVC_STREAM_READY;
 
+	/* Promptly wake any thread blocked in usbh_uvc_get_frame() WITHOUT freeing
+	 * resources. stream_state is already READY above, so on waking get_frame
+	 * re-checks (state != ACTIVE) and returns NULL immediately instead of waiting
+	 * out USBH_UVC_GET_FRAME_TIMEOUT (up to 1000 ms) -- this is what makes hotplug
+	 * detach return promptly. On a normal stop (device still attached) the give is
+	 * harmless: no caller is blocked, and the stale token is drained by the next
+	 * usbh_uvc_stream_flush() in start. usbh_uvc_exit_get_frame() then synchronizes
+	 * teardown on detach and is a no-op while the device is still attached.
+	 * Buffers/threads/HW channels stay allocated; they are freed only by deinit. */
+#if (USBH_UVC_USE_HW == 0)
+	if (stream->frame_sema != NULL) {
+		usb_os_sema_give(stream->frame_sema);
+	}
+#else
+	if ((stream->uvc_dec != NULL) && (stream->uvc_dec->dec_sema != NULL)) {
+		usb_os_sema_give(stream->uvc_dec->dec_sema);
+	}
+#endif
+	usbh_uvc_exit_get_frame(stream);
+	while ((stream->get_valid != 0U) && (wait++ < 100U)) {
+		rtos_time_delay_ms(1);
+	}
 	return HAL_OK;
 }

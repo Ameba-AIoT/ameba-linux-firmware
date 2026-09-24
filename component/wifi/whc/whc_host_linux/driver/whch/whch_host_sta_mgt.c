@@ -57,7 +57,7 @@ struct sta_info *whc_host_sta_get_stainfo(u8 iface_type, u8 *hwaddr)
 		addr = hwaddr;
 	}
 
-	spin_lock(&pstapriv->sta_list_mutex);
+	spin_lock_bh(&pstapriv->sta_list_mutex);
 
 	phead = &pstapriv->sta_list;
 	plist = phead->next;
@@ -72,7 +72,7 @@ struct sta_info *whc_host_sta_get_stainfo(u8 iface_type, u8 *hwaddr)
 		plist = plist->next;
 	}
 
-	spin_unlock(&pstapriv->sta_list_mutex);
+	spin_unlock_bh(&pstapriv->sta_list_mutex);
 	return psta;
 }
 
@@ -102,8 +102,6 @@ void _whc_host_sta_init_stainfo(struct sta_info *psta)
 	_whc_host_sta_init_pending_sta_q(&psta_xmitpriv->sta_pending_bk_q);
 	_whc_host_sta_init_pending_sta_q(&psta_xmitpriv->sta_pending_vi_q);
 	_whc_host_sta_init_pending_sta_q(&psta_xmitpriv->sta_pending_vo_q);
-
-	psta->sta_mlmepriv.tx_agg_num = 0x1f;
 
 	for (i = 0; i < 16; i++) {
 		memcpy(&psta_recvpriv->tid_rxseq[i], &wRxSeqInitialValue, 2);
@@ -142,15 +140,17 @@ struct sta_info *whc_host_sta_alloc_stainfo(u8 iface_type, u8 *hwaddr)
 			goto exit;
 		}
 	}
+	dev_dbg(global_idev.pwhc_dev, "[whc] %s iface_type=%d hwaddr=[0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x].",
+			__func__, iface_type, hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3], hwaddr[4], hwaddr[5]);
 
 	_whc_host_sta_init_stainfo(psta);
 	psta_mlmepriv = &psta->sta_mlmepriv;
 	memcpy(psta_mlmepriv->stainfo_mac_addr, hwaddr, 6);
 
-	spin_lock(&pstapriv->sta_list_mutex);
+	spin_lock_bh(&pstapriv->sta_list_mutex);
 	list_add_tail(&psta->list, &pstapriv->sta_list);
 	pmlmeinfo->total_sta_count_by_port++;
-	spin_unlock(&pstapriv->sta_list_mutex);
+	spin_unlock_bh(&pstapriv->sta_list_mutex);
 
 exit:
 	return psta;
@@ -162,11 +162,8 @@ int whc_host_sta_free_stainfo(u8 iface_type, u8 *hwaddr)
 	struct whch_mlme_info	*pmlmeinfo = &global_idev.whchpriv.mlmeinfo[iface_type];
 	struct whch_sta_priv		*pstapriv = &global_idev.whchpriv.stapriv[iface_type];
 	struct sta_info		*psta = NULL;
-	//struct sta_xmit_priv	*psta_xmitpriv = NULL;
 	int				ret = 0;
-#ifndef CONFIG_MP_SHRINK
 	int				i;
-#endif
 
 	dev_dbg(global_idev.pwhc_dev, "[whc] %s iface_type=%d hwaddr=[0x%02x:0x%02x:0x%02x:0x%02x:0x%02x:0x%02x].",
 			__func__, iface_type, hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3], hwaddr[4], hwaddr[5]);
@@ -178,31 +175,21 @@ int whc_host_sta_free_stainfo(u8 iface_type, u8 *hwaddr)
 		goto exit;
 	}
 
-	spin_lock(&pstapriv->sta_list_mutex);
+	spin_lock_bh(&pstapriv->sta_list_mutex);
 	list_del(&psta->list);
 	pmlmeinfo->total_sta_count_by_port--;
-	spin_unlock(&pstapriv->sta_list_mutex);
+	spin_unlock_bh(&pstapriv->sta_list_mutex);
 
-	/* free pendingq */
-	spin_lock(&pxmitpriv->mutex);
+	spin_lock_bh(&pxmitpriv->mutex);
 	whc_host_hal_pending_q_free(iface_type, &psta->sta_xmitpriv);
-	spin_unlock(&pxmitpriv->mutex);
+	spin_unlock_bh(&pxmitpriv->mutex);
 
 	whc_host_defrag_ctrl_deinit(&psta->sta_recvpriv.defrag_ctrl);
 	del_timer_sync(&psta->sta_recvpriv.defrag_ctrl.defrag_timer);
 
-#ifndef CONFIG_MP_SHRINK
 	//for A-MPDU Rx reordering buffer control, cancel reordering_ctrl_timer
 	for (i = 0; i < MAXTID; i++) {
 		whc_host_recv_reorder_free(&psta->sta_recvpriv.recvreorder_ctrl[i]);
-	}
-#endif
-
-	/* TODO_softap */
-	if (iface_type == WHC_AP_PORT) {
-		//g_apmlmepriv.sta_dz_bitmap &= ~BIT(psta_mlmepriv->stainfo_aid);
-		//g_apmlmepriv.tim_bitmap &= ~BIT(psta_mlmepriv->stainfo_aid);
-		//g_apmlmepriv.aid_bitmap &= ~BIT(psta_mlmepriv->stainfo_aid);
 	}
 
 	if (psta != (&bcmc_stainfo)) {
@@ -211,6 +198,39 @@ int whc_host_sta_free_stainfo(u8 iface_type, u8 *hwaddr)
 exit:
 	return ret;
 }
+
+int whc_host_init_bcmc_stainfo(u8 iface_type)
+{
+	struct sta_info		*psta = NULL;
+	struct sta_mlme_priv 	*psta_mlmepriv;
+	u8	bc_addr[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+	psta = whc_host_sta_alloc_stainfo(iface_type, bc_addr);
+
+	if (psta == NULL) {
+		goto exit;
+	}
+
+	// default broadcast & multicast use macid 1
+	psta_mlmepriv = &psta->sta_mlmepriv;
+	psta_mlmepriv->stainfo_macid = 1;
+
+	if (iface_type == WHC_AP_PORT) {
+		/* default enable bcmc qos */
+		global_idev.whchpriv.qospriv[iface_type].qos_option = 1;
+		psta_mlmepriv->b_sta_qos_option = 1;
+	}
+
+exit:
+	return 0;
+}
+
+void whc_host_free_bcmc_stainfo(u8 iface_type)
+{
+	u8	bc_addr[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	whc_host_sta_free_stainfo(iface_type, bc_addr);
+}
+
 
 void whc_host_sta_update_stainfo(u8 iface_type, u8 *hwaddr, struct rtw_event_sta_info *pstainfo, struct rtw_event_security_priv *psecinfo)
 {
@@ -235,8 +255,9 @@ void whc_host_sta_update_stainfo(u8 iface_type, u8 *hwaddr, struct rtw_event_sta
 		psta_xmitpriv = &psta->sta_xmitpriv;
 		psta_htpriv = &psta->sta_htpriv;
 
+		psta_mlmepriv->sta_state = 1;
+		psta_mlmepriv->b_sta_qos_option = pstainfo->b_sta_qos_option;
 		psta_mlmepriv->stainfo_macid = pstainfo->stainfo_macid;
-		psta_mlmepriv->tx_ampdu_density = pstainfo->tx_ampdu_density;
 		psta_mlmepriv->asoc_cap.htc_rx = pstainfo->htc_rx;
 		psta_mlmepriv->b_erp_protection = pstainfo->bcnupd_info.erp_protection;
 

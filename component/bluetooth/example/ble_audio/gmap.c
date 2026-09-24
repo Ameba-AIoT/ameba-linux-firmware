@@ -1765,7 +1765,7 @@ static uint16_t app_bt_le_audio_vocs_set_param(uint8_t sound_channel)
 	}
 	vocs_param.output_des.p_output_des = (uint8_t *)RTK_BT_LE_AUDIO_VOCS_DES;
 	vocs_param.output_des.output_des_len = strlen(RTK_BT_LE_AUDIO_VOCS_DES);
-	BT_APP_PROCESS(rtk_bt_le_audio_vocs_set_param(srv_instance_id, set_mask, &vocs_param));
+	rtk_bt_le_audio_vocs_set_param(srv_instance_id, set_mask, &vocs_param);
 
 	return RTK_BT_OK;
 }
@@ -3793,7 +3793,7 @@ int bt_gmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}
@@ -3908,7 +3908,7 @@ int bt_gmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}
@@ -3985,7 +3985,7 @@ int bt_gmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}
@@ -4118,7 +4118,7 @@ int bt_gmap_main(uint8_t role, uint8_t enable, uint32_t sound_channel)
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}

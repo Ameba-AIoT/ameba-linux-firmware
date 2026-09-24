@@ -88,7 +88,8 @@
 #define USB_REQ_RECIPIENT_DEVICE                       0x00U   /**< Request recipient is the device. */
 #define USB_REQ_RECIPIENT_INTERFACE                    0x01U   /**< Request recipient is an interface. */
 #define USB_REQ_RECIPIENT_ENDPOINT                     0x02U   /**< Request recipient is an endpoint. */
-#define USB_REQ_RECIPIENT_MASK                         0x03U   /**< Mask for request recipient bits. */
+#define USB_REQ_RECIPIENT_OTHER                        0x03U   /**< Request recipient is another element. */
+#define USB_REQ_RECIPIENT_MASK                         0x1FU   /**< Mask for request recipient bits. */
 /** @} */
 
 /**
@@ -122,6 +123,7 @@
 #define USB_DESC_TYPE_INTERFACE_POWER                  0x08U   /**< Interface Power descriptor type. */
 #define USB_DESC_TYPE_IAD                              0x0BU   /**< Interface Association Descriptor (IAD) type. */
 #define USB_DESC_TYPE_BOS                              0x0FU   /**< Binary Device Object Store (BOS) descriptor type. */
+#define USB_DESC_TYPE_CS_INTERFACE                     0x24U   /**< Class-Specific Interface descriptor type (USB Spec Table 9-5). */
 #define USB_DESC_TYPE_HUB                              0x29U   /**< Hub descriptor type. */
 /** @} */
 
@@ -137,6 +139,13 @@
 #define USB_FEATURE_EP_HALT                            0x00U   /**< Endpoint halt feature selector. */
 #define USB_FEATURE_REMOTE_WAKEUP                      0x01U   /**< Device remote wakeup feature selector. */
 #define USB_FEATURE_TEST_MODE                          0x02U   /**< Test mode feature selector. */
+
+/* Test mode selectors, carried in the high byte of wIndex of SET_FEATURE(TEST_MODE) */
+#define USB_TEST_MODE_J                                0x01U   /**< Test_J, the first defined selector. */
+#define USB_TEST_MODE_K                                0x02U   /**< Test_K. */
+#define USB_TEST_MODE_SE0_NAK                          0x03U   /**< Test_SE0_NAK. */
+#define USB_TEST_MODE_PACKET                           0x04U   /**< Test_Packet. */
+#define USB_TEST_MODE_FORCE_EN                         0x05U   /**< Test_Force_Enable, the last defined selector. */
 /** @} */
 
 /**
@@ -244,28 +253,6 @@ typedef enum {
 	USB_CH_EP_TYPE_BULK,          /**< Bulk Endpoint/pipe. */
 	USB_CH_EP_TYPE_INTR           /**< Interrupt Endpoint/pipe. */
 } usb_ch_ep_type_t;
-
-/**
- * @brief Defines the operational speeds for the USB controller.
- */
-typedef enum {
-	USB_SPEED_HIGH = 0,                 /**< High Speed (480 Mbps). */
-	USB_SPEED_HIGH_IN_FULL,             /**< High Speed core running in Full Speed mode. */
-	USB_SPEED_LOW,                      /**< Low Speed (1.5 Mbps). */
-	USB_SPEED_FULL                      /**< Full Speed (12 Mbps). */
-} usb_speed_type_t;
-
-/**
- * @brief USB endpoint information structure.
- * @details Contains basic endpoint configuration: interval, address, max packet size, and type.
- */
-typedef struct {
-	u16 interval;                       /**< Endpoint polling interval in ticks, High-speed means 2^(binterval-1). */
-	u16 mps : 11;                       /**< Maximum Packet Size for this endpoint (0-1024). */
-	u16 type : 2;                       /**< Endpoint type (Control, Bulk, Isochronous, Interrupt). */
-	u8 binterval;                       /**< Polling interval for the endpoint. Full Speed: 1-255, High Speed: 1-16 */
-	u8 addr;                            /**< Endpoint address (includes direction). */
-} usb_ep_info_t;
 
 /**
  * @brief Standard USB setup request packet structure.

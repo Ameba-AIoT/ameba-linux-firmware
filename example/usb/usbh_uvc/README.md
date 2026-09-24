@@ -207,7 +207,7 @@ Attach a USB camera to the USB port of the Ameba development board, then reset t
    - **Compile-time:** set `USBH_UVC_HTTPC_SERVER` in `example_usbh_uvc.c` to the Test PC's IP, then rebuild an download;
    - **Runtime (no rebuild):** after reset, enter the following LOGUART command to override the server IP.
    ```
-   uvch_setip <ip>
+   uvch_set_ip <ip>
    ```
    On success the console prints `HTTPC server IP set to: <ip>`. Enter this command before the WiFi/HTTPC connection is established.
 2. Rebuild and Download.

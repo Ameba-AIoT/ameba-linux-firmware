@@ -33,7 +33,7 @@
 /**************** configurations for concurrent mode end **********************/
 
 /************************* Default Values of User Configure *****************************/
-#define MACID_HW_MAX_NUM		16
+#define MACID_HW_MAX_NUM		28
 /************************* Default Values of User Configure End***************************/
 //#define CONFIG_SUPPLICANT_SME
 
@@ -144,6 +144,10 @@
 //#define RA_RX_ACK_RSSI
 
 #define CONFIG_P2P
+
+#ifdef CONFIG_WIFI_P2P_ENABLE
+#define CONFIG_WPS_P2PGO 1
+#endif
 
 /*************************** Config for Gen TxPower Tool *******************************/
 /** https://wiki.realtek.com/pages/viewpage.action?pageId=1150516670

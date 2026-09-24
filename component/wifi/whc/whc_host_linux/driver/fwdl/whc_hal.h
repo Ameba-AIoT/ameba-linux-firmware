@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /******************************************************************************
  *
  * Copyright(c) Realtek Corporation. All rights reserved.
@@ -49,8 +50,6 @@ struct whc_hal_config_t {
 	u32 hash_size;
 	u32 xfer_page_size;
 	u32 read_buf_size;
-	u32 manifest_pos;		/* WHC_XFER_MANIFEST_POS_HEAD or WHC_XFER_MANIFEST_POS_TAIL */
-
 	/* Memory regions and images */
 	const struct whc_mem_region_t *mem_regions;
 	const struct whc_image_t *images;

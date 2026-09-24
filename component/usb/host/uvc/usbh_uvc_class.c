@@ -39,7 +39,7 @@ static const char *const TAG = "UVC";
 static const usbh_dev_id_t uvc_devs[] = {
 	{
 		.mMatchFlags = USBH_DEV_ID_MATCH_ITF_CLASS,
-		.idVendor = 0x0bdb,
+		.idVendor = 0x0BDA,
 		.bInterfaceClass = USBH_UVC_CLASS_CODE,
 	},
 	{
@@ -47,7 +47,7 @@ static const usbh_dev_id_t uvc_devs[] = {
 };
 
 /* USB Host UVC class driver */
-static usbh_class_driver_t usbh_uvc_driver = {
+const usbh_class_driver_t usbh_uvc_driver = {
 	.id_table = uvc_devs,
 	.attach = usbh_uvc_attach,
 	.detach = usbh_uvc_detach,
@@ -72,6 +72,7 @@ static int usbh_uvc_attach(usb_host_t *host)
 	usbh_uvc_stream_t *stream = NULL;
 	usbh_uvc_setting_t *cur_set = NULL;
 	usbh_uvc_alt_t *alt_set = NULL;
+	usbh_uvc_vs_t *vs_intf = NULL;
 	usbh_ep_desc_t *ep = NULL;
 	usbh_pipe_t *pipe = NULL;
 	int status = HAL_OK;
@@ -84,6 +85,21 @@ static int usbh_uvc_attach(usb_host_t *host)
 	status = usbh_uvc_parse_cfgdesc(host);
 	if (status != HAL_OK) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Parse cfg desc fail\n");
+		/* Roll back whatever usbh_uvc_parse_cfgdesc() already built before it
+		 * failed (VC entity_list and any already-parsed VS format arrays).
+		 * attach() failure means core never marks this class attached, so
+		 * detach() will never run to do this cleanup for us. */
+		usbh_uvc_desc_deinit();
+		for (i = 0U; i < uvc->uvc_desc.vs_num; i ++) {
+			vs_intf = uvc->stream[i].vs_intf;
+			if (vs_intf != NULL) {
+				usb_os_mfree((void *)vs_intf->format);
+				vs_intf->format = NULL;
+				vs_intf->format_num = 0U;
+				uvc->stream[i].vs_intf = NULL;
+			}
+		}
+		uvc->uvc_desc.vs_num = 0U;
 		return status;
 	}
 
@@ -159,6 +175,7 @@ static int usbh_uvc_detach(usb_host_t *host)
 	for (i = 0U; i < vs_num; i ++) {
 		stream = &uvc->stream[i];
 		stream->state = STREAM_STATE_CTRL_IDLE;
+		stream->cur_setting.pipe.pipe_num = 0U;  /* clear stale pipe_num: next find_alt must not close a recycled channel */
 		if (stream->stream_state == UVC_STREAM_ACTIVE) {
 			usbh_uvc_stream_stop(stream);
 		}
@@ -169,10 +186,8 @@ static int usbh_uvc_detach(usb_host_t *host)
 	for (i = 0U; i < vs_num; i ++) {
 		vs_intf = uvc->stream[i].vs_intf;
 		if (vs_intf != NULL) {
-			if (vs_intf->format != NULL) {
-				usb_os_mfree(vs_intf->format);
-				vs_intf->format = NULL;
-			}
+			usb_os_mfree((void *)vs_intf->format);
+			vs_intf->format = NULL;
 			vs_intf->format_num = 0U;
 			uvc->stream[i].vs_intf = NULL;
 		}
@@ -182,6 +197,8 @@ static int usbh_uvc_detach(usb_host_t *host)
 	 * "Ovrl vs" early-return and leaving format=NULL / format_num stale (Data Abort
 	 * on hot-replug when usbh_uvc_dump_dev_info walks &vs->format[i]). */
 	uvc->uvc_desc.vs_num = 0U;
+
+	uvc->host = NULL;
 
 	if ((uvc->cb != NULL) && (uvc->cb->detach != NULL)) {
 		uvc->cb->detach();
@@ -325,10 +342,17 @@ static void usbh_uvc_ctrl_set_alt_done(usbh_uvc_host_t *uvc, usbh_uvc_stream_t *
 		stream->state = STREAM_STATE_CTRL_IDLE;
 		stream->set_alt = 0x0;
 		stream->set_alt_retry = 0;
-		usbh_open_pipe(uvc->host, &cur_set->pipe, cur_set->altsetting->endpoint);
+		if (usbh_open_pipe(uvc->host, &cur_set->pipe, cur_set->altsetting->endpoint, &usbh_uvc_driver) != HAL_OK) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Open isoc pipe fail\n");
+			uvc->state = UVC_STATE_IDLE;
+			if ((uvc->cb != NULL) && (uvc->cb->set_param != NULL)) {
+				uvc->cb->set_param(HAL_ERR_HW);
+			}
+			return;
+		}
 #if USBH_UVC_DEBUG
 		RTK_LOGS(TAG, RTK_LOG_INFO,
-				 "Alt %d: ep_addr=0x%02X, mps=%d, interval=%d, type=%d, xfer_len=%d\n",
+				 "Alt %d: ep_addr=0x%02x, mps=%d, interval=%d, type=%d, xfer_len=%d\n",
 				 cur_set->bAlternateSetting,
 				 cur_set->pipe.ep_addr,
 				 cur_set->pipe.ep_mps,
@@ -413,7 +437,7 @@ static int usbh_uvc_process_ctrl(usb_host_t *host, usbh_event_t *event)
 		usbh_uvc_stream_free_urb_buffer(stream);
 #endif
 		stream->state = STREAM_STATE_RESET_ALT;
-		usbh_notify_class_state_change(uvc->host, 0);   /* transfer-less kick */
+		usbh_notify(uvc->host, 0, &usbh_uvc_driver);   /* transfer-less kick */
 		break;
 
 	/* Set Alt : interface / 0 */
@@ -483,7 +507,7 @@ static int usbh_uvc_process_ctrl(usb_host_t *host, usbh_event_t *event)
 			ctrl_struct_size = sizeof(usbh_uvc_stream_control_t);
 			if (uvc->request_buf != NULL) {
 				DCache_Invalidate((u32)uvc->request_buf, size);
-				usb_os_memcpy((void *) ctrl, (void *)uvc->request_buf, (size < ctrl_struct_size) ? size : ctrl_struct_size);
+				usb_os_memcpy((void *)ctrl, (const void *)uvc->request_buf, (size < ctrl_struct_size) ? size : ctrl_struct_size);
 #if USBH_UVC_DEBUG
 				RTK_LOGS(TAG, RTK_LOG_INFO, "bmHint: %d\n", ctrl->bmHint);
 				RTK_LOGS(TAG, RTK_LOG_INFO, "bFormatIndex: %d\n", ctrl->bFormatIndex);
@@ -553,7 +577,7 @@ static int usbh_uvc_process_ctrl(usb_host_t *host, usbh_event_t *event)
 		uvc->state = UVC_STATE_CTRL;
 		stream->state = STREAM_STATE_SET_ALT;
 		uvc->stream_ctrl_idx = stream->stream_idx;
-		usbh_notify_class_state_change(uvc->host, 0);
+		usbh_notify(uvc->host, 0, &usbh_uvc_driver);
 		ret_status = HAL_OK;
 		break;
 
@@ -616,7 +640,7 @@ static int usbh_uvc_process(usb_host_t *host, usbh_event_t *event)
 			if (event->pipe_num == 0x00U) {
 				ret = usbh_uvc_process_ctrl(host, event);
 			} else {
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_uvc_driver);
 			}
 		}
 		break;
@@ -709,3 +733,4 @@ void usbh_uvc_class_deinit(void)
 {
 	usbh_unregister_class(&usbh_uvc_driver);
 }
+

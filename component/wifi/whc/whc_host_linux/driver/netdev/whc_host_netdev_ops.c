@@ -9,6 +9,20 @@
 */
 
 #include <whc_host_linux.h>
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+#include "whc_host_log_fwd.h"
+
+static bool log_fwd_enable;
+module_param(log_fwd_enable, bool, 0444);
+MODULE_PARM_DESC(log_fwd_enable, "Enable FW log forwarding to host (default: 0)");
+#endif /* CONFIG_WHC_HOST_LOG_FWD */
+
+static struct work_struct whc_netinfo_update_work;
+
+static void whc_netinfo_update_work_handler(struct work_struct *work)
+{
+	whc_host_update_ip_addr();
+}
 
 /*
  * Set wlan0 mac address: 1) ip link set dev wlan0 down, 2) ip link set dev wlan0 address 86:EF:EB:92:A2:FF, 3) ip link set dev wlan0 up
@@ -74,40 +88,6 @@ static unsigned int rtw_classify8021d(struct sk_buff *skb)
 	}
 
 	return dscp >> 5;
-}
-
-static u8 qos_acm(u8 acm_mask, u8 priority)
-{
-	u8 change_priority = priority;
-
-	switch (priority) {
-	case 0:
-	case 3:
-		if (acm_mask & BIT(1)) {
-			change_priority = 1;
-		}
-		break;
-	case 1:
-	case 2:
-		break;
-	case 4:
-	case 5:
-		if (acm_mask & BIT(2)) {
-			change_priority = 0;
-		}
-		break;
-	case 6:
-	case 7:
-		if (acm_mask & BIT(3)) {
-			change_priority = 5;
-		}
-		break;
-	default:
-		dev_warn(global_idev.pwhc_dev, "qos_acm(): invalid pattrib->priority: %d!!!\n", priority);
-		break;
-	}
-
-	return change_priority;
 }
 
 /*
@@ -193,7 +173,9 @@ static int rtw_ndev_close(struct net_device *pnetdev)
 	}
 #endif
 	netif_tx_stop_all_queues(pnetdev);
+#ifdef CONFIG_IEEE80211R
 	netif_dormant_on(pnetdev);
+#endif
 	netif_carrier_off(pnetdev);
 	rtw_netdev_priv_is_on(pnetdev) = false;
 
@@ -568,9 +550,11 @@ int rtw_ndev_register(void)
 		if (dev_alloc_name(global_idev.pndev[i], wlan_name) < 0) {
 			dev_err(global_idev.pwhc_dev, "dev_alloc_name, fail!\n");
 		}
+#ifdef CONFIG_IEEE80211R
 		if (i == WHC_STA_PORT) {
 			netif_dormant_on(global_idev.pndev[i]);
 		}
+#endif
 		netif_carrier_off(global_idev.pndev[i]);
 		if (register_netdev(global_idev.pndev[i]) != 0) {
 			dev_err(global_idev.pwhc_dev, "netdevice register fail!\n");
@@ -632,6 +616,7 @@ static int rtw_inetaddr_notifier_call(struct notifier_block *nb, unsigned long a
 	case NETDEV_UP:
 		memcpy(global_idev.ip_addr, &ifa->ifa_address, RTW_IP_ADDR_LEN);
 		dev_dbg(global_idev.pwhc_dev, "%s[%s]: up IP: [%pI4]\n", __func__, ifa->ifa_label, global_idev.ip_addr);
+		schedule_work(&whc_netinfo_update_work);
 		break;
 	case NETDEV_DOWN:
 		memset(global_idev.ip_addr, 0, RTW_IP_ADDR_LEN);
@@ -662,7 +647,7 @@ static int rtw_inet6addr_notifier_call(struct notifier_block *nb, unsigned long 
 	switch (action) {
 	case NETDEV_UP:
 		memcpy(global_idev.ipv6_addr, &inet6_ifa->addr, RTW_IPv6_ADDR_LEN);
-		global_idev.ipv6_addr_updated = 1;
+		schedule_work(&whc_netinfo_update_work);
 		dev_dbg(global_idev.pwhc_dev, "%s: up IP: [%pI6]\n", __func__, global_idev.ipv6_addr);
 		break;
 	case NETDEV_DOWN:
@@ -689,6 +674,7 @@ static struct notifier_block rtw_inet6addr_notifier = {
 
 void rtw_inetaddr_notifier_register(void)
 {
+	INIT_WORK(&whc_netinfo_update_work, whc_netinfo_update_work_handler);
 	register_inetaddr_notifier(&rtw_inetaddr_notifier);
 #if IS_ENABLED(CONFIG_IPV6)
 	register_inet6addr_notifier(&rtw_inet6addr_notifier);
@@ -697,6 +683,7 @@ void rtw_inetaddr_notifier_register(void)
 
 void rtw_inetaddr_notifier_unregister(void)
 {
+	cancel_work_sync(&whc_netinfo_update_work);
 	unregister_inetaddr_notifier(&rtw_inetaddr_notifier);
 #if IS_ENABLED(CONFIG_IPV6)
 	unregister_inet6addr_notifier(&rtw_inet6addr_notifier);
@@ -759,6 +746,10 @@ int rtw_netdev_probe(struct device *pdev)
 
 #if defined(CONFIG_WHC_CMD_PATH)
 	whc_host_register_genl_family();
+
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+	whc_host_log_fwd_enable(log_fwd_enable);
+#endif /* CONFIG_WHC_HOST_LOG_FWD */
 #endif
 
 	return 0; /* probe success */

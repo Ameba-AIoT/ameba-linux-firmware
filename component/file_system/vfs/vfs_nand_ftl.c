@@ -18,20 +18,12 @@
 
 #include "vfs_nand_ftl.h"
 #include "littlefs_adapter.h"
+#include "lbm.h"
 
 /* Private defines -----------------------------------------------------------*/
 
 #define NAND_MARK_BAD_AT_ERASE_FAIL	1
 #define NAND_MARK_BAD_AT_WRITE_FAIL	0
-
-/* Private types -------------------------------------------------------------*/
-
-typedef enum {
-	NAND_PAGE_WORN_OK = 0,
-	NAND_PAGE_WORN_WARN = 1,
-	NAND_PAGE_WORN_ERROR = 2,
-	NAND_PAGE_WORN_FATAL = 3,
-} NAND_FTL_PageWornStatusDef;
 
 /* Private macros ------------------------------------------------------------*/
 
@@ -74,7 +66,7 @@ static u8 NF_SelectTarget(NAND_FTL_DeviceTypeDef *nand, u32 addr)
 	u8 ret = HAL_OK;
 	u32 target;
 	Flash_InfoTypeDef *info = &nand->MemInfo;
-	NAND_FTL_MfgOpsTypeDef *ops = (NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
+	const NAND_FTL_MfgOpsTypeDef *ops = (const NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
 
 	if (ops->SelectTarget != NULL) {
 
@@ -256,12 +248,12 @@ u8 NAND_FTL_Init(void)
 	//NAND_Init(SpicOneBitMode);
 
 	/* Reset to clean status */
-	NAND_TxCmd(0xFF, 0, NULL, 0, NULL);
+	NAND_TxCmd_Wait_Safe(0xFF, 0, NULL, 0, NULL);
 
-	NAND_RxCmd(flash_init_para.FLASH_cmd_rd_id, 0, NULL, 2, flash_ID);
+	NAND_RxCmd_Safe(flash_init_para.FLASH_cmd_rd_id, 0, NULL, 2, flash_ID);
 	if (flash_ID[0] == NAND_MFG_MICRON) {
 		/* Micron's DID are two bytes */
-		NAND_RxCmd(flash_init_para.FLASH_cmd_rd_id, 0, NULL, 3, flash_ID);
+		NAND_RxCmd_Safe(flash_init_para.FLASH_cmd_rd_id, 0, NULL, 3, flash_ID);
 	}
 
 	info->MID = flash_ID[0];
@@ -327,7 +319,7 @@ u8 NAND_FTL_ReadPage(u32 addr, u8 *buf)
 	u8 status;
 	u8 ret;
 	u8 is_bad_block;
-	NAND_FTL_MfgOpsTypeDef *ops = (NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
+	const NAND_FTL_MfgOpsTypeDef *ops = (const NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
 
 	if (!nand->Initialized) {
 		return UERR_INIT;
@@ -374,7 +366,7 @@ u8 NAND_FTL_ReadPageFast(u32 addr, u8 *buf)
 	Flash_InfoTypeDef *info = &nand->MemInfo;
 	u8 status;
 	u8 ret;
-	NAND_FTL_MfgOpsTypeDef *ops = (NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
+	const NAND_FTL_MfgOpsTypeDef *ops = (const NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
 
 	if (!nand->Initialized) {
 		return UERR_INIT;
@@ -411,7 +403,7 @@ u8 NAND_FTL_ReadPageStatus(u32 addr, u8 *buf)
 	u8 status;
 	u8 ret;
 	u8 is_bad_block;
-	NAND_FTL_MfgOpsTypeDef *ops = (NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
+	const NAND_FTL_MfgOpsTypeDef *ops = (const NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
 
 	if (!nand->Initialized) {
 		return UERR_INIT;
@@ -467,7 +459,7 @@ u8 NAND_FTL_ReadBlockStatus(u32 addr, u8 *buf, u8 *block_status, u32 *page_statu
 	u8 ecc_status;
 	NAND_FTL_PageWornStatusDef worn_status;
 	u32 block_addr = NF_GetBlockAddr(nand, addr);
-	NAND_FTL_MfgOpsTypeDef *ops = (NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
+	const NAND_FTL_MfgOpsTypeDef *ops = (const NAND_FTL_MfgOpsTypeDef *)nand->MfgOps;
 
 	if (!nand->Initialized) {
 		return UERR_INIT;
@@ -707,7 +699,7 @@ u8 NAND_FTL_GetStatus(u8 cmd, u8 addr, u8 *value)
 		return UERR_INIT;
 	}
 
-	NAND_RxCmd(cmd, 1, &addr, 1, value);
+	NAND_RxCmd_Safe(cmd, 1, &addr, 1, value);
 
 	return HAL_OK;
 }
@@ -728,8 +720,15 @@ u8 NAND_FTL_SetStatus(u8 cmd, u8 addr, u8 value)
 		return UERR_INIT;
 	}
 
-	NAND_TxCmd(cmd, 1, &addr, 1, &value);
-
-	return NAND_WaitBusy(WAIT_FLASH_BUSY);
+	NAND_TxCmd_Wait_Safe(cmd, 1, &addr, 1, &value);
+	return HAL_OK;
 }
 
+/* LBM back-end hooks for the on-chip SPIC NAND (see lbm.h / lbm_core.c). */
+const lbm_dev_ops_t lbm_nand_ops = {
+	.read_page = NAND_FTL_ReadPage,
+	.read_page_fast = NAND_FTL_ReadPageFast,
+	.write_page = NAND_FTL_WritePage,
+	.erase_block = NAND_FTL_EraseBlock,
+	.mark_bad = NAND_FTL_MarkBad,
+};

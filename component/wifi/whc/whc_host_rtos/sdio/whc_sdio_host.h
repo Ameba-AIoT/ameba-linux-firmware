@@ -27,7 +27,7 @@
 #define WIFI_STACK_SIZE_RX_REQ_TASK (4096)
 #define SDIO_POLLING_STACK_SIZE 1024
 
-#define SIZE_RX_DESC			(sizeof(struct INIC_RX_DESC))
+#define SIZE_RX_DESC			0
 #define SIZE_TX_DESC			(sizeof(struct INIC_TX_DESC))
 #define TX_BUF_NUM				2
 
@@ -97,13 +97,9 @@ struct whc_sdio {
 	uint32_t 		sdio_himr;
 	uint32_t 		sdio_hisr;
 	uint16_t		txbd_size;
-	uint16_t		rxbd_num;
 	uint16_t 		SdioTxBDFreeNum;
 	uint32_t 		SdioTxMaxSZ; //The Size of Single Tx buf addressed by TX_BD
-	uint8_t			SdioRxFIFOCnt;
 	uint8_t			tx_avail_int_triggered;
-	uint8_t	tx_block_mode;
-	uint8_t	rx_block_mode;
 	uint32_t block_transfer_len;
 
 	int32_t bSurpriseRemoved;
@@ -112,10 +108,8 @@ struct whc_sdio {
 
 	rtos_mutex_t host_send; /* mutex to protect inic host send */
 	rtos_sema_t host_recv_wake; /* for recv task */
-	rtos_sema_t host_recv_done; /* for recv task */
 	rtos_sema_t host_irq; /* for sdio irq */
 
-	uint8_t *rx_buf;
 
 	u8 used_buf_num;
 	u8 tx_buf[TX_BUF_NUM][4 + SIZE_TX_DESC + MAX_SKB_BUF_SIZE_NORMAL] __attribute__((aligned(4)));
@@ -241,10 +235,9 @@ struct whc_sdio {
 #define SDIO_HCPWM_WWLAN			(BIT(3))
 #define SDIO_HCPWM_TOGGLE			(BIT(7))
 
-// Register RPWM2
-//#define RPWM2_ACT_BIT			(0x00000001 << 0)	// Active
-//#define RPWM2_CG_BIT			(0x00000001 << 1)	// Clock Gated
-//#define RPWM2_TOGGLE_BIT		(0x00000001 << 15)	// Toggle bit
+// Register SDIO_REG_RX0_REQ_LEN
+#define SDIO_RX_REQ_LEN_RDY		(BIT(31))
+#define SDIO_RX_REQ_LEN_MSK		(0xffffff)
 
 #define CONCAT_TO_UINT32(b4, b3, b2, b1) (((u32)((b4) & 0xFF) << 24) | ((u32)((b3) & 0xFF) << 16) | ((u32)((b2) & 0xFF) << 8) | ((u32)((b1) & 0xFF)))
 
@@ -293,5 +286,3 @@ s32 wifi_on(uint8_t mode);
 void whc_sdio_host_init(void);
 
 #endif
-
-

@@ -34,8 +34,8 @@
 
 // Thread Priorities
 #define CONFIG_USBH_CDC_ACM_INIT_THREAD_PRIORITY             1U
-#define CONFIG_USBH_CDC_ACM_MAIN_TASK_PRIORITY               4U
-#define CONFIG_USBH_CDC_ACM_HOTPLUG_THREAD_PRIORITY          3U
+#define CONFIG_USBH_CDC_ACM_MAIN_TASK_PRIORITY               5U
+#define CONFIG_USBH_CDC_ACM_HOTPLUG_THREAD_PRIORITY          6U
 #define CONFIG_USBH_CDC_ACM_BULK_XFER_THREAD_PRIORITY        3U
 #define CONFIG_USBH_CDC_ACM_NOTIFY_THREAD_PRIORITY           2U
 
@@ -59,7 +59,7 @@ static int cdc_acm_cb_detach(void);
 static int cdc_acm_cb_setup(void);
 static int cdc_acm_cb_transmit(u8 status);
 static int cdc_acm_cb_receive(u8 *buf, u32 len, u8 status);
-static int cdc_acm_cb_line_coding_changed(usb_cdc_line_coding_t *line_coding);
+static int cdc_acm_cb_line_coding_changed(usb_cdc_acm_line_coding_t *line_coding);
 static int cdc_acm_cb_process(usb_host_t *host, u8 msg);
 #if CONFIG_USBH_CDC_ACM_NOTIFY
 static int cdc_acm_cb_notify(u8 *buf, u32 len, u8 status);
@@ -75,10 +75,10 @@ static void cdc_acm_request_test(void);
 /* Private variables ---------------------------------------------------------*/
 static const char *const TAG = "ACM";
 
-static u8 cdc_acm_loopback_tx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
-static u8 cdc_acm_loopback_rx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
+static u8 cdc_acm_loopback_tx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] USB_DMA_ALIGNED;
+static u8 cdc_acm_loopback_rx_buf[USBH_CDC_ACM_LOOPBACK_BUF_SIZE] USB_DMA_ALIGNED;
 #if CONFIG_USBH_CDC_ACM_NOTIFY
-static u8 cdc_acm_notify_rx_buf[USBH_CDC_ACM_NOTIFY_BUF_SIZE] __attribute__((aligned(CACHE_LINE_SIZE)));
+static u8 cdc_acm_notify_rx_buf[USBH_CDC_ACM_NOTIFY_BUF_SIZE] USB_DMA_ALIGNED;
 static rtos_sema_t cdc_acm_notify_sema;
 static u8 cdc_acm_notify_status;
 #endif
@@ -99,9 +99,14 @@ static const usbh_config_t usbh_cfg = {
 	.main_task_stack_size = CONFIG_USBH_CDC_ACM_MAIN_TASK_STACK_SIZE,
 	.main_task_priority = CONFIG_USBH_CDC_ACM_MAIN_TASK_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
+	/*FIFO total 1024 DWORD, resv 12 DWORD for DMA*/
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	/*FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -221,7 +226,7 @@ static int cdc_acm_cb_transmit(u8 status)
 	return HAL_OK;
 }
 
-static int cdc_acm_cb_line_coding_changed(usb_cdc_line_coding_t *line_coding)
+static int cdc_acm_cb_line_coding_changed(usb_cdc_acm_line_coding_t *line_coding)
 {
 	UNUSED(line_coding);
 	return HAL_OK;
@@ -261,7 +266,7 @@ static void example_usbh_bulk_tx_thread(void *param)
 		while (1) {
 #endif
 			for (i = 0; i < USBH_CDC_ACM_LOOPBACK_CNT;) {
-				memset(cdc_acm_loopback_tx_buf, (u8)(cdc_acm_loopback_tx_idx & 0xFF), USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
+				usb_os_memset((void *)cdc_acm_loopback_tx_buf, (u8)(cdc_acm_loopback_tx_idx & 0xFF), USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 				*((u32 *)cdc_acm_loopback_tx_buf) = cdc_acm_loopback_tx_idx;
 				if (!cdc_acm_is_ready) {
 					RTK_LOGS(TAG, RTK_LOG_INFO, "Device disconnect\n");
@@ -302,7 +307,7 @@ static void example_usbh_bulk_rx_thread(void *param)
 		while (1) {
 #endif
 			for (i = 0; i < USBH_CDC_ACM_LOOPBACK_CNT;) {
-				memset(cdc_acm_loopback_rx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
+				usb_os_memset((void *)cdc_acm_loopback_rx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 				if (!cdc_acm_is_ready) {
 					RTK_LOGS(TAG, RTK_LOG_INFO, "Device disconnect\n");
 					return;
@@ -347,17 +352,24 @@ static void cdc_acm_speed_loopback_test(void)
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Bulk loopback test start, times:%d, size: %d\n", USBH_CDC_ACM_LOOPBACK_CNT, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 
-	ret = rtos_task_create(&rx_task, "example_usbh_bulk_rx_thread", example_usbh_bulk_rx_thread, NULL,
+	ret = rtos_task_create(&rx_task, "usbh_acm_rx_thread", example_usbh_bulk_rx_thread, NULL,
 						   CONFIG_USBH_CDC_ACM_BULK_XFER_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ACM_BULK_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create rx_task fail\n");
+		return;
 	}
 	//start two task, one for tx, one for rx
-	ret = rtos_task_create(&tx_task, "example_usbh_bulk_tx_thread", example_usbh_bulk_tx_thread, NULL,
+	ret = rtos_task_create(&tx_task, "usbh_acm_tx_thread", example_usbh_bulk_tx_thread, NULL,
 						   CONFIG_USBH_CDC_ACM_BULK_XFER_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ACM_BULK_XFER_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create tx_task fail\n");
+		goto exit_delete_rx_task;
 	}
+
+	return;
+
+exit_delete_rx_task:
+	rtos_task_delete(rx_task);
 }
 #else
 static void cdc_acm_loopback_test(void)
@@ -368,7 +380,7 @@ static void cdc_acm_loopback_test(void)
 	u8 j = 0;
 #endif
 
-	memset(cdc_acm_loopback_tx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
+	usb_os_memset((void *)cdc_acm_loopback_tx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Wait for device attach\n");
 
@@ -383,10 +395,10 @@ static void cdc_acm_loopback_test(void)
 
 #if CONFIG_USBH_CDC_ACM_STRESS_TEST
 	while (1) {
-		memset(cdc_acm_loopback_tx_buf, j, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
+		usb_os_memset((void *)cdc_acm_loopback_tx_buf, j, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 #endif
 		for (i = 0; i < USBH_CDC_ACM_LOOPBACK_CNT; i++) {
-			memset(cdc_acm_loopback_rx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
+			usb_os_memset((void *)cdc_acm_loopback_rx_buf, 0, USBH_CDC_ACM_LOOPBACK_BUF_SIZE);
 			if (!cdc_acm_is_ready) {
 				RTK_LOGS(TAG, RTK_LOG_ERROR, "Device disconnect\n");
 				return;
@@ -441,7 +453,8 @@ static void example_usbh_cdc_acm_notify_thread(void *param)
 			ret |= cdc_acm_notify_status;
 			if (cdc_acm_notify_status == HAL_OK) {
 				/*Notify data received, for example, Serial State notification*/
-				RTK_LOGS(TAG, RTK_LOG_DEBUG, "Intr rx success(0x%02x 0x%02x)\n", cdc_acm_notify_rx_buf[9], cdc_acm_notify_rx_buf[8]);
+				RTK_LOGS(TAG, RTK_LOG_DEBUG, "Intr rx success(0x%02x 0x%02x)\n", cdc_acm_notify_rx_buf[USB_CDC_NOTIFY_HDR_LEN + 1],
+						 cdc_acm_notify_rx_buf[USB_CDC_NOTIFY_HDR_LEN]);
 			}
 		} else {
 			ret = HAL_ERR_UNKNOWN;
@@ -459,7 +472,7 @@ static void cdc_acm_notify_test(void)
 {
 	int status;
 	rtos_task_t task;
-	status = rtos_task_create(&task, "example_usbh_cdc_acm_notify_thread",
+	status = rtos_task_create(&task, "usbh_acm_notify_thread",
 							  example_usbh_cdc_acm_notify_thread, NULL,
 							  CONFIG_USBH_CDC_ACM_NOTIFY_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ACM_NOTIFY_THREAD_PRIORITY);
 	if (status != RTK_SUCCESS) {
@@ -471,8 +484,8 @@ static void cdc_acm_notify_test(void)
 static void cdc_acm_request_test(void)
 {
 	int ret;
-	usb_cdc_line_coding_t line_coding;
-	usb_cdc_line_coding_t new_line_coding;
+	usb_cdc_acm_line_coding_t line_coding;
+	usb_cdc_acm_line_coding_t new_line_coding;
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Wait for device attach\n");
 
@@ -535,6 +548,7 @@ static void example_usbh_cdc_acm_hotplug_thread(void *param)
 	for (;;) {
 		if (rtos_sema_take(cdc_acm_detach_sema, RTOS_SEMA_MAX_COUNT) == RTK_SUCCESS) {
 			rtos_time_delay_ms(100);
+			usbh_stop();
 			usbh_cdc_acm_deinit();
 			usbh_deinit();
 			rtos_time_delay_ms(10);
@@ -552,6 +566,9 @@ static void example_usbh_cdc_acm_hotplug_thread(void *param)
 				usbh_deinit();
 				break;
 			}
+
+			/* Re-arm USB TRX after the re-init. */
+			usbh_start();
 		}
 	}
 
@@ -568,12 +585,30 @@ static void example_usbh_cdc_acm_thread(void *param)
 
 	UNUSED(param);
 
-	rtos_sema_create(&cdc_acm_detach_sema, 0U, 1U);
-	rtos_sema_create(&cdc_acm_attach_sema, 0U, 1U);
-	rtos_sema_create(&cdc_acm_receive_sema, 0U, 1U);
-	rtos_sema_create(&cdc_acm_send_sema, 0U, 1U);
+	ret = rtos_sema_create(&cdc_acm_detach_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		goto error_exit;
+	}
+
+	ret = rtos_sema_create(&cdc_acm_attach_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		goto error_exit;
+	}
+
+	ret = rtos_sema_create(&cdc_acm_receive_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		goto error_exit;
+	}
+
+	ret = rtos_sema_create(&cdc_acm_send_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		goto error_exit;
+	}
 #if CONFIG_USBH_CDC_ACM_NOTIFY
-	rtos_sema_create(&cdc_acm_notify_sema, 0U, 1U);
+	ret = rtos_sema_create(&cdc_acm_notify_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		goto error_exit;
+	}
 #endif
 	ret = usbh_init(&usbh_cfg, &usbh_usr_cb);
 	if (ret != HAL_OK) {
@@ -586,11 +621,15 @@ static void example_usbh_cdc_acm_thread(void *param)
 		goto error_exit;
 	}
 
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
+
 #if CONFIG_USBH_CDC_ACM_HOT_PLUG_TEST
-	ret = rtos_task_create(&task, "example_usbh_cdc_acm_hotplug_thread",
+	ret = rtos_task_create(&task, "usbh_acm_hotplug_thread",
 						   example_usbh_cdc_acm_hotplug_thread, NULL,
 						   CONFIG_USBH_CDC_ACM_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ACM_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
+		usbh_stop();
 		usbh_cdc_acm_deinit();
 		usbh_deinit();
 		goto error_exit;
@@ -631,7 +670,7 @@ void example_usbh_cdc_acm(void)
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH CDC ACM demo start\n");
 
-	ret = rtos_task_create(&task, "example_usbh_cdc_acm_thread", example_usbh_cdc_acm_thread, NULL,
+	ret = rtos_task_create(&task, "usbh_acm_thread", example_usbh_cdc_acm_thread, NULL,
 						   CONFIG_USBH_CDC_ACM_INIT_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ACM_INIT_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create thread fail\n");

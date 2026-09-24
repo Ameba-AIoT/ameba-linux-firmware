@@ -15,20 +15,26 @@
 #include "atcmd_service.h"
 
 /* Private defines -----------------------------------------------------------*/
-static const char *const TAG = "DRD";
+
+#if defined(CONFIG_AMEBAGREEN2) || defined(CONFIG_RLE1509)
+#define MSC_BULK_IN_EP                              0x82U
+#define MSC_BULK_OUT_EP                             0x02U
+#else
+#define MSC_BULK_IN_EP                              0x81U
+#define MSC_BULK_OUT_EP                             0x02U
+#endif
 
 // USB speed
 #ifdef CONFIG_SUPPORT_USB_FS_ONLY
 #error	"USB DRD example only supports USB high speed"
 #endif
 
-#define USB_DRD_SPEED							USB_SPEED_HIGH
+#define MSC_USB_SPEED                            USB_SPEED_HIGH
 
 // Thread priorities
-#define USBH_MSC_RW_THREAD_PRIORITY        5U
-
-#define USBH_DRD_MAIN_TASK_PRIORITY        3U
-#define USBH_MSC_THREAD_STACK_SIZE         (1024 * 11 + 512)
+#define MSC_MAIN_TASK_PRIORITY                  3
+#define MSC_XFER_THREAD_PRIORITY                5
+#define MSC_XFER_THREAD_STACK_SIZE              11776U
 
 #define USBH_MSC_TEST_BUF_SIZE					4096
 #define USBH_MSC_TEST_ROUNDS					20
@@ -50,11 +56,16 @@ static void usbh_msc_cmd_test(u16 argc, char **argv);
 
 /* Private variables ---------------------------------------------------------*/
 
+static const char *const TAG = "DRD";
+
 static const usbd_config_t usbd_msc_cfg = {
-	.speed = USB_DRD_SPEED,
+	.speed = MSC_USB_SPEED,
 	.isr_priority = INT_PRI_MIDDLE,
-#if defined (CONFIG_AMEBAGREEN2)
+#if defined(CONFIG_AMEBAGREEN2)
 	.rx_fifo_depth = 708U,
+	.ptx_fifo_depth = {16U, 256U, },
+#elif defined(CONFIG_RLE1509)
+	.rx_fifo_depth = 672U,
 	.ptx_fifo_depth = {16U, 256U, },
 #elif defined (CONFIG_AMEBAPRO3)
 	/*DFIFO total 2232 DWORD, resv 8 DWORD for DMA addr and EP0 fixed 256 DWORD*/
@@ -63,25 +74,35 @@ static const usbd_config_t usbd_msc_cfg = {
 #endif
 };
 
+static const usbd_msc_ep_cfg_t msc_ep = {
+	.bulk_in_addr = MSC_BULK_IN_EP,
+	.bulk_out_addr = MSC_BULK_OUT_EP,
+};
+
 static const usbd_msc_cb_t usbd_msc_cb = {
 	.status_changed = usbd_msc_cb_status_changed
 };
 
 static rtos_sema_t usbh_msc_attach_sema;
 static __IO int usbh_msc_is_rdy = 0;
+static u8 usbd_msc_inited = 0;
+static u8 usbh_msc_inited = 0;
 static u8 file_cnt = 5;
 static u8 *msc_wt_buf;
 static u8 *msc_rd_buf;
 
 static const usbh_config_t usbh_cfg = {
-	.speed = USB_DRD_SPEED,
+	.speed = MSC_USB_SPEED,
 	.ext_intr_enable = USBH_SOF_INTR,
 	.isr_priority = INT_PRI_MIDDLE,
-	.main_task_priority = USBH_DRD_MAIN_TASK_PRIORITY,
+	.main_task_priority = MSC_MAIN_TASK_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -176,33 +197,47 @@ static void usbd_msc_cmd_test(u16 argc, char **argv)
 	cmd = (const char *)argv[1];
 
 	if (_stricmp(cmd, "init") == 0) {
+		if (usbd_msc_inited != 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "MSC device already inited\n");
+			error_no = HAL_ERR_PARA;
+			goto end;
+		}
 		ret = usbd_msc_disk_init();
 		if (ret != HAL_OK) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to init disk: %d\n", ret);
-			return;
+			error_no = ret;
+			goto end;
 		}
 		ret = usbd_init(&usbd_msc_cfg);
 		if (ret != HAL_OK) {
 			usbd_msc_disk_deinit();
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to init USBD: %d\n", ret);
-			return;
+			error_no = ret;
+			goto end;
 		}
-		ret = usbd_msc_init(&usbd_msc_cb);
+		ret = usbd_msc_init(&usbd_msc_cb, &msc_ep);
 		if (ret != HAL_OK) {
 			usbd_deinit();
 			usbd_msc_disk_deinit();
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to init MSC\n");
+			error_no = ret;
+			goto end;
 		}
+		usbd_msc_inited = 1;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "MSC device session start\n");
 	} else if (_stricmp(cmd, "deinit") == 0) {
-		usbd_msc_deinit();
-		ret = usbd_deinit();
-		if (ret != HAL_OK) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to deinit USBD\n");
+		if (usbd_msc_inited == 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "MSC device not inited\n");
+			error_no = HAL_ERR_PARA;
+			goto end;
 		}
+		usbd_msc_inited = 0;
+		usbd_msc_deinit();
+		usbd_deinit();
 		ret = usbd_msc_disk_deinit();
 		if (ret != HAL_OK) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to deinit disk\n");
+			error_no = ret;
 		}
 	} else {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Input cmd err\n");
@@ -242,13 +277,13 @@ void example_usb_drd_msc_trx_test(void *param)
 
 	UNUSED(param);
 
-	msc_wt_buf = (u8 *)rtos_mem_zmalloc(USBH_MSC_TEST_BUF_SIZE);
+	msc_wt_buf = (u8 *)usb_os_malloc(USBH_MSC_TEST_BUF_SIZE);
 	if (msc_wt_buf == NULL) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to alloc test buf\n");
 		goto exit;
 	}
 
-	msc_rd_buf = (u8 *)rtos_mem_zmalloc(USBH_MSC_TEST_BUF_SIZE);
+	msc_rd_buf = (u8 *)usb_os_malloc(USBH_MSC_TEST_BUF_SIZE);
 	if (msc_rd_buf == NULL) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to alloc test buf\n");
 		goto exit_free;
@@ -271,9 +306,9 @@ void example_usb_drd_msc_trx_test(void *param)
 
 	while (1) {
 		if (usbh_msc_is_rdy) {
-			rtos_time_delay_ms(10);
 			break;
 		}
+		rtos_time_delay_ms(10);
 	}
 
 	if (f_mount(&fs, logical_drv, 1) != FR_OK) {
@@ -290,9 +325,9 @@ void example_usb_drd_msc_trx_test(void *param)
 
 		while (1) {
 			if (usbh_msc_is_rdy) {
-				rtos_time_delay_ms(10);
 				break;
 			}
+			rtos_time_delay_ms(10);
 		}
 
 next_file:
@@ -307,7 +342,7 @@ next_file:
 #if USBH_MSC_CHECK_DATA
 		/* change write data */
 		data = _rand() % 0xFF;
-		memset(msc_wt_buf, data, USBH_MSC_TEST_BUF_SIZE);
+		usb_os_memset((void *)msc_wt_buf, data, USBH_MSC_TEST_BUF_SIZE);
 #endif
 
 		for (i = 0; i < sizeof(test_sizes) / sizeof(test_sizes[0]); ++i) {
@@ -396,12 +431,8 @@ exit_unregister:
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to unregister disk driver from FATFS\n");
 	}
 exit_free:
-	if (msc_rd_buf) {
-		rtos_mem_free(msc_rd_buf);
-	}
-	if (msc_wt_buf) {
-		rtos_mem_free(msc_wt_buf);
-	}
+	usb_os_mfree((void *)msc_rd_buf);
+	usb_os_mfree((void *)msc_wt_buf);
 exit:
 	rtos_task_delete(NULL);
 }
@@ -432,42 +463,73 @@ static void usbh_msc_cmd_test(u16 argc, char **argv)
 	cmd = (const char *)argv[1];
 
 	if (_stricmp(cmd, "init") == 0) {
-		rtos_sema_create(&usbh_msc_attach_sema, 0U, 1U);
+		if (usbh_msc_inited != 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "MSC host already inited\n");
+			error_no = HAL_ERR_PARA;
+			goto end;
+		}
+		ret = rtos_sema_create(&usbh_msc_attach_sema, 0U, 1U);
+		if (ret != RTK_SUCCESS) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to create sema\n");
+			error_no = HAL_ERR_MEM;
+			goto end;
+		}
 		ret = usbh_init(&usbh_cfg, &usbh_usr_cb);
 		if (ret != HAL_OK) {
 			rtos_sema_delete(usbh_msc_attach_sema);
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to init USBH: %d\n", ret);
-			return;
+			error_no = ret;
+			goto end;
 		}
 		ret = usbh_msc_init(&usbh_msc_usr_cb);
 		if (ret != HAL_OK) {
 			usbh_deinit();
 			rtos_sema_delete(usbh_msc_attach_sema);
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to init MSC: %d\n", ret);
+			error_no = ret;
+			goto end;
 		}
+		/* All class drivers registered; start USB TRX so enumeration can run. */
+		usbh_start();
+		usbh_msc_inited = 1;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "MSC host session start\n");
 	} else if (_stricmp(cmd, "deinit") == 0) {
+		if (usbh_msc_inited == 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "MSC host not inited\n");
+			error_no = HAL_ERR_PARA;
+			goto end;
+		}
+		usbh_msc_inited = 0;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Deinit MSC host driver\n");
+		usbh_stop();
 		ret = usbh_msc_deinit();
 		if (ret != HAL_OK) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to deinit MSC: %d\n", ret);
+			error_no = ret;
 		}
 		ret = usbh_deinit();
 		if (ret != HAL_OK) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to deinit USBH: %d\n", ret);
+			error_no = ret;
 		}
 		rtos_sema_delete(usbh_msc_attach_sema);
 	} else if (_stricmp(cmd, "rw_test") == 0) {
-		if (argv[2]) {
+		if (usbh_msc_inited == 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "MSC host not inited\n");
+			error_no = HAL_ERR_PARA;
+			goto end;
+		}
+		if ((argc > 2) && (argv[2] != NULL)) {
 			file_cnt = _strtoul((const char *)(argv[2]), (char **)NULL, 10);
 		}
 
 		RTK_LOGS(TAG, RTK_LOG_INFO, "USB host MSC R&W test started\n");
 
-		ret = rtos_task_create(&task, "example_usb_drd_msc_trx_test", example_usb_drd_msc_trx_test, NULL,
-							   USBH_MSC_THREAD_STACK_SIZE, USBH_MSC_RW_THREAD_PRIORITY);
+		ret = rtos_task_create(&task, "usb_drd_msc_trx_thread", example_usb_drd_msc_trx_test, NULL,
+							   MSC_XFER_THREAD_STACK_SIZE, MSC_XFER_THREAD_PRIORITY);
 		if (ret != RTK_SUCCESS) {
 			RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to create USB host MSC R&W test thread\n");
+			error_no = HAL_ERR_MEM;
 		}
 	} else {
 		error_no = HAL_ERR_PARA;

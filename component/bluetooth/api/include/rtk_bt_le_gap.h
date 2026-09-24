@@ -1257,6 +1257,7 @@ typedef struct {
 	bool is_start;           /*!< Start or Stop */
 	uint16_t err;            /*!< Error code */
 	rtk_bt_le_adv_stop_reason_t stop_reason; /*!< Extended adv stop reason, valid when member is_start is false. */
+	uint16_t conn_handle;    /*!< Handle of the connection who stop the adv, only valid when stop_reason is @ref RTK_BT_LE_ADV_STOP_BY_CONN. */
 } rtk_bt_le_ext_adv_ind_t;
 #endif
 
@@ -1549,7 +1550,7 @@ typedef enum {
  * @brief     Bluetooth LE max adv data len.
  */
 #define RTK_BT_LE_MAX_ADV_DATA_LEN  31
-#define RTK_BT_LE_MAX_EXT_ADV_DATA_LEN  255
+#define RTK_BT_LE_MAX_EXT_ADV_DATA_LEN  1650
 
 /**
  * @struct    rtk_bt_le_adv_report_t
@@ -2023,7 +2024,7 @@ typedef struct {
 } rtk_bt_le_get_conn_info_param_t;
 
 typedef struct {
-	rtk_bt_le_addr_t addr;
+	rtk_bt_le_addr_t *p_addr;
 	uint16_t *p_conn_handle;
 } rtk_bt_le_get_conn_handle_by_addr_param_t;
 

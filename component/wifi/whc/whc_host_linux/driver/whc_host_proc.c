@@ -9,8 +9,12 @@
 */
 
 #include "whc_host_linux.h"
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+#include "whc_host_log_fwd.h"
+#endif /* CONFIG_WHC_HOST_LOG_FWD */
 
 #define get_proc_net init_net.proc_net
+u8 debug_on = 0;
 
 extern struct whc_device global_idev;
 
@@ -70,6 +74,24 @@ static int proc_get_ap_tsf(struct seq_file *m, void *v)
 static int proc_get_dummy(struct seq_file *m, void *v)
 {
 	return 0;
+}
+
+static ssize_t proc_write_debug_mode(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	char tmp[32];
+	int val = 0;
+
+	if (count >= sizeof(tmp)) {
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		tmp[count] = '\0';
+		sscanf(tmp, "%d", &val);
+		debug_on = val ? 1 : 0;
+	}
+
+	return count;
 }
 
 static ssize_t proc_write_edcca_mode(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
@@ -134,6 +156,13 @@ static int proc_read_edcca_mode(struct seq_file *m, void *v)
 	seq_printf(m, "%d\n", edcca_mode);
 
 	return ret;
+}
+
+static int proc_read_debug_mode(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%d\n", debug_on);
+
+	return 0;
 }
 
 static int proc_read_beacon_rssi(struct seq_file *m, void *v)
@@ -374,6 +403,7 @@ static void rtw_ndev_ap_proc_deinit(const char *name)
 * rtw_ndev_sta_proc
 */
 const struct rtw_proc_hdl ndev_sta_proc_hdls[] = {
+	RTW_PROC_HDL_SSEQ("debug", proc_read_debug_mode, proc_write_debug_mode),
 	RTW_PROC_HDL_SSEQ("bcn_time", proc_get_sta_tsf, NULL),
 	RTW_PROC_HDL_SSEQ("edcca_mode", proc_read_edcca_mode, proc_write_edcca_mode),
 	RTW_PROC_HDL_SSEQ("edcca_th", NULL, proc_write_edcca_th),
@@ -551,10 +581,58 @@ static void rtw_ndev_sta_proc_deinit(const char *name)
 	rtw_sta_proc = NULL;
 }
 
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+static int proc_read_log_fwd(struct seq_file *m, void *v)
+{
+	seq_printf(m, "(1=enabled, 0=disabled)\n");
+	seq_printf(m, "%d\n", whc_host_log_forward_is_enabled());
+	return 0;
+}
+
+static ssize_t proc_write_log_fwd(struct file *file,
+								  const char __user *buffer,
+								  size_t count, loff_t *pos, void *data)
+{
+	char tmp[8];
+	int ret;
+
+	if (count == 0) {
+		return 0;
+	}
+	if (count > sizeof(tmp)) {
+		return -EINVAL;
+	}
+	if (copy_from_user(tmp, buffer, count)) {
+		return -EFAULT;
+	}
+
+	if (tmp[0] == '1') {
+		ret = whc_host_log_forward_set(true);
+	} else if (tmp[0] == '0') {
+		ret = whc_host_log_forward_set(false);
+	} else {
+		return -EINVAL;
+	}
+
+	if (ret) {
+		return ret;
+	}
+
+	dev_info(global_idev.pwhc_dev,
+			 "log_fwd: %s\n",
+			 whc_host_log_forward_is_enabled() ? "enabled" : "disabled");
+
+	return count;
+}
+#endif /* CONFIG_WHC_HOST_LOG_FWD */
+
 /*
 * rtw_drv_proc
 */
 const struct rtw_proc_hdl drv_proc_hdls[] = {
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+	RTW_PROC_HDL_SSEQ("log_fwd", proc_read_log_fwd, proc_write_log_fwd),
+#endif /* CONFIG_WHC_HOST_LOG_FWD */
 };
 
 const int drv_proc_hdls_num = sizeof(drv_proc_hdls) / sizeof(struct rtw_proc_hdl);

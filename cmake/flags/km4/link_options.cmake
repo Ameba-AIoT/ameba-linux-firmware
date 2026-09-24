@@ -11,7 +11,7 @@ if(CONFIG_AMEBAD OR CONFIG_AMEBAPRO3)
     ameba_list_append(c_GLOBAL_MCU_LINK_OPTIONS -march=armv8-m.main+dsp)
 elseif(CONFIG_AMEBADPLUS OR CONFIG_AMEBALITE)
     ameba_list_append(c_GLOBAL_MCU_LINK_OPTIONS -march=armv8.1-m.main+dsp)
-elseif(CONFIG_AMEBAGREEN2 OR CONFIG_RTL8720F)
+elseif(CONFIG_AMEBAGREEN2 OR CONFIG_RTL8720F OR CONFIG_RLE1509)
     ameba_list_append(c_GLOBAL_MCU_LINK_OPTIONS -march=armv8.1-m.main)
 elseif(CONFIG_AMEBASMART)
     ameba_list_append(c_GLOBAL_MCU_LINK_OPTIONS -march=armv8.1-m.main+mve)
@@ -20,8 +20,6 @@ else()
 endif()
 
 ameba_list_append_if(CONFIG_CPU_HAS_FPU c_GLOBAL_MCU_LINK_OPTIONS
-    -L${SDK_TOOLCHAIN}/arm-none-eabi/lib/thumb/v8-m.main+fp/fpu
-    -L${SDK_TOOLCHAIN}/lib/gcc/arm-none-eabi/${ASDK_VER}/thumb/v8-m.main+fp/fpu
     -mfpu=fpv5-sp-d16
     -mfloat-abi=hard
 )

@@ -38,7 +38,7 @@ static const usbh_dev_id_t msc_devs[] = {
 };
 
 /* USB Host MSC class driver */
-static usbh_class_driver_t usbh_msc_driver = {
+static const usbh_class_driver_t usbh_msc_driver = {
 	.id_table = msc_devs,
 	.attach = usbh_msc_attach,
 	.detach = usbh_msc_detach,
@@ -84,13 +84,13 @@ static int usbh_msc_attach(usb_host_t *host)
 		for (int i = 0; i < msc_itf_desc->bNumEndpoints && i < 2; i++) {
 			ep_desc = &msc_itf_desc->ep_desc_array[i];
 			if ((ep_desc->bEndpointAddress & USB_REQ_DIR_MASK) == USB_D2H) {
-				if (usbh_open_pipe(host, bulk_in, ep_desc) != HAL_OK) {
+				if (usbh_open_pipe(host, bulk_in, ep_desc, &usbh_msc_driver) != HAL_OK) {
 					RTK_LOGS(TAG, RTK_LOG_ERROR, "Open bulk in pipe fail\n");
 					goto open_fail;
 				}
 				bulk_in->max_timeout_tick = MSC_XFER_MAX_TIMEOUT_TICK;
 			} else {
-				if (usbh_open_pipe(host, bulk_out, ep_desc) != HAL_OK) {
+				if (usbh_open_pipe(host, bulk_out, ep_desc, &usbh_msc_driver) != HAL_OK) {
 					RTK_LOGS(TAG, RTK_LOG_ERROR, "Open bulk out pipe fail\n");
 					goto open_fail;
 				}
@@ -119,7 +119,7 @@ static int usbh_msc_attach(usb_host_t *host)
 		msc->hbot.reset_recovery = 0U;
 
 		/* De-Initialize LUNs information */
-		usb_os_memset(msc->unit, 0, sizeof(msc->unit));
+		usb_os_memset((void *)msc->unit, 0, sizeof(msc->unit));
 
 		if ((msc->cb != NULL) && (msc->cb->attach != NULL)) {
 			msc->cb->attach();
@@ -162,6 +162,8 @@ static int usbh_msc_detach(usb_host_t *host)
 	if (bulk_out->pipe_num) {
 		usbh_close_pipe(host, bulk_out);
 	}
+
+	msc->host = NULL;
 	return HAL_OK;
 }
 
@@ -234,10 +236,11 @@ static int usbh_msc_setup(usb_host_t *host)
   */
 static int usbh_msc_process(usb_host_t *host, usbh_event_t *event)
 {
+	UNUSED(event);
+
 	usbh_msc_host_t *msc = &usbh_msc_host;
 	int status = HAL_BUSY;
 	int scsi_status = HAL_BUSY;
-	UNUSED(event);
 
 	switch (msc->state) {
 	case MSC_INIT:
@@ -372,12 +375,12 @@ static int usbh_msc_process(usb_host_t *host, usbh_event_t *event)
 				break;
 			}
 
-			usbh_notify_class_state_change(host, 0);
+			usbh_notify(host, 0, &usbh_msc_driver);
 		} else {
 			msc->current_lun = 0U;
 			msc->state = MSC_IDLE;
 
-			usbh_notify_class_state_change(host, 0);
+			usbh_notify(host, 0, &usbh_msc_driver);
 			if ((msc->cb != NULL) && (msc->cb->setup != NULL)) {
 				msc->cb->setup();
 			}
@@ -432,7 +435,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_msc_driver);
 		break;
 
 	case MSC_WRITE:
@@ -456,7 +459,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_msc_driver);
 		break;
 
 	case MSC_REQUEST_SENSE:
@@ -482,7 +485,7 @@ static int usbh_msc_process_rw(usb_host_t *host, u8 lun)
 			}
 		}
 
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_msc_driver);
 		break;
 
 	default:
@@ -586,6 +589,9 @@ static usb_msc_bot_csw_state_t usbh_msc_decode_csw(usb_host_t *host)
 					status = BOT_CSW_PHASE_ERROR;
 				} else {
 				}
+			} else {
+				/* BOT §6.3.1: tag mismatch means invalid CSW, must go through Reset Recovery */
+				status = BOT_CSW_PHASE_ERROR;
 			} /* CSW Tag Matching is Checked  */
 		} /* CSW Signature Correct Checking */
 		else {
@@ -648,11 +654,11 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 					msc->hbot.state = BOT_RECEIVE_CSW;
 					bulk_in->xfer_state = USBH_EP_XFER_START;
 				}
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			} else if (bulk_out->xfer_state == USBH_EP_XFER_ERROR) {
 				RTK_LOGS(TAG, RTK_LOG_ERROR, "TX CBW err: %d\n", usbh_get_urb_state(host, bulk_out));
 				msc->hbot.state  = BOT_ERROR_OUT;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			}
 		}
 		break;
@@ -668,11 +674,11 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 			if ((ret == HAL_OK) && (bulk_in->xfer_state == USBH_EP_XFER_IDLE)) {
 				msc->hbot.state  = BOT_RECEIVE_CSW;
 				bulk_in->xfer_state = USBH_EP_XFER_START;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			} else if (bulk_in->xfer_state == USBH_EP_XFER_ERROR) {
 				RTK_LOGS(TAG, RTK_LOG_ERROR, "RX data err: %d\n", usbh_get_urb_state(host, bulk_in));
 				msc->hbot.state  = BOT_ERROR_IN;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			}
 		}
 		break;
@@ -689,11 +695,11 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 			if ((ret == HAL_OK) && (bulk_out->xfer_state == USBH_EP_XFER_IDLE)) {
 				msc->hbot.state = BOT_RECEIVE_CSW;
 				bulk_in->xfer_state = USBH_EP_XFER_START;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			} else if (bulk_out->xfer_state == USBH_EP_XFER_ERROR) {
 				RTK_LOGS(TAG, RTK_LOG_ERROR, "TX data err: %d\n", usbh_get_urb_state(host, bulk_out));
 				msc->hbot.state  = BOT_ERROR_OUT;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			}
 		}
 		break;
@@ -725,10 +731,10 @@ int usbh_msc_bot_process(usb_host_t *host, u8 lun)
 						status = HAL_ERR_UNKNOWN;
 					}
 				}
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			} else if (usbh_get_urb_state(host, bulk_in) == USBH_URB_STALL) {
 				msc->hbot.state  = BOT_ERROR_IN;
-				usbh_notify_class_state_change(host, 0);
+				usbh_notify(host, 0, &usbh_msc_driver);
 			}
 		}
 		break;
@@ -873,7 +879,7 @@ int usbh_msc_get_lun_info(u8 lun, usbh_msc_lun_t *info)
 	}
 
 	if ((msc->host->connect_state == USBH_STATE_SETUP) && (USBH_MSC_MAX_LUN > lun)) {
-		usb_os_memcpy(info, &msc->unit[lun], sizeof(usbh_msc_lun_t));
+		usb_os_memcpy((void *)info, (const void *)&msc->unit[lun], sizeof(usbh_msc_lun_t));
 		return HAL_OK;
 	} else {
 		return HAL_ERR_UNKNOWN;
@@ -1067,25 +1073,20 @@ int usbh_msc_init(const usbh_msc_cb_t *cb)
 	}
 
 	ret = usbh_register_class(&usbh_msc_driver);
+	if (ret != HAL_OK) {
+		goto exit_free;
+	}
 	return ret;
 
 exit_free:
-	if (msc->max_lun_buf != NULL) {
-		usb_os_mfree(msc->max_lun_buf);
-		msc->max_lun_buf = NULL;
-	}
-	if (msc->hbot.data != NULL) {
-		usb_os_mfree(msc->hbot.data);
-		msc->hbot.data = NULL;
-	}
-	if (msc->hbot.csw != NULL) {
-		usb_os_mfree(msc->hbot.csw);
-		msc->hbot.csw = NULL;
-	}
-	if (msc->hbot.cbw != NULL) {
-		usb_os_mfree(msc->hbot.cbw);
-		msc->hbot.cbw = NULL;
-	}
+	usb_os_mfree((void *)msc->max_lun_buf);
+	msc->max_lun_buf = NULL;
+	usb_os_mfree((void *)msc->hbot.data);
+	msc->hbot.data = NULL;
+	usb_os_mfree((void *)msc->hbot.csw);
+	msc->hbot.csw = NULL;
+	usb_os_mfree((void *)msc->hbot.cbw);
+	msc->hbot.cbw = NULL;
 	return ret;
 }
 
@@ -1109,33 +1110,25 @@ int usbh_msc_deinit(void)
 		usbh_close_pipe(host, bulk_out);
 	}
 
-	if (msc->max_lun_buf != NULL) {
-		usb_os_mfree(msc->max_lun_buf);
-		msc->max_lun_buf = NULL;
-	}
+	usb_os_mfree((void *)msc->max_lun_buf);
+	msc->max_lun_buf = NULL;
 
 	/* A read/write that errored out can leave an allocated transfer buffer.
 	   hbot.pbuf may alias hbot.data, so only free it when it is a separate
 	   allocation (mirrors the guard in usbh_scsi_read/write). */
 	if ((msc->hbot.pbuf != NULL) && (msc->hbot.pbuf != msc->hbot.data)) {
-		usb_os_mfree(msc->hbot.pbuf);
+		usb_os_mfree((void *)msc->hbot.pbuf);
 	}
 	msc->hbot.pbuf = NULL;
 
-	if (msc->hbot.data != NULL) {
-		usb_os_mfree(msc->hbot.data);
-		msc->hbot.data = NULL;
-	}
+	usb_os_mfree((void *)msc->hbot.data);
+	msc->hbot.data = NULL;
 
-	if (msc->hbot.csw != NULL) {
-		usb_os_mfree(msc->hbot.csw);
-		msc->hbot.csw = NULL;
-	}
+	usb_os_mfree((void *)msc->hbot.csw);
+	msc->hbot.csw = NULL;
 
-	if (msc->hbot.cbw != NULL) {
-		usb_os_mfree(msc->hbot.cbw);
-		msc->hbot.cbw = NULL;
-	}
+	usb_os_mfree((void *)msc->hbot.cbw);
+	msc->hbot.cbw = NULL;
 
 	ret = usbh_unregister_class(&usbh_msc_driver);
 

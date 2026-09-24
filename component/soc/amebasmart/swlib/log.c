@@ -28,17 +28,17 @@ void rtk_log_mutex_init(void)
 /***
 *  @brief	Print the modules' tag/level set by the rtk_log_level_set()
 *
-*  @param	rtk_log_tag_array cache array
+*  @param	log_tag_array cache array
 *
 *  @return	success,0; fail,-1
 *
 ***/
-int rtk_log_array_print(rtk_log_tag_t *rtk_log_tag_array)
+int rtk_log_array_print(rtk_log_tag_t *log_tag_array)
 {
 	uint32_t index = MIN(rtk_log_entry_count, LOG_TAG_CACHE_ARRAY_SIZE);
-	if (rtk_log_tag_array != NULL) {
+	if (log_tag_array != NULL) {
 		for (uint32_t i = 0; i < index; i++) {
-			RTK_LOGS(TAG, RTK_LOG_INFO, "[%s] level = %d\n", rtk_log_tag_array[i].tag, rtk_log_tag_array[i].level);
+			RTK_LOGS(TAG, RTK_LOG_INFO, "[%s] level = %d\n", log_tag_array[i].tag, log_tag_array[i].level);
 		}
 		return RTK_SUCCESS;
 	}
@@ -277,7 +277,7 @@ void rtk_log_write(rtk_log_level_t level, const char *tag, const char letter, co
 		 * suspend we print unlocked and accept possible interleaving. Snapshot
 		 * the take so give mirrors it exactly (no leak if state flips on SMP). */
 		u32 mutex_taken = 0;
-		if ((!in_isr) && (log_mutex != NULL) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING)) {
+		if ((!in_isr) && (log_mutex != NULL) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (rtos_get_critical_state() == 0)) {
 			mutex_taken = (rtos_mutex_take(log_mutex, RTOS_MAX_DELAY) == RTK_SUCCESS);
 		}
 #endif
@@ -310,7 +310,7 @@ void rtk_log_write_nano(rtk_log_level_t level, const char *tag, const char lette
 		 * suspend we print unlocked and accept possible interleaving. Snapshot
 		 * the take so give mirrors it exactly (no leak if state flips on SMP). */
 		u32 mutex_taken = 0;
-		if ((!in_isr) && (log_mutex != NULL) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING)) {
+		if ((!in_isr) && (log_mutex != NULL) && (rtos_sched_get_state() == RTOS_SCHED_RUNNING) && (rtos_get_critical_state() == 0)) {
 			mutex_taken = (rtos_mutex_take(log_mutex, RTOS_MAX_DELAY) == RTK_SUCCESS);
 		}
 #endif
@@ -327,3 +327,4 @@ void rtk_log_write_nano(rtk_log_level_t level, const char *tag, const char lette
 #endif
 	}
 }
+

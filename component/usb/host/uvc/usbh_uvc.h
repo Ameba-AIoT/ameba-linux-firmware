@@ -13,6 +13,11 @@
 #include "dlist.h"
 #include "usbh_uvc_desc.h"
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 /* Exported defines ----------------------------------------------------------*/
 
 /** @addtogroup USB_Host_API USB Host API
@@ -46,7 +51,17 @@
 #define USBH_UVC_FORMAT_H265                          0x30U   /**< H.265/HEVC (frame-based) format (driver-private selector). */
 
 /* Configuration */
-/* Maximum number of supported VideoStreaming (VS) descriptors is 2 */
+/*
+ * Number of VideoStreaming (VS) streams the driver instantiates. This macro
+ * bounds two things at once:
+ *   1. How many streams usbh_uvc_init()/usbh_uvc_deinit() allocate/release.
+ *      init/deinit take NO stream_index: they prepare/free ALL streams in one call.
+ *   2. The valid range of the stream_index argument on the data-flow APIs
+ *      (set_param/start/get_frame/put_frame/stop): 0 .. USBH_UVC_VS_DESC_MAX_NUM-1.
+ * Single-stream camera: keep this at 1 -> the only valid stream_index is 0.
+ * Dual-stream  camera : set this to 2 -> stream_index may be 0 or 1.
+ * Maximum supported value is 2.
+ */
 #define USBH_UVC_VS_DESC_MAX_NUM                      1U
 
 /* Maximum number of VideoStreaming alternate settings supported.
@@ -131,6 +146,7 @@ typedef struct  {
  * @brief UVC Global Context.
  */
 typedef struct  {
+	u32 frame_buf_size;    /**< Size of a single video frame buffer in bytes (applied to every stream at init). */
 #if USBH_UVC_USE_HW
 	u8 hw_isr_pri;         /**< UVC hardware ISR priority. */
 #endif
@@ -490,100 +506,87 @@ typedef struct {
 /** @addtogroup Host_UVC_Functions Host UVC Functions
  * @{
  */
-#ifdef __cplusplus
-extern "C"
-{
-#endif
 /**
  * @brief  Initializes the UVC host class driver.
- *         Registers the application callback handler and global context.
- * @param[in] cfg: Pointer to the global UVC context configuration.
+ *         Registers the application callback handler and global context, and
+ *         allocates all per-stream runtime resources (frame buffers, frame lists,
+ *         semaphores, mutexes and worker threads / HW channels) for every stream,
+ *         moving them to the READY state. The per-stream frame buffer size is taken
+ *         from cfg->frame_buf_size. This does NOT begin data transfer.
+ * @note   The public API has a single data-flow axis:
+ *           usbh_uvc_start() <-> usbh_uvc_stop()
+ *         Lifecycle order: usbh_uvc_init() (resources ready here) ->
+ *         usbh_uvc_set_param() -> usbh_uvc_start() (transfer begins here) ->
+ *         usbh_uvc_get_frame() / usbh_uvc_put_frame() -> usbh_uvc_stop().
+ *         Resources are released by usbh_uvc_deinit().
+ * @note   usbh_uvc_init()/usbh_uvc_deinit() take no stream_index: they prepare/release
+ *         ALL streams at once (count = USBH_UVC_VS_DESC_MAX_NUM). A specific stream
+ *         is then selected by the stream_index argument on the data-flow APIs. For a
+ *         single-stream camera (USBH_UVC_VS_DESC_MAX_NUM = 1) stream_index must be 0;
+ *         a dual-stream camera (= 2) accepts stream_index 0 or 1.
+ * @param[in] cfg: Pointer to the global UVC context configuration (incl. frame_buf_size).
  * @param[in] cb: Pointer to the user-defined callback structure.
  * @return 0 on success, non-zero on failure.
  */
 int usbh_uvc_init(const usbh_uvc_ctx_t *cfg, const usbh_uvc_cb_t *cb);
 
 /**
- * @brief  Open a video stream on the specified interface (resource setup only).
- *         Allocates all per-stream runtime resources (frame buffers, frame lists,
- *         semaphores, mutexes and worker threads) and moves the stream to the READY
- *         state. It does NOT begin isochronous/bulk data transfer -- it only prepares
- *         the stream.
- * @note   The public API has two orthogonal axes:
- *           - resource axis : usbh_uvc_open()  <-> usbh_uvc_close()
- *           - data-flow axis: usbh_uvc_start() <-> usbh_uvc_stop()
- *         Lifecycle order: usbh_uvc_open() -> usbh_uvc_set_param() ->
- *         usbh_uvc_start() (transfer begins here) -> usbh_uvc_get_frame() /
- *         usbh_uvc_put_frame() -> usbh_uvc_stop() -> usbh_uvc_close().
- *         Do not confuse open (allocate resources) with start (begin streaming).
- *         Must be paired with a later usbh_uvc_close().
- * @param[in] para: Pointer to the stream parameters (resolution, format, etc.).
- * @param[in] itf_num: Interface number to open.
- * @return 0 on success, non-zero on failure.
- */
-int usbh_uvc_open(usbh_uvc_s_ctx_t *para, u8 itf_num);
-
-/**
  * @brief  Sets video streaming parameters for the interface.
  *         Performs negotiation (PROBE/COMMIT) with the device.
  * @param[in] para: Pointer to the desired stream parameters.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  * @return 0 on success, non-zero on failure.
  */
-int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 itf_num);
+int usbh_uvc_set_param(usbh_uvc_s_ctx_t *para, u8 stream_index);
 
 /**
  * @brief  Start video streaming and kick off isochronous data transfer.
- *         Data-flow-axis entry; the stream must have been opened (usbh_uvc_open)
- *         and negotiated (usbh_uvc_set_param) first. Pair with usbh_uvc_stop().
- * @param[in] itf_num: Interface number.
+ *         Data-flow-axis entry; the stream resources are ready after usbh_uvc_init()
+ *         and must be negotiated (usbh_uvc_set_param) first. Pair with usbh_uvc_stop().
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  * @return 0 on success, non-zero on failure.
  */
-int usbh_uvc_start(u8 itf_num);
+int usbh_uvc_start(u8 stream_index);
 
 /**
  * @brief  Retrieves a ready video frame from the driver's output queue.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  * @return Pointer to a valid `usbh_uvc_frame_t` if available, otherwise NULL.
  */
-usbh_uvc_frame_t *usbh_uvc_get_frame(u8 itf_num);
+usbh_uvc_frame_t *usbh_uvc_get_frame(u8 stream_index);
 
 /**
  * @brief  Returns a processed frame back to the driver's free pool.
  *         Must be called after the application finishes using the frame.
  * @param[in] frame    Pointer to the frame to be released. Must be obtained via usbh_uvc_get_frame().
- * @param[in] itf_num  Interface number.
+ * @param[in] stream_index  VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  * @return 0 on success; negative value on failure.
  */
-int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 itf_num);
+int usbh_uvc_put_frame(usbh_uvc_frame_t *frame, u8 stream_index);
 
 /**
  * @brief  Stop video streaming and return to the ready state (resources retained).
- *         Data-flow-axis exit; the stream stays open and can be re-started with
- *         usbh_uvc_start() without re-opening. Pair with usbh_uvc_start().
- * @param[in] itf_num: Interface number.
+ *         Data-flow-axis exit; the stream stays ready and can be re-started with
+ *         usbh_uvc_start() without re-init. Pair with usbh_uvc_start().
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  * @return 0 on success, non-zero on failure.
  */
-int usbh_uvc_stop(u8 itf_num);
-
-/**
- * @brief  Close a video stream on the specified interface (resource teardown).
- *         Releases everything allocated by usbh_uvc_open() (frame buffers,
- *         frame lists, semaphores, mutexes and worker threads) and wakes up any
- *         thread blocked in usbh_uvc_get_frame(). This is the counterpart of
- *         usbh_uvc_open(); it is NOT the transfer-level stop -- call
- *         usbh_uvc_stop() first to halt transfer.
- * @note   Must be paired with a prior usbh_uvc_open().
- * @param[in] itf_num: Interface number to close.
- * @return 0 on success, non-zero on failure.
- */
-int usbh_uvc_close(u8 itf_num);
+int usbh_uvc_stop(u8 stream_index);
 
 /**
  * @brief  De-initializes the UVC host class driver and releases resources.
+ *         Releases everything allocated by usbh_uvc_init() (frame buffers, frame
+ *         lists, semaphores, mutexes and worker threads / HW channels) for every
+ *         stream and wakes up any thread blocked in usbh_uvc_get_frame().
  */
 void usbh_uvc_deinit(void);
 
+#if USBH_UVC_DEBUG
 /**
  * @brief  Dumps UVC device information for debugging purposes.
  *         Prints descriptors, interfaces, supported formats/frames, and current stream settings to the log.
@@ -591,21 +594,25 @@ void usbh_uvc_deinit(void);
  */
 void usbh_uvc_dump_dev_info(void);
 
-#if (USBH_UVC_USE_HW == 0) && USBH_UVC_DEBUG
+#if (USBH_UVC_USE_HW == 0)
 /**
  * @brief  Clear class-layer frame and drop statistics via RTK_LOGS.
  *         Call from the application at the start of each measurement round.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  */
-void usbh_uvc_clear_stats(u8 itf_num);
+void usbh_uvc_clear_stats(u8 stream_index);
 
 /**
  * @brief  Print class-layer frame and drop statistics via RTK_LOGS.
  *         Call from the application at the end of each measurement round.
- * @param[in] itf_num: Interface number.
+ * @param[in] stream_index: VideoStreaming stream index, range 0 .. USBH_UVC_VS_DESC_MAX_NUM-1
+ *                     (must be 0 for a single-stream camera).
  */
-void usbh_uvc_print_stats(u8 itf_num);
+void usbh_uvc_print_stats(u8 stream_index);
 #endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif

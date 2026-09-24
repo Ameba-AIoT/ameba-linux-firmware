@@ -43,10 +43,9 @@ static uint8_t *sdio_read_rxfifo(struct whc_sdio *priv, uint32_t size)
 void whc_sdio_recv_data_process(void)
 {
 	struct whc_sdio *sdio_priv = &whc_sdio_priv;
-	uint8_t tmp[4];
 	uint8_t *pbuf;
 	uint32_t rx_len_rdy, himr;
-	uint16_t SdioRxFIFOSize;
+	uint32_t SdioRxFIFOSize;
 	uint8_t retry = 0;
 
 
@@ -61,16 +60,14 @@ void whc_sdio_recv_data_process(void)
 
 		/* TODO disable RX_REQ interrupt */
 		himr = sdio_priv->sdio_himr & (~SDIO_HIMR_RX_REQUEST_MSK);
-		sdio_local_write(sdio_priv, SDIO_REG_HIMR, 4, (uint8_t *)&himr);
+		rtw_write32(sdio_priv, SDIO_REG_HIMR, himr);
 
 		do {
 			/* validate RX_LEN_RDY before reading RX0_REQ_LEN */
-			rx_len_rdy = sdio_read8(sdio_priv, SDIO_REG_RX0_REQ_LEN + 3) & BIT(7);
+			rx_len_rdy = rtw_read8(sdio_priv, SDIO_REG_RX0_REQ_LEN + 3) & BIT(7);
 
 			if (rx_len_rdy) {
-				sdio_local_read(sdio_priv, SDIO_REG_RX0_REQ_LEN, 4, tmp);
-				SdioRxFIFOSize = (*(u16 *)tmp);
-
+				SdioRxFIFOSize = rtw_read32(sdio_priv, SDIO_REG_RX0_REQ_LEN) & SDIO_RX_REQ_LEN_MSK;
 				if (SdioRxFIFOSize == 0) {
 					if (retry ++ < 3) {
 						continue;
@@ -81,8 +78,7 @@ void whc_sdio_recv_data_process(void)
 					retry = 0;
 					pbuf = sdio_read_rxfifo(sdio_priv, SdioRxFIFOSize);
 					if (pbuf) {
-						/* SDIO carries pkt_len (payload after RX_DESC) in the RX descriptor */
-						whc_host_recv_dispatch(pbuf, *(u16 *)pbuf);
+						whc_host_recv_dispatch(pbuf, SdioRxFIFOSize);
 					} else {
 						break;
 					}
@@ -94,7 +90,7 @@ void whc_sdio_recv_data_process(void)
 
 		/* restore RX_REQ interrupt*/
 		himr = (sdio_priv->sdio_himr);
-		sdio_local_write(sdio_priv, SDIO_REG_HIMR, 4, (u8 *)&himr);
+		rtw_write32(sdio_priv, SDIO_REG_HIMR, himr);
 	}
 
 }
@@ -105,7 +101,6 @@ void whc_sdio_host_init_drv(void)
 	rtos_mutex_create(&whc_sdio_priv.host_send);
 	rtos_sema_create(&whc_sdio_priv.host_irq, 0, 0xFFFFFFFF);
 	rtos_sema_create(&(whc_sdio_priv.host_recv_wake), 0, 0xFFFFFFFF);
-	rtos_sema_create(&(whc_sdio_priv.host_recv_done), 1, 1);
 	rtos_sema_create(&(whc_sdio_priv.txbd_wq), 0, 0xFFFFFFFF);
 	rtos_mutex_create(&whc_sdio_priv.lock);
 
@@ -117,6 +112,13 @@ void whc_sdio_host_init_drv(void)
 
 #ifdef CONFIG_WHC_WIFI_API_PATH
 	whc_host_api_init();
+#endif
+
+#ifdef CONFIG_LWIP_LAYER
+	whc_host_netinfo_monitor_init();
+#endif
+#ifdef CONFIG_WHC_CMD_PATH
+	whc_host_cmd_path_init();
 #endif
 
 #ifndef SDIO_INT_MODE

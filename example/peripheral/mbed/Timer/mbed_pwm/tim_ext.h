@@ -37,12 +37,19 @@
 #define PWM_3       PA_8
 #define PWM_4       PA_10
 
+#elif defined (CONFIG_AMEBAPRO3)
+
+#define PWM_1       PE_3
+#define PWM_2       PE_4
+#define PWM_3       PE_5
+#define PWM_4       PE_6
+
 #elif defined (CONFIG_RTL8720F)
 
 #define PWM_1       PA_21
 #define PWM_2       PA_22
 #define PWM_3       PA_23
-#define PWM_4       PA_24
+#define PWM_4       PA_20
 
 #endif
 

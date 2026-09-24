@@ -92,9 +92,14 @@ static const usbh_config_t usbh_ncm_cfg = {
 	.main_task_priority = CONFIG_USBH_CDC_NCM_MAIN_THREAD_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
 	.hub_support = 1U,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
+	/*FIFO total 1024 DWORD, resv 12 DWORD for DMA*/
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	/*FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -259,6 +264,9 @@ static int usbh_cdc_ncm_do_init(void)
 		return 0;
 	}
 
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
+
 	do {
 		if (usbh_cdc_ncm_is_configured()) {
 			break;
@@ -304,7 +312,7 @@ static void usbh_ncm_link_change_thread(void *param)
 			} else {
 				RTK_LOGS(TAG, RTK_LOG_INFO, "Do DHCP\n");
 				ethernet_state = ETH_STATUS_INIT;
-				memcpy(pnetif_usb_eth->hwaddr, mac, 6);
+				usb_os_memcpy((void *)pnetif_usb_eth->hwaddr, (const void *)mac, 6);
 				RTK_LOGS(TAG, RTK_LOG_INFO, "MAC[%02x %02x %02x %02x %02x %02x]\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 				netif_set_link_up(pnetif_usb_eth);
 
@@ -333,7 +341,7 @@ static void usbh_cdc_ncm_save_to_memory(char *pdata, unsigned int length)
 #if CONFIG_USBH_CDC_NCM_DUMP_FILE
 	static unsigned int psram_pos = 0;
 	if (CONFIG_USBH_CDC_NCM_DUMP_PSRAM_HEAP_SIZE >= psram_pos + length) {
-		memcpy((void *)&cdc_ncm_dump_psram_heap[psram_pos], pdata, length);
+		usb_os_memcpy((void *)&cdc_ncm_dump_psram_heap[psram_pos], (const void *)pdata, length);
 		psram_pos += length;
 	}
 #else
@@ -375,7 +383,7 @@ static void usbh_ncm_download_thread(void *param)
 	UNUSED(param);
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Enter download example\n");
-	memset(output, 0x00, 8 * MD5_CHECK_BUFFER_LEN);
+	usb_os_memset((void *)output, 0x00, 8 * MD5_CHECK_BUFFER_LEN);
 
 	while (0 == cdc_ncm_dhcp_done) {
 		if (++heart_beat % 30 == 0) {
@@ -402,14 +410,14 @@ static void usbh_ncm_download_thread(void *param)
 
 	server_host = gethostbyname(SERVER_HOST);
 	if (server_host != NULL) {
-		memcpy((void *) &server_addr.sin_addr, (void *) server_host->h_addr, 4);
+		usb_os_memcpy((void *) &server_addr.sin_addr, (const void *) server_host->h_addr, 4);
 	} else {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Server host\n");
 		goto exit;
 	}
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Will do connect %s\n", SERVER_HOST);
-	if (connect(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == 0) {
+	if (connect(server_fd, (struct sockaddr *)(void *) &server_addr, sizeof(server_addr)) == 0) {
 		pos = 0, read_size = 0, resource_size = 0, content_len = 0, header_removed = 0;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Connect success\n");
 		sprintf((char *)cdc_ncm_dl_buf, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", RESOURCE, SERVER_HOST);
@@ -510,6 +518,7 @@ static void usbh_ncm_mem_check_thread(void *param)
 			RTK_LOGS(TAG, RTK_LOG_INFO, "Del monitor_task\n");
 			rtos_task_delete(monitor_task);
 
+			usbh_stop();
 			usbh_cdc_ncm_deinit();
 			usbh_deinit();
 
@@ -532,6 +541,7 @@ static void usbh_ncm_hotplug_thread(void *param)
 		usb_os_sema_take(cdc_ncm_detach_sema, USB_OS_SEMA_TIMEOUT);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Hot plug\n");
 		//stop isr
+		usbh_stop();
 		usbh_cdc_ncm_deinit();
 		usbh_deinit();
 
@@ -550,6 +560,9 @@ static void usbh_ncm_hotplug_thread(void *param)
 			usbh_deinit();
 			break;
 		}
+
+		/* Re-arm USB TRX after the re-init. */
+		usbh_start();
 	}
 }
 #endif
@@ -566,10 +579,18 @@ void example_usbh_cdc_ncm(void)
 {
 	int status;
 	rtos_task_t monitor_task;
+#if !CONFIG_USBH_CDC_NCM_MEM_CHECK && CONFIG_USBH_CDC_NCM_REMOTE_FILE_DOWNLOAD
+	rtos_task_t download_task;
+#endif
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH NCM demo start\n");
 
-	usb_os_sema_create(&cdc_ncm_detach_sema);
+	status = usb_os_sema_create(&cdc_ncm_detach_sema);
+	if (status != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create detach sema fail\n");
+		return;
+	}
+
 	rltk_usb_eth_init();
 
 #if CONFIG_USBH_CDC_NCM_HOTPLUG
@@ -577,6 +598,7 @@ void example_usbh_cdc_ncm(void)
 							  CONFIG_USBH_CDC_NCM_HOTPLUG_THREAD_PRIORITY);
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create hotplug check task fail\n");
+		goto exit_release;
 	}
 #endif
 
@@ -584,22 +606,43 @@ void example_usbh_cdc_ncm(void)
 	status = rtos_task_create(&monitor_task, "usbh_ncm_mem_check_thread", usbh_ncm_mem_check_thread, NULL, 1024U * 2, 3U);
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
+		goto exit_release;
 	}
 #else
 	status = rtos_task_create(&monitor_task, "usbh_ncm_link_change_thread", usbh_ncm_link_change_thread, NULL, 1024U * 2, 3U);
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
+		goto exit_release;
 	}
 
 #if CONFIG_USBH_CDC_NCM_REMOTE_FILE_DOWNLOAD
-	rtos_task_t download_task;
 	status = rtos_task_create(&download_task, "usbh_ncm_download_thread", usbh_ncm_download_thread, NULL, 10 * 512U, 2U);
 	if (status != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create download thread fail\n");
+		goto exit_delete_monitor;
 	}
 #endif
 
 #endif
+
+	return;
+
+#if !CONFIG_USBH_CDC_NCM_MEM_CHECK && CONFIG_USBH_CDC_NCM_REMOTE_FILE_DOWNLOAD
+exit_delete_monitor:
+	rtos_task_delete(monitor_task);
+#endif
+
+exit_release:
+	/* Stop the threads that reference the detach sema before it is freed. */
+#if CONFIG_USBH_CDC_NCM_HOTPLUG
+	if (cdc_ncm_hotplug_task != NULL) {
+		rtos_task_delete(cdc_ncm_hotplug_task);
+		cdc_ncm_hotplug_task = NULL;
+	}
+#endif
+	rltk_usb_eth_deinit();
+	usb_os_sema_delete(cdc_ncm_detach_sema);
+	cdc_ncm_detach_sema = NULL;
 }
 #else
 void example_usbh_cdc_ncm(void)

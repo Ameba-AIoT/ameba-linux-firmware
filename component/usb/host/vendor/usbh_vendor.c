@@ -22,6 +22,7 @@ static int usbh_vendor_attach(usb_host_t *host);
 static int usbh_vendor_detach(usb_host_t *host);
 static int usbh_vendor_process(usb_host_t *host, usbh_event_t *event);
 static int usbh_vendor_setup(usb_host_t *host);
+static void usbh_vendor_deinit_all_pipe(void);
 static int usbh_vendor_sof(usb_host_t *host);
 
 /* Private variables ---------------------------------------------------------*/
@@ -41,7 +42,7 @@ static const usbh_dev_id_t vendor_devs[] = {
 };
 
 /* USB Host vendor class driver */
-static usbh_class_driver_t usbh_vendor_driver = {
+static const usbh_class_driver_t usbh_vendor_driver = {
 	.id_table = vendor_devs,
 	.attach = usbh_vendor_attach,
 	.detach = usbh_vendor_detach,
@@ -94,7 +95,7 @@ static char *usbh_get_transfer_type_text(usbh_pipe_t *pipe)
   * @param  intf: Interface descriptor.
   * @retval None.
   */
-static void usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
+static int usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
 {
 	u32 tmp = 0;
 	usbh_vendor_host_t *vendor = &usbh_vendor_host;
@@ -115,7 +116,11 @@ static void usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
 			} else {
 				xfer = &vendor->bulk_out_xfer;
 			}
-			usbh_open_pipe(host, &xfer->pipe, ep_desc);
+			if (usbh_open_pipe(host, &xfer->pipe, ep_desc, &usbh_vendor_driver) != HAL_OK) {
+				RTK_LOGS(TAG, RTK_LOG_ERROR, "Open bulk pipe fail\n");
+				usbh_vendor_deinit_all_pipe();
+				return HAL_ERR_PARA;
+			}
 			break;
 
 		case USB_CH_EP_TYPE_INTR:
@@ -124,7 +129,11 @@ static void usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
 			} else {
 				xfer = &vendor->intr_out_xfer;
 			}
-			usbh_open_pipe(host, &xfer->pipe, ep_desc);
+			if (usbh_open_pipe(host, &xfer->pipe, ep_desc, &usbh_vendor_driver) != HAL_OK) {
+				RTK_LOGS(TAG, RTK_LOG_ERROR, "Open intr pipe fail\n");
+				usbh_vendor_deinit_all_pipe();
+				return HAL_ERR_PARA;
+			}
 			break;
 
 		case USB_CH_EP_TYPE_ISOC:
@@ -133,8 +142,11 @@ static void usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
 			} else {
 				xfer = &vendor->isoc_out_xfer;
 			}
-			usbh_open_pipe(host, &xfer->pipe, ep_desc);
-
+			if (usbh_open_pipe(host, &xfer->pipe, ep_desc, &usbh_vendor_driver) != HAL_OK) {
+				RTK_LOGS(TAG, RTK_LOG_ERROR, "Open isoc pipe fail\n");
+				usbh_vendor_deinit_all_pipe();
+				return HAL_ERR_PARA;
+			}
 			break;
 
 		default:
@@ -146,6 +158,8 @@ static void usbh_vendor_get_endpoints(usb_host_t *host, usbh_itf_desc_t *intf)
 			RTK_LOGS(TAG, RTK_LOG_INFO, "%s EP%02x MPS %d intv %d\n", xfer_type, xfer->pipe.ep_addr, xfer->pipe.ep_mps, xfer->pipe.ep_interval);
 		}
 	}
+
+	return HAL_OK;
 }
 
 /**
@@ -183,14 +197,12 @@ static void usbh_vendor_deinit_transfer(usb_host_t *host, usbh_vendor_xfer_t *xf
 {
 	usbh_pipe_t *pipe = &xfer->pipe;
 
-	if (pipe->pipe_num) {
+	if (pipe->pipe_num && host != NULL) {
 		usbh_close_pipe(host, pipe);
 	}
 
-	if (xfer->test_buf != NULL) {
-		usb_os_mfree(xfer->test_buf);
-		xfer->test_buf = NULL;
-	}
+	usb_os_mfree((void *)xfer->test_buf);
+	xfer->test_buf = NULL;
 
 	xfer->xfer_max_len = 0;
 	xfer->xfer_cnt = 0;
@@ -208,6 +220,7 @@ static int usbh_vendor_attach(usb_host_t *host)
 	usbh_vendor_host_t *vendor = &usbh_vendor_host;
 	usbh_itf_data_t *itf_data;
 	usbh_dev_id_t dev_id = {0,};
+	int status;
 
 	dev_id.bInterfaceClass = VENDOR_CLASS_CODE;
 	dev_id.bInterfaceSubClass = VENDOR_SUBCLASS_CODE;
@@ -225,7 +238,10 @@ static int usbh_vendor_attach(usb_host_t *host)
 		vendor->state = VENDOR_STATE_XFER;
 
 		/* Get data in/out endpoints */
-		usbh_vendor_get_endpoints(host, itf_data->itf_desc_array);
+		status = usbh_vendor_get_endpoints(host, itf_data->itf_desc_array);
+		if (status != HAL_OK) {
+			return status;
+		}
 
 		if ((vendor->cb != NULL) && (vendor->cb->attach != NULL)) {
 			vendor->cb->attach();
@@ -244,6 +260,10 @@ static void usbh_vendor_deinit_all_pipe(void)
 	usbh_vendor_host_t *vendor = &usbh_vendor_host;
 	usb_host_t *host = vendor->host;
 	usbh_pipe_t *pipe;
+
+	if (host == NULL) {
+		return;
+	}
 
 	pipe = &vendor->bulk_in_xfer.pipe;
 	if (pipe->pipe_num) {
@@ -302,6 +322,8 @@ static int usbh_vendor_detach(usb_host_t *host)
 	vendor->state = VENDOR_STATE_IDLE;
 
 	usbh_vendor_deinit_all_pipe();
+	usbh_vendor_deinit_all_xfer();
+	vendor->host = NULL;
 
 	if ((vendor->cb != NULL) && (vendor->cb->detach != NULL)) {
 		vendor->cb->detach();
@@ -371,7 +393,41 @@ static void usbh_vendor_next_transfer(usb_host_t *host, usbh_vendor_xfer_t *xfer
 			pipe->xfer_state = USBH_EP_XFER_START;
 			usb_os_memset((void *)pipe->xfer_buf, 0x00, xfer->xfer_max_len);
 		}
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
+	}
+}
+
+/**
+  * @brief  Pace an INTR pipe from the SOF ISR.
+  * @note   An INTR pipe has no wake source once it is NAKed: the first NAK masks
+  *         the NAK interrupt (usbh_hcd_isr.c) and holds the pipe in XFER_BUSY, so
+  *         .process is never re-entered and the transfer wedges (observed on the
+  *         RLE1509 FPGA: first INTR IN NAK then stop). Mirror usbh_verify_sof:
+  *         re-notify the owning pipe so usbh_transfer_process() keeps running.
+  * @param  host: Host handle
+  * @param  xfer: INTR transfer structure
+  * @retval None
+  */
+static void usbh_vendor_sof_pace_intr(usb_host_t *host, usbh_vendor_xfer_t *xfer)
+{
+	usbh_pipe_t *pipe = &xfer->pipe;
+
+	if ((pipe->pipe_num == 0) || (pipe->ep_type != USB_CH_EP_TYPE_INTR)) {
+		return;
+	}
+
+	if (pipe->xfer_state == USBH_EP_XFER_BUSY) {
+		/* NAK masked the NAK interrupt: poke the main task once the BUSY dwell
+		 * exceeds max_timeout_tick so usbh_transfer_process() can run the
+		 * timeout -> retry (BUSY -> START) that resubmits the token. */
+		if ((pipe->tick != 0U) && (usbh_get_elapsed_ticks(host, pipe->tick) > pipe->max_timeout_tick)) {
+			usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
+		}
+	} else if (pipe->xfer_state == USBH_EP_XFER_START) {
+		/* Re-arm at the bInterval deadline (or the very first submit, tick == 0). */
+		if ((pipe->tick == 0U) || (usbh_get_elapsed_ticks(host, pipe->tick) >= pipe->ep_interval)) {
+			usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
+		}
 	}
 }
 
@@ -403,6 +459,10 @@ static int usbh_vendor_sof(usb_host_t *host)
 		}
 	}
 
+	/* INTR IN/OUT have no completion-driven wake source while NAKed; re-poll them here. */
+	usbh_vendor_sof_pace_intr(host, &vendor->intr_in_xfer);
+	usbh_vendor_sof_pace_intr(host, &vendor->intr_out_xfer);
+
 	return ret;
 }
 
@@ -420,7 +480,7 @@ static void usbh_vendor_bulk_process_rx(usb_host_t *host)
 	int len;
 
 	if ((in_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -438,14 +498,14 @@ static void usbh_vendor_bulk_process_rx(usb_host_t *host)
 		if ((pipe->xfer_len == 0) && (vendor->cb != NULL) && (vendor->cb->receive != NULL)) {//ZLP
 			vendor->cb->receive(pipe->ep_type, pipe->xfer_buf, len, status);
 		}
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "BULK RX fail: %d\n", usbh_get_urb_state(host, pipe));
 		vendor->ep_mask &= ~(in_xfer->test_mask);
 		if ((vendor->cb != NULL) && (vendor->cb->receive != NULL)) {
 			vendor->cb->receive(pipe->ep_type, NULL, 0, status);
 		}
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	}
 }
 
@@ -462,7 +522,7 @@ static void usbh_vendor_bulk_process_tx(usb_host_t *host)
 	int status;
 
 	if ((out_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -475,7 +535,7 @@ static void usbh_vendor_bulk_process_tx(usb_host_t *host)
 			vendor->cb->transmit(pipe->ep_type);
 		}
 	} else if (pipe->xfer_state == USBH_EP_XFER_START) {
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "BULK TX fail: %d\n", usbh_get_urb_state(host, pipe));
 		vendor->ep_mask &= ~(out_xfer->test_mask);
@@ -499,7 +559,7 @@ static void usbh_vendor_intr_process_rx(usb_host_t *host)
 	int len;
 
 	if ((in_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -513,7 +573,7 @@ static void usbh_vendor_intr_process_rx(usb_host_t *host)
 			vendor->cb->receive(pipe->ep_type, pipe->xfer_buf, len, status);
 		}
 	} else if ((pipe->xfer_state == USBH_EP_XFER_START)) {
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "INTR RX fail: %d\n", usbh_get_urb_state(host, pipe));
 		vendor->ep_mask &= ~(in_xfer->test_mask);
@@ -536,7 +596,7 @@ static void usbh_vendor_intr_process_tx(usb_host_t *host)
 	int status;
 
 	if ((out_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -549,7 +609,7 @@ static void usbh_vendor_intr_process_tx(usb_host_t *host)
 			vendor->cb->transmit(pipe->ep_type);
 		}
 	} else if (pipe->xfer_state == USBH_EP_XFER_START) {
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "INTR TX fail: %d\n", usbh_get_urb_state(host, pipe));
 		vendor->ep_mask &= ~(out_xfer->test_mask);
@@ -572,7 +632,7 @@ static void usbh_vendor_isoc_process_rx(usb_host_t *host)
 	int status;
 
 	if ((in_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -584,7 +644,7 @@ static void usbh_vendor_isoc_process_rx(usb_host_t *host)
 		vendor->ep_mask &= ~(in_xfer->test_mask);
 		usbh_vendor_next_transfer(host, in_xfer);
 	} else if (pipe->xfer_state == USBH_EP_XFER_START) {
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "ISOC RX fail: %d\n", usbh_get_urb_state(host, pipe));
 		in_xfer->test_buf[in_xfer->xfer_cnt] = 0xFF;
@@ -607,7 +667,7 @@ static void usbh_vendor_isoc_process_tx(usb_host_t *host)
 	int status;
 
 	if ((out_xfer->test_mask & vendor->ep_mask) == 0) {
-		usbh_notify_class_state_change(host, 0);
+		usbh_notify(host, 0, &usbh_vendor_driver);
 		return;
 	}
 
@@ -633,7 +693,7 @@ static void usbh_vendor_isoc_process_tx(usb_host_t *host)
 			pipe->xfer_state = USBH_EP_XFER_WAIT_SOF;
 		}
 	} else if (pipe->xfer_state == USBH_EP_XFER_START) {
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 	} else if (pipe->xfer_state == USBH_EP_XFER_ERROR) {
 		vendor->ep_mask &= ~(out_xfer->test_mask);
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "ISOC TX fail: %d\n", usbh_get_urb_state(host, pipe));
@@ -706,7 +766,7 @@ int usbh_vendor_init(const usbh_vendor_cb_t *cb)
 		return HAL_ERR_PARA;
 	}
 
-	usb_os_memset(vendor, 0x00, sizeof(usbh_vendor_host_t));
+	usb_os_memset((void *)vendor, 0x00, sizeof(usbh_vendor_host_t));
 	vendor->cb = cb;
 	if (cb->init != NULL) {
 		ret = cb->init();
@@ -762,9 +822,7 @@ static int usbh_vendor_transmit(usbh_vendor_xfer_t *xfer, u8 *buf, u32 len, u32 
 		&& ((vendor->state == VENDOR_STATE_IDLE) || (vendor->state == VENDOR_STATE_XFER))) {
 
 		if (pipe->ep_type == USB_CH_EP_TYPE_ISOC) {
-			if (xfer->test_buf != NULL) {
-				usb_os_mfree(xfer->test_buf);
-			}
+			usb_os_mfree((void *)xfer->test_buf);
 			xfer->test_buf = (u8 *)usb_os_malloc(test_cnt);
 			if (xfer->test_buf == NULL) {
 				return HAL_BUSY;
@@ -789,7 +847,7 @@ static int usbh_vendor_transmit(usbh_vendor_xfer_t *xfer, u8 *buf, u32 len, u32 
 		} else {
 			pipe->trx_zlp = 0;
 		}
-		usbh_notify_class_state_change(host, pipe->pipe_num);
+		usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 		ret = HAL_OK;
 	}
 
@@ -814,9 +872,7 @@ static int usbh_vendor_receive(usbh_vendor_xfer_t *xfer, u8 *buf, u32 len, u32 t
 	if ((vendor->state == VENDOR_STATE_IDLE) || (vendor->state == VENDOR_STATE_XFER)) {
 		if (pipe->xfer_state == USBH_EP_XFER_IDLE) {
 			if (pipe->ep_type == USB_CH_EP_TYPE_ISOC) {
-				if (xfer->test_buf != NULL) {
-					usb_os_mfree(xfer->test_buf);
-				}
+				usb_os_mfree((void *)xfer->test_buf);
 				xfer->test_buf = (u8 *)usb_os_malloc(test_cnt);
 				if (xfer->test_buf == NULL) {
 					return HAL_BUSY;
@@ -841,7 +897,7 @@ static int usbh_vendor_receive(usbh_vendor_xfer_t *xfer, u8 *buf, u32 len, u32 t
 			} else {
 				pipe->trx_zlp = 0;
 			}
-			usbh_notify_class_state_change(host, pipe->pipe_num);
+			usbh_notify(host, pipe->pipe_num, &usbh_vendor_driver);
 			ret = HAL_OK;
 		}
 	}

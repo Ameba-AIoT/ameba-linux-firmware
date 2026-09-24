@@ -69,22 +69,6 @@ config SUPPORT_SMP
 config SUPPORT_AUDIO_DEVICE
     def_bool y
 
-# audio cmds
-config SUPPORT_AUDIO_CMD_ARECORD
-    def_bool y
-
-config SUPPORT_AUDIO_CMD_APLAY
-    def_bool y
-
-config SUPPORT_AUDIO_CMD_EQUALIZER
-    def_bool y
-
-config SUPPORT_AUDIO_CMD_PLAYER
-    def_bool y
-
-config SUPPORT_AUDIO_CMD_PCRECORD
-    def_bool y
-
 #---------- FEATURE LIST END-------------#
 
 menu "CONFIG Link Option"
@@ -233,10 +217,6 @@ menu "CONFIG WIFI"
 
         rsource "../../../wifi/Kconfig.wifi"
 
-        config HIGH_TP_TEST
-            bool "Enable HIGH TP"
-            default n
-
         config WHC_INTF_IPC_MENU
             bool
             select WHC_WIFI_API_PATH
@@ -248,7 +228,7 @@ menu "CONFIG WIFI"
         config WHC_DEV_MENU
             bool
             depends on WHC_DEV
-            select WHC_INTF_SDIO if SDIO_WHC
+            select WHC_INTF_SPDIO if SDIO_WHC
             select WHC_INTF_SPI if SPI_WHC
             select WHC_INTF_USB if USB_WHC
             select WLAN
@@ -258,7 +238,7 @@ menu "CONFIG WIFI"
             bool
             depends on WHC_NONE
             select WLAN
-            select WHC_INTF_SDIO
+            select WHC_INTF_SPDIO
             select LWIP_LAYER
 
         config SPI_WHC_HOST
@@ -291,7 +271,7 @@ menu "CONFIG WIFI"
         bool
     config LWIP_LAYER
         bool
-    config WHC_INTF_SDIO
+    config WHC_INTF_SPDIO
         bool
     config WHC_INTF_SPI
         bool

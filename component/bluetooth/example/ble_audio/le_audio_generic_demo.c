@@ -3764,32 +3764,32 @@ static uint16_t app_bt_le_audio_aics_set_param(void)
 	input_state.gain_mode = RTK_BT_LE_AUDIO_AICS_GAIN_MODE_MANUAL;
 	input_state.gain_setting = 20;
 	input_state.mute = RTK_BT_LE_AUDIO_AICS_NOT_MUTED;
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATE,
-												  sizeof(rtk_bt_le_audio_aics_input_state_t), (uint8_t *)&input_state, false));
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATE,
-												  sizeof(rtk_bt_le_audio_aics_input_state_t), (uint8_t *)&input_state, false));
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATE,
+								   sizeof(rtk_bt_le_audio_aics_input_state_t), (uint8_t *)&input_state, false);
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATE,
+								   sizeof(rtk_bt_le_audio_aics_input_state_t), (uint8_t *)&input_state, false);
 	gain_prop.gain_setting_max = 100;
 	gain_prop.gain_setting_min = -100;
 	gain_prop.gain_setting_units = 50;
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_GAIN_SETTING_PROP,
-												  sizeof(rtk_bt_le_audio_aics_gain_setting_prop_t), (uint8_t *)&gain_prop, false));
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_GAIN_SETTING_PROP,
-												  sizeof(rtk_bt_le_audio_aics_gain_setting_prop_t), (uint8_t *)&gain_prop, false));
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_GAIN_SETTING_PROP,
+								   sizeof(rtk_bt_le_audio_aics_gain_setting_prop_t), (uint8_t *)&gain_prop, false);
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_GAIN_SETTING_PROP,
+								   sizeof(rtk_bt_le_audio_aics_gain_setting_prop_t), (uint8_t *)&gain_prop, false);
 	input_type = RTK_BT_LE_AUDIO_INPUT_BLUETOOTH;
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_TYPE,
-												  sizeof(uint8_t), (uint8_t *)&input_type, false));
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_TYPE,
+								   sizeof(uint8_t), (uint8_t *)&input_type, false);
 	input_type = RTK_BT_LE_AUDIO_INPUT_MICROPHONE;
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_TYPE,
-												  sizeof(uint8_t), (uint8_t *)&input_type, false));
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_TYPE,
+								   sizeof(uint8_t), (uint8_t *)&input_type, false);
 	input_status = RTK_BT_LE_AUDIO_AICS_INPUT_STATUS_ACTIVE;
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATUS,
-												  sizeof(uint8_t), (uint8_t *)&input_status, false));
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATUS,
-												  sizeof(uint8_t), (uint8_t *)&input_status, false));
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_DES,
-												  strlen(RTK_BT_LE_AUDIO_BLUETOOTH_DES), (uint8_t *)RTK_BT_LE_AUDIO_BLUETOOTH_DES, false));
-	BT_APP_PROCESS(rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_DES,
-												  strlen(RTK_BT_LE_AUDIO_MIC_DES), (uint8_t *)RTK_BT_LE_AUDIO_MIC_DES, false));
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATUS,
+								   sizeof(uint8_t), (uint8_t *)&input_status, false);
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_STATUS,
+								   sizeof(uint8_t), (uint8_t *)&input_status, false);
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_BLUETOOTH_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_DES,
+								   strlen(RTK_BT_LE_AUDIO_BLUETOOTH_DES), (uint8_t *)RTK_BT_LE_AUDIO_BLUETOOTH_DES, false);
+	rtk_bt_le_audio_aics_set_param(RTK_BT_LE_AUDIO_DEFAULT_AICS_MIC_IDX, RTK_BT_LE_AUDIO_AICS_PARAM_INPUT_DES,
+								   strlen(RTK_BT_LE_AUDIO_MIC_DES), (uint8_t *)RTK_BT_LE_AUDIO_MIC_DES, false);
 
 	return RTK_BT_OK;
 }
@@ -3815,7 +3815,7 @@ static uint16_t app_bt_le_audio_vocs_set_param(uint8_t sound_channel)
 	}
 	vocs_param.output_des.p_output_des = (uint8_t *)RTK_BT_LE_AUDIO_VOCS_DES;
 	vocs_param.output_des.output_des_len = strlen(RTK_BT_LE_AUDIO_VOCS_DES);
-	BT_APP_PROCESS(rtk_bt_le_audio_vocs_set_param(srv_instance_id, set_mask, &vocs_param));
+	rtk_bt_le_audio_vocs_set_param(srv_instance_id, set_mask, &vocs_param);
 
 	return RTK_BT_OK;
 }
@@ -3900,7 +3900,7 @@ int bt_le_audio_generic_demo_main(uint8_t role, uint8_t enable, uint32_t sound_c
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}
@@ -3979,7 +3979,7 @@ int bt_le_audio_generic_demo_main(uint8_t role, uint8_t enable, uint32_t sound_c
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}
@@ -4072,7 +4072,7 @@ int bt_le_audio_generic_demo_main(uint8_t role, uint8_t enable, uint32_t sound_c
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 				bt_app_conf.max_tx_octets = 0x40;
-				bt_app_conf.max_tx_time = 0x200;
+				bt_app_conf.max_tx_time = 0x270;
 #endif
 				memcpy((void *)&bt_app_conf.le_audio_app_conf, (void *)p_lea_app_conf, sizeof(rtk_bt_le_audio_app_conf_t));
 			}

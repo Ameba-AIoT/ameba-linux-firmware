@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /******************************************************************************
  *
  * Copyright(c) Realtek Corporation. All rights reserved.
@@ -28,6 +29,13 @@
 
 #include "whc_hal.h"
 #include "whc_host_xfer.h"
+#include <linux/module.h>
+#include <linux/string.h>
+
+/* MP firmware select: mp=1 downloads *_MP.bin images */
+static bool mp;
+module_param(mp, bool, 0444);
+MODULE_PARM_DESC(mp, "Download MP firmware images (*_MP.bin) when set to 1");
 
 /* Memory region configuration for RTL8721F */
 static const struct whc_mem_region_t rtl8721f_mem_regions[] = {
@@ -38,23 +46,33 @@ static const struct whc_mem_region_t rtl8721f_mem_regions[] = {
 	{0}  /* Terminator */
 };
 
-#ifdef CONFIG_WHC_HCI_SDIO
-#define WHC_FW_1_NAME "RTL8851FS_FW_1.bin"
-#define WHC_FW_2_NAME "RTL8851FS_FW_2.bin"
-#else
-#define WHC_FW_1_NAME "RTL8851FU_FW_1.bin"
-#define WHC_FW_2_NAME "RTL8851FU_FW_2.bin"
-#endif
+#if defined(CONFIG_WHC_HCI_SDIO) || defined(CONFIG_WHC_HCI_GSPI)
+#define WHC_FW_1_BASE "RTL8851FS_FW_1"
+#define WHC_FW_2_BASE "RTL8851FS_FW_2"
+#else /* USB */
+#define WHC_FW_1_BASE "RTL8851FU_FW_1"
+#define WHC_FW_2_BASE "RTL8851FU_FW_2"
+#endif /* CONFIG_WHC_HCI_SDIO || CONFIG_WHC_HCI_GSPI */
 
-/* Image configuration for RTL8721F */
-static const struct whc_image_t rtl8721f_images[] = {
-	{WHC_DEFINE_IMAGE(WHC_FW_1_NAME, 0x96969999, 0xFC66CC3F, 0x00000000, 0x00000000, WHC_IMAGE_TYPE_BOOTLOADER, WHC_POST_PROCESS_BOOT)},
-	{WHC_DEFINE_IMAGE(WHC_FW_2_NAME, 0x35393138, 0x31313738, 0x08001000, 0x3007F000, WHC_IMAGE_TYPE_APPLICATION, WHC_POST_PROCESS_BOOT)},
-	{0}  /* Terminator */
+#define WHC_FW_1_NAME WHC_FW_1_BASE ".bin"
+#define WHC_FW_2_NAME WHC_FW_2_BASE ".bin"
+#define WHC_FW_1_MP_NAME WHC_FW_1_BASE "_MP.bin"
+#define WHC_FW_2_MP_NAME WHC_FW_2_BASE "_MP.bin"
+
+#define WHC_FW_3_NAME "boot.bin"
+#define WHC_FW_4_NAME "wpa_supplicant.bin"
+
+/* image_name rewritten to *_MP.bin when mp=1 */
+static struct whc_image_t rtl8721f_images[] = {
+	{WHC_DEFINE_IMAGE(WHC_FW_1_NAME, WHC_SIG_LOADER, 0x00000000, WHC_MANIFEST_TAIL_AFTER,       WHC_IMAGE_TYPE_BOOTLOADER,  WHC_POST_PROCESS_BOOT)},
+	{WHC_DEFINE_IMAGE(WHC_FW_3_NAME, WHC_SIG_LOADER, 0x08000000, WHC_MANIFEST_HEAD_BEFORE,      WHC_IMAGE_TYPE_RAW,         WHC_POST_PROCESS_NONE)},
+	{WHC_DEFINE_IMAGE(WHC_FW_4_NAME, WHC_SIG_APP,    0x08400000, WHC_MANIFEST_NONE,             WHC_IMAGE_TYPE_APPLICATION, WHC_POST_PROCESS_NONE)},
+	{WHC_DEFINE_IMAGE(WHC_FW_2_NAME, WHC_SIG_APP,    0x08010000, WHC_MANIFEST_TAIL(0x3007F000), WHC_IMAGE_TYPE_APPLICATION, WHC_POST_PROCESS_BOOT)},
+	{0}
 };
 
-/* HAL configuration for RTL8721F */
-static const struct whc_hal_config_t rtl8721f_config = {
+/* HAL configuration for RTL8721F (images selected at runtime by whc_hal_get_config) */
+static struct whc_hal_config_t rtl8721f_config = {
 	/* Chip identification */
 	.chip_id = 0x8721,
 	.chip_name = "RTL8721F",
@@ -67,8 +85,6 @@ static const struct whc_hal_config_t rtl8721f_config = {
 	.hash_size = 32,
 	.xfer_page_size = 2 * 1024,		/* 2KB */
 	.read_buf_size = 16 * 1024,		/* 16KB (8 pages) */
-	.manifest_pos = WHC_XFER_MANIFEST_POS_TAIL,
-
 	/* Memory regions and images */
 	.mem_regions = rtl8721f_mem_regions,
 	.images = rtl8721f_images,
@@ -83,5 +99,16 @@ static const struct whc_hal_config_t rtl8721f_config = {
  */
 const struct whc_hal_config_t *whc_hal_get_config(void)
 {
+	if (mp) {
+		int i;
+
+		for (i = 0; rtl8721f_images[i].image_name; i++) {
+			if (strcmp(rtl8721f_images[i].image_name, WHC_FW_1_NAME) == 0) {
+				rtl8721f_images[i].image_name = WHC_FW_1_MP_NAME;
+			} else if (strcmp(rtl8721f_images[i].image_name, WHC_FW_2_NAME) == 0) {
+				rtl8721f_images[i].image_name = WHC_FW_2_MP_NAME;
+			}
+		}
+	}
 	return &rtl8721f_config;
 }

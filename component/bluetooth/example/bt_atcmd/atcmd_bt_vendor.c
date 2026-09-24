@@ -78,7 +78,7 @@ rtk_bt_app_conf_t app_conf = {
 #endif
 #if defined(RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT) && RTK_BLE_4_2_DATA_LEN_EXT_SUPPORT
 	.max_tx_octets = 0x40,
-	.max_tx_time = 0x200,
+	.max_tx_time = 0x270,
 #endif
 };
 
@@ -264,7 +264,7 @@ int atcmd_bt_set_tx_power(int argc, char *argv[])
 
 	tx_power.tx_power_type = str_to_int(argv[0]);
 	if (0 == tx_power.tx_power_type && 3 == argc) {
-		tx_power.adv_tx_power.type = str_to_int(argv[1]);
+		tx_power.adv_tx_power.type = (rtk_bt_vendor_adv_tx_power_type_t)str_to_int(argv[1]);
 		tx_power.tx_gain = str_to_int(argv[2]);
 
 		if (tx_power.adv_tx_power.type > ADV_TX_POW_SET_2M_DEFAULT) {
@@ -274,7 +274,7 @@ int atcmd_bt_set_tx_power(int argc, char *argv[])
 
 	} else if (1 == tx_power.tx_power_type && 4 == argc) {
 		tx_power.conn_tx_power.conn_handle = (uint16_t)str_to_int(argv[1]);
-		tx_power.conn_tx_power.is_reset = str_to_int(argv[2]);
+		tx_power.conn_tx_power.is_reset = (rtk_bt_vendor_conn_tx_power_is_reset_t)str_to_int(argv[2]);
 		tx_power.tx_gain = str_to_int(argv[3]);
 
 		if (tx_power.conn_tx_power.is_reset != CONN_TX_POW_USER_MODE && tx_power.conn_tx_power.is_reset != CONN_TX_POW_RESET_TO_ORIGINAL) {
@@ -294,7 +294,11 @@ int atcmd_bt_set_tx_power(int argc, char *argv[])
 }
 
 #if defined(CONFIG_BT_INIC) && CONFIG_BT_INIC
+#if defined(CONFIG_BT_SDN) && CONFIG_BT_SDN
+#include "vhci_if_inic_sdn.h"
+#else
 #include "hci_if_inic.h"
+#endif
 
 int atcmd_bt_remote_wakeup(int argc, char **argv)
 {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <whc_host_linux.h>
 
 static int whc_host_enqueue_tx_packet(struct xmit_priv_t *xmit_priv, struct whc_msg_node *p_node)
@@ -5,7 +6,11 @@ static int whc_host_enqueue_tx_packet(struct xmit_priv_t *xmit_priv, struct whc_
 	/* enqueue msg */
 	spin_lock(&(xmit_priv->lock));
 	list_add_tail(&(p_node->list), &(xmit_priv->queue_head));
+#ifdef WHCH_TXAGG
+	atomic_add(p_node->txagg_num, &xmit_priv->msg_num);
+#else
 	atomic_inc(&xmit_priv->msg_num);
+#endif
 	spin_unlock(&(xmit_priv->lock));
 
 	return 0;
@@ -30,13 +35,34 @@ struct whc_msg_node *whc_host_dequeue_tx_packet(struct xmit_priv_t *xmit_priv)
 		plist = phead->next;
 		p_node = list_entry(plist, struct whc_msg_node, list);
 		list_del(&(p_node->list));
+#ifdef WHCH_TXAGG
+		atomic_sub(p_node->txagg_num, &xmit_priv->msg_num);
+#else
 		atomic_dec(&xmit_priv->msg_num);
+#endif
 	}
 
 	spin_unlock_irq(&(xmit_priv->lock));
 
 	return p_node;
 }
+
+#ifdef WHC_TX_AGG
+/*
+ * Put a dequeued-but-unsent node back at the head of the tx queue and restore
+ * msg_num, so it becomes the next frame sent. Used when the tx drain is
+ * interrupted (scan / flowctrl / no free TXBD) with a frame still in hand, so
+ * that frame is kept and resumed instead of dropped.
+ */
+void whc_host_requeue_tx_packet_head(struct xmit_priv_t *xmit_priv, struct whc_msg_node *p_node)
+{
+	spin_lock_irq(&(xmit_priv->lock));
+	list_add(&(p_node->list), &(xmit_priv->queue_head));
+
+	atomic_inc(&xmit_priv->msg_num);
+	spin_unlock_irq(&(xmit_priv->lock));
+}
+#endif /* WHC_TX_AGG */
 
 int whc_host_xmit_pending_q_num(void)
 {
@@ -59,28 +85,57 @@ void whc_host_xmit_wakeup_thread(void)
 	up(&xmit_priv->tx_sema);
 }
 
+#ifdef WHC_TX_AGG
+void whc_host_xmit_wake_tx_queue(void)
+{
+	int i;
+
+	/* wake tx queue if need */
+	if (whc_host_xmit_pending_q_num() < QUEUE_WAKE_THRES) {
+		for (i = 0; i < WHC_MAX_NET_PORT_NUM; i++) {
+			if (global_idev.pndev[i]) {
+				netif_tx_wake_all_queues(global_idev.pndev[i]);
+			}
+		}
+	}
+}
+#endif /* WHC_TX_AGG */
+
 int whc_host_xmit_thread(void *data)
 {
 	struct xmit_priv_t *xmit_priv = (struct xmit_priv_t *)data;
-	struct whc_msg_node *p_node = NULL;
-	struct sk_buff *pskb;
 	int ret = 0;
+#ifndef WHC_TX_AGG
+	struct whc_msg_node *p_node = NULL;
+	struct sk_buff *pskb = NULL;
 	int i = 0;
+#endif
 
 	while (!kthread_should_stop()) {
 
 		/* wait for smea */
 		ret = down_interruptible(&xmit_priv->tx_sema);
 
+#ifdef WHC_TX_AGG
+		/* coalescing drain is transport specific (needs TXBD state); implemented in the SDIO layer */
+		whc_host_txagg_xmit(xmit_priv);
+#else
 		/* dequeue msg node */
 		while ((!global_idev.mlme_priv.b_in_scan) &&
-			   (!global_idev.xmit_priv.flowctrl_en) &&
 			   ((p_node = whc_host_dequeue_tx_packet(xmit_priv)) != NULL)) {
 
-			pskb = p_node->msg;
+#ifdef WHCH_TXAGG
+			if (p_node->is_txagg) {
+				/* send the pooled aggregate copy buffer; recycled in tx-complete cb */
+				whc_host_send_xmitbuf((struct whc_xmit_buf *)p_node->msg);
+			} else
+#endif
+			{
+				pskb = p_node->msg;
 
-			/* send to NP*/
-			whc_host_send_data(pskb->data, pskb->len, pskb);
+				/* send to NP*/
+				whc_host_send_data(pskb->data, pskb->len, pskb);
+			}
 
 			/* wake tx queue if need */
 			if (whc_host_xmit_pending_q_num() < QUEUE_WAKE_THRES) {
@@ -92,14 +147,49 @@ int whc_host_xmit_thread(void *data)
 			}
 #ifndef CONFIG_INIC_USB_ASYNC_SEND
 			/* release the memory for this message. */
-			dev_kfree_skb(pskb);
+			if (pskb) {
+				dev_kfree_skb(pskb);
+			}
 #endif
 			kfree(p_node);
 		}
+#endif /* WHC_TX_AGG */
 	}
 
 	return ret;
 }
+
+#ifdef WHCH_TXAGG
+void whc_host_xmit_enqueue_agg(int idx, struct whc_xmit_buf *pxmitbuf, u8 agg_num)
+{
+	struct whc_msg_node *p_node = NULL;
+	struct xmit_priv_t *xmit_priv = &global_idev.xmit_priv;
+	struct net_device_stats *pstats = &global_idev.stats[idx];
+	struct whc_msg_info *msg = (struct whc_msg_info *)pxmitbuf->pbuf;
+
+	/* fill the single leading header for the whole aggregate */
+	memset(msg, 0, sizeof(struct whc_msg_info));
+	msg->event = WHC_WIFI_EVT_XIMT_PKTS;
+	msg->wlan_idx = idx;
+	msg->agg_num = agg_num;
+	msg->data_len = pxmitbuf->len - sizeof(struct whc_msg_info);
+
+	p_node = kzalloc(sizeof(struct whc_msg_node), GFP_ATOMIC);
+	if (p_node == NULL) {
+		whc_host_xmitbuf_free(pxmitbuf);
+		return;
+	}
+	p_node->msg = pxmitbuf;
+	p_node->is_txagg = 1;
+	p_node->txagg_num = agg_num;
+
+	whc_host_enqueue_tx_packet(xmit_priv, p_node);
+	up(&xmit_priv->tx_sema);
+
+	pstats->tx_packets += agg_num;
+	pstats->tx_bytes += msg->data_len;
+}
+#endif
 
 int whc_host_xmit_posthandle(int idx, struct sk_buff *pskb)
 {
@@ -173,8 +263,8 @@ int whc_host_xmit_entry(int idx, struct sk_buff *pskb)
 #ifdef CONFIG_WHCH
 	ret = whc_host_xmit_prehandle(idx, pskb);
 	if (ret == RTK_TX_DROP) {
-		b_dropped = true;
-		goto exit;
+		pstats->tx_dropped++;
+		return NETDEV_TX_OK;
 	} else if (ret == RTK_TX_ENQUEUE) {
 		ret = NETDEV_TX_OK;
 		goto exit;
@@ -231,7 +321,12 @@ int whc_host_xmit_deinit(void)
 	/* de initialize queue */
 	while ((p_node = whc_host_dequeue_tx_packet(xmit_priv)) != NULL) {
 		/* release the memory */
-		kfree(p_node->msg);
+#ifdef WHCH_TXAGG
+		if (p_node->is_txagg) {
+			whc_host_xmitbuf_free((struct whc_xmit_buf *)p_node->msg);
+		} else
+#endif
+			kfree(p_node->msg);
 		kfree(p_node);
 	}
 

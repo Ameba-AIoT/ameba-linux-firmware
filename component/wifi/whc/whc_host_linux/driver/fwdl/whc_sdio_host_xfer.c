@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /******************************************************************************
  *
  * Copyright(c) Realtek Corporation. All rights reserved.
@@ -43,7 +44,6 @@ bool whc_sdio_check_dl_mode(struct whc_sdio *priv)
 
 	reg8 = rtw_read8(priv, SDIO_REG_FW_DL_CTRL);
 	if (!(reg8 & SD_FW_DL_MODE)) {
-		dev_info(&priv->func->dev, "%s: No need to update firmware!\n", __FUNCTION__);
 		return false;
 	}
 
@@ -96,7 +96,6 @@ static void whc_sdio_recv_notify(void)
 static int whc_sdio_recv_timeout(struct whc_xfer_adapter_t *adapter, u8 *pbuf, int *actual_size, int timeout_ms)
 {
 	struct whc_sdio *priv = (struct whc_sdio *)adapter->interface;
-	INIC_RX_DESC *prxdesc;
 	int ret;
 	u32 himr;
 	u32 rx_len;
@@ -126,12 +125,10 @@ static int whc_sdio_recv_timeout(struct whc_xfer_adapter_t *adapter, u8 *pbuf, i
 	}
 
 	if (ret == 0) {
-		/* Parse RX descriptor from rx_buf */
-		prxdesc = (INIC_RX_DESC *)adapter->rx_buf;
-		*actual_size = prxdesc->pkt_len;
-
-		/* Actually pbuf is adapter->rx_buf */
-		memmove(pbuf, adapter->rx_buf + prxdesc->offset, prxdesc->pkt_len);
+		/* Device TX path no longer prepends INIC_RX_DESC; payload starts at rx_buf[0] */
+		*actual_size = (int)rx_len;
+		/* pbuf == adapter->rx_buf, data is already in place */
+		(void)pbuf;
 	}
 
 	/* restore RX_REQ interrupt*/
@@ -193,22 +190,21 @@ static int whc_sdio_check_firmware(struct whc_xfer_adapter_t *adapter)
 
 	for (i = 0; i < 200; i++) {
 		reg16 = rtw_read16(priv, SDIO_REG_HCPWM2);
-
-		if (priv->dev_state == WHC_XFER_FW_TYPE_ROM) {
-			if (reg16 & HCPWM2_IMG1_BIT) {
+		if (reg16 & HCPWM2_ACT_BIT) {
+			priv->dev_state = WHC_XFER_FW_TYPE_APPLICATION;
+			return WHC_XFER_FW_TYPE_APPLICATION;
+		} else if (reg16 & HCPWM2_IMG1_BIT) {
+			/* IMG1_BIT may still be set during HCI_DeInit in bootloader phase; only treat as done in ROM phase. */
+			if (priv->dev_state == WHC_XFER_FW_TYPE_ROM) {
 				priv->dev_state = WHC_XFER_FW_TYPE_BOOTLOADER;
 				return WHC_XFER_FW_TYPE_BOOTLOADER;
 			}
-		} else if (priv->dev_state == WHC_XFER_FW_TYPE_BOOTLOADER) {
-			if (reg16 & HCPWM2_ACT_BIT) {
-				priv->dev_state = WHC_XFER_FW_TYPE_APPLICATION;
-				return WHC_XFER_FW_TYPE_APPLICATION;
-			}
 		} else {
-			dev_err(&priv->func->dev, "%s: Not Support dev_state (%d)\n", __FUNCTION__, priv->dev_state);
-			return -1;
+			if ((priv->dev_state != WHC_XFER_FW_TYPE_ROM) && (priv->dev_state != WHC_XFER_FW_TYPE_BOOTLOADER)) {
+				dev_err(&priv->func->dev, "%s: Not Support dev_state (%d)\n", __FUNCTION__, priv->dev_state);
+				return -1;
+			}
 		}
-
 		msleep(1);
 	}
 

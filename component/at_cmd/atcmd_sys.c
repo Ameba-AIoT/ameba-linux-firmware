@@ -168,16 +168,13 @@ void at_test(u16 argc, char **argv)
 	} else if (mode == 2) {
 		u32 at_len = (u32)atoi(argv[2]);
 		u32 send_len = 0;
-		u32 malloc_size = 256;
 #ifdef CONFIG_ATCMD_HOST_CONTROL
-		if (g_host_control_mode == AT_HOST_CONTROL_SPI) {
-			malloc_size = ATCMD_SPI_DMA_SIZE - 8;
-		} else if (g_host_control_mode == AT_HOST_CONTROL_SDIO) {
-			malloc_size = ATCMD_SDIO_MAX_SIZE;
-		} else if (g_host_control_mode == AT_HOST_CONTROL_USB) {
-			malloc_size = ATCMD_USBD_MAX_SIZE;
-		}
+		/* Same buffer for every transport: at_intf_*.c fragment as needed. */
+		u32 malloc_size = ATCMD_DATA_REPORT_CHUNK;
+#else
+		u32 malloc_size = 256;
 #endif
+
 		buffer = (u8 *)rtos_mem_malloc(malloc_size);
 		memset(buffer, 1, malloc_size);
 		at_printf(ATCMD_DOWNSTREAM_TEST_START_STR);
@@ -362,6 +359,67 @@ end:
 		RTK_LOGS(TAG, RTK_LOG_ERROR, ATCMD_ERROR_END_STR, error_no);
 	}
 }
+
+void at_gpiostatus(u16 argc, char **argv)
+{
+	u8 error_no = 0;
+	u8 input_pin;
+	gpio_t gpio_input;
+	int sta;
+	PinMode mode;
+
+	if (argc != 3) {
+		error_no = 1;
+		goto end;
+	}
+
+	if (strstr(argv[1], "PA")) {
+		input_pin = _PA_0 + atoi(&argv[1][2]);
+	} else if (strstr(argv[1], "PB")) {
+		input_pin = _PB_0 + atoi(&argv[1][2]);
+	}
+#ifdef _PC_0
+	else if (strstr(argv[1], "PC")) {
+		input_pin = _PC_0 + atoi(&argv[1][2]);
+	}
+#endif
+	else {
+		error_no = 2;
+		goto end;
+	}
+
+	sta = atoi(argv[2]);
+	switch (sta) {
+	case -1:
+		mode = PullDown;
+		break;
+	case  0:
+		mode = PullNone;
+		break;
+	case  1:
+		mode = PullUp;
+		break;
+	default:
+		error_no = 2;
+		goto end;
+		break;
+	}
+
+	/*this configuration will be hold during mp test*/
+	sys_jtag_off();
+
+	gpio_init(&gpio_input, input_pin);
+	gpio_dir(&gpio_input, PIN_INPUT);
+	gpio_mode(&gpio_input, mode);
+
+end:
+	if (error_no == 0) {
+		RTK_LOGS(TAG, RTK_LOG_INFO, ATCMD_OK_END_STR);
+	} else {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, ATCMD_ERROR_END_STR, error_no);
+	}
+
+}
 #endif
 
 
@@ -415,6 +473,7 @@ const log_item_t at_sys_items[] = {
 	{"+LIST", at_list},
 #ifdef CONFIG_MP_INCLUDED
 	{"+GPIOTEST", at_gpiotest},
+	{"+GPIOSTATUS", at_gpiostatus},
 #endif
 #ifdef CONFIG_ATCMD_HOST_CONTROL
 	{"+UART", at_uart},

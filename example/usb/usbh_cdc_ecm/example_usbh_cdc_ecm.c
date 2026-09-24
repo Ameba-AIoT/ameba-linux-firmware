@@ -104,9 +104,14 @@ static const usbh_config_t usbh_ecm_cfg = {
 	.main_task_priority = CONFIG_USBH_CDC_ECM_MAIN_THREAD_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
 	.hub_support = 1U,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
+	/*FIFO total 1024 DWORD, resv 12 DWORD for DMA*/
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	/*FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -262,12 +267,23 @@ static int cdc_ecm_do_init(void)
 		return 0;
 	}
 
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
+
 	do {
 		if (usbh_cdc_ecm_usb_is_ready()) {
 			break;
 		}
 		rtos_time_delay_ms(1000);
 	} while (1); //wait usb init success
+
+	/* USB enumerated and upper layer is ready: release the SOF data-transfer
+	 * gate so bulk/intr scheduling can begin (see usbh_cdc_ecm_sof()).
+	 * Runs on both the initial bring-up and every hot-plug re-init (this
+	 * function is reused by the hotplug thread), re-arming the gate that
+	 * detach() cleared. For devices needing upper-layer prep (e.g. 4G AT
+	 * config), gate this on the real ready signal instead of usb_is_ready(). */
+	usbh_cdc_ecm_prepare_done();
 
 	return 1;
 }
@@ -304,7 +320,7 @@ static void example_usbh_ecm_link_change_thread(void *param)
 			}
 		}
 
-		link_is_up = usbh_cdc_ecm_get_connect_status();
+		link_is_up = usbh_cdc_ecm_get_link_status();
 
 		if (1 == link_is_up && (ethernet_state < ETH_STATUS_INIT)) {	// unlink -> link
 			mac = (u8 *)usbh_cdc_ecm_process_mac_str();
@@ -313,7 +329,7 @@ static void example_usbh_ecm_link_change_thread(void *param)
 			} else {
 				RTK_LOGS(TAG, RTK_LOG_INFO, "Do DHCP\n");
 				ethernet_state = ETH_STATUS_INIT;
-				memcpy(pnetif_usb_eth->hwaddr, mac, 6);
+				usb_os_memcpy((void *)pnetif_usb_eth->hwaddr, (const void *)mac, 6);
 				RTK_LOGS(TAG, RTK_LOG_INFO, "MAC[%02x %02x %02x %02x %02x %02x]\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 				netif_set_link_up(pnetif_usb_eth);
 
@@ -345,7 +361,7 @@ static void save_to_memory(char *pdata, unsigned int length)
 #if CONFIG_USBH_CDC_ECM_ENABLE_DUMP_FILE
 	static unsigned int psram_pos = 0;
 	if (CONFIG_USBH_CDC_ECM_PSRAM_HEAP_SIZE_TEST >= psram_pos + length) {
-		memcpy((void *)&dump_psRAMHeap[psram_pos], pdata, length);
+		usb_os_memcpy((void *)&dump_psRAMHeap[psram_pos], (const void *)pdata, length);
 		psram_pos += length;
 	}
 #else
@@ -387,7 +403,7 @@ static void example_usbh_ecm_download_thread(void *param)
 	UNUSED(param);
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Enter donwload example\n");
-	memset(output, 0x00, 8 * CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN);
+	usb_os_memset((void *)output, 0x00, 8 * CONFIG_USBH_CDC_ECM_MD5_CHECK_BUFFER_LEN);
 
 	while (0 == dhcp_done) {
 		if (++heart_beat % 30 == 0) {
@@ -418,14 +434,14 @@ static void example_usbh_ecm_download_thread(void *param)
 	// Support CONFIG_USBH_CDC_ECM_SERVER_HOST in IP or domain name
 	server_host = gethostbyname(CONFIG_USBH_CDC_ECM_SERVER_HOST);
 	if (server_host != NULL) {
-		memcpy((void *) &server_addr.sin_addr, (void *) server_host->h_addr, 4);
+		usb_os_memcpy((void *) &server_addr.sin_addr, (const void *) server_host->h_addr, 4);
 	} else {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Server host\n");
 		goto exit;
 	}
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "Will do connect %s\n", CONFIG_USBH_CDC_ECM_SERVER_HOST);
-	if (connect(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) == 0) {
+	if (connect(server_fd, (struct sockaddr *)(void *) &server_addr, sizeof(server_addr)) == 0) {
 		pos = 0, read_size = 0, resource_size = 0, content_len = 0, header_removed = 0;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Connect success\n");
 		sprintf((char *)dl_buf, "GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", CONFIG_USBH_CDC_ECM_RESOURCE, CONFIG_USBH_CDC_ECM_SERVER_HOST);
@@ -535,7 +551,7 @@ static void example_usbh_ecm_mem_check_thread(void *param)
 	UNUSED(param);
 
 	while (1) {
-		status = rtos_task_create(&monitor_task, "example_usbh_ecm_link_change_thread",
+		status = rtos_task_create(&monitor_task, "usbh_ecm_linkchg_thread",
 								  example_usbh_ecm_link_change_thread, NULL,
 								  CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Loop create %d: all_free:0x%08x\r\n", loop, usb_os_get_free_heap_size());
@@ -560,30 +576,24 @@ static void example_usbh_ecm_mem_check_thread(void *param)
 #if CONFIG_USBH_CDC_ECM_HOT_PLUG
 static void example_usbh_ecm_hotplug_thread(void *param)
 {
-	int ret = 0;
-
 	UNUSED(param);
 
 	for (;;) {
 		usb_os_sema_take(cdc_ecm_detach_sema, USB_OS_SEMA_TIMEOUT);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Hot plug\n");
 		//stop isr
+		usbh_stop();
 		usbh_cdc_ecm_deinit();
 		usbh_deinit();
 
 		rtos_time_delay_ms(10);
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Free heap size: 0x%08x\n", usb_os_get_free_heap_size());
 
-		ret = usbh_init(&usbh_ecm_cfg, &usbh_ecm_usr_cb);
-		if (ret != HAL_OK) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "Init USBH fail\n");
-			break;
-		}
-
-		ret = usbh_cdc_ecm_init(&cdc_ecm_usb_cb, &ecm_priv);
-		if (ret < 0) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "Init CDC ECM fail\n");
-			usbh_deinit();
+		/* Re-run the full init sequence (usbh_init + ecm_init + wait-for-ready).
+		 * Reuses cdc_ecm_do_init() so the re-attach path stays in lock-step with
+		 * the initial bring-up, including the usb_is_ready() wait. */
+		if (cdc_ecm_do_init() == 0) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Re-init after hot plug fail\n");
 			break;
 		}
 	}
@@ -602,47 +612,77 @@ void example_usbh_cdc_ecm(void)
 {
 	int ret;
 	rtos_task_t monitor_task;
+#if !CONFIG_USBH_CDC_ECM_MEM_CHECK && CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
+	rtos_task_t download_task;
+#endif
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH ECM demo start\n");
 
-	usb_os_sema_create(&cdc_ecm_detach_sema);
+	ret = usb_os_sema_create(&cdc_ecm_detach_sema);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create detach sema fail\n");
+		return;
+	}
+
 	rltk_usb_eth_init();
 
 #if CONFIG_USBH_CDC_ECM_HOT_PLUG
-	ret = rtos_task_create(&hotplug_task, "example_usbh_ecm_hotplug_thread",
+	ret = rtos_task_create(&hotplug_task, "usbh_ecm_hotplug_thread",
 						   example_usbh_ecm_hotplug_thread, NULL,
 						   CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_HOTPLUG_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create hotplug check task fail\n");
+		goto exit_release;
 	}
 #endif
 
 #if CONFIG_USBH_CDC_ECM_MEM_CHECK
-	ret = rtos_task_create(&monitor_task, "example_usbh_ecm_mem_check_thread",
+	ret = rtos_task_create(&monitor_task, "usbh_ecm_mem_check_thread",
 						   example_usbh_ecm_mem_check_thread, NULL,
 						   CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
+		goto exit_release;
 	}
 #else
-	ret = rtos_task_create(&monitor_task, "example_usbh_ecm_link_change_thread",
+	ret = rtos_task_create(&monitor_task, "usbh_ecm_link_change_thread",
 						   example_usbh_ecm_link_change_thread, NULL,
 						   CONFIG_USBH_CDC_ECM_MONITOR_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_MONITOR_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create monitor_link thread fail\n");
+		goto exit_release;
 	}
 
 #if CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
-	rtos_task_t download_task;
-	ret = rtos_task_create(&download_task, "example_usbh_ecm_download_thread",
+	ret = rtos_task_create(&download_task, "usbh_ecm_download_thread",
 						   example_usbh_ecm_download_thread, NULL,
 						   CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_STACK_SIZE, CONFIG_USBH_CDC_ECM_DOWNLOAD_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create download thread fail\n");
+		goto exit_delete_monitor;
 	}
 #endif
 
 #endif
+
+	return;
+
+#if !CONFIG_USBH_CDC_ECM_MEM_CHECK && CONFIG_USBH_CDC_ECM_ENABLE_REMOTE_FILE_DOWNLOAD
+exit_delete_monitor:
+	rtos_task_delete(monitor_task);
+#endif
+
+exit_release:
+	/* Stop the threads that reference the detach sema before it is freed. */
+#if CONFIG_USBH_CDC_ECM_HOT_PLUG
+	if (hotplug_task != NULL) {
+		rtos_task_delete(hotplug_task);
+		hotplug_task = NULL;
+	}
+#endif
+	rltk_usb_eth_deinit();
+	usb_os_sema_delete(cdc_ecm_detach_sema);
+	cdc_ecm_detach_sema = NULL;
 }
 #else
 #error "No Lwip USB Ethernet Configuration"

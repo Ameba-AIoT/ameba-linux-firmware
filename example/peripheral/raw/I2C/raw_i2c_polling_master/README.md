@@ -38,13 +38,18 @@ master's GND connect to slave's GND
   - master's `SCL (_PA_21)` connect to slave's `SCL`
   - master's `GND` connect to slave's `GND`
 
+* On RTL8735C
+  - master's `SDA (_PF_3)` connect to slave's `SDA`
+  - master's `SCL (_PF_2)` connect to slave's `SCL`
+  - master's `GND` connect to slave's `GND`
+
 # SW Configuration
 
 1. In this example, we use config I2C_RESTART_DEMO to decide if the master will generate a restart condition.
    		If `#define I2C_RESTART_DEMO`, then master will write ->restart->write -> stop ->write -> restart -> read -> stop.
    		If not `#define I2C_RESTART_DEMO`, then master will write ->stop->read -> stop.
 2. In this example, we use config master_addr_retry to decide if the master will retry sending addr.
-3. In this example, we use config I2C_LOOP_TEST to decide if the master will tx and rx 3 times.
+3. In this example, we use config LOOP_COUNT to decide how many times the master will tx and rx.
 4. Build and Download:
    * Refer to the SDK Examples section of the online documentation to generate images.
    * `Download` images to board by Ameba Image Tool.
@@ -71,3 +76,4 @@ RTL8710E
 RTL8721Dx
 RTL8721F
 RTL8720F
+RTL8735C

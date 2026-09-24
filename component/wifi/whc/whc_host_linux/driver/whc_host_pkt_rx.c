@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <whc_host_linux.h>
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+#include "whc_host_log_fwd.h"
+#endif
 
 void whc_host_recv_notify(void)
 {
@@ -22,21 +26,52 @@ void whc_host_netif_rx(struct sk_buff *pskb, u8 wlan_idx)
 	return;
 }
 
+#ifdef WHCH_RXAGG
+static void whc_host_recv_pkts_agg(struct sk_buff *pskb, struct whc_msg_info *msg,
+								   struct net_device_stats *pstats)
+{
+	u8 *content = pskb->data + SIZE_RX_DESC + sizeof(struct whc_msg_info) + msg->pad_len;
+	u32 stride = msg->agg_stride;
+	u8 agg_num = msg->agg_num ? msg->agg_num : 1;
+	u32 unit_len;
+	u32 off = 0;
+	u8 i;
+
+	if (stride == 0 || msg->data_len < (u32)(agg_num - 1) * stride) {
+		dev_warn(global_idev.pwhc_dev, "rxagg bad hdr: agg_num=%d stride=%d data_len=%d\n",
+				 agg_num, stride, msg->data_len);
+		kfree_skb(pskb);
+		pstats->rx_dropped++;
+		return;
+	}
+	unit_len = msg->data_len - (u32)(agg_num - 1) * stride;
+
+	for (i = 0; i < agg_num; i++) {
+		struct sk_buff *unit;
+
+		if (off + unit_len > msg->data_len) {
+			break;
+		}
+		unit = dev_alloc_skb(unit_len);
+		if (!unit) {
+			pstats->rx_dropped++;
+			break;
+		}
+		memcpy(skb_put(unit, unit_len), content + off, unit_len);
+		whc_host_hal_rx_mpdu(unit);
+		off += stride;
+	}
+
+	kfree_skb(pskb);
+}
+#endif /* WHCH_RXAGG */
+
 static void whc_host_recv_pkts(struct sk_buff *pskb)
 {
 	struct whc_msg_info *msg = (struct whc_msg_info *)(pskb->data + SIZE_RX_DESC);
 	u8 wlan_idx = msg->wlan_idx;
-	u32 pkt_len = msg->data_len;
 	u32 total_len;
 	struct net_device_stats *pstats = &global_idev.stats[wlan_idx];
-	u8 tmp;
-
-	tmp = global_idev.xmit_priv.flowctrl_en;
-	global_idev.xmit_priv.flowctrl_en = msg->flow_ctrl_en;
-
-	if (tmp && msg->flow_ctrl_en == 0) {
-		whc_host_xmit_wakeup_thread();
-	}
 
 	total_len = SIZE_RX_DESC + sizeof(struct whc_msg_info) + msg->pad_len + msg->data_len;
 	if (total_len > skb_end_offset(pskb)) {
@@ -49,9 +84,13 @@ static void whc_host_recv_pkts(struct sk_buff *pskb)
 		return;
 	}
 
+#ifdef WHCH_RXAGG
+	whc_host_recv_pkts_agg(pskb, msg, pstats);
+	return;
+#else
 	/* adjust skb pointers */
 	skb_reserve(pskb, SIZE_RX_DESC + sizeof(struct whc_msg_info) + msg->pad_len);
-	skb_put(pskb, pkt_len);
+	skb_put(pskb, msg->data_len);
 
 #ifdef CONFIG_WHCH
 	/*
@@ -65,6 +104,7 @@ static void whc_host_recv_pkts(struct sk_buff *pskb)
 #else
 	whc_host_netif_rx(pskb, msg->wlan_idx);
 #endif
+#endif /* WHCH_RXAGG */
 	return;
 }
 
@@ -84,13 +124,21 @@ int whc_host_cmd_data_process(struct sk_buff *pskb)
 		if (hdr->len >= sizeof(u32) && *(u32 *)rxbuf == WHC_LOG_EVENT) {
 			log_len = (int)(hdr->len - sizeof(u32));
 			log_buf = (const char *)(rxbuf + sizeof(u32));
-			if (log_len > 0 && log_buf[log_len - 1] == '\n') {
-				pr_info("[FW] %.*s", log_len, log_buf);
-			} else {
-				pr_info("%.*s", log_len, log_buf);
+			if (log_len > 0) {
+				if (log_buf[log_len - 1] == '\n') {
+					pr_info("[FW] %.*s", log_len, log_buf);
+				} else {
+					pr_info("[FW] %.*s\n", log_len, log_buf);
+				}
 			}
+#ifdef CONFIG_WHC_HOST_LOG_FWD
+		} else if (hdr->len >= sizeof(u32) + 2 &&
+				   *(u32 *)rxbuf == WHC_WIFI_TEST &&
+				   rxbuf[4] == WHC_WIFI_TEST_LOG_ACK) {
+			whc_host_log_forward_ack(rxbuf[5]);
+#endif
 		} else {
-			whc_host_send_rxbuf_to_user(rxbuf, hdr->len);
+			whc_host_deliver_rxbuf_to_user(rxbuf, hdr->len);
 		}
 		break;
 	default:
@@ -106,38 +154,47 @@ int whc_host_recv_dispatch(struct sk_buff *pskb)
 	u32 event = *(u32 *)(pskb->data + SIZE_RX_DESC);
 	struct event_priv_t *event_priv = &global_idev.event_priv;
 	struct whc_api_info *ret_msg;
-	struct whc_msg_info *msg;
+	int counter = 0;
 
 	switch (event) {
 	case WHC_WIFI_EVT_RECV_PKTS:
 		whc_host_recv_pkts(pskb);
 		break;
 	case WHC_WIFI_EVT_API_CALL:
+		/* wait for the previous API handler to finish so the new message doesn't
+		 * overwrite a still-pending rx_api_msg */
+		while (event_priv->rx_api_msg) {
+			msleep(1);
+			counter++;
+			if (counter == 500) {
+				counter = 0;
+				dev_err(global_idev.pwhc_dev, "%s: waiting for last API to finish\n", __func__);
+			}
+		}
 		event_priv->rx_api_msg = pskb;
 		schedule_work(&(event_priv->api_work));
 		break;
 	case WHC_WIFI_EVT_API_RETURN:
-		if (event_priv->b_waiting_for_ret) {
+		ret_msg = (struct whc_api_info *)(pskb->data + SIZE_RX_DESC);
+
+		/* overwriting an occupied slot would drop that msg and still raise a
+		 * second completion, leaving a count with no msg behind it */
+		spin_lock(&event_priv->api_ret_lock);
+		if (event_priv->b_waiting_for_ret && !event_priv->rx_api_ret_msg) {
 			event_priv->rx_api_ret_msg = pskb;
 
-			/* unblock API calling func */
+			/* unblock API calling func. Must stay inside the lock, else the
+			 * caller can claim the msg and reinit before this runs */
 			complete(&event_priv->api_ret_sema);
+			spin_unlock(&event_priv->api_ret_lock);
 		} else {
-			ret_msg = (struct whc_api_info *)(pskb->data + SIZE_RX_DESC);
+			spin_unlock(&event_priv->api_ret_lock);
+
 			dev_warn(global_idev.pwhc_dev, "too late to receive API ret, ID: 0x%x!\n", ret_msg->api_id);
 
 			/* free rx buffer */
 			kfree_skb(pskb);
 		}
-		break;
-	case WHC_WIFI_EVT_FLOWCTRL:
-		msg = (struct whc_msg_info *)(pskb->data + SIZE_RX_DESC);
-		global_idev.xmit_priv.flowctrl_en = msg->flow_ctrl_en;
-		if (!msg->flow_ctrl_en) {
-			whc_host_xmit_wakeup_thread();
-		}
-		/* free rx buffer */
-		kfree_skb(pskb);
 		break;
 #ifdef CONFIG_BT_INIC
 	case INIC_BT_HOST_RX:

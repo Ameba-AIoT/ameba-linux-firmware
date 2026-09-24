@@ -25,7 +25,7 @@ static const char *const TAG = "MSC";
  *                      stack is fully torn down and rebuilt to guarantee
  *                      clean transfer state across plug/unplug cycles
  */
-#define CONFIG_USBH_MSC_HOTPLUG              0
+#define CONFIG_USBH_MSC_HOTPLUG              1
 
 // Thread priorities
 #define USBH_MSC_INIT_THREAD_PRIORITY        2
@@ -73,9 +73,14 @@ static const usbh_config_t usbh_cfg = {
 	.main_task_stack_size = USBH_MSC_MAIN_TASK_STACK_SIZE,
 	.main_task_priority = USBH_MSC_MAIN_TASK_PRIORITY,
 	.tick_source = USBH_SOF_TICK,
-#if defined (CONFIG_AMEBAGREEN2)
-	/*FIFO total depth is 1024, reserve 12 for DMA addr*/
+#if defined(CONFIG_AMEBAGREEN2)
+	/*FIFO total 1024 DWORD, resv 12 DWORD for DMA*/
 	.rx_fifo_depth = 500,
+	.nptx_fifo_depth = 256,
+	.ptx_fifo_depth = 256,
+#elif defined(CONFIG_RLE1509)
+	/*FIFO total 1024 DWORD, resv 48 DWORD */
+	.rx_fifo_depth = 464,
 	.nptx_fifo_depth = 256,
 	.ptx_fifo_depth = 256,
 #elif defined (CONFIG_AMEBAL2)
@@ -145,7 +150,7 @@ static int msc_cb_process(usb_host_t *host, u8 msg)
 	return HAL_OK;
 }
 
-/* ── I/O test routine (10 files, each with W/R of multiple sizes) ────────*/
+/*  I/O test routine (10 files, each with W/R of multiple sizes) */
 static int usbh_msc_file_test(void)
 {
 	FATFS fs;
@@ -223,7 +228,7 @@ static int usbh_msc_file_test(void)
 		}
 
 		data = _rand() % 0xFF;
-		memset(msc_wt_buf, data, USBH_MSC_TEST_BUF_SIZE);
+		usb_os_memset((void *)msc_wt_buf, data, USBH_MSC_TEST_BUF_SIZE);
 
 		for (i = 0; i < sizeof(test_sizes) / sizeof(test_sizes[0]); ++i) {
 			test_size = test_sizes[i];
@@ -348,6 +353,7 @@ static void example_usbh_msc_hotplug_thread(void *param)
 			RTK_LOGS(TAG, RTK_LOG_INFO, "Hotplug: deinit USB stack\n");
 			rtos_time_delay_ms(100);
 
+			usbh_stop();
 			usbh_msc_deinit();
 			rtos_time_delay_ms(20); /* let USB main task flush its queue before deletion */
 			usbh_deinit();
@@ -375,6 +381,9 @@ static void example_usbh_msc_hotplug_thread(void *param)
 				break;
 			}
 
+			/* Re-arm USB TRX after the re-init. */
+			usbh_start();
+
 			RTK_LOGS(TAG, RTK_LOG_INFO, "Hotplug: USB stack re-initialized\n");
 		}
 	}
@@ -390,13 +399,21 @@ void example_usbh_msc_thread(void *param)
 
 	UNUSED(param);
 
-	rtos_sema_create(&msc_attach_sema, 0U, 1U);
+	ret = rtos_sema_create(&msc_attach_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit_free;
+	}
 #if CONFIG_USBH_MSC_HOTPLUG
-	rtos_sema_create(&msc_detach_sema, 0U, 1U);
+	ret = rtos_sema_create(&msc_detach_sema, 0U, 1U);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create sema fail\n");
+		goto exit_free;
+	}
 #endif
 
-	msc_wt_buf = (u8 *)rtos_mem_zmalloc(USBH_MSC_TEST_BUF_SIZE);
-	msc_rd_buf = (u8 *)rtos_mem_zmalloc(USBH_MSC_TEST_BUF_SIZE);
+	msc_wt_buf = (u8 *)usb_os_malloc(USBH_MSC_TEST_BUF_SIZE);
+	msc_rd_buf = (u8 *)usb_os_malloc(USBH_MSC_TEST_BUF_SIZE);
 	if (!msc_wt_buf || !msc_rd_buf) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Fail to alloc test buf\n");
 		goto exit_free;
@@ -416,11 +433,14 @@ void example_usbh_msc_thread(void *param)
 		goto exit_free;
 	}
 
+	/* All class drivers registered; start USB TRX so enumeration can run. */
+	usbh_start();
+
 #if CONFIG_USBH_MSC_HOTPLUG
 	/* Start hotplug thread (waits on detach_sema, re-inits USB stack) */
 	{
 		rtos_task_t hotplug_task;
-		ret = rtos_task_create(&hotplug_task, "example_usbh_msc_hotplug_thread",
+		ret = rtos_task_create(&hotplug_task, "usbh_msc_hotplug_thread",
 							   example_usbh_msc_hotplug_thread, NULL,
 							   USBH_MSC_HOTPLUG_THREAD_STACK_SIZE,
 							   USBH_MSC_HOTPLUG_THREAD_PRIORITY);
@@ -461,16 +481,13 @@ void example_usbh_msc_thread(void *param)
 
 	/* Cleanup (unreachable in CONFIG_USBH_MSC_HOTPLUG=1 for the test thread, but keeps
 	 * the pattern consistent) */
+	usbh_stop();
 	usbh_msc_deinit();
 	usbh_deinit();
 
 exit_free:
-	if (msc_wt_buf) {
-		rtos_mem_free(msc_wt_buf);
-	}
-	if (msc_rd_buf) {
-		rtos_mem_free(msc_rd_buf);
-	}
+	usb_os_mfree((void *)msc_wt_buf);
+	usb_os_mfree((void *)msc_rd_buf);
 	rtos_sema_delete(msc_attach_sema);
 #if CONFIG_USBH_MSC_HOTPLUG
 	rtos_sema_delete(msc_detach_sema);
@@ -487,7 +504,7 @@ void example_usbh_msc(void)
 
 	RTK_LOGS(TAG, RTK_LOG_INFO, "USBH MSC demo start\n");
 
-	ret = rtos_task_create(&task, "example_usbh_msc_thread", example_usbh_msc_thread, NULL,
+	ret = rtos_task_create(&task, "usbh_msc_thread", example_usbh_msc_thread, NULL,
 						   USBH_MSC_INIT_THREAD_STACK_SIZE, USBH_MSC_INIT_THREAD_PRIORITY);
 	if (ret != RTK_SUCCESS) {
 		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create thread fail\n");

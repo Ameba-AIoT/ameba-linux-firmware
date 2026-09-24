@@ -34,6 +34,9 @@ unsigned char ap_ip[4] = {192, 168, 43, 1}, ap_netmask[4] = {255, 255, 255, 0}, 
 
 
 extern void (*p_wifi_join_info_free)(u8 iface_type);
+#if defined(CONFIG_WHC_DEV)
+extern int rtw_check_sta_connected(void);
+#endif
 struct netif xnetif[NET_IF_NUM]; /* network interface structure */
 struct netif *pnetif_sta = &xnetif[NETIF_WLAN_STA_INDEX];
 struct netif *pnetif_ap = &xnetif[NETIF_WLAN_AP_INDEX];
@@ -386,12 +389,14 @@ void lwip_netif_set_link_up(uint8_t idx)
 		return;
 	}
 	netifapi_netif_set_link_up(pnetif);
+#if !defined(CONFIG_RNAT)
 	if (idx == NETIF_WLAN_STA_INDEX) {
 		netifapi_netif_set_default(pnetif_sta);
 	} else if ((idx == NETIF_WLAN_AP_INDEX) && (!(xnetif[NETIF_WLAN_STA_INDEX].flags & NETIF_FLAG_LINK_UP))) {
 		/*default netif is on sta when sta and softap both up*/
 		netifapi_netif_set_default(pnetif_ap);
 	}
+#endif
 }
 
 void lwip_netif_set_link_down(uint8_t idx)
@@ -403,11 +408,13 @@ void lwip_netif_set_link_down(uint8_t idx)
 		return;
 	}
 	netifapi_netif_set_link_down(pnetif);
+#if !defined(CONFIG_RNAT)
 	if (idx == NETIF_WLAN_AP_INDEX) {
 		netifapi_netif_set_default(pnetif_sta);
 	} else if (idx == NETIF_WLAN_STA_INDEX) {
 		netifapi_netif_set_default(pnetif_ap);
 	}
+#endif
 }
 
 uint8_t *lwip_get_mac(uint8_t idx)
@@ -617,9 +624,13 @@ void lwip_add_ipv6_neighbor(uint8_t idx, const uint8_t *peer_mac)
 int lwip_check_connectivity(uint8_t idx)
 {
 	if (idx == NETIF_WLAN_STA_INDEX) {
+#if defined(CONFIG_WHC_DEV)
+		if (!((rtw_check_sta_connected() == TRUE)
+#else
 		u8 join_status = RTW_JOINSTATUS_UNKNOWN;
 		if (!((wifi_get_join_status(&join_status) == RTK_SUCCESS)
 			  && (join_status == RTW_JOINSTATUS_SUCCESS)
+#endif
 #if defined(CONFIG_LWIP_USB_ETHERNET_BRIDGE) && CONFIG_LWIP_USB_ETHERNET_BRIDGE
 			 )) {
 			RTK_LOGS(NOTAG, RTK_LOG_INFO, "Wait for WiFi Connect Success...\n");
@@ -658,7 +669,31 @@ uint8_t lwip_request_ip(uint8_t idx)
 	lwip_autoip_ipv6(idx);
 #endif
 #if LWIP_IPV4
-	ret = lwip_dhcp(idx, DHCP_START);
+#if defined(CONFIG_WHC_HOST) && defined(CONFIG_WHC_DEV_TCPIP_KEEPALIVE)
+	/* dev runs the real dhcp client on its own netif; here host just mirrors the
+	 * returned lease onto its netif so host sockets share the same address. */
+	u32 ipinfo[4] = {0};
+	if (idx == NETIF_WLAN_STA_INDEX) {
+		lwip_clear_ip(idx);  /* mirror lwip_dhcp(DHCP_START): drop the previous lease before asking, so a timeout can't leave a stale addr on the netif */
+		ret = (uint8_t)wifi_dev_dhcp(idx, ipinfo);
+		if (ret == DHCP_ADDRESS_ASSIGNED) {
+			lwip_netif_set_up(idx);
+			lwip_set_ip(idx, PP_HTONL(ipinfo[0]), PP_HTONL(ipinfo[2]), PP_HTONL(ipinfo[1]));
+#if LWIP_DNS
+			if (ipinfo[3] != 0) {
+				struct ip_addr dns;
+				ip_addr_set_ip4_u32(&dns, ipinfo[3]);
+				lwip_set_dns(&dns);
+			}
+#endif
+			/* Detect and handle subnet conflict after DHCP success */
+			lwip_manage_subnet_conflict(idx);
+		}
+	} else
+#endif
+	{
+		ret = lwip_dhcp(idx, DHCP_START);
+	}
 #endif
 	return ret;
 }

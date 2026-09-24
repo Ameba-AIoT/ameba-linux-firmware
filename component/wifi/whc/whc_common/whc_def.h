@@ -26,9 +26,10 @@
 #define P2P_API_BASE						0x5000
 #define PROXY_API_BASE						0x6000
 #define WTN_API_BASE						0x8000
+#define XMESH_API_BASE						0x9000
 
 #ifndef WHC_BT_ID_BASE
-#define WHC_BT_ID_BASE						0xa5a5a5b0
+#define WHC_BT_ID_BASE						0xa5a5a540
 #endif
 
 #define WHC_API_PROCESS_DONE				0
@@ -61,6 +62,7 @@ enum WHC_WIFI_C2H_API_ID {
 	WHC_API_CFG80211_NAN_DEL_FUNC					= NAN_API_BASE + 2,
 	WHC_API_CFG80211_NAN_CFGVENDOR_EVENT			= NAN_API_BASE + 3,
 	WHC_API_CFG80211_NAN_CFGVENDOR_CMD_REPLY		= NAN_API_BASE + 4,
+	WHC_API_NAN_NDP_STATUS							= NAN_API_BASE + 5,
 
 	/* 0x5001~0x6000 reserved for p2p API */
 
@@ -95,6 +97,7 @@ enum WHC_WIFI_H2C_API_ID {
 	WHC_API_WIFI_SME_SET_ASSOCREQ_IE				= BASIC_API_BASE + 18,
 
 	WHC_API_WIFI_WHCH_STATES_SYNC					= BASIC_API_BASE + 19,
+	WHC_API_WIFI_HOST_READY							= BASIC_API_BASE + 20,
 
 	/* 0x1001~0x2000 reserved for ext API */
 	WHC_API_WIFI_SET_MAC_ADDR					= EXT_API_BASE + 1,
@@ -146,6 +149,7 @@ enum WHC_WIFI_H2C_API_ID {
 	WHC_API_WIFI_SET_LPS_BCN_WINDOW_MANUAL_CONFIG	= EXT_API_BASE + 48,
 	WHC_API_WIFI_SET_ANTENNA_INFO				= EXT_API_BASE + 49,
 	WHC_API_WIFI_SET_WOWLAN_IPV6_WAKE               = EXT_API_BASE + 50,
+	WHC_API_WIFI_EXTERNAL_AUTH_START			= EXT_API_BASE + 51,
 
 	/* 0x2001~0x3000 reserved for inter API */
 	WHC_API_WIFI_SET_WPA_MODE					= INTER_API_BASE + 2,
@@ -157,6 +161,7 @@ enum WHC_WIFI_H2C_API_ID {
 	WHC_API_WIFI_PROMISC_INIT					= INTER_API_BASE + 12,
 	WHC_API_WIFI_DHCP_SUCCESS_IND					= INTER_API_BASE + 13,
 	WHC_API_WIFI_RADAR_SEND_DATA					= INTER_API_BASE + 14,
+	WHC_API_WIFI_DEV_DHCP                         = INTER_API_BASE + 15,
 
 	/* 0x3001~0x4000 reserved for misc API */
 	WHC_API_WIFI_IP_UPDATE						= MISC_API_BASE + 1,
@@ -200,6 +205,13 @@ enum WHC_WIFI_H2C_API_ID {
 	WHC_API_WTN_UPDATE_OTA_VER					= WTN_API_BASE + 7,
 	WHC_API_WTN_FIX_FATHER						= WTN_API_BASE + 8,
 
+	/* 0x9001~0x9FFF reserved for xmesh API */
+	WHC_API_XMESH_INIT							= XMESH_API_BASE + 1,
+	WHC_API_XMESH_GET_RSSI_INFO_LIST			= XMESH_API_BASE + 2,
+	WHC_API_XMESH_GET_TRX_STATISTIC				= XMESH_API_BASE + 3,
+	WHC_API_XMESH_CLEAR_TRX_STATISTIC			= XMESH_API_BASE + 4,
+	WHC_API_XMESH_STOP							= XMESH_API_BASE + 5,
+
 };
 
 enum WHC_LWIP_INFO_TYPE {
@@ -217,11 +229,10 @@ enum WHC_WIFI_CTRL_TYPE {
 	WHC_WIFI_EVT_API_CALL,
 	WHC_WIFI_EVT_API_RETURN,
 	WHC_WIFI_EVT_CMD,
-	WHC_WIFI_EVT_FLOWCTRL,
 	WHC_WIFI_EVT_MAX,
 
 	WHC_BT_EVT_BASE = WHC_BT_ID_BASE,
-	WHC_BT_EVT_MAX = WHC_BT_ID_BASE + 0x1000000
+	WHC_BT_EVT_MAX = WHC_BT_ID_BASE + 0x20
 };
 
 enum WHC_PROTO_OFFLOAD_CTRL {
@@ -262,9 +273,9 @@ enum WHC_TICKPS_CMD_SUBTYPE {
 struct whc_msg_info {
 	uint32_t	event;
 	uint8_t		wlan_idx: 2;
-	uint8_t		flow_ctrl_en: 1;
-	uint8_t		rsvd1 : 5;
-	uint8_t		rsvd2[3];
+	uint8_t		rsvd1 : 6;
+	uint8_t		agg_num;
+	uint16_t	agg_stride;	/* WHCH_RXAGG: fixed byte stride between aggregated RX units (0 when unused) */
 	uint32_t	data_len;
 	uint32_t	pad_len;
 };
@@ -272,6 +283,8 @@ struct whc_msg_info {
 struct whc_api_info {
 	uint32_t	event;
 	uint32_t	api_id;
+	uint32_t	data_len;
+	uint32_t	rsvd;	/* API payload has no pad; kept at @12 to match whc_msg_info */
 };
 
 /* the header for customer to send or receive the data between host and device. */
@@ -283,6 +296,25 @@ struct whc_cust_hdr {
 struct whc_cmd_path_hdr {
 	uint32_t	event;
 	uint32_t	len;
+};
+
+/*
+ * Common view over every device->host header, used by the host SDIO RX
+ * de-aggregation splitter to walk concatenated units: each unit's on-wire
+ * length is derived from its header (event + the per-family length fields).
+ *
+ * The splitter sizes each segment by header type: whc_msg_info uses
+ * data_len@8 + pad_len@12; whc_api_info uses data_len@8 only (@12 is an unused
+ * placeholder, its payload has no pad); whc_cmd_path_hdr / whc_cust_hdr use
+ * len@4. BT INIC is reserved: its header is not yet laid out for the splitter,
+ * so BT segments are not de-aggregated for now.
+ */
+union whc_hdr {
+	struct whc_msg_info		msg;	/* RECV_PKTS / FLOWCTRL */
+	struct whc_api_info		api;	/* API_CALL / API_RETURN */
+	struct whc_cmd_path_hdr	cmd;	/* CMD */
+	struct whc_cust_hdr		cust;	/* custom path */
+	/* TODO(bt): add BT INIC header once its len/pad_len are aligned to @8/@12 */
 };
 
 struct whc_proto_offload_param {
@@ -328,6 +360,15 @@ struct whc_ps_cmd {
 
 #define WHC_WIFI_TEST_LOG_ENABLE			0x15
 #define WHC_WIFI_TEST_LOG_DISABLE			0x16
+#define WHC_WIFI_TEST_CLEAR_OTA				0x17
+
+/* host→device: transparent shell command string (NUL-terminated) */
+#define WHC_WIFI_TEST_SHELL_CMD				0x18
+/* device→host: AT command response text from at_printf() */
+#define WHC_WIFI_TEST_AT_RESP				0x19
+#define WHC_WIFI_TEST_NETWORK_INFO_UPDATE	0x1A
+/* device→host: ACK for LOG_ENABLE/DISABLE; payload = WHC_WIFI_TEST(4B) | LOG_ACK(1B) | op(1B) */
+#define WHC_WIFI_TEST_LOG_ACK				0x1B
 
 /* for rtos host only */
 #define WHC_WIFI_TEST_SET_HOST_RTOS			0xFF
@@ -339,29 +380,44 @@ struct whc_ps_cmd {
 	for wpa_cli defs
 --------------------------------------------------------------------------------*/
 // For Utility
-#define WHC_WPA_OPS_UTIL					0xffa5a5a5
+#define WHC_WPA_OPS_UTIL			0xffa5a5a5
 #define WHC_WPA_OPS_UTIL_GET_MAC_ADDR		0x1
 #define WHC_WPA_OPS_UTIL_SET_NETWORK		0x2
 #define WHC_WPA_OPS_UTIL_LIST_NETWORK		0x3
 #define WHC_WPA_OPS_UTIL_SELECT_NETWORK		0x4
-#define WHC_WPA_OPS_UTIL_GET_STATUS			0x5
+#define WHC_WPA_OPS_UTIL_GET_STATUS		0x5
 #define WHC_WPA_OPS_UTIL_OFLD_RESULT		0x6
+#define WHC_WPA_OPS_UTIL_SCAN_RAW_DATA		0x7
 
 // For Custom API
-#define WHC_WPA_OPS_CUSTOM_API					0xff112255
-#define WHC_WPA_OPS_CUSTOM_API_SCAN				0x1
+#define WHC_WPA_OPS_CUSTOM_API			0xff112255
+#define WHC_WPA_OPS_CUSTOM_API_SCAN		0x1
 #define WHC_WPA_OPS_CUSTOM_API_INIT_WPAS_STD	0x2
-#define WHC_WPA_OPS_CUSTOM_API_WIFION			0x3
+#define WHC_WPA_OPS_CUSTOM_API_WIFION		0x3
 
 // For CB
-#define WHC_WPA_OPS_SOC_CB					0xff112233
+#define WHC_WPA_OPS_SOC_CB			0xff112233
 #define WHC_WPA_OPS_SOC_CB_SCAN_RESULT		0x1
 
 // For Event
-#define WHC_WPA_OPS_EVENT					0xff000000
-#define WHC_WPA_OPS_EVENT_SCANING			0x1
+#define WHC_WPA_OPS_EVENT			0xff000000
+#define WHC_WPA_OPS_EVENT_SCANING		0x1
 #define WHC_WPA_OPS_EVENT_SCAN_COMPLETE		0x2
 #define WHC_WPA_OPS_EVENT_JOIN_STATUS		0x3
-#define WHC_WPA_OPS_EVENT_SCAN_RAW_DATA		0x4
+
+// For WPAS_STD (wpa_supplicant standard events)
+#define WHC_WPA_STD_EVENT			0xffaabbcc
+#define WHC_WPA_STD_EVENT_SCAN_RESULTS		0x01
+#define WHC_WPA_STD_EVENT_WIFI_DRV		0x02
+#define WHC_WPA_STD_EVENT_WPAS_STATE		0x03
+#define WHC_WPA_STD_EVENT_WPAS_HEARTBEAT	0x04
+
+// For WHCH TXAGG
+#define WHCH_TXAGG_NUM			4
+#define WHCH_TXAGG_UNIT_ALIGN	8
+#define WHCH_TXAGG_ALIGN(x)		(((x) + (WHCH_TXAGG_UNIT_ALIGN - 1)) & ~(WHCH_TXAGG_UNIT_ALIGN - 1))
+
+// For WHCH RXAGG
+#define WHCH_RXAGG_NUM			4
 
 #endif

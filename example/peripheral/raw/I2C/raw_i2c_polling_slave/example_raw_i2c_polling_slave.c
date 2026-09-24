@@ -21,7 +21,9 @@ typedef struct i2c_m i2c_t;
 //#define I2C_RESTART_DEMO
 
 /*LOOP read then write 3 times*/
-#define I2C_LOOP_TEST
+#ifndef LOOP_COUNT
+#define LOOP_COUNT 2
+#endif
 
 #define I2C_ID 0
 
@@ -56,7 +58,7 @@ static void i2c_StructInit(i2c_t *obj, uint32_t I2c_index, uint8_t sda, uint8_t 
 	/* I2C Pin Mux Initialization */
 
 
-#if (defined (CONFIG_AMEBASMART) || defined (CONFIG_AMEBAD))
+#if (defined (CONFIG_AMEBASMART) || defined (CONFIG_AMEBAD) || defined (CONFIG_AMEBAPRO3))
 	Pinmux_Config(sda, PINMUX_FUNCTION_I2C);
 	Pinmux_Config(scl, PINMUX_FUNCTION_I2C);
 #else
@@ -89,7 +91,6 @@ static void i2c_StructInit(i2c_t *obj, uint32_t I2c_index, uint8_t sda, uint8_t 
 	I2CInitData[obj->i2c_idx].I2CClk        = 100;
 	I2CInitData[obj->i2c_idx].I2CAckAddr    = I2C_SLAVE_ADDR0;
 	I2CInitData[obj->i2c_idx].I2CAddrMod    = I2C_ADDR_7BIT;
-
 }
 
 void i2c_Restart_enable(i2c_t *obj)
@@ -223,30 +224,22 @@ void i2c_dual_slave_task(void)
 	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RX_DONE);
 	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RD_REQ);
 	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_TX_ABRT);
-#ifdef I2C_LOOP_TEST
-	RTK_LOGI(TAG, "Slave read  2>>>\n");
-	I2C_SlaveRead(i2cslave.I2Cx, &i2cdatadst[0], I2C_DATA_LENGTH);
-	i2c_slave_rx_check();
 
-	RTK_LOGI(TAG, "Slave write  2>>>\n");
-	I2C_SlaveWrite(i2cslave.I2Cx, &i2cdatardsrc[0], I2C_DATA_LENGTH);
-	DelayMs(1);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RX_DONE);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RD_REQ);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_TX_ABRT);
+#if (LOOP_COUNT - 1)
+	for (int i = 2; i <= LOOP_COUNT; i++) {
+		RTK_LOGI(TAG, "Slave read  %d>>>\n", i);
+		I2C_SlaveRead(i2cslave.I2Cx, &i2cdatadst[0], I2C_DATA_LENGTH);
+		i2c_slave_rx_check();
 
-
-	RTK_LOGI(TAG, "Slave read 3>>>\n");
-	I2C_SlaveRead(i2cslave.I2Cx, &i2cdatadst[0], I2C_DATA_LENGTH);
-	i2c_slave_rx_check();
-
-	RTK_LOGI(TAG, "Slave write 3>>>\n");
-	I2C_SlaveWrite(i2cslave.I2Cx, &i2cdatardsrc[0], I2C_DATA_LENGTH);
-	DelayMs(1);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RX_DONE);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RD_REQ);
-	I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_TX_ABRT);
+		RTK_LOGI(TAG, "Slave write  %d>>>\n", i);
+		I2C_SlaveWrite(i2cslave.I2Cx, &i2cdatardsrc[0], I2C_DATA_LENGTH);
+		DelayMs(1);
+		I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RX_DONE);
+		I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_RD_REQ);
+		I2C_ClearINT(i2cslave.I2Cx, I2C_BIT_R_TX_ABRT);
+	}
 #endif
+
 	while (1);
 }
 

@@ -94,15 +94,12 @@ retry:
  *         three transports are mutually exclusive per build, SIZE_RX_DESC resolves
  *         to the active transport's value.
  * @param  len: payload bytes to copy for the API path; each transport knows
- *         its own length (SDIO pkt_len / SPI SPI_BUFSZ / UART payload_len).
+ *         its own length (SDIO: RX0_REQ_LEN register / SPI: SPI_BUFSZ / UART: payload_len).
  * @return none.
  */
 void whc_host_recv_dispatch(u8 *buf, u32 len)
 {
 	u32 event = *(u32 *)(buf + SIZE_RX_DESC);
-#ifdef CONFIG_WHC_CMD_PATH
-	struct whc_cmd_path_hdr *hdr;
-#endif
 #ifdef CONFIG_WHC_WIFI_API_PATH
 	struct whc_api_info *ret_msg;
 	u8 *api_buf;
@@ -156,11 +153,8 @@ void whc_host_recv_dispatch(u8 *buf, u32 len)
 #endif
 #ifdef CONFIG_WHC_CMD_PATH
 	case WHC_WIFI_EVT_CMD:
-		/* WHY(71066): device prepends whc_cmd_path_hdr{event,len} before the cmd
-		 * payload (see whc_dev_api_send_to_host). Must skip the hdr and use hdr->len;
-		 * don't pass buf/desc size directly. */
-		hdr = (struct whc_cmd_path_hdr *)(buf + SIZE_RX_DESC);
-		whc_host_pkt_rx_to_user((u8 *)(hdr + 1), hdr->len);
+		whc_host_deliver_rxbuf_to_user(buf, len);
+		buf = NULL;  /* ownership transferred to the cmd task */
 		break;
 #endif
 	default:
@@ -170,10 +164,29 @@ void whc_host_recv_dispatch(u8 *buf, u32 len)
 				bt_inic_spi_recv_host_ptr(buf + SIZE_RX_DESC, len - SIZE_RX_DESC);
 			}
 		} else {
+			/* spi host would rx dummy data, which does not need to be reported. */
+#ifndef CONFIG_WHC_INTF_SPI
 			RTK_LOGE(TAG_WLAN_INIC, "%s: unknown event:%d\n", __func__, event);
+#endif
 		}
 		break;
 	}
 
 	rtos_mem_free(buf);
 }
+
+#if !defined(CONFIG_WHC_WIFI_API_PATH)
+/* for case: dev with wpa, but tcpip in host only */
+void wifi_dhcp_success_indicate(void)
+{
+	return;
+}
+
+s32 wifi_ap_get_connected_clients(struct rtw_client_list *client_list_buffer)
+{
+	if (client_list_buffer) {
+		client_list_buffer->count = 0;
+	}
+	return RTK_SUCCESS;
+}
+#endif

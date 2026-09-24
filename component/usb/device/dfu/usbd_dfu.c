@@ -7,8 +7,15 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "usbd_dfu.h"
+#ifdef CONFIG_USBD_COMPOSITE
+#include "usbd_composite.h"
+#endif
 
 /* Private defines -----------------------------------------------------------*/
+
+/* Interface number of the only interface of this function, local to it: the composite
+   framework rebases wIndex to the function-local value before dispatching. */
+#define USBD_DFU_ITF_NUM                                0x00U
 
 /* Private types -------------------------------------------------------------*/
 
@@ -17,17 +24,20 @@
 /* Private function prototypes -----------------------------------------------*/
 
 static int usbd_dfu_set_config(usb_dev_t *dev, u8 config);
-static int usbd_dfu_clear_config(usb_dev_t *dev, u8 config);
+static void usbd_dfu_clear_config(usb_dev_t *dev, u8 config);
 static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req);
-static u16 usbd_dfu_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf);
+static u16 usbd_dfu_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf, u16 buf_len);
 static int usbd_dfu_ep0_data_in(usb_dev_t *dev, u8 status);
 static int usbd_dfu_ep0_data_out(usb_dev_t *dev);
 static void usbd_dfu_status_changed(usb_dev_t *dev, u8 old_status, u8 status);
+#ifdef CONFIG_USBD_COMPOSITE
+static u8 usbd_dfu_set_str_base(u8 base);
+#endif
 static void usbd_dfu_reconf_task(void *param);
 
 static void usbd_dfu_manifest_task(void *param);
 static void usbd_dfu_manifest_timer_cb(void *timer);
-#if !CONFIG_USBD_DFU_WILL_DETACH
+#if !USBD_DFU_WILL_DETACH
 static void usbd_dfu_detach_timeout_cb(void *timer);
 #endif
 
@@ -82,16 +92,16 @@ static const u8 usbd_dfu_device_qualifier_desc[USB_LEN_DEV_QUALIFIER_DESC] = {
  * DFU Configuration Descriptor: Config(9) + Interface(9) + DFU Func(9) = 27 bytes
  * No endpoints: DFU is EP0-only.
  */
-static const u8 usbd_dfu_config_desc[USBD_DFU_CONFIG_DESC_SIZE] = {
+static const u8 usbd_dfu_config_desc[] = {
 	/* USB Standard Configuration Descriptor */
 	USB_LEN_CFG_DESC,                               /* bLength */
 	USB_DESC_TYPE_CONFIGURATION,                    /* bDescriptorType */
-	USB_LOW_BYTE(USBD_DFU_CONFIG_DESC_SIZE),        /* wTotalLength */
-	USB_HIGH_BYTE(USBD_DFU_CONFIG_DESC_SIZE),
+	0x00,                                           /* wTotalLength, runtime patched */
+	0x00,
 	0x01,                                           /* bNumInterfaces */
 	0x01,                                           /* bConfigurationValue */
 	0x00,                                           /* iConfiguration */
-	0x80,                                           /* bmAttributes: bus powered */
+	0x80,                                           /* bmAttributes (patched at runtime for self_powered/remote_wakeup) */
 	0x32,                                           /* bMaxPower: 100 mA */
 
 	/* USB Standard Interface Descriptor */
@@ -105,18 +115,19 @@ static const u8 usbd_dfu_config_desc[USBD_DFU_CONFIG_DESC_SIZE] = {
 	USB_DFU_PROTOCOL_DFU,                          /* bInterfaceProtocol: 0x02 (DFU mode); patched
 	                                                   to 0x01 in get_descriptor while in Run-Time
 	                                                   mode */
-	USBD_DFU_IFACE_STRING_IDX,                      /* iInterface */
+	USBD_DFU_CLASS_STR_BASE_DEFAULT +
+	USBD_DFU_STR_IDX_IFACE,                         /* iInterface, runtime patched */
 
 	/* DFU Functional Descriptor */
 	0x09,                                           /* bLength */
 	USB_DFU_FUNC_DESC_TYPE,                        /* bDescriptorType: 0x21 */
-#if CONFIG_USBD_DFU_WILL_DETACH
+#if USBD_DFU_WILL_DETACH
 	USB_DFU_ATTR_WILL_DETACH |
 #endif
-#if CONFIG_USBD_DFU_MANIFESTATION_TOL
+#if USBD_DFU_MANIFESTATION_TOL
 	USB_DFU_ATTR_MANIFEST_TOL |
 #endif
-#if CONFIG_USBD_DFU_CAN_UPLOAD
+#if USBD_DFU_CAN_UPLOAD
 	USB_DFU_ATTR_CAN_UPLOAD |
 #endif
 	USB_DFU_ATTR_CAN_DNLOAD |
@@ -138,6 +149,9 @@ static const usbd_class_driver_t usbd_dfu_driver = {
 	.ep0_data_in    = usbd_dfu_ep0_data_in,
 	.ep0_data_out   = usbd_dfu_ep0_data_out,
 	.status_changed = usbd_dfu_status_changed,
+#ifdef CONFIG_USBD_COMPOSITE
+	.set_str_base = usbd_dfu_set_str_base,
+#endif
 };
 
 /* DFU Device */
@@ -153,9 +167,26 @@ static int usbd_dfu_set_config(usb_dev_t *dev, u8 config)
 {
 	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
 
-	UNUSED(config);
+	/* Only the bConfigurationValue advertised in the config descriptor is valid */
+	if (config != 1U) {
+		return HAL_ERR_PARA;
+	}
 
 	dfu->dev = dev;
+
+	if (!dfu->from_composite) {
+#ifdef CONFIG_USBD_SELF_POWERED
+		dev->self_powered = 1;
+#else
+		dev->self_powered = 0;
+#endif
+#ifdef CONFIG_USBD_REMOTE_WAKEUP_EN
+		dev->remote_wakeup_en = 1;
+#else
+		dev->remote_wakeup_en = 0;
+#endif
+	}
+
 	dfu->alt_setting = 0U;
 	/* Save the default EP0 buffer and its capacity (shared by IN/OUT endpoints). */
 	dfu->ep0_default_buf         = dev->ep0_in.xfer_buf;
@@ -172,27 +203,43 @@ static int usbd_dfu_set_config(usb_dev_t *dev, u8 config)
 /**
  * @brief  Clear DFU configuration (called from ISR on USB disconnect/reset).
  */
-static int usbd_dfu_clear_config(usb_dev_t *dev, u8 config)
+static void usbd_dfu_clear_config(usb_dev_t *dev, u8 config)
 {
 	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
 
-	UNUSED(dev);
 	UNUSED(config);
+
+	/* Ref USB 2.0 9.1.1.5: a bus reset or disconnect voids every control transfer in
+	 * progress, so the EP0 completion that would put a redirected buffer back never
+	 * arrives.  Restore both EP0 endpoints here, otherwise the next enumeration keeps
+	 * writing standard and DFU control responses into the DNLOAD/UPLOAD block buffer. */
+	if ((dfu->xfer_buf != NULL) && (dfu->ep0_default_buf != NULL)) {
+		if (dev->ep0_in.xfer_buf == dfu->xfer_buf) {
+			dev->ep0_in.xfer_buf     = dfu->ep0_default_buf;
+			dev->ep0_in.xfer_buf_len = dfu->ep0_default_buf_len;
+		}
+		if (dev->ep0_out.xfer_buf == dfu->xfer_buf) {
+			dev->ep0_out.xfer_buf     = dfu->ep0_default_buf;
+			dev->ep0_out.xfer_buf_len = dfu->ep0_default_buf_len;
+		}
+	}
+#if USBD_DFU_CAN_UPLOAD
+	dfu->upload_last = 0U;
+#endif
+	dfu->ep0_in_owned = 0U;
 
 	/* Idle state of whichever descriptor set is currently active.  During the
 	 * intentional detach/attach the mode is already DFU, so the re-enumeration
 	 * comes up in dfuIDLE; a true cable unplug in run-time mode stays appIDLE. */
 	dfu->state = (dfu->mode == USB_DFU_PROTOCOL_RUNTIME)
 				 ? USB_DFU_STATE_APP_IDLE : USB_DFU_STATE_DFU_IDLE;
-#if !CONFIG_USBD_DFU_WILL_DETACH
+#if !USBD_DFU_WILL_DETACH
 	/* USB Reset arrived before wDetachTimeOut: stop the one-shot timer early so
 	 * it doesn't fire needlessly after the re-enumeration is already complete. */
 	if ((dfu->mode == USB_DFU_PROTOCOL_DFU) && (dfu->detach_timer != NULL)) {
 		rtos_timer_stop(dfu->detach_timer, 0U);
 	}
 #endif
-
-	return HAL_OK;
 }
 
 /**
@@ -227,6 +274,41 @@ static int usbd_dfu_stall_error(usb_dev_t *dev, usbd_dfu_dev_t *dfu, usbd_dfu_st
 }
 
 /**
+ * @brief  Validate bmRequestType direction and wLength of a DFU class request.
+ *         Ref DFU 1.1 Table 3.2: every request has a fixed direction, and DETACH,
+ *         CLRSTATUS and ABORT carry no data stage (wLength = 0).
+ * @retval 1 if the request is well formed, 0 otherwise.
+ */
+static u8 usbd_dfu_req_is_valid(const usb_setup_req_t *req)
+{
+	u8 dir = req->bmRequestType & USB_REQ_DIR_MASK;
+	u8 valid;
+
+	switch (req->bRequest) {
+	case USB_DFU_REQ_DETACH:
+	case USB_DFU_REQ_CLRSTATUS:
+	case USB_DFU_REQ_ABORT:
+		/* No data stage: a non-zero wLength would leave EP0 unanswered because the
+		 * core only auto-completes the status stage when wLength is 0. */
+		valid = ((dir == USB_H2D) && (req->wLength == 0U)) ? 1U : 0U;
+		break;
+	case USB_DFU_REQ_DNLOAD:
+		valid = (dir == USB_H2D) ? 1U : 0U;
+		break;
+	case USB_DFU_REQ_UPLOAD:
+	case USB_DFU_REQ_GETSTATUS:
+	case USB_DFU_REQ_GETSTATE:
+		valid = (dir == USB_D2H) ? 1U : 0U;
+		break;
+	default:
+		valid = 0U;
+		break;
+	}
+
+	return valid;
+}
+
+/**
  * @brief  Handle DFU class SETUP requests (called from ISR).
  */
 static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
@@ -241,19 +323,27 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 	case USB_REQ_TYPE_STANDARD:
 		switch (req->bRequest) {
 		case USB_REQ_SET_INTERFACE:
-			if (dev->dev_state == USBD_STATE_CONFIGURED) {
-				dfu->alt_setting = USB_LOW_BYTE(req->wValue);
-			} else {
+			/* Ref USB 2.0 Table 9-10: the whole wIndex is the interface number. This function
+			   owns one interface with alternate setting 0 only, anything else is a request
+			   error, ref DFU 1.1 4.2.3. */
+			if (dev->dev_state != USBD_STATE_CONFIGURED) {
 				ret = HAL_ERR_HW;
+			} else if ((req->wIndex != USBD_DFU_ITF_NUM) || (USB_LOW_BYTE(req->wValue) != 0U)) {
+				ret = HAL_ERR_HW;
+			} else {
+				dfu->alt_setting = 0U;
 			}
 			break;
 		case USB_REQ_GET_INTERFACE:
-			if (dev->dev_state == USBD_STATE_CONFIGURED) {
+			/* Ref USB 2.0 9.4.4: request error for an interface that does not exist */
+			if (dev->dev_state != USBD_STATE_CONFIGURED) {
+				ret = HAL_ERR_HW;
+			} else if (req->wIndex != USBD_DFU_ITF_NUM) {
+				ret = HAL_ERR_HW;
+			} else {
 				ep0_in->xfer_buf[0] = dfu->alt_setting;
 				ep0_in->xfer_len = 1U;
 				usbd_ep_transmit(dev, ep0_in);
-			} else {
-				ret = HAL_ERR_HW;
 			}
 			break;
 		case USB_REQ_GET_STATUS:
@@ -273,6 +363,24 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 		break;
 
 	case USB_REQ_TYPE_CLASS:
+		if ((req->bmRequestType & USB_REQ_RECIPIENT_MASK) != USB_REQ_RECIPIENT_INTERFACE) {
+			ret = HAL_ERR_HW;
+			break;
+		}
+		/* Ref DFU 1.1 3.1: wIndex of every DFU class request is the DFU interface number.
+		   Reject a foreign interface so composite dispatch can continue to its owner. */
+		if (req->wIndex != USBD_DFU_ITF_NUM) {
+			ret = HAL_ERR_HW;
+			break;
+		}
+		/* Ref DFU 1.1 Table 3.2 / USB 2.0 9.3.1: reject an unknown bRequest and any
+		   request whose direction or wLength does not match its definition, before it
+		   can arm the wrong EP0 direction or leave the control transfer unanswered.
+		   A request error stalls and leaves the DFU state untouched (USB 2.0 9.2.7). */
+		if (usbd_dfu_req_is_valid(req) == 0U) {
+			ret = HAL_ERR_HW;
+			break;
+		}
 		/* DFU 1.1 §A.2.1/§A.2.2: Run-Time state guard.
 		 *   appIDLE  : only DETACH / GETSTATUS / GETSTATE are valid; all others
 		 *              stall and stay in appIDLE (no dfuERROR transition).
@@ -372,7 +480,7 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			break;
 
 		case USB_DFU_REQ_UPLOAD:
-#if CONFIG_USBD_DFU_CAN_UPLOAD
+#if USBD_DFU_CAN_UPLOAD
 			/* Reject oversized requests before using the buffer */
 			if (req->wLength > USBD_DFU_XFER_SIZE) {
 				ret = usbd_dfu_stall_error(dev, dfu, USBD_DFU_STATUS_ERR_STALLEDPKT);
@@ -394,10 +502,14 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					ep0_in->xfer_buf     = dfu->xfer_buf;
 					ep0_in->xfer_buf_len = USBD_DFU_XFER_SIZE;
 					ep0_in->xfer_len     = MIN(len, req->wLength);
+					/* This EP0 IN data stage belongs to DFU: only its completion may
+					 * restore the buffer and advance the UPLOAD state machine. */
+					dfu->ep0_in_owned = 1U;
 					if (usbd_ep_transmit(dev, ep0_in) != HAL_OK) {
 						/* ARM failed — ep0_data_in will never fire; restore buffer now */
 						ep0_in->xfer_buf     = dfu->ep0_default_buf;
 						ep0_in->xfer_buf_len = dfu->ep0_default_buf_len;
+						dfu->ep0_in_owned = 0U;
 						ret = usbd_dfu_stall_error(dev, dfu, USBD_DFU_STATUS_ERR_STALLEDPKT);
 						break;
 					}
@@ -410,7 +522,7 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 #else
 			/* DFU 1.1 Table 3: bitCanUpload=0 → reject all UPLOAD, stall → dfuERROR */
 			ret = usbd_dfu_stall_error(dev, dfu, USBD_DFU_STATUS_ERR_STALLEDPKT);
-#endif /* CONFIG_USBD_DFU_CAN_UPLOAD */
+#endif /* USBD_DFU_CAN_UPLOAD */
 			break;
 
 		case USB_DFU_REQ_GETSTATUS:
@@ -436,8 +548,8 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 			if (dfu->state == USB_DFU_STATE_MANIFEST) {
 				if (dfu->manifest_done) {
 					/* Manifest task + timer completed; transition per bmAttributes. */
-#if CONFIG_USBD_DFU_MANIFESTATION_TOL
-					dfu->manifest_done = 0U;
+#if USBD_DFU_MANIFESTATION_TOL
+					/* manifest_done left set; MANIFEST_SYNC at line 438 clears it on dfuIDLE. */
 					dfu->state  = USB_DFU_STATE_MANIFEST_SYNC;
 					dfu->status = USBD_DFU_STATUS_OK;
 					usbd_dfu_send_status(dev, dfu, 0U);
@@ -446,7 +558,7 @@ static int usbd_dfu_setup(usb_dev_t *dev, usb_setup_req_t *req)
 					dfu->state  = USB_DFU_STATE_MANIFEST_WAIT_RESET;
 					dfu->status = USBD_DFU_STATUS_OK;
 					usbd_dfu_send_status(dev, dfu, 0U);
-#if CONFIG_USBD_DFU_WILL_DETACH
+#if USBD_DFU_WILL_DETACH
 					/* DFU 1.1 §7: device generates a detach-attach sequence.
 					 * Set mode to RUNTIME so the device re-enumerates in Run-Time mode
 					 * after deinit/init (booting the new firmware). */
@@ -562,6 +674,15 @@ static int usbd_dfu_ep0_data_in(usb_dev_t *dev, u8 status)
 {
 	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
 
+	/* Ref USB 2.0 8.5.3: a control data stage belongs to exactly one request. Only the
+	 * UPLOAD data stage armed by this class is ours; report non-success for anything
+	 * else so the caller keeps looking for the owning function and DFU neither rewrites
+	 * dev->ep0_in nor enters dfuERROR on a foreign transfer's error. */
+	if (dfu->ep0_in_owned == 0U) {
+		return HAL_ERR_PARA;
+	}
+	dfu->ep0_in_owned = 0U;
+
 	/* Restore the EP0 IN buffer and its capacity to the core-allocated default */
 	dev->ep0_in.xfer_buf     = dfu->ep0_default_buf;
 	dev->ep0_in.xfer_buf_len = dfu->ep0_default_buf_len;
@@ -573,7 +694,7 @@ static int usbd_dfu_ep0_data_in(usb_dev_t *dev, u8 status)
 		return HAL_OK;
 	}
 
-#if CONFIG_USBD_DFU_CAN_UPLOAD
+#if USBD_DFU_CAN_UPLOAD
 	if (dfu->upload_last) {
 		dfu->upload_last = 0U;
 		dfu->state = USB_DFU_STATE_DFU_IDLE;
@@ -704,14 +825,14 @@ static void usbd_dfu_manifest_timer_cb(void *timer)
 
 	if (dfu->manifest_done) {
 		/* "Status poll timeout" + work done -> transition per bmAttributes */
-#if CONFIG_USBD_DFU_MANIFESTATION_TOL
+#if USBD_DFU_MANIFESTATION_TOL
 		dfu->state = USB_DFU_STATE_MANIFEST_SYNC;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Manifest done -> MANIFEST-SYNC\n");
 #else
 		dfu->manifest_done = 0U;
 		dfu->state = USB_DFU_STATE_MANIFEST_WAIT_RESET;
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Manifest done -> WAIT-RESET\n");
-#if CONFIG_USBD_DFU_WILL_DETACH
+#if USBD_DFU_WILL_DETACH
 		dfu->mode = USB_DFU_PROTOCOL_RUNTIME;
 		dfu->reconf_pending = 1U;
 		usb_os_sema_give(dfu->reconf_sema);
@@ -769,68 +890,74 @@ static void usbd_dfu_cleanup_write(usbd_dfu_dev_t *dfu)
 /**
  * @brief  Get descriptor callback (called from ISR).
  */
-static u16 usbd_dfu_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf)
+static u16 usbd_dfu_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf, u16 buf_len)
 {
+	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
+	const u8 *desc = NULL;
 	u16 len = 0U;
+	u8 type = USB_HIGH_BYTE(req->wValue);
+	u8 is_cfg = 0;
+	u8 attr = 0x80U;
 
-	dev->self_powered = 0U;
+	UNUSED(dev);
 
-	switch (USB_HIGH_BYTE(req->wValue)) {
+	if (!dfu->from_composite) {
+#ifdef CONFIG_USBD_SELF_POWERED
+		attr |= USB_CFG_DESC_OFFSET_ATTR_BIT_SELF_POWERED;
+#endif
+#ifdef CONFIG_USBD_REMOTE_WAKEUP_EN
+		attr |= USB_CFG_DESC_OFFSET_ATTR_BIT_REMOTE_WAKEUP;
+#endif
+	}
+
+	switch (type) {
 
 	case USB_DESC_TYPE_DEVICE:
+		desc = usbd_dfu_dev_desc;
 		len = sizeof(usbd_dfu_dev_desc);
-		usb_os_memcpy((void *)buf, (void *)usbd_dfu_dev_desc, len);
 		break;
 
 	case USB_DESC_TYPE_CONFIGURATION:
+		desc = usbd_dfu_config_desc;
 		len = sizeof(usbd_dfu_config_desc);
-		usb_os_memcpy((void *)buf, (void *)usbd_dfu_config_desc, len);
-		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN]     = USB_LOW_BYTE(len);
-		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN + 1] = USB_HIGH_BYTE(len);
-		/* Static array carries the DFU-mode protocol (0x02); rewrite it to the
-		 * run-time protocol (0x01) until the device has switched to DFU mode. */
-		if (usbd_dfu_dev.mode == USB_DFU_PROTOCOL_RUNTIME) {
-			buf[USBD_DFU_CFG_IF_PROTOCOL_OFFSET] = USB_DFU_PROTOCOL_RUNTIME;
-		}
+		is_cfg = 1;
 		break;
 
 #ifndef CONFIG_USB_FS
 	case USB_DESC_TYPE_DEVICE_QUALIFIER:
+		desc = usbd_dfu_device_qualifier_desc;
 		len = sizeof(usbd_dfu_device_qualifier_desc);
-		usb_os_memcpy((void *)buf, (void *)usbd_dfu_device_qualifier_desc, len);
 		break;
 
 	case USB_DESC_TYPE_OTHER_SPEED_CONFIGURATION:
 		/* DFU has no endpoints, so the other-speed config is identical */
+		desc = usbd_dfu_config_desc;
 		len = sizeof(usbd_dfu_config_desc);
-		usb_os_memcpy((void *)buf, (void *)usbd_dfu_config_desc, len);
-		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN]     = USB_LOW_BYTE(len);
-		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN + 1] = USB_HIGH_BYTE(len);
-		buf[USB_CFG_DESC_OFFSET_TYPE]          = USB_DESC_TYPE_OTHER_SPEED_CONFIGURATION;
-		if (usbd_dfu_dev.mode == USB_DFU_PROTOCOL_RUNTIME) {
-			buf[USBD_DFU_CFG_IF_PROTOCOL_OFFSET] = USB_DFU_PROTOCOL_RUNTIME;
-		}
+		is_cfg = 1;
 		break;
 #endif
 	case USB_DESC_TYPE_STRING:
 		switch (USB_LOW_BYTE(req->wValue)) {
 		case USBD_IDX_LANGID_STR:
+			desc = usbd_dfu_lang_id_desc;
 			len = sizeof(usbd_dfu_lang_id_desc);
-			usb_os_memcpy((void *)buf, (void *)usbd_dfu_lang_id_desc, len);
 			break;
 		case USBD_IDX_MFC_STR:
-			len = usbd_get_str_desc(USBD_DFU_MFR_STRING, buf);
+			len = usbd_get_str_descriptor(USBD_DFU_MFR_STRING, buf, buf_len);
 			break;
 		case USBD_IDX_PRODUCT_STR:
-			len = usbd_get_str_desc(USBD_DFU_PRODUCT_STRING, buf);
+			len = usbd_get_str_descriptor(USBD_DFU_PRODUCT_STRING, buf, buf_len);
 			break;
 		case USBD_IDX_SERIAL_STR:
-			len = usbd_get_str_desc("00000000001", buf);
-			break;
-		case USBD_DFU_IFACE_STRING_IDX:
-			len = usbd_get_str_desc(USBD_DFU_IFACE_STRING, buf);
+			len = usbd_get_str_descriptor("00000000001", buf, buf_len);
 			break;
 		default:
+			/* Class-specific indices are decided at runtime (rebased by the composite
+			 * framework), so they cannot be case labels. Comparing them here also makes
+			 * it impossible to shadow the device-global indices above. */
+			if (USB_LOW_BYTE(req->wValue) == (u8)(dfu->cls_str_base + USBD_DFU_STR_IDX_IFACE)) {
+				len = usbd_get_str_descriptor(USBD_DFU_IFACE_STRING, buf, buf_len);
+			}
 			break;
 		}
 		break;
@@ -839,8 +966,53 @@ static u16 usbd_dfu_get_descriptor(usb_dev_t *dev, usb_setup_req_t *req, u8 *buf
 		break;
 	}
 
+	if (desc != NULL) {
+		/* Truncation is not allowed: a short descriptor is illegal, so stall instead */
+		if (len > buf_len) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "Desc %d OVSZ %d > %d\n", type, len, buf_len);
+			return 0;
+		}
+
+		usb_os_memcpy((void *)buf, (const void *)desc, len);
+	}
+
+	if (is_cfg != 0) {
+		buf[USB_CFG_DESC_OFFSET_TYPE]          = type;
+		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN]     = USB_LOW_BYTE(len);
+		buf[USB_CFG_DESC_OFFSET_TOTAL_LEN + 1] = USB_HIGH_BYTE(len);
+
+		if (!dfu->from_composite) {
+			buf[USB_CFG_DESC_OFFSET_ATTR] = attr;
+		}
+
+		/* Static array carries the DFU-mode protocol (0x02); rewrite it to the
+		 * run-time protocol (0x01) until the device has switched to DFU mode. */
+		if (usbd_dfu_dev.mode == USB_DFU_PROTOCOL_RUNTIME) {
+			buf[USBD_DFU_CFG_IF_PROTOCOL_OFFSET] = USB_DFU_PROTOCOL_RUNTIME;
+		}
+
+		/* Static array carries the standalone default; rewrite it in case the
+		 * composite framework rebased the class string window. */
+		buf[USBD_DFU_CFG_IF_ISTR_OFFSET] = (u8)(dfu->cls_str_base + USBD_DFU_STR_IDX_IFACE);
+	}
+
 	return len;
 }
+
+#ifdef CONFIG_USBD_COMPOSITE
+/**
+ * @brief  Assign the first class-specific string index of this class (composite mode only)
+ * @note   This function is called by the composite framework before enumeration.
+ * @param  base: First class-specific string index for this class
+ * @retval Number of class-specific string indices consumed
+ */
+static u8 usbd_dfu_set_str_base(u8 base)
+{
+	usbd_dfu_dev.cls_str_base = base;
+
+	return USBD_DFU_CLASS_STR_COUNT;
+}
+#endif
 
 /**
  * @brief  USB attach/detach status change (called from ISR).
@@ -857,7 +1029,7 @@ static void usbd_dfu_status_changed(usb_dev_t *dev, u8 old_status, u8 status)
 }
 
 
-#if !CONFIG_USBD_DFU_WILL_DETACH
+#if !USBD_DFU_WILL_DETACH
 /**
  * @brief  One-shot timer callback: fires when wDetachTimeOut expires without a USB Reset.
  *         If state is still appDETACH the host never issued a USB Reset, so revert to
@@ -876,7 +1048,7 @@ static void usbd_dfu_detach_timeout_cb(void *timer)
 				 USBD_DFU_DETACH_TIMEOUT);
 	}
 }
-#endif /* !CONFIG_USBD_DFU_WILL_DETACH */
+#endif /* !USBD_DFU_WILL_DETACH */
 
 /**
  * @brief  Reconfiguration task: handles the Run-Time → DFU mode transition off ISR context.
@@ -906,7 +1078,7 @@ static void usbd_dfu_reconf_task(void *param)
 		}
 		dfu->reconf_pending = 0U;
 
-#if CONFIG_USBD_DFU_WILL_DETACH
+#if USBD_DFU_WILL_DETACH
 		/* Let the DFU_DETACH status stage (EP0 IN ZLP) complete before the
 		 * application tears down the stack. */
 		usb_os_sleep_ms(USBD_DFU_DETACH_STATUS_DELAY_MS);
@@ -925,11 +1097,173 @@ static void usbd_dfu_reconf_task(void *param)
 		RTK_LOGS(TAG, RTK_LOG_INFO, "Detach: waiting for host USB Reset (%ums timeout)\n",
 				 USBD_DFU_DETACH_TIMEOUT);
 		rtos_timer_start(dfu->detach_timer, 0U);
-#endif /* CONFIG_USBD_DFU_WILL_DETACH */
+#endif /* USBD_DFU_WILL_DETACH */
 	}
 
 	rtos_task_delete(NULL);
 }
+
+/**
+ * @brief  Initialize the DFU device class driver.
+ */
+static int usbd_dfu_private_init(usbd_dfu_cb_t *cb)
+{
+	int ret = HAL_OK;
+	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
+
+	if (cb == NULL) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid CB\n");
+		return HAL_ERR_PARA;
+	}
+
+	/* Preserve mode across a reconf reinit (WILL_DETACH=1).  On a fresh first
+	 * init the struct is zero-initialised (BSS), so saved_mode is 0 which is
+	 * neither RUNTIME nor DFU — default to RUNTIME below. */
+	u8 saved_mode = dfu->mode;
+	usb_os_memset((void *)dfu, 0, sizeof(usbd_dfu_dev_t));
+
+	/* Standalone default; the composite framework rebases it via set_str_base() */
+	dfu->cls_str_base = USBD_DFU_CLASS_STR_BASE_DEFAULT;
+
+	dfu->xfer_buf = (u8 *)usb_os_malloc(USBD_DFU_XFER_SIZE);
+	if (dfu->xfer_buf == NULL) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for xfer_buf\n");
+		return HAL_ERR_MEM;
+	}
+	if (!USB_IS_MEM_DMA_ALIGNED(dfu->xfer_buf)) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "xfer_buf not DMA-aligned\n");
+		usb_os_mfree((void *)dfu->xfer_buf);
+		dfu->xfer_buf = NULL;
+		return HAL_ERR_MEM;
+	}
+
+	dfu->cb = cb;
+	if (cb->write == NULL) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "write cb required (CAN_DNLOAD=1)\n");
+		usb_os_mfree((void *)dfu->xfer_buf);
+		dfu->xfer_buf = NULL;
+		return HAL_ERR_PARA;
+	}
+	dfu->write_poll_ms = USBD_DFU_WRITE_POLL_MS_DEFAULT;
+#if USBD_DFU_CAN_UPLOAD
+	if (cb->read == NULL) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "read cb required (CAN_UPLOAD=1)\n");
+		usb_os_mfree((void *)dfu->xfer_buf);
+		dfu->xfer_buf = NULL;
+		return HAL_ERR_PARA;
+	}
+#endif
+	/* Restore DFU mode when reinitialising after a reconf callback; default to
+	 * Run-Time on all other init paths (first boot or plain hotplug reinit). */
+	dfu->mode = (saved_mode == USB_DFU_PROTOCOL_DFU)
+				? USB_DFU_PROTOCOL_DFU : USB_DFU_PROTOCOL_RUNTIME;
+	if (cb->init != NULL) {
+		ret = cb->init();
+		if (ret != HAL_OK) {
+			RTK_LOGS(TAG, RTK_LOG_ERROR, "CB init fail: %d\n", ret);
+			usb_os_mfree((void *)dfu->xfer_buf);
+			dfu->xfer_buf = NULL;
+			return ret;
+		}
+	}
+
+	ret = usb_os_sema_create(&dfu->write_sema);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for write_sema\n");
+		if (cb->deinit != NULL) {
+			cb->deinit();
+		}
+		usb_os_mfree((void *)dfu->xfer_buf);
+		dfu->xfer_buf = NULL;
+		return HAL_ERR_MEM;
+	}
+
+	ret = rtos_task_create(&dfu->write_task, "usbd_dfu_write_thread", usbd_dfu_write_task,
+						   dfu, USBD_DFU_WRITE_TASK_STACK, USBD_DFU_WRITE_TASK_PRIORITY);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create write_task fail\n");
+		usb_os_sema_delete(dfu->write_sema);
+		dfu->write_sema = NULL;
+		if (cb->deinit != NULL) {
+			cb->deinit();
+		}
+		usb_os_mfree((void *)dfu->xfer_buf);
+		dfu->xfer_buf = NULL;
+		return HAL_ERR_MEM;
+	}
+
+	/* Create manifest task and timer for async manifest support */
+	ret = usb_os_sema_create(&dfu->manifest_sema);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_sema fail\n");
+		goto reconf_fail;
+	}
+	dfu->manifest_poll_ms = USBD_DFU_MANIFEST_POLL_MS_DEFAULT;
+	ret = rtos_task_create(&dfu->manifest_task, "usbd_dfu_manifest_thread", usbd_dfu_manifest_task,
+						   dfu, USBD_DFU_MANIFEST_TASK_STACK, USBD_DFU_MANIFEST_TASK_PRIORITY);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_task fail\n");
+		usb_os_sema_delete(dfu->manifest_sema);
+		dfu->manifest_sema = NULL;
+		goto reconf_fail;
+	}
+	ret = rtos_timer_create(&dfu->manifest_timer, "dfu_mftmr", 0U,
+							dfu->manifest_poll_ms, 0U, usbd_dfu_manifest_timer_cb);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_timer fail\n");
+		goto reconf_fail;
+	}
+
+	ret = usb_os_sema_create(&dfu->reconf_sema);
+	if (ret != HAL_OK) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for reconf_sema\n");
+		goto reconf_fail;
+	}
+
+	ret = rtos_task_create(&dfu->reconf_task, "usbd_dfu_reconf_thread", usbd_dfu_reconf_task,
+						   dfu, USBD_DFU_REENUM_TASK_STACK, USBD_DFU_REENUM_TASK_PRIORITY);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create reconf_task fail\n");
+		usb_os_sema_delete(dfu->reconf_sema);
+		dfu->reconf_sema = NULL;
+		goto reconf_fail;
+	}
+
+#if !USBD_DFU_WILL_DETACH
+	/* One-shot timer: if host doesn't issue USB Reset within wDetachTimeOut, revert
+	 * to Run-Time mode.  Created here (task context); started in reconf_task. */
+	ret = rtos_timer_create(&dfu->detach_timer, "dfu_detach", 0U,
+							USBD_DFU_DETACH_TIMEOUT, 0U, usbd_dfu_detach_timeout_cb);
+	if (ret != RTK_SUCCESS) {
+		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create detach_timer fail\n");
+		rtos_task_t t = dfu->reconf_task;
+		dfu->reconf_task = NULL;
+		dfu->reconf_stop = 1U;
+		usb_os_sema_give(dfu->reconf_sema);
+		rtos_task_delete(t);
+		usb_os_sema_delete(dfu->reconf_sema);
+		dfu->reconf_sema = NULL;
+		goto reconf_fail;
+	}
+#endif /* !USBD_DFU_WILL_DETACH */
+
+	dfu->state  = USB_DFU_STATE_APP_IDLE;
+	dfu->status = USBD_DFU_STATUS_OK;
+
+
+	return HAL_OK;
+
+reconf_fail:
+	usbd_dfu_cleanup_manifest(dfu);
+	usbd_dfu_cleanup_write(dfu);
+	if (cb->deinit != NULL) {
+		cb->deinit();
+	}
+	usb_os_mfree((void *)dfu->xfer_buf);
+	dfu->xfer_buf = NULL;
+	return HAL_ERR_MEM;
+}
+
 /* Exported functions --------------------------------------------------------*/
 
 /**
@@ -969,164 +1303,33 @@ u8 usbd_dfu_get_state(void)
 	return (u8)usbd_dfu_dev.state;
 }
 
-/**
- * @brief  Initialize the DFU device class driver.
- */
 int usbd_dfu_init(usbd_dfu_cb_t *cb)
 {
-	int ret = HAL_OK;
 	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
+	int ret;
 
-	if (cb == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Invalid CB\n");
-		return HAL_ERR_PARA;
+	ret = usbd_dfu_private_init(cb);
+	if (ret == HAL_OK) {
+		dfu->from_composite = 0;
+		usbd_register_class(&usbd_dfu_driver);
 	}
-
-	/* Preserve mode across a reconf reinit (WILL_DETACH=1).  On a fresh first
-	 * init the struct is zero-initialised (BSS), so saved_mode is 0 which is
-	 * neither RUNTIME nor DFU — default to RUNTIME below. */
-	u8 saved_mode = dfu->mode;
-	usb_os_memset(dfu, 0, sizeof(usbd_dfu_dev_t));
-
-	dfu->xfer_buf = (u8 *)usb_os_malloc(USBD_DFU_XFER_SIZE);
-	if (dfu->xfer_buf == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for xfer_buf\n");
-		return HAL_ERR_MEM;
-	}
-	if (!USB_IS_MEM_DMA_ALIGNED(dfu->xfer_buf)) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "xfer_buf not DMA-aligned\n");
-		usb_os_mfree(dfu->xfer_buf);
-		dfu->xfer_buf = NULL;
-		return HAL_ERR_MEM;
-	}
-
-	dfu->cb = cb;
-	if (cb->write == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "write cb required (CAN_DNLOAD=1)\n");
-		usb_os_mfree(dfu->xfer_buf);
-		dfu->xfer_buf = NULL;
-		return HAL_ERR_PARA;
-	}
-	dfu->write_poll_ms = USBD_DFU_WRITE_POLL_MS_DEFAULT;
-#if CONFIG_USBD_DFU_CAN_UPLOAD
-	if (cb->read == NULL) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "read cb required (CAN_UPLOAD=1)\n");
-		usb_os_mfree(dfu->xfer_buf);
-		dfu->xfer_buf = NULL;
-		return HAL_ERR_PARA;
-	}
-#endif
-	/* Restore DFU mode when reinitialising after a reconf callback; default to
-	 * Run-Time on all other init paths (first boot or plain hotplug reinit). */
-	dfu->mode = (saved_mode == USB_DFU_PROTOCOL_DFU)
-				? USB_DFU_PROTOCOL_DFU : USB_DFU_PROTOCOL_RUNTIME;
-	if (cb->init != NULL) {
-		ret = cb->init();
-		if (ret != HAL_OK) {
-			RTK_LOGS(TAG, RTK_LOG_ERROR, "CB init fail: %d\n", ret);
-			usb_os_mfree(dfu->xfer_buf);
-			dfu->xfer_buf = NULL;
-			return ret;
-		}
-	}
-
-	ret = usb_os_sema_create(&dfu->write_sema);
-	if (ret != HAL_OK) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for write_sema\n");
-		if (cb->deinit != NULL) {
-			cb->deinit();
-		}
-		usb_os_mfree(dfu->xfer_buf);
-		dfu->xfer_buf = NULL;
-		return HAL_ERR_MEM;
-	}
-
-	ret = rtos_task_create(&dfu->write_task, "dfu_write", usbd_dfu_write_task,
-						   dfu, USBD_DFU_WRITE_TASK_STACK, USBD_DFU_WRITE_TASK_PRIORITY);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create write_task fail\n");
-		usb_os_sema_delete(dfu->write_sema);
-		dfu->write_sema = NULL;
-		if (cb->deinit != NULL) {
-			cb->deinit();
-		}
-		usb_os_mfree(dfu->xfer_buf);
-		dfu->xfer_buf = NULL;
-		return HAL_ERR_MEM;
-	}
-
-	/* Create manifest task and timer for async manifest support */
-	ret = usb_os_sema_create(&dfu->manifest_sema);
-	if (ret != HAL_OK) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_sema fail\n");
-		goto reconf_fail;
-	}
-	dfu->manifest_poll_ms = USBD_DFU_MANIFEST_POLL_MS_DEFAULT;
-	ret = rtos_task_create(&dfu->manifest_task, "dfu_manifest", usbd_dfu_manifest_task,
-						   dfu, USBD_DFU_MANIFEST_TASK_STACK, USBD_DFU_MANIFEST_TASK_PRIORITY);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_task fail\n");
-		usb_os_sema_delete(dfu->manifest_sema);
-		dfu->manifest_sema = NULL;
-		goto reconf_fail;
-	}
-	ret = rtos_timer_create(&dfu->manifest_timer, "dfu_mftmr", 0U,
-							dfu->manifest_poll_ms, 0U, usbd_dfu_manifest_timer_cb);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create manifest_timer fail\n");
-		goto reconf_fail;
-	}
-
-	ret = usb_os_sema_create(&dfu->reconf_sema);
-	if (ret != HAL_OK) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "No mem for reconf_sema\n");
-		goto reconf_fail;
-	}
-
-	ret = rtos_task_create(&dfu->reconf_task, "dfu_reconf", usbd_dfu_reconf_task,
-						   dfu, USBD_DFU_REENUM_TASK_STACK, USBD_DFU_REENUM_TASK_PRIORITY);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create reconf_task fail\n");
-		usb_os_sema_delete(dfu->reconf_sema);
-		dfu->reconf_sema = NULL;
-		goto reconf_fail;
-	}
-
-#if !CONFIG_USBD_DFU_WILL_DETACH
-	/* One-shot timer: if host doesn't issue USB Reset within wDetachTimeOut, revert
-	 * to Run-Time mode.  Created here (task context); started in reconf_task. */
-	ret = rtos_timer_create(&dfu->detach_timer, "dfu_detach", 0U,
-							USBD_DFU_DETACH_TIMEOUT, 0U, usbd_dfu_detach_timeout_cb);
-	if (ret != RTK_SUCCESS) {
-		RTK_LOGS(TAG, RTK_LOG_ERROR, "Create detach_timer fail\n");
-		rtos_task_t t = dfu->reconf_task;
-		dfu->reconf_task = NULL;
-		dfu->reconf_stop = 1U;
-		usb_os_sema_give(dfu->reconf_sema);
-		rtos_task_delete(t);
-		usb_os_sema_delete(dfu->reconf_sema);
-		dfu->reconf_sema = NULL;
-		goto reconf_fail;
-	}
-#endif /* !CONFIG_USBD_DFU_WILL_DETACH */
-
-	dfu->state  = USB_DFU_STATE_APP_IDLE;
-	dfu->status = USBD_DFU_STATUS_OK;
-
-	usbd_register_class(&usbd_dfu_driver);
-
-	return HAL_OK;
-
-reconf_fail:
-	usbd_dfu_cleanup_manifest(dfu);
-	usbd_dfu_cleanup_write(dfu);
-	if (cb->deinit != NULL) {
-		cb->deinit();
-	}
-	usb_os_mfree(dfu->xfer_buf);
-	dfu->xfer_buf = NULL;
-	return HAL_ERR_MEM;
+	return ret;
 }
+
+#ifdef CONFIG_USBD_COMPOSITE
+int usbd_composite_dfu_init(usbd_dfu_cb_t *cb)
+{
+	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
+	int ret;
+
+	ret = usbd_dfu_private_init(cb);
+	if (ret == HAL_OK) {
+		dfu->from_composite = 1;
+		ret = usbd_composite_register_driver(&usbd_dfu_driver);
+	}
+	return ret;
+}
+#endif
 
 /**
  * @brief  Deinitialize the DFU device class driver.
@@ -1135,23 +1338,26 @@ int usbd_dfu_deinit(void)
 {
 	usbd_dfu_dev_t *dfu = &usbd_dfu_dev;
 
-	if (dfu->cb != NULL) {
-		if (dfu->cb->deinit != NULL) {
-			dfu->cb->deinit();
-		}
-		dfu->cb = NULL;
+	/* Unregister first: no setup()/ep0 callback can run afterwards, so the GETSTATUS
+	 * branch that dereferences cb->get_write_poll_ms in ISR context cannot race the
+	 * teardown below. */
+#ifdef CONFIG_USBD_COMPOSITE
+	if (dfu->from_composite) {
+		usbd_composite_unregister_driver(&usbd_dfu_driver);
+	} else
+#endif
+	{
+		usbd_unregister_class();
 	}
 
-	usbd_unregister_class();
-
-#if !CONFIG_USBD_DFU_WILL_DETACH
+#if !USBD_DFU_WILL_DETACH
 	/* Stop and delete the detach timeout timer before tearing down reconf_task. */
 	if (dfu->detach_timer != NULL) {
 		rtos_timer_stop(dfu->detach_timer, 0U);
 		rtos_timer_delete(dfu->detach_timer, 0U);
 		dfu->detach_timer = NULL;
 	}
-#endif /* !CONFIG_USBD_DFU_WILL_DETACH */
+#endif /* !USBD_DFU_WILL_DETACH */
 	/* Stop reconf_task: set flag, unblock it, then delete. */
 	if (dfu->reconf_task != NULL) {
 		rtos_task_t t = dfu->reconf_task;
@@ -1167,6 +1373,16 @@ int usbd_dfu_deinit(void)
 	usbd_dfu_cleanup_manifest(dfu);
 	usbd_dfu_cleanup_write(dfu);
 
+	/* write_task/manifest_task are gone and the class is unregistered, so this is the
+	 * only remaining user of cb: releasing it here cannot be observed as a NULL
+	 * dereference by another context (MISRA-C:2012 Rule 1.3). */
+	if (dfu->cb != NULL) {
+		if (dfu->cb->deinit != NULL) {
+			dfu->cb->deinit();
+		}
+		dfu->cb = NULL;
+	}
+
 	if (dfu->xfer_buf != NULL) {
 		/* ep0_data_in/out restore pointers on normal completion, but a disconnect
 		 * or error can leave ep0_in/out.xfer_buf dangling into xfer_buf.
@@ -1179,7 +1395,7 @@ int usbd_dfu_deinit(void)
 				dfu->dev->ep0_out.xfer_buf = dfu->ep0_default_buf;
 			}
 		}
-		usb_os_mfree(dfu->xfer_buf);
+		usb_os_mfree((void *)dfu->xfer_buf);
 		dfu->xfer_buf = NULL;
 	}
 

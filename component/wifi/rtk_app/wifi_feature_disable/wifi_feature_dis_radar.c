@@ -41,15 +41,18 @@ void wifi_hal_radar_deinit(void *a)
 	UNUSED(a);
 }
 
-s32 wifi_hal_radar_cfg(void *a)
+void wifi_hal_radar_parm_init(void)
 {
-	UNUSED(a);
+
+}
+
+s32 wifi_hal_radar_cfg(void)
+{
 	return -1;
 }
 
-s32 wifi_hal_radar_en(void *a)
+s32 wifi_hal_radar_en(void)
 {
-	UNUSED(a);
 	return -1;
 }
 
@@ -70,54 +73,37 @@ s32 wifi_hal_radar_check_status(u8 *radar_active)
 	return 0;
 }
 
-void wifi_hal_radar_query(void)
-{
-
-}
-
-void wifi_hal_dbg_radar_edcca_th(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_radar_query(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
 }
 
-void wifi_hal_dbg_radar_intf_det_th(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_radar_parm_set(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
 }
 
-void wifi_hal_dbg_radar_timeout_th(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_radar_bb_parm_set(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
 }
 
-void wifi_hal_dbg_radar_rfk_en(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_dbg_radar_psd_check(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
 }
 
-void wifi_hal_dbg_radar_rf_srk_dis(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_dbg_radar_debug_type(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
 }
 
-void wifi_hal_dbg_radar_log_range_ori(char *cmd_ptr, u32 extra_arg)
-{
-	(void)cmd_ptr;
-	(void)extra_arg;
-}
-
-void wifi_hal_dbg_radar_log_lms_parse(char *cmd_ptr, u32 extra_arg)
-{
-	(void)cmd_ptr;
-	(void)extra_arg;
-}
-
-void wifi_hal_dbg_radar_log_rpt_info(char *cmd_ptr, u32 extra_arg)
+void wifi_hal_radar_dbg_log(char *cmd_ptr, u32 extra_arg)
 {
 	(void)cmd_ptr;
 	(void)extra_arg;
@@ -139,13 +125,13 @@ void wifi_hal_radar_bw(u8 bw_idx)
 	UNUSED(bw_idx);
 }
 
-void wifi_hal_radar_chrip(u8 chrip_width, u8 chirp_num)
+void wifi_hal_radar_chirp(u8 chirp_width, u8 chirp_num)
 {
-	UNUSED(chrip_width);
+	UNUSED(chirp_width);
 	UNUSED(chirp_num);
 }
 
-void wifi_hal_radar_frame(u16 frame_intev, u16 frame_num)
+void wifi_hal_radar_frame(u8 frame_intev, u16 frame_num)
 {
 	UNUSED(frame_intev);
 	UNUSED(frame_num);

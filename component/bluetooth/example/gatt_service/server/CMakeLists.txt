@@ -41,7 +41,10 @@ ameba_list_append(private_sources
 	rtk_gls.c
 	rtk_hids_kb.c
 	rtk_hrs.c
+	rtk_hts.c
+	rtk_lns.c
 	rtk_rscs.c
+	rtk_cscs.c
 	rtk_ias.c
 	rtk_long_uuid_service.c
 	rtk_simple_ble_service.c
@@ -51,6 +54,8 @@ ameba_list_append(private_sources
 	rtk_hids_iso.c
 	rtk_tps.c
 	rtk_lls.c
+	rtk_ipss.c
+	rtk_ots.c
 )
 
 ameba_list_append(private_includes

@@ -29,6 +29,12 @@
 /* fully programmable zone */
 #define UART_TX								_PA_25
 #define UART_RX								_PA_26
+
+#elif defined (CONFIG_RTL8720F)
+/* fully programmable zone */
+#define UART_TX								_PA_13
+#define UART_RX								_PA_14
+
 #endif
 
 #define WHC_UART_DEV_RX_IDLE				0x0
@@ -46,7 +52,6 @@
 #define whc_dev_bus_is_idle					whc_uart_dev_bus_is_idle
 #define whc_dev_trigger_rx_handle()			whc_uart_dev_trigger_rx_handle()
 #define whc_dev_send						whc_uart_dev_send
-#define whc_dev_flowctrl(a, b)
 
 enum WHC_UART_HANDSHAKE_TYPE {
 	WHC_UART_HDR = 1,

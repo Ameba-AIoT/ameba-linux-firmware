@@ -1393,8 +1393,11 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 		BT_AT_PRINT("+BTA2DP:start,%02x:%02x:%02x:%02x:%02x:%02x,%d\r\n",
 					pa2dp_stream->bd_addr[5], pa2dp_stream->bd_addr[4], pa2dp_stream->bd_addr[3], pa2dp_stream->bd_addr[2], pa2dp_stream->bd_addr[1],
 					pa2dp_stream->bd_addr[0]);
+		/* flush remaining decode data */
+		rtk_bt_audio_codec_reset(audio_a2dp_codec_conf.codec_index, a2dp_demo_codec_entity);
 		if (a2dp_demo_audio_track_hdl) {
 			rtk_bt_audio_track_resume(a2dp_demo_audio_track_hdl->audio_track_hdl);
+			rtk_bt_audio_track_set_play_state(a2dp_demo_audio_track_hdl, (uint16_t)RTK_BT_AUDIO_TRACK_PLAYING);
 		}
 	}
 	break;
@@ -1417,6 +1420,7 @@ static rtk_bt_evt_cb_ret_t rtk_bt_a2dp_app_callback(uint8_t evt_code, void *para
 					p_stream_stop_t->bd_addr[5], p_stream_stop_t->bd_addr[4], p_stream_stop_t->bd_addr[3],
 					p_stream_stop_t->bd_addr[2], p_stream_stop_t->bd_addr[1], p_stream_stop_t->bd_addr[0]);
 		if (a2dp_demo_audio_track_hdl) {
+			rtk_bt_audio_track_set_play_state(a2dp_demo_audio_track_hdl, (uint16_t)RTK_BT_AUDIO_TRACK_PAUSED);
 			rtk_bt_audio_track_pause(a2dp_demo_audio_track_hdl->audio_track_hdl);
 		}
 	}
@@ -2299,7 +2303,7 @@ int bt_audio_mp_test_main(uint8_t enable)
 											RTK_BT_PROFILE_SDP;
 		bt_app_conf.mtu_size = 180;
 		bt_app_conf.max_tx_octets = 0x40;
-		bt_app_conf.max_tx_time = 0x200;
+		bt_app_conf.max_tx_time = 0x270;
 		bt_app_conf.a2dp_role = RTK_BT_A2DP_ROLE_SNK;
 		bt_app_conf.hfp_role = RTK_BT_AUDIO_HFP_ROLE_HF;
 		bt_app_conf.spp_role = RTK_BT_SPP_ROLE_CLIENT;
